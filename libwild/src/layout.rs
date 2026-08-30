@@ -20,6 +20,8 @@ use crate::expression_eval::ResolvedSymbolValue;
 use crate::expression_eval::evaluate_const;
 use crate::file_writer;
 use crate::grouping::Group;
+use crate::grouping::SequencedInput;
+use crate::grouping::SequencedInputObject;
 use crate::grouping::SequencedLinkerScript;
 use crate::input_data::FileId;
 use crate::input_data::InputRef;
@@ -5604,6 +5606,29 @@ fn compute_layout_sections<'data, P: Platform>(
                         );
                     };
 
+                    let canonical_id = symbol_db.definition(symbol_id);
+                    let file_id = symbol_db.file_id_for_symbol(canonical_id);
+                    let is_object = matches!(
+                        group_states
+                            .get(file_id.group())
+                            .and_then(|group| group.files.get(file_id.file())),
+                        Some(FileLayoutState::Object(_))
+                    );
+                    if !is_object {
+                        return Ok(ResolvedSymbolValue::Absolute(layout_time_symbol_value(
+                            name,
+                            symbol_db,
+                            section_layouts,
+                            output_sections,
+                            memory_regions,
+                            loc,
+                            sizeof_headers,
+                            resolved_lc,
+                            &const_script_symbols,
+                            0,
+                        )?));
+                    }
+
                     let symbol_value = match resolve_early_object_symbol(
                         symbol_id,
                         group_states,
@@ -6075,6 +6100,197 @@ fn compute_layout_sections<'data, P: Platform>(
     validate_all_non_empty_sections_emitted(sizes, output_sections, output_order)?;
 
     Ok((records_out, section_layouts, resolved_lc))
+}
+
+/// Resolve a named symbol while assigning output-section addresses.
+///
+/// Constant script symbols (for example `LOAD_OFFSET = 0x1000`) are used as-is. Object symbols
+/// whose output section has already been laid out are `output_section.mem_offset + st_value`.
+/// That is exact when the symbol's input section is the first (or only) contribution to that
+/// output section or secondary, which is the GNU ld pattern used by the kernel
+/// (`. = srso_alias_untrain_ret | …` after a dedicated matcher).
+///
+/// Linker-script symbols assigned to `.` (for example `__start_init_stack = .`) are evaluated
+/// from their stored expression and location, so later `. = symbol + SIZE` commands work.
+///
+/// Named symbols are GNU ld "absolute" addresses, so `. = symbol | mask` applies the mask
+/// to the VMA rather than adding it as a section offset.
+fn layout_time_symbol_value<'data, P: Platform>(
+    name: &[u8],
+    symbol_db: &SymbolDb<'data, P>,
+    section_layouts: &OutputSectionMap<OutputRecordLayout>,
+    output_sections: &OutputSections<'data, P>,
+    memory_regions: &HashMap<&[u8], MemoryRegion>,
+    loc: &SymbolLoc,
+    sizeof_headers: u64,
+    resolved_lc: &[ResolvedLocationCounter],
+    const_script_symbols: &HashMap<&[u8], u64>,
+    recursion_depth: u32,
+) -> Result<u64> {
+    if recursion_depth > 32 {
+        bail!(
+            "cyclic linker-script symbol `{}`",
+            String::from_utf8_lossy(name)
+        );
+    }
+
+    if let Some(value) = const_script_symbols.get(name) {
+        return Ok(*value);
+    }
+
+    let Some(symbol_id) = symbol_db.get_unversioned(&UnversionedSymbolName::prehashed(name)) else {
+        bail!(
+            "undefined symbol `{}` in linker-script expression",
+            String::from_utf8_lossy(name)
+        );
+    };
+    let definition = symbol_db.definition(symbol_id);
+    if symbol_db.is_undefined(definition) {
+        bail!(
+            "undefined symbol `{}` in linker-script expression",
+            String::from_utf8_lossy(name)
+        );
+    }
+
+    match symbol_db.file(symbol_db.file_id_for_symbol(definition)) {
+        SequencedInput::Object(obj) => {
+            object_symbol_address_in_layout(name, obj, definition, symbol_db, section_layouts)
+        }
+        #[cfg(all(feature = "plugins", unix))]
+        SequencedInput::LtoInput(_) => {
+            bail!(
+                "symbol `{}` is defined by an LTO input that has not been code-generated",
+                String::from_utf8_lossy(name)
+            );
+        }
+        SequencedInput::Prelude(prelude) => script_def_layout_value(
+            name,
+            prelude.symbol_def(definition),
+            symbol_db,
+            section_layouts,
+            output_sections,
+            memory_regions,
+            loc,
+            sizeof_headers,
+            resolved_lc,
+            const_script_symbols,
+            recursion_depth,
+        ),
+        SequencedInput::LinkerScript(script) => {
+            let offset = definition.to_offset(script.symbol_id_range);
+            script_def_layout_value(
+                name,
+                &script.parsed.symbol_defs[offset],
+                symbol_db,
+                section_layouts,
+                output_sections,
+                memory_regions,
+                loc,
+                sizeof_headers,
+                resolved_lc,
+                const_script_symbols,
+                recursion_depth,
+            )
+        }
+        SequencedInput::SyntheticSymbols(_) | SequencedInput::StubLibrary(_) => {
+            bail!(
+                "Symbols with the set location operation are not yet supported (`{}`).",
+                String::from_utf8_lossy(name)
+            );
+        }
+    }
+}
+
+fn script_def_layout_value<'data, P: Platform>(
+    name: &[u8],
+    def: &InternalSymDefInfo<'data, P>,
+    symbol_db: &SymbolDb<'data, P>,
+    section_layouts: &OutputSectionMap<OutputRecordLayout>,
+    output_sections: &OutputSections<'data, P>,
+    memory_regions: &HashMap<&[u8], MemoryRegion>,
+    _outer_loc: &SymbolLoc,
+    sizeof_headers: u64,
+    resolved_lc: &[ResolvedLocationCounter],
+    const_script_symbols: &HashMap<&[u8], u64>,
+    recursion_depth: u32,
+) -> Result<u64> {
+    match &def.placement {
+        SymbolPlacement::Redirect(redirect) => crate::expression_eval::evaluate_expression(
+            &redirect.expression,
+            &redirect.loc,
+            None,
+            section_layouts,
+            output_sections,
+            memory_regions,
+            symbol_db,
+            sizeof_headers,
+            resolved_lc,
+            &|nested| {
+                Ok(ResolvedSymbolValue::Absolute(layout_time_symbol_value(
+                    nested,
+                    symbol_db,
+                    section_layouts,
+                    output_sections,
+                    memory_regions,
+                    &redirect.loc,
+                    sizeof_headers,
+                    resolved_lc,
+                    const_script_symbols,
+                    recursion_depth + 1,
+                )?))
+            },
+        ),
+        SymbolPlacement::SectionStart(id) => Ok(section_layouts.get(*id).mem_offset),
+        SymbolPlacement::SectionEnd(id) | SymbolPlacement::SectionGroupEnd(id) => {
+            let layout = section_layouts.get(*id);
+            Ok(layout.mem_offset + layout.mem_size)
+        }
+        _ => bail!(
+            "Symbols with the set location operation are not yet supported (`{}`).",
+            String::from_utf8_lossy(name)
+        ),
+    }
+}
+
+fn object_symbol_address_in_layout<'data, P: Platform>(
+    name: &[u8],
+    obj: &SequencedInputObject<'data, P>,
+    definition: SymbolId,
+    symbol_db: &SymbolDb<'data, P>,
+    section_layouts: &OutputSectionMap<OutputRecordLayout>,
+) -> Result<u64> {
+    let local_index = definition.to_input(obj.symbol_id_range);
+    let symbol = obj.parsed.object.symbol(local_index)?;
+    if symbol.is_absolute() {
+        return Ok(symbol.value());
+    }
+
+    let Some(section_index) = obj.parsed.object.symbol_section(symbol, local_index)? else {
+        return Ok(symbol.value());
+    };
+
+    let offset = obj
+        .parsed
+        .object
+        .symbol_offset_in_section(symbol, section_index)?;
+    let part_id = symbol_db.part_id_for_symbol(definition);
+    if part_id == crate::part_id::UNMAPPED {
+        bail!(
+            "symbol `{}` is not in an output section",
+            String::from_utf8_lossy(name)
+        );
+    }
+
+    let output_id = part_id.output_section_id::<P>();
+    let layout = section_layouts.get(output_id);
+    if layout.mem_size == 0 && layout.mem_offset == 0 && layout.file_offset == 0 {
+        bail!(
+            "symbol `{}` is used in a location-counter assignment before its section has been laid out",
+            String::from_utf8_lossy(name)
+        );
+    }
+
+    Ok(layout.mem_offset + offset)
 }
 
 fn collect_const_script_symbols<'data, P: Platform>(

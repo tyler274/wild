@@ -48,7 +48,7 @@ matching all three.
 | `PROVIDE(sym = expr)` inside sections | ✅ | |
 | `PROVIDE_HIDDEN(sym = expr)` inside sections | ✅ | |
 | Symbol assignment inside sections (`sym = .`) | ✅ | |
-| Location counter assignment (`. = expr`) | 🧪 | Constant expressions and script-defined constants (e.g. `LOAD_OFFSET`) are supported. `. = object_symbol` (as in x86 `srso_alias_untrain_ret`) is not yet supported |
+| Location counter assignment (`. = expr`) | 🧪 | Constants, script-defined constants, and object symbols in already-laid-out sections are supported. Object symbols are GNU ld absolute addresses, so `. = symbol \| mask` (x86 `srso_alias_untrain_ret`) applies the mask to the VMA. The object-symbol address is the start of that output section/secondary plus the symbol's input offset. Forward references are not supported |
 | `ALIGN(n)` on the location counter (`. = ALIGN(n)`) | ✅ | |
 | Per-section `ALIGN(n)` specifier | ✅ | |
 | `ASSERT(expr, "msg")` inside `SECTIONS` | ✅ | |
@@ -78,7 +78,7 @@ matching all three.
 | Unary operators: `-`, `!`, `~` | ✅ | |
 | Numeric literals: decimal and hexadecimal | ✅ | |
 | Numeric literal K/M suffixes (e.g. `64K`, `2M`) | ✅ | |
-| Symbol references and location counter (`.`) | ✅ | Constant script symbols are resolved during layout |
+| Symbol references and location counter (`.`) | ✅ | Constant script symbols and object symbols in already-laid-out sections are resolved during layout |
 | Parenthesised sub-expressions | ✅ | |
 | `SIZEOF(section)` | ✅ | |
 | `ALIGNOF(section)` | ✅ | |

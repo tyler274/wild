@@ -1206,6 +1206,11 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         // The .riscv.attributes section is non-alloc but is expected to be put into a
         // RISCV_ATTRIBUTES segment.
         if [sht::NOTE, sht::RISCV_ATTRIBUTES].contains(&section_info.section_attributes.ty) {
+        } else if section_layout.mem_offset == 0
+            && merge_target != crate::output_section_id::FILE_HEADER
+        {
+            // Sections with an explicit VMA of 0 (e.g. `.comment 0 :`) and empty
+            // unused script sections can appear in PHDRS without a non-zero address.
         } else {
             // All segments should only cover sections that are allocated and have a non-zero
             // address.

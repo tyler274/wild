@@ -235,6 +235,12 @@ const SILENTLY_IGNORED_FLAGS: &[&str] = &[
     "sort-common",
     "stats",
     "verbose",
+    // Kernel vmlinux.lds / Makefile flags that we do not implement yet.
+    "no-warn-rwx-segments",
+    "warn-rwx-segments",
+    "emit-relocs",
+    "q", // alias for --emit-relocs
+    "discard-none",
 ];
 const SILENTLY_IGNORED_SHORT_FLAGS: &[&str] = &[
     "(",
