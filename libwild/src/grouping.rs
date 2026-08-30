@@ -73,7 +73,7 @@ impl<'data, P: Platform> Group<'data, P> {
     pub(crate) fn group_id(&self) -> usize {
         match self {
             Group::Prelude(_) => 0,
-            Group::Objects(objects) => objects[0].file_id.group(),
+            Group::Objects(objects) => objects.first().map(|o| o.file_id.group()).unwrap_or(0),
             Group::StubLibraries(stubs) => stubs[0].file_id.group(),
             Group::LinkerScripts(scripts) => scripts[0].file_id.group(),
             Group::SyntheticSymbols(s) => s.file_id.group(),
@@ -89,10 +89,16 @@ impl<'data, P: Platform> Group<'data, P> {
     pub(crate) fn symbol_id_range(&self) -> SymbolIdRange {
         match self {
             Group::Prelude(o) => SymbolIdRange::prelude(o.symbol_definitions.len()),
-            Group::Objects(objects) => SymbolIdRange::covering(
-                objects[0].symbol_id_range,
-                objects[objects.len() - 1].symbol_id_range,
-            ),
+            Group::Objects(objects) => {
+                if objects.is_empty() {
+                    SymbolIdRange::empty()
+                } else {
+                    SymbolIdRange::covering(
+                        objects[0].symbol_id_range,
+                        objects[objects.len() - 1].symbol_id_range,
+                    )
+                }
+            }
             Group::StubLibraries(stubs) => SymbolIdRange::covering(
                 stubs[0].symbol_id_range,
                 stubs[stubs.len() - 1].symbol_id_range,
@@ -118,6 +124,47 @@ impl<'data, P: Platform> Group<'data, P> {
 
     pub(crate) fn num_symbols(&self) -> usize {
         self.symbol_id_range().len()
+    }
+
+    #[allow(dead_code)]
+    fn set_group_index(&mut self, group_index: u32) {
+        match self {
+            Group::Prelude(_) => {}
+            Group::Objects(_) => {}
+            Group::StubLibraries(stubs) => {
+                for stub in stubs {
+                    stub.file_id = FileId::new(group_index, stub.file_id.file() as u32);
+                }
+            }
+            Group::LinkerScripts(scripts) => {
+                for script in scripts {
+                    script.file_id = FileId::new(group_index, script.file_id.file() as u32);
+                }
+            }
+            Group::SyntheticSymbols(s) => {
+                s.file_id = FileId::new(group_index, s.file_id.file() as u32);
+            }
+            #[cfg(all(feature = "plugins", unix))]
+            Group::LtoInputs(objects) => {
+                for obj in objects {
+                    obj.file_id = FileId::new(group_index, obj.file_id.file() as u32);
+                }
+            }
+        }
+    }
+}
+
+#[allow(dead_code)]
+pub(crate) fn remap_groups_file_ids<P: Platform>(
+    groups: &mut [Group<P>],
+    from_group: usize,
+    delta: u32,
+) {
+    for group in groups {
+        let old = group.group_id();
+        if old >= from_group {
+            group.set_group_index(old as u32 + delta);
+        }
     }
 }
 
@@ -243,6 +290,59 @@ pub(crate) fn create_groups<'data, P: Platform>(
             Ok(())
         })
     );
+}
+
+/// Insert an empty object group used as a slot for later plugin codegen (#1935).
+#[allow(dead_code)]
+pub(crate) fn add_plugin_codegen_placeholder<P: Platform>(symbol_db: &mut SymbolDb<P>) -> usize {
+    let index = symbol_db.groups.len();
+    symbol_db.add_group(Group::Objects(&[]));
+    index
+}
+
+/// Fill the plugin-codegen placeholder with objects produced by the linker plugin.
+/// All codegen objects go in a single group so later groups keep their FileIds.
+#[allow(dead_code)]
+pub(crate) fn fill_plugin_codegen_group<'data, P: Platform>(
+    symbol_db: &mut SymbolDb<'data, P>,
+    group_index: usize,
+    parsed_objects: Vec<Box<ParsedInputObject<'data, P>>>,
+) {
+    if parsed_objects.is_empty() {
+        return;
+    }
+
+    debug_assert!(
+        parsed_objects.len() <= MAX_FILES_PER_GROUP as usize,
+        "Plugin codegen produced too many objects for one group: {}",
+        parsed_objects.len()
+    );
+
+    let mut next_symbol_id = symbol_db.next_symbol_id();
+    let mut next_input_section_id = symbol_db.next_input_section_id;
+    let mut group_objects = Vec::with_capacity(parsed_objects.len());
+
+    for (file_index, parsed) in parsed_objects.into_iter().enumerate() {
+        let num_symbols_in_file = parsed.object.num_symbols();
+        let section_count = if parsed.object.is_dynamic() {
+            0
+        } else {
+            parsed.object.num_sections()
+        };
+        group_objects.push(SequencedInputObject {
+            parsed,
+            symbol_id_range: SymbolIdRange::input(next_symbol_id, num_symbols_in_file),
+            section_id_range: SectionIdRange::input(next_input_section_id, section_count),
+            file_id: FileId::new(group_index as u32, file_index as u32),
+        });
+        next_symbol_id = next_symbol_id.add_usize(num_symbols_in_file);
+        next_input_section_id = next_input_section_id.add_usize(section_count);
+    }
+
+    let allocator = symbol_db.herd.get();
+    let objects_slice = allocator.alloc_slice_fill_iter(group_objects);
+    symbol_db.groups[group_index] = Group::Objects(objects_slice);
+    symbol_db.next_input_section_id = next_input_section_id;
 }
 
 /// Decides after how many symbols, we should start a new group.

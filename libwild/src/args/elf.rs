@@ -1900,7 +1900,7 @@ impl platform::Args for ElfArgs {
     }
 
     fn should_gc_sections(&self) -> bool {
-        self.gc_sections
+        self.gc_sections && !self.common.incremental
     }
 
     fn should_merge_sections(&self) -> bool {

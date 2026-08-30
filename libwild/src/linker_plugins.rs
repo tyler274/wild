@@ -153,29 +153,30 @@ impl<'data> LinkerPlugin<'data> {
         arena: &'data Arena<LoadedPlugin>,
         herd: &'data Herd,
     ) -> Result<Option<LinkerPlugin<'data>>> {
-        match args.plugin_path.as_ref() {
-            Some(path) => {
-                let wrap_symbols = WrapSymbols::new(&args.wrap, herd)?;
+        let wrap_symbols = WrapSymbols::new(&args.wrap, herd)?;
+        let _ = increase_file_limit();
+        let path = args
+            .plugin_path
+            .as_ref()
+            .map(PathBuf::from)
+            .unwrap_or_default();
+        Ok(Some(LinkerPlugin {
+            path,
+            store: Store::Unloaded(LoadInfo {
+                args,
+                arena,
+                get_symbols_v3: get_symbols_v3::<C>,
+            }),
+            herd,
+            wrap_symbols,
+        }))
+    }
 
-                // When the linker plugin is active, we keep LTO inputs open since the plugin API
-                // needs them. This can cause us to hit our file descriptor limit. To avoid this, we
-                // attempt to increase the limit. Increasing the file limit is best-effort. If we
-                // can't increase the file limit for some reason, continue without warning and hope
-                // we don't need too many open files.
-                let _ = increase_file_limit();
-
-                Ok(Some(LinkerPlugin {
-                    path: PathBuf::from(&path),
-                    store: Store::Unloaded(LoadInfo {
-                        args,
-                        arena,
-                        get_symbols_v3: get_symbols_v3::<C>,
-                    }),
-                    herd,
-                    wrap_symbols,
-                }))
-            }
-            None => Ok(None),
+    fn discover_plugin_path_for_kind(kind: FileKind) -> Result<PathBuf> {
+        match kind {
+            FileKind::LlvmIr => discover_llvm_gold_plugin(),
+            FileKind::GccIr => discover_gcc_lto_plugin(),
+            _ => crate::bail!("No linker plugin is applicable for {kind}"),
         }
     }
 
@@ -188,6 +189,10 @@ impl<'data> LinkerPlugin<'data> {
         verbose_timing_phase!("Linker plugin process input");
 
         let fd = file.as_raw_fd();
+
+        if self.path.as_os_str().is_empty() {
+            self.path = Self::discover_plugin_path_for_kind(kind)?;
+        }
 
         if let Some(info) = self.claim_file(input_ref, fd)? {
             Ok(Some(info))
@@ -219,7 +224,8 @@ impl<'data> LinkerPlugin<'data> {
             return Ok(());
         }
 
-        timing_phase!("Linker plugin codegen");
+        // Plugin codegen objects are currently appended after regular inputs. Placing them at the
+        // first LTO command-line position (#1935) needs remappable FileIds on `Group::Objects`.
 
         // Mark wrapped symbol names and their __wrap_/__real_ variants as referenced by non-IR
         // code. This ensures the plugin keeps them in the LTO output rather than
@@ -1390,6 +1396,92 @@ pub(crate) enum SymbolKind {
     Undef = 2,
     WeakUndef = 3,
     Common = 4,
+}
+
+fn discover_llvm_gold_plugin() -> Result<PathBuf> {
+    let rustc_llvm = rustc_llvm_version();
+    let mut candidates = Vec::new();
+
+    if let Some(sysroot) = command_stdout_trim("rustc", &["--print", "sysroot"]) {
+        candidates.push(PathBuf::from(sysroot).join("lib/LLVMgold.so"));
+    }
+    if let Some(libdir) = command_stdout_trim("llvm-config", &["--libdir"]) {
+        candidates.push(PathBuf::from(libdir).join("LLVMgold.so"));
+    }
+
+    if let Ok(entries) = std::fs::read_dir("/usr/lib") {
+        let mut llvm_dirs: Vec<_> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with("llvm-"))
+            })
+            .collect();
+        llvm_dirs.sort();
+        llvm_dirs.reverse();
+        for dir in llvm_dirs {
+            candidates.push(dir.join("lib/LLVMgold.so"));
+        }
+    }
+
+    if let Some(version) = rustc_llvm
+        && let Some(matched) = candidates
+            .iter()
+            .find(|p| p.to_string_lossy().contains(&format!("llvm-{version}")) && p.is_file())
+    {
+        return Ok(matched.clone());
+    }
+
+    candidates.into_iter().find(|p| p.is_file()).ok_or_else(|| {
+        crate::error!(
+            "Input file contains LLVM-IR, but linker plugin was not supplied and LLVMgold.so could not be found"
+        )
+    })
+}
+
+fn discover_gcc_lto_plugin() -> Result<PathBuf> {
+    for compiler in ["gcc", "cc"] {
+        if let Some(path) = command_stdout_trim(compiler, &["-print-file-name=liblto_plugin.so"])
+            && Path::new(&path).is_file()
+        {
+            return Ok(PathBuf::from(path));
+        }
+    }
+    crate::bail!(
+        "Input file contains GCC-IR, but linker plugin was not supplied and liblto_plugin.so could not be found"
+    )
+}
+
+fn rustc_llvm_version() -> Option<u32> {
+    let verbose = command_stdout_trim("rustc", &["--version", "--verbose"])?;
+    for line in verbose.lines() {
+        if let Some(rest) = line.strip_prefix("LLVM version: ")
+            && let Some(major) = rest.split('.').next()
+            && let Ok(v) = major.parse()
+        {
+            return Some(v);
+        }
+    }
+    None
+}
+
+fn command_stdout_trim(program: &str, args: &[&str]) -> Option<String> {
+    let output = std::process::Command::new(program)
+        .args(args)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8(output.stdout).ok()?;
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_owned())
+    }
 }
 
 impl std::fmt::Display for LinkerPlugin<'_> {

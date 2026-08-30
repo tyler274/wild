@@ -9,6 +9,12 @@
 //#CompArgs:-Clinker-plugin-lto -Clinker=clang -Clink-arg=-flto
 //#RequiresLinkerPlugin:true
 
+// rustc bitcode without the driver passing --plugin; Wild auto-discovers LLVMgold.so.
+//#Config:linker-plugin-lto-autodiscover:default
+//#CompArgs:-Clinker-plugin-lto -Clinker=clang
+//#RequiresLinkerPlugin:true
+//#DiffEnabled:false
+
 //#Config:llvm-static:default
 //#CompArgs:--target x86_64-unknown-linux-musl -C relocation-model=static -C target-feature=+crt-static -C debuginfo=2
 //#RequiresRustMusl: true

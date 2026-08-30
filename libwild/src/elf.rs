@@ -2566,6 +2566,11 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                     ),
                 );
                 has_filehdr = has_filehdr || phdr.has_filehdr;
+                let at_lma = phdr
+                    .at_address
+                    .as_ref()
+                    .map(expression_eval::evaluate_const)
+                    .transpose()?;
                 segment_entries.push(SegmentEntry {
                     id,
                     ptype,
@@ -2574,6 +2579,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                     has_explicit_flags: phdr.flags.is_some(),
                     has_filehdr: phdr.has_filehdr,
                     has_phdrs: phdr.has_phdrs,
+                    at_lma,
                 });
                 segments_map.insert(phdr.name, id);
             }
@@ -2762,7 +2768,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             }
         }
 
-        for segment in segment_entries {
+        for segment in &segment_entries {
             if !segment.is_emitted {
                 builder.push_event(OrderEvent::SegmentStart(segment.id));
                 builder.push_event(OrderEvent::SegmentEnd(segment.id));
@@ -2779,7 +2785,13 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         builder.add_section(output_section_id::RISCV_ATTRIBUTES);
         builder.push_event(OrderEvent::SegmentEnd(riscv_segment));
 
-        Ok(builder.build())
+        let (order, mut program_segments) = builder.build();
+        for entry in &segment_entries {
+            if let Some(at_lma) = entry.at_lma {
+                program_segments.set_at_lma(entry.id, at_lma);
+            }
+        }
+        Ok((order, program_segments))
     }
 
     fn will_emit_section_symbol_for_partial_objects(
@@ -6502,7 +6514,7 @@ const LINKER_MANAGED_SECTION_RULES: &[SectionRule<'static>] = &[
     SectionRule::prefix(b".debug_", SectionRuleOutcome::Debug),
 ];
 
-fn init_fini_priority(name: &[u8]) -> Option<u16> {
+pub(crate) fn init_fini_priority(name: &[u8]) -> Option<u16> {
     if name == secnames::INIT_ARRAY_SECTION_NAME || name == secnames::FINI_ARRAY_SECTION_NAME {
         return Some(u16::MAX);
     }

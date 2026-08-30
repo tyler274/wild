@@ -8,6 +8,7 @@ pub(crate) struct ProgramSegmentId(u8);
 pub(crate) struct ProgramSegments<T: platform::ProgramSegmentDef> {
     program_segment_details: Vec<T>,
     has_custom_phdrs: bool,
+    at_lmas: Vec<Option<u64>>,
 }
 
 impl<T: platform::ProgramSegmentDef> ProgramSegments<T> {
@@ -15,6 +16,7 @@ impl<T: platform::ProgramSegmentDef> ProgramSegments<T> {
         Self {
             program_segment_details: Vec::new(),
             has_custom_phdrs,
+            at_lmas: Vec::new(),
         }
     }
 
@@ -33,7 +35,16 @@ impl<T: platform::ProgramSegmentDef> ProgramSegments<T> {
     pub(crate) fn add_segment(&mut self, segment_def: T) -> ProgramSegmentId {
         let id = ProgramSegmentId::new(self.program_segment_details.len());
         self.program_segment_details.push(segment_def);
+        self.at_lmas.push(None);
         id
+    }
+
+    pub(crate) fn set_at_lma(&mut self, segment_id: ProgramSegmentId, at_lma: u64) {
+        self.at_lmas[segment_id.as_usize()] = Some(at_lma);
+    }
+
+    pub(crate) fn at_lma(&self, segment_id: ProgramSegmentId) -> Option<u64> {
+        self.at_lmas.get(segment_id.as_usize()).copied().flatten()
     }
 
     pub(crate) fn is_load_segment(&self, segment_id: ProgramSegmentId) -> bool {
@@ -105,4 +116,5 @@ pub(crate) struct SegmentEntry {
     pub(crate) is_emitted: bool,
     pub(crate) has_filehdr: bool,
     pub(crate) has_phdrs: bool,
+    pub(crate) at_lma: Option<u64>,
 }

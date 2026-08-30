@@ -1,15 +1,24 @@
-// Checks what we do if we try to link LTO inputs when no plugin is supplied.
+// Checks auto-discovery of a linker plugin when --plugin is not passed.
 
 //#AbstractConfig:default
-//#ReferenceLinkers:
-//#ExpectError:linker plugin was not supplied
-//#CompArgs:-flto
 //#RequiresLinkerPlugin:true
+//#Object:runtime.c
+//#CompArgs:-flto
+//#LinkArgs:-nostdlib -znow
+//#ReferenceLinkers:
+//#DiffEnabled:false
 
 //#Config:gcc:default
 //#Compiler:gcc
+//#LinkerDriver:gcc
+//#LinkArgs:-flto -nostdlib -znow
 
 //#Config:clang:default
 //#Compiler:clang
 
-void _start(void) {}
+#include "../common/runtime.h"
+
+void _start(void) {
+  runtime_init();
+  exit_syscall(42);
+}

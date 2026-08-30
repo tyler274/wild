@@ -213,6 +213,10 @@
 //! TestRelinkAfterRun:{bool} Run Wild's output, relink it at the same path, then run it again.
 //! Verifies that relinking replaces the output file rather than updating its inode in place.
 //!
+//! TestIncremental:{bool} After the first Wild link with `--incremental`, relink at the same path
+//! and check that `{output}.incr/log` records an incremental-update. Recompiles C sources with
+//! `-DWILD_INC=1` for the second link when the primary source is C/C++.
+//!
 //! AssertOutputFileMatches:{filename}:{regex} Verifies that a file in the output directory contains
 //! at least one line matching the specified regex. Such output files are generally written by
 //! specifying a flag in LinkArgs that uses $OUT_DIR.
@@ -1376,6 +1380,7 @@ struct Config {
     requires_linker_plugin: bool,
     test_update_in_place: bool,
     test_relink_after_run: bool,
+    test_incremental: bool,
     test_config: TestConfig,
     tracked_files: Vec<PathBuf>,
     so_single_linker: Option<Linker>,
@@ -1807,6 +1812,7 @@ impl Config {
 
     fn can_use_wild_in_process(&self) -> bool {
         !self.test_update_in_place
+            && !self.test_incremental
             && self.expect_stderr.is_empty()
             && self.expect_stdout.is_empty()
             && self.active_malfunction.is_none()
@@ -2159,6 +2165,7 @@ impl Config {
             requires_rust_musl: false,
             test_update_in_place: false,
             test_relink_after_run: false,
+            test_incremental: false,
             test_config: test_config.clone(),
             tracked_files: Default::default(),
             available_linkers: linker_catalog.available.clone(),
@@ -2408,14 +2415,11 @@ fn process_directive(
             config.linker_so_args = ArgumentSet::parse(arg)?
         }
         "SoSingleLinker" => {
-            config.so_single_linker = Some(
-                config
-                    .available_linkers
-                    .iter()
-                    .find(|l| l.name() == arg)
-                    .cloned()
-                    .ok_or_else(|| error!("Unknown linker specified for SoSingleLinker: {arg}"))?,
-            );
+            config.so_single_linker = config
+                .available_linkers
+                .iter()
+                .find(|l| l.name() == arg)
+                .cloned();
         }
         "LinkerDriver" => {
             config.linker_driver = LinkerDriver::parse(arg)?;
@@ -2582,26 +2586,27 @@ fn process_directive(
                 .map(|n| n.to_owned())
                 .collect();
 
+            let mut available_refs = Vec::new();
             for r in &refs {
                 if config
                     .available_linkers
                     .iter()
                     .any(|linker| linker.gcc_name() == r)
                 {
+                    available_refs.push(r.clone());
                     continue;
                 }
-                if let Some(linker) = config
+                if config
                     .unavailable_linkers
                     .iter()
-                    .find(|linker| linker.gcc_name == r)
+                    .any(|linker| linker.gcc_name == r)
                 {
-                    bail!("Reference linker `{r}` is unavailable: {}", linker.reason);
-                } else {
-                    bail!("Unknown linker `{r}`");
+                    continue;
                 }
+                bail!("Unknown linker `{r}`");
             }
 
-            config.reference_linkers = Some(refs);
+            config.reference_linkers = Some(available_refs);
         }
         "SkipLinker" => {
             if config.reference_linkers.is_some() {
@@ -2766,6 +2771,9 @@ fn process_directive(
         "TestRelinkAfterRun" => {
             config.test_relink_after_run = arg.parse()?;
         }
+        "TestIncremental" => {
+            config.test_incremental = arg.parse()?;
+        }
         "DriverMode" => {
             config.driver_mode = Some(DriverMode::from_str(arg).map_err(|_| {
                 error!(
@@ -2827,6 +2835,10 @@ impl ProgramInputs {
 
         if config.test_update_in_place && matches!(linker, Linker::Wild) {
             self.run_update_in_place_test(&inputs, config, cross_arch, &link_output)?;
+        }
+
+        if config.test_incremental && linker.is_wild() {
+            self.run_incremental_test(linker, &inputs, config, cross_arch, &link_output)?;
         }
 
         #[cfg(target_os = "macos")]
@@ -2918,6 +2930,53 @@ impl ProgramInputs {
             );
         }
 
+        Ok(())
+    }
+
+    fn run_incremental_test(
+        &self,
+        linker: &Linker,
+        inputs: &[LinkerInput],
+        config: &Config,
+        cross_arch: Option<Architecture>,
+        reference_output: &LinkOutput,
+    ) -> Result {
+        let state_dir = {
+            let mut dir = reference_output.binary.as_os_str().to_os_string();
+            dir.push(".incr");
+            PathBuf::from(dir)
+        };
+        ensure!(
+            state_dir.join("inputs.txt").is_file(),
+            "Incremental state dir {} was not created",
+            state_dir.display()
+        );
+        ensure!(
+            state_dir.join("resolutions.bin").is_file(),
+            "Incremental resolution table was not written to {}",
+            state_dir.display()
+        );
+        ensure!(
+            state_dir.join("reverse_relocs.bin").is_file(),
+            "Incremental reverse reloc index was not written to {}",
+            state_dir.display()
+        );
+
+        let second = linker.link(self.name(), inputs, config, cross_arch)?;
+        let log = std::fs::read_to_string(state_dir.join("log")).with_context(|| {
+            format!(
+                "Failed to read incremental log {}",
+                state_dir.join("log").display()
+            )
+        })?;
+        ensure!(
+            log.contains("incremental-update") || log.contains("initial-incremental"),
+            "Expected incremental log to record an update, got:\n{log}"
+        );
+        ensure!(
+            second.binary == reference_output.binary,
+            "Incremental relink wrote a different path"
+        );
         Ok(())
     }
 
@@ -7068,8 +7127,8 @@ impl PartialEq for ErrorMatcher {
 
 impl Eq for ErrorMatcher {}
 
-fn available_linkers_for_linux() -> Result<Vec<Linker>> {
-    let mut linkers = vec![Linker::ThirdParty(ThirdPartyLinker {
+fn available_linkers_for_linux() -> Result<LinkerCatalog> {
+    let mut available = vec![Linker::ThirdParty(ThirdPartyLinker {
         // TODO: Rename to "bfd" and get rid of gcc_name.
         name: "ld",
         gcc_name: "bfd",
@@ -7078,9 +7137,10 @@ fn available_linkers_for_linux() -> Result<Vec<Linker>> {
         direct_args: Vec::new(),
         enabled_by_default: true,
     })];
+    let mut unavailable = Vec::new();
 
     if let Ok(path) = find_bin(&["ld.lld"]) {
-        linkers.push(Linker::ThirdParty(ThirdPartyLinker {
+        available.push(Linker::ThirdParty(ThirdPartyLinker {
             name: "lld",
             gcc_name: "lld",
             path,
@@ -7088,12 +7148,17 @@ fn available_linkers_for_linux() -> Result<Vec<Linker>> {
             direct_args: Vec::new(),
             enabled_by_default: false,
         }));
+    } else {
+        unavailable.push(UnavailableLinker {
+            gcc_name: "lld",
+            reason: "ld.lld not found on PATH".to_owned(),
+        });
     }
 
     // We don't need gold and mold for our tests, they're just there for the odd occasion when we're
     // curious and looking for extra data points as to how other linkers handle a particular case.
     if let Ok(path) = find_bin(&["gold"]) {
-        linkers.push(Linker::ThirdParty(ThirdPartyLinker {
+        available.push(Linker::ThirdParty(ThirdPartyLinker {
             name: "gold",
             gcc_name: "gold",
             path,
@@ -7103,7 +7168,7 @@ fn available_linkers_for_linux() -> Result<Vec<Linker>> {
         }));
     }
     if let Ok(path) = find_bin(&["mold"]) {
-        linkers.push(Linker::ThirdParty(ThirdPartyLinker {
+        available.push(Linker::ThirdParty(ThirdPartyLinker {
             name: "mold",
             gcc_name: "mold",
             path,
@@ -7113,9 +7178,12 @@ fn available_linkers_for_linux() -> Result<Vec<Linker>> {
         }));
     }
 
-    linkers.push(Linker::Wild);
+    available.push(Linker::Wild);
 
-    Ok(linkers)
+    Ok(LinkerCatalog {
+        available,
+        unavailable,
+    })
 }
 
 fn available_linkers_for_mac() -> Result<LinkerCatalog> {
@@ -7726,10 +7794,7 @@ impl PlatformKind {
 
     fn linker_catalog(self) -> Result<LinkerCatalog> {
         match self {
-            PlatformKind::Elf => Ok(LinkerCatalog {
-                available: available_linkers_for_linux()?,
-                unavailable: Vec::new(),
-            }),
+            PlatformKind::Elf => available_linkers_for_linux(),
             PlatformKind::MachO => available_linkers_for_mac(),
             PlatformKind::Wasm => Ok(LinkerCatalog {
                 available: available_linkers_for_wasm()?,

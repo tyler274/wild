@@ -731,6 +731,7 @@ pub(crate) struct UnloadedSection {
     pub(crate) start_stop_eligible: bool,
 
     pub(crate) needs_sorting: bool,
+    pub(crate) sort_by_init_priority: bool,
 }
 
 impl UnloadedSection {
@@ -739,6 +740,7 @@ impl UnloadedSection {
             last_frame_index: None,
             start_stop_eligible: false,
             needs_sorting: false,
+            sort_by_init_priority: false,
         }
     }
 }
@@ -759,6 +761,7 @@ pub(crate) struct ResolvedCommon<'data, P: Platform> {
 #[derive(Debug, Clone)]
 pub(crate) struct ScriptSortedSectionDetail {
     pub(crate) index: object::SectionIndex,
+    pub(crate) sort_by_init_priority: bool,
 }
 
 #[derive(Debug)]
@@ -1348,6 +1351,7 @@ fn resolve_section<'data, P: Platform>(
 
             unloaded_section = UnloadedSection::new();
             unloaded_section.needs_sorting = output_info.sorted || args.sort_sections_by_name();
+            unloaded_section.sort_by_init_priority = output_info.sort_by_init_priority;
         }
         SectionRuleOutcome::SortedSection(output_info) => {
             part_id = if output_info.section_id.is_regular::<P>() {

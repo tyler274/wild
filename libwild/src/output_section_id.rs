@@ -112,6 +112,9 @@ pub(crate) struct OutputSections<'data, P: Platform> {
     rosegment: bool,
 
     output_kind: OutputKind,
+
+    /// BYTE/SHORT/LONG/QUAD data emitted by linker scripts, keyed by location-counter index.
+    pub(crate) script_output_data: Vec<ScriptOutputData<'data>>,
 }
 
 /// Encodes the order of output sections and the start and end of each program segment. This struct
@@ -725,7 +728,9 @@ impl<'data, P: Platform> OutputSections<'data, P> {
                 location_counters: (0, 0),
                 location: Some(loc),
                 at_location: None,
+                at_region: None,
                 is_top_level: true,
+                overlay: None,
             });
             let section_id = self.add_named_section(
                 custom.identity,
@@ -768,7 +773,9 @@ impl<'data, P: Platform> OutputSections<'data, P> {
                         location_counters: (0, 0),
                         location: Some(linker_script::Expression::Number(address)),
                         at_location: None,
+                        at_region: None,
                         is_top_level: true,
+                        overlay: None,
                     });
                 }
             }
@@ -868,6 +875,7 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             init_fini_by_priority: HashMap::new(),
             rosegment: true,
             output_kind,
+            script_output_data: Vec::new(),
         }
     }
 
@@ -1269,13 +1277,30 @@ impl Iterator for PartIdIterator {
 
 pub(crate) type LocationCounterIndex = usize;
 
+#[derive(Debug)]
+pub(crate) struct ScriptOutputData<'data> {
+    pub(crate) section_id: OutputSectionId,
+    pub(crate) location_counter_index: LocationCounterIndex,
+    pub(crate) width: u8,
+    pub(crate) value: Expression<'data>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct OverlayPlacement {
+    pub(crate) group: u32,
+    pub(crate) member: u32,
+    pub(crate) is_last: bool,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct SectionLocationInfo<'data> {
     /// End is exclusive
     pub(crate) location_counters: (LocationCounterIndex, LocationCounterIndex),
     pub(crate) location: Option<Expression<'data>>,
     pub(crate) at_location: Option<Expression<'data>>,
+    pub(crate) at_region: Option<&'data [u8]>,
     pub(crate) is_top_level: bool,
+    pub(crate) overlay: Option<OverlayPlacement>,
 }
 
 pub(crate) const fn num_built_in_sections<P: Platform>() -> usize {

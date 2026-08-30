@@ -42,6 +42,7 @@ pub(crate) struct LayoutRules<'data> {
 pub(crate) struct LayoutRulesBuilder<'data> {
     rules: Vec<SectionRule<'data>>,
     num_location_counters: usize,
+    overlay_group: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -94,6 +95,9 @@ pub(crate) struct SectionRule<'data> {
     /// files.
     input_file_pattern: Option<Pattern>,
 
+    /// Files matching any of these globs are excluded even if `input_file_pattern` matches.
+    exclude_file_patterns: Vec<Pattern>,
+
     /// What to do if the rule matches.
     outcome: SectionRuleOutcome,
 }
@@ -135,6 +139,7 @@ pub(crate) struct SectionOutputInfo {
     pub(crate) section_id: OutputSectionId,
     pub(crate) must_keep: bool,
     pub(crate) sorted: bool,
+    pub(crate) sort_by_init_priority: bool,
 }
 
 impl SectionOutputInfo {
@@ -143,6 +148,7 @@ impl SectionOutputInfo {
             section_id,
             must_keep: false,
             sorted: false,
+            sort_by_init_priority: false,
         }
     }
 
@@ -151,6 +157,7 @@ impl SectionOutputInfo {
             section_id,
             must_keep: true,
             sorted: false,
+            sort_by_init_priority: false,
         }
     }
 }
@@ -247,7 +254,8 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                     pattern.name,
                                                     matcher.input_file_pattern,
                                                     crate::layout_rules::SectionRuleOutcome::Discard,
-                                                )?);
+                                                )?
+                                                .with_excludes(&matcher.exclude_file_patterns)?);
                                             }
                                         }
                                         _ => crate::bail!("Illegal use of /DISCARD/ section"),
@@ -261,7 +269,9 @@ impl<'data> LayoutRulesBuilder<'data> {
                                 location_counters: (section_start_lc_idx, last_lc_idx),
                                 location: sec.start_address_expression.clone(),
                                 at_location: sec.at_address.clone(),
+                                at_region: sec.at_region,
                                 is_top_level: true,
+                                overlay: None,
                             };
 
                             let fill_value = sec
@@ -325,7 +335,9 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                 ),
                                                 location: None,
                                                 at_location: None,
+                                                at_region: None,
                                                 is_top_level: false,
+                                                overlay: None,
                                             };
                                             inner_lc_start_idx = inner_lc_idx;
                                             output_sections.add_secondary_section(
@@ -340,7 +352,9 @@ impl<'data> LayoutRulesBuilder<'data> {
                                             let output_info = SectionOutputInfo {
                                                 section_id,
                                                 must_keep: matcher.must_keep,
-                                                sorted: pattern.sorted,
+                                                sorted: pattern.sort.needs_name_sort(),
+                                                sort_by_init_priority: pattern.sort
+                                                    == linker_script::SortKind::InitPriority,
                                             };
 
                                             let outcome = SectionRuleOutcome::section_rule_from_id::<
@@ -349,11 +363,14 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                 primary_section_id, output_info
                                             );
 
-                                            self.add_section_rule(SectionRule::new(
-                                                pattern.name,
-                                                matcher.input_file_pattern,
-                                                outcome,
-                                            )?);
+                                            self.add_section_rule(
+                                                SectionRule::new(
+                                                    pattern.name,
+                                                    matcher.input_file_pattern,
+                                                    outcome,
+                                                )?
+                                                .with_excludes(&matcher.exclude_file_patterns)?,
+                                            );
                                         }
 
                                         last_section_id = Some(section_id);
@@ -405,6 +422,41 @@ impl<'data> LayoutRulesBuilder<'data> {
                                         });
                                         symbol_defs.push(InternalSymDefInfo::new(placement, b""));
                                     }
+                                    ContentsCommand::Fill(fill) => {
+                                        if let Ok(value) = evaluate_const(&fill.value)
+                                            && value <= u64::from(u32::MAX)
+                                        {
+                                            let bytes = (value as u32).to_be_bytes();
+                                            output_sections
+                                                .section_infos
+                                                .get_mut(primary_section_id)
+                                                .fill = Some(bytes);
+                                        }
+                                    }
+                                    ContentsCommand::OutputData(data) => {
+                                        let width = data.width as u64;
+                                        output_sections.script_output_data.push(
+                                            crate::output_section_id::ScriptOutputData {
+                                                section_id: primary_section_id,
+                                                location_counter_index: inner_lc_idx,
+                                                width: data.width as u8,
+                                                value: data.value.clone(),
+                                            },
+                                        );
+                                        location_counters.push(LocationCounter::Relative(
+                                            Expression::Add(
+                                                Box::new(Expression::LocationCounter),
+                                                Box::new(Expression::Number(width)),
+                                            ),
+                                            last_symbol_loc.clone(),
+                                            primary_section_id,
+                                        ));
+                                        last_symbol_loc = SymbolLoc::LocationCounter(
+                                            inner_lc_idx,
+                                            Some(primary_section_id),
+                                        );
+                                        inner_lc_idx += 1;
+                                    }
                                 }
                             }
                             if inner_lc_idx > inner_lc_start_idx {
@@ -412,7 +464,9 @@ impl<'data> LayoutRulesBuilder<'data> {
                                     location_counters: (inner_lc_start_idx, inner_lc_idx),
                                     location: None,
                                     at_location: None,
+                                    at_region: None,
                                     is_top_level: false,
+                                    overlay: None,
                                 };
                                 output_sections.add_secondary_section(
                                     primary_section_id,
@@ -461,6 +515,122 @@ impl<'data> LayoutRulesBuilder<'data> {
                             });
                             symbol_defs.push(InternalSymDefInfo::new(placement, assignment.name));
                         }
+                        SectionCommand::Overlay(overlay) => {
+                            let overlay_group = self.overlay_group;
+                            self.overlay_group += 1;
+                            let member_count = overlay.sections.len();
+                            for (member, sec) in overlay.sections.iter().enumerate() {
+                                let min_alignment =
+                                    sec.alignment.unwrap_or(alignment::MIN).max(alignment::MIN);
+                                let location_info = SectionLocationInfo {
+                                    location_counters: (section_start_lc_idx, last_lc_idx),
+                                    location: overlay.start_address.clone(),
+                                    at_location: overlay
+                                        .at_address
+                                        .clone()
+                                        .or(sec.at_address.clone()),
+                                    at_region: overlay.at_region.or(sec.at_region),
+                                    is_top_level: true,
+                                    overlay: Some(crate::output_section_id::OverlayPlacement {
+                                        group: overlay_group,
+                                        member: member as u32,
+                                        is_last: member + 1 == member_count,
+                                    }),
+                                };
+                                let identity = P::section_identity_from_name(SectionName(
+                                    sec.output_section_name,
+                                ))
+                                .with_context(|| {
+                                    format!(
+                                        "Output section `{}` cannot be identified from the name alone",
+                                        SectionName(sec.output_section_name)
+                                    )
+                                })?;
+                                let primary_section_id = output_sections.add_named_section(
+                                    identity,
+                                    min_alignment,
+                                    sec.region.or(overlay.region),
+                                    Some(&location_info),
+                                    None,
+                                    if sec.phdrs.is_empty() {
+                                        overlay.phdrs.clone()
+                                    } else {
+                                        sec.phdrs.clone()
+                                    },
+                                    sec.attributes.as_ref(),
+                                );
+                                ordered_sections.push(primary_section_id);
+                                current_section_id = Some(primary_section_id);
+                                loc = SymbolLoc::SectionEnd(primary_section_id);
+                                for contents_cmd in &sec.commands {
+                                    if let ContentsCommand::Matcher(matcher) = contents_cmd {
+                                        for pattern in &matcher.input_section_name_patterns {
+                                            let output_info = SectionOutputInfo {
+                                                section_id: primary_section_id,
+                                                must_keep: matcher.must_keep,
+                                                sorted: pattern.sort.needs_name_sort(),
+                                                sort_by_init_priority: pattern.sort
+                                                    == linker_script::SortKind::InitPriority,
+                                            };
+                                            let outcome = SectionRuleOutcome::section_rule_from_id::<
+                                                P,
+                                            >(
+                                                primary_section_id, output_info
+                                            );
+                                            self.add_section_rule(
+                                                SectionRule::new(
+                                                    pattern.name,
+                                                    matcher.input_file_pattern,
+                                                    outcome,
+                                                )?
+                                                .with_excludes(&matcher.exclude_file_patterns)?,
+                                            );
+                                        }
+                                    }
+                                }
+                                let ident: String =
+                                    String::from_utf8_lossy(sec.output_section_name)
+                                        .chars()
+                                        .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+                                        .collect();
+                                if !ident.is_empty() {
+                                    let start_name =
+                                        Box::leak(format!("__load_start_{ident}").into_boxed_str())
+                                            .as_bytes();
+                                    let stop_name =
+                                        Box::leak(format!("__load_stop_{ident}").into_boxed_str())
+                                            .as_bytes();
+                                    symbol_defs.push(InternalSymDefInfo::new(
+                                        SymbolPlacement::Redirect(Redirect {
+                                            kind: RedirectKind::Script,
+                                            expression: Expression::Loadaddr(
+                                                sec.output_section_name,
+                                            ),
+                                            loc: SymbolLoc::SectionEnd(primary_section_id),
+                                        }),
+                                        start_name,
+                                    ));
+                                    symbol_defs.push(InternalSymDefInfo::new(
+                                        SymbolPlacement::Redirect(Redirect {
+                                            kind: RedirectKind::Script,
+                                            expression: Expression::Add(
+                                                Box::new(Expression::Loadaddr(
+                                                    sec.output_section_name,
+                                                )),
+                                                Box::new(Expression::Sizeof(
+                                                    sec.output_section_name,
+                                                )),
+                                            ),
+                                            loc: SymbolLoc::SectionEnd(primary_section_id),
+                                        }),
+                                        stop_name,
+                                    ));
+                                }
+                            }
+                        }
+                        SectionCommand::Include(_) => {
+                            crate::bail!("INCLUDE inside SECTIONS was not expanded before layout");
+                        }
                     }
                 }
             } else if let linker_script::Command::Assert(assert_cmd) = cmd {
@@ -474,6 +644,8 @@ impl<'data> LayoutRulesBuilder<'data> {
                 memory_regions = regions.clone();
             } else if let linker_script::Command::Phdrs(phdrs) = cmd {
                 program_headers = phdrs.clone();
+            } else if let linker_script::Command::Include(_) = cmd {
+                crate::bail!("INCLUDE was not expanded before layout");
             } else if let linker_script::Command::OutputFormat(output_format) = cmd {
                 let target_format = match args.output_format_endian() {
                     Some(object::Endianness::Little) => {
@@ -557,8 +729,17 @@ impl<'data> SectionRule<'data> {
         Ok(Self {
             name_matcher,
             input_file_pattern: compiled_file_pattern,
+            exclude_file_patterns: Vec::new(),
             outcome,
         })
+    }
+
+    pub(crate) fn with_excludes(mut self, patterns: &[&'data [u8]]) -> Result<Self> {
+        self.exclude_file_patterns = patterns
+            .iter()
+            .map(|pattern| compile_glob_pattern(pattern).map_err(|e| crate::error!("{e}")))
+            .collect::<Result<Vec<_>>>()?;
+        Ok(self)
     }
 
     #[inline(always)]
@@ -580,7 +761,7 @@ impl<'data> SectionRule<'data> {
 
         // If the rule has no file pattern, it matches all files.
         let Some(pattern) = &self.input_file_pattern else {
-            return true;
+            return !self.file_is_excluded(file_name);
         };
 
         // If the caller didn't provide a filename, only match rules with no file filter.
@@ -593,7 +774,22 @@ impl<'data> SectionRule<'data> {
             return false;
         };
 
-        pattern.matches(name_str)
+        pattern.matches(name_str) && !self.file_is_excluded(file_name)
+    }
+
+    fn file_is_excluded(&self, file_name: Option<&[u8]>) -> bool {
+        if self.exclude_file_patterns.is_empty() {
+            return false;
+        }
+        let Some(name) = file_name else {
+            return false;
+        };
+        let Ok(name_str) = std::str::from_utf8(name) else {
+            return false;
+        };
+        self.exclude_file_patterns
+            .iter()
+            .any(|pattern| pattern.matches(name_str))
     }
 
     pub(crate) const fn exact_section(
@@ -633,6 +829,7 @@ impl<'data> SectionRule<'data> {
         SectionRule {
             name_matcher: SectionNameMatcher::Prefix(name),
             input_file_pattern: None,
+            exclude_file_patterns: Vec::new(),
             outcome: SectionRuleOutcome::SortedSection(SectionOutputInfo::keep(section_id)),
         }
     }
@@ -644,6 +841,7 @@ impl<'data> SectionRule<'data> {
         SectionRule {
             name_matcher: SectionNameMatcher::Exact(Cow::Borrowed(name)),
             input_file_pattern: None,
+            exclude_file_patterns: Vec::new(),
             outcome,
         }
     }
@@ -655,6 +853,7 @@ impl<'data> SectionRule<'data> {
         SectionRule {
             name_matcher: SectionNameMatcher::Prefix(name),
             input_file_pattern: None,
+            exclude_file_patterns: Vec::new(),
             outcome,
         }
     }
@@ -781,6 +980,7 @@ fn test_section_mapping() {
             section_id: crate::elf::output_section_id::COMMENT,
             must_keep: true,
             sorted: false,
+            sort_by_init_priority: false,
         })
     );
 }

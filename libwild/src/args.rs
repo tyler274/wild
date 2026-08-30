@@ -108,6 +108,11 @@ pub struct CommonArgs {
     pub(crate) version: std::borrow::Cow<'static, str>,
 
     has_flavor: bool,
+
+    /// When set, Wild writes a `{output}.incr` state directory and pads output sections so a later
+    /// `--incremental` link can patch in place. Falls back to a full link when LTO, GC, or
+    /// strict-order sections (`.init` / `.fini`) are involved.
+    pub(crate) incremental: bool,
 }
 
 pub type WarningCallback = dyn Fn(Warning) + Send + Sync + 'static;
@@ -346,6 +351,7 @@ impl Default for CommonArgs {
             warning_callback: Box::new(default_warning_callback),
             version: std::borrow::Cow::Borrowed("unknown version"),
             has_flavor: false,
+            incremental: env::var("WILD_INCREMENTAL").is_ok_and(|v| v == "1"),
         }
     }
 }
@@ -1610,6 +1616,15 @@ fn declare_common_args<T: platform::Args>(parser: &mut ArgumentParser<T>) {
         .help("Spawn a child process to link (default)")
         .execute(|args, _modifier_stack| {
             args.common_mut().should_fork = true;
+            Ok(())
+        });
+
+    parser
+        .declare()
+        .long("incremental")
+        .help("Enable incremental linking (see also WILD_INCREMENTAL=1)")
+        .execute(|args, _modifier_stack| {
+            args.common_mut().incremental = true;
             Ok(())
         });
 }

@@ -241,6 +241,27 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
         &finalise_sizes_resources,
     )?;
 
+    if symbol_db.args.common().incremental {
+        for (section_id, _) in output_sections.ids_with_info() {
+            if !section_id.is_regular::<P>() || !output_sections.has_data_in_file(section_id) {
+                continue;
+            }
+            let range = section_id.part_id_range::<P>();
+            let mut part_id = PartId::from_usize(range.end.as_usize().saturating_sub(1));
+            while part_id.as_usize() >= range.start.as_usize() {
+                if section_part_sizes.get(part_id) > 0 {
+                    section_part_sizes
+                        .increment(part_id, crate::incremental::INCREMENTAL_SECTION_PADDING);
+                    break;
+                }
+                if part_id.as_usize() == range.start.as_usize() {
+                    break;
+                }
+                part_id = PartId::from_usize(part_id.as_usize() - 1);
+            }
+        }
+    }
+
     let got_relr_n = A::Platform::GOT_RELR_SECTION_ID
         .and_then(A::Platform::single_part_id)
         .map_or(0, |part_id| section_part_sizes.get(part_id) / 8);
@@ -265,6 +286,7 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
     );
 
     let mut memory_regions = HashMap::new();
+    let mut memory_region_order = Vec::new();
     for s in &linker_scripts {
         for region in &s.parsed.memory_regions {
             memory_regions
@@ -274,6 +296,8 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
                         origin: evaluate_const(&region.origin)?,
                         length: evaluate_const(&region.length)?,
                         used: 0,
+                        used_lma: 0,
+                        flags: region.flags,
                     },
                 )
                 .map_err(|_| {
@@ -282,6 +306,7 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
                         String::from_utf8_lossy(region.name)
                     )
                 })?;
+            memory_region_order.push(region.name);
         }
     }
 
@@ -304,8 +329,15 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
             &output_order,
             &symbol_db,
             &mut memory_regions,
+            &memory_region_order,
             sizeof_headers,
         )?;
+
+    extend_sections_for_script_output_data(
+        &output_sections,
+        &mut section_layouts,
+        &resolved_location_counters,
+    );
 
     if symbol_db.args.should_relax() && A::supports_size_reduction_relaxations() {
         perform_iterative_relaxation::<A>(
@@ -319,6 +351,7 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
             &symbol_db,
             &per_symbol_flags,
             &mut memory_regions,
+            &memory_region_order,
             sizeof_headers,
             &mut resolved_location_counters,
         )?;
@@ -479,6 +512,7 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
         compressed_debug_sections: OutputSectionMap::with_size(num_sections),
         gdb_index_data,
         script_sorted_sections,
+        resolved_location_counters,
     };
 
     P::maybe_compress_debug_sections::<A>(&mut layout)?;
@@ -789,6 +823,7 @@ pub struct Layout<'data, P: Platform> {
     pub(crate) compressed_debug_sections: OutputSectionMap<Option<CompressedSection>>,
     pub(crate) gdb_index_data: Option<P::GdbIndexScanResult<'data>>,
     pub(crate) script_sorted_sections: Vec<InputSortedSection>,
+    pub(crate) resolved_location_counters: Vec<ResolvedLocationCounter>,
 }
 
 #[derive(Debug, Default)]
@@ -813,6 +848,12 @@ pub(crate) struct SymbolResolutions<P: Platform> {
 impl<P: Platform> SymbolResolutions<P> {
     pub(crate) fn get(&self, symbol_id: SymbolId) -> Option<&Resolution<P>> {
         self.resolutions[symbol_id.as_usize()].as_ref()
+    }
+
+    pub(crate) fn raw_values(&self) -> impl Iterator<Item = u64> + '_ {
+        self.resolutions
+            .iter()
+            .map(|r| r.as_ref().map(|res| res.raw_value).unwrap_or(0))
     }
 }
 
@@ -1562,6 +1603,8 @@ pub(crate) struct MemoryRegion {
     pub(crate) origin: u64,
     pub(crate) length: u64,
     pub(crate) used: u64,
+    pub(crate) used_lma: u64,
+    pub(crate) flags: Option<crate::linker_script::MemoryFlags>,
 }
 
 impl<'data, P: Platform> Layout<'data, P> {
@@ -1834,6 +1877,28 @@ pub(crate) fn merge_secondary_parts<P: Platform>(
     }
 
     merged
+}
+
+/// BYTE/SHORT/LONG/QUAD advance the location counter via a trailing secondary section that has no
+/// input parts. Grow the primary section so the writer buffer covers those bytes.
+fn extend_sections_for_script_output_data<P: Platform>(
+    output_sections: &OutputSections<P>,
+    section_layouts: &mut OutputSectionMap<OutputRecordLayout>,
+    resolved_location_counters: &[ResolvedLocationCounter],
+) {
+    for data in &output_sections.script_output_data {
+        let Some(lc) = resolved_location_counters.get(data.location_counter_index) else {
+            continue;
+        };
+        let needed = lc.section_offset.unwrap_or(u64::from(data.width)) as usize;
+        let layout = section_layouts.get_mut(data.section_id);
+        if needed > layout.file_size && output_sections.has_data_in_file(data.section_id) {
+            layout.file_size = needed;
+        }
+        if needed as u64 > layout.mem_size {
+            layout.mem_size = needed as u64;
+        }
+    }
 }
 
 fn compute_start_offsets_by_group<P: Platform>(
@@ -4316,6 +4381,7 @@ impl<'data, P: Platform> ObjectLayoutState<'data, P> {
         self.sections[section_index.0] = if unloaded.needs_sorting {
             self.script_sorted_sections.push(ScriptSortedSectionDetail {
                 index: section_index,
+                sort_by_init_priority: unloaded.sort_by_init_priority,
             });
             SectionSlot::Sorted(SortedSection {
                 // Filled in later.
@@ -5402,6 +5468,7 @@ fn perform_iterative_relaxation<'data, A: Arch>(
     symbol_db: &SymbolDb<'data, A::Platform>,
     per_symbol_flags: &PerSymbolFlags,
     memory_regions: &mut HashMap<&[u8], MemoryRegion>,
+    memory_region_order: &[&[u8]],
     sizeof_headers: u64,
     resolved_location_counters: &mut Vec<ResolvedLocationCounter>,
 ) -> Result {
@@ -5465,6 +5532,7 @@ fn perform_iterative_relaxation<'data, A: Arch>(
             output_order,
             symbol_db,
             memory_regions,
+            memory_region_order,
             sizeof_headers,
         )?;
     }
@@ -5479,6 +5547,7 @@ fn compute_layout_sections<'data, P: Platform>(
     output_order: &OutputOrder<'data>,
     symbol_db: &SymbolDb<'data, P>,
     memory_regions: &mut HashMap<&[u8], MemoryRegion>,
+    memory_region_order: &[&[u8]],
     sizeof_headers: u64,
 ) -> Result<(
     OutputSectionPartMap<OutputRecordLayout>,
@@ -5499,6 +5568,12 @@ fn compute_layout_sections<'data, P: Platform>(
     let mut section_layouts = OutputSectionMap::with_size(output_sections.num_sections());
     let section_positions = OnceCell::new();
 
+    let const_script_symbols = collect_const_script_symbols(symbol_db);
+
+    let mut overlay_vma: HashMap<u32, u64> = HashMap::new();
+    let mut overlay_lma_end: HashMap<u32, u64> = HashMap::new();
+    let mut overlay_max_size: HashMap<u32, u64> = HashMap::new();
+
     let expression_eval =
         |expr: &Expression<'data>,
          loc: &SymbolLoc,
@@ -5517,6 +5592,9 @@ fn compute_layout_sections<'data, P: Platform>(
                 sizeof_headers,
                 resolved_lc,
                 &|name| {
+                    if let Some(value) = const_script_symbols.get(name) {
+                        return Ok(ResolvedSymbolValue::Absolute(*value));
+                    }
                     let Some(symbol_id) =
                         symbol_db.get_unversioned(&UnversionedSymbolName::prehashed(name))
                     else {
@@ -5718,8 +5796,25 @@ fn compute_layout_sections<'data, P: Platform>(
 
                 let part_id_range = section_id.part_id_range::<P>();
                 let max_alignment = sizes.max_alignment(part_id_range.clone(), output_sections);
-                let region = section_info
-                    .region_name
+                let overlay = section_info
+                    .location_info
+                    .as_ref()
+                    .and_then(|info| info.overlay);
+
+                let region_name = section_info.region_name.or_else(|| {
+                    // Only auto-pick MEMORY regions for sections that appear in the linker script.
+                    // Linker-generated sections keep the default layout.
+                    section_info.location_info.as_ref().and_then(|_| {
+                        pick_compatible_memory_region(
+                            memory_regions,
+                            memory_region_order,
+                            section_info.section_attributes.is_alloc(),
+                            section_info.section_attributes.is_writable(),
+                            section_info.section_attributes.is_executable(),
+                        )
+                    })
+                });
+                let region = region_name
                     .map(|region_name| {
                         memory_regions.get(region_name).with_context(|| {
                             format!(
@@ -5733,8 +5828,43 @@ fn compute_layout_sections<'data, P: Platform>(
                     mem_offset = region.origin + region.used;
                 }
 
+                let at_region = section_info
+                    .location_info
+                    .as_ref()
+                    .and_then(|info| info.at_region)
+                    .map(|region_name| {
+                        memory_regions.get(region_name).with_context(|| {
+                            format!(
+                                "Memory region '{}' not declared",
+                                String::from_utf8_lossy(region_name),
+                            )
+                        })
+                    })
+                    .transpose()?;
+                if let Some(region) = at_region {
+                    lma_offset = region.origin + region.used_lma;
+                }
+
+                if let Some(ov) = overlay {
+                    if ov.member == 0 {
+                        overlay_vma.insert(ov.group, mem_offset);
+                    } else if let Some(&vma) = overlay_vma.get(&ov.group) {
+                        mem_offset = vma;
+                        if let Some(&lma) = overlay_lma_end.get(&ov.group) {
+                            lma_offset = lma;
+                        }
+                    }
+                }
+
                 if let Some(offset) = section_offset {
-                    if let Some(region) = region
+                    let merge_target = output_sections.primary_output_section(section_id);
+                    let section_flags = output_sections.section_flags(merge_target);
+                    let is_top_level = section_info
+                        .location_info
+                        .as_ref()
+                        .is_some_and(|info| info.is_top_level);
+                    if is_top_level
+                        && let Some(region) = region
                         && (offset < mem_offset || offset > mem_offset + region.length)
                     {
                         bail!(
@@ -5743,24 +5873,26 @@ fn compute_layout_sections<'data, P: Platform>(
                             String::from_utf8_lossy(section_info.region_name.unwrap()),
                         );
                     }
-                    let merge_target = output_sections.primary_output_section(section_id);
-                    let section_flags = output_sections.section_flags(merge_target);
-                    let is_top_level = section_info
+                    if offset >= mem_offset {
+                        if (section_id == merge_target || !is_top_level)
+                            && section_flags.is_alloc()
+                            && output_sections.has_data_in_file(merge_target)
+                        {
+                            file_offset += (offset - mem_offset) as usize;
+                        }
+                        mem_offset = offset;
+                    }
+                }
+                if at_region.is_none()
+                    && overlay.is_none_or(|ov| ov.member == 0)
+                    && section_info
                         .location_info
                         .as_ref()
-                        .is_some_and(|info| info.is_top_level);
-                    if (section_id == merge_target || !is_top_level)
-                        && section_flags.is_alloc()
-                        && output_sections.has_data_in_file(merge_target)
-                    {
-                        let new_offset = offset
-                            .checked_sub(mem_offset)
-                            .with_context(|| format!("Cannot move location counter backwards (from 0x{mem_offset:x} to 0x{offset:x})"))?;
-                        file_offset += new_offset as usize;
-                    }
-                    mem_offset = offset;
+                        .and_then(|info| info.at_location.as_ref())
+                        .is_none()
+                {
+                    lma_offset = mem_offset;
                 }
-                lma_offset = mem_offset;
 
                 let mut is_first_part = true;
 
@@ -5878,6 +6010,7 @@ fn compute_layout_sections<'data, P: Platform>(
                         .location_info
                         .as_ref()
                         .and_then(|info| info.at_location.as_ref())
+                        && overlay.is_none_or(|ov| ov.member == 0)
                     {
                         lma_offset = expression_eval(
                             expr,
@@ -5895,7 +6028,7 @@ fn compute_layout_sections<'data, P: Platform>(
                     is_first_part = false;
                 }
 
-                if let Some(region_name) = section_info.region_name
+                if let Some(region_name) = region_name
                     && let Some(region) = memory_regions.get_mut(region_name)
                 {
                     let max_offset = region.origin + region.length;
@@ -5908,6 +6041,33 @@ fn compute_layout_sections<'data, P: Platform>(
                     }
                     region.used = mem_offset - region.origin;
                 }
+                if let Some(region_name) = section_info
+                    .location_info
+                    .as_ref()
+                    .and_then(|info| info.at_region)
+                    && let Some(region) = memory_regions.get_mut(region_name)
+                {
+                    region.used_lma = lma_offset.saturating_sub(region.origin);
+                }
+
+                if let Some(ov) = overlay {
+                    overlay_lma_end.insert(ov.group, lma_offset);
+                    let size = section_layouts.get(section_id).mem_size;
+                    overlay_max_size
+                        .entry(ov.group)
+                        .and_modify(|m| *m = (*m).max(size))
+                        .or_insert(size);
+                    if ov.is_last
+                        && let Some(&vma) = overlay_vma.get(&ov.group)
+                        && let Some(&max_size) = overlay_max_size.get(&ov.group)
+                    {
+                        mem_offset = vma + max_size;
+                    } else if overlay.is_some()
+                        && let Some(&vma) = overlay_vma.get(&ov.group)
+                    {
+                        mem_offset = vma;
+                    }
+                }
             }
         }
     }
@@ -5915,6 +6075,81 @@ fn compute_layout_sections<'data, P: Platform>(
     validate_all_non_empty_sections_emitted(sizes, output_sections, output_order)?;
 
     Ok((records_out, section_layouts, resolved_lc))
+}
+
+fn collect_const_script_symbols<'data, P: Platform>(
+    symbol_db: &SymbolDb<'data, P>,
+) -> HashMap<&'data [u8], u64> {
+    let mut map = HashMap::new();
+    for group in &symbol_db.groups {
+        let defs = match group {
+            Group::Prelude(prelude) => prelude.symbol_definitions.as_slice(),
+            Group::LinkerScripts(scripts) => {
+                for script in scripts {
+                    collect_const_defs(&script.parsed.symbol_defs, &mut map);
+                }
+                continue;
+            }
+            _ => continue,
+        };
+        collect_const_defs(defs, &mut map);
+    }
+    map
+}
+
+fn collect_const_defs<'data, P: Platform>(
+    defs: &[InternalSymDefInfo<'data, P>],
+    map: &mut HashMap<&'data [u8], u64>,
+) {
+    for def in defs {
+        if def.name.is_empty() {
+            continue;
+        }
+        let SymbolPlacement::Redirect(redirect) = &def.placement else {
+            continue;
+        };
+        if let Ok(value) = evaluate_const(&redirect.expression) {
+            map.insert(def.name, value);
+        }
+    }
+}
+
+fn pick_compatible_memory_region<'data>(
+    memory_regions: &HashMap<&[u8], MemoryRegion>,
+    memory_region_order: &[&'data [u8]],
+    alloc: bool,
+    writable: bool,
+    executable: bool,
+) -> Option<&'data [u8]> {
+    if !alloc || memory_region_order.is_empty() {
+        return None;
+    }
+    for &name in memory_region_order {
+        let Some(region) = memory_regions.get(name) else {
+            continue;
+        };
+        if memory_flags_match(region.flags, writable, executable) {
+            return Some(name);
+        }
+    }
+    None
+}
+
+fn memory_flags_match(
+    flags: Option<crate::linker_script::MemoryFlags>,
+    writable: bool,
+    executable: bool,
+) -> bool {
+    let Some(flags) = flags else {
+        return true;
+    };
+    if writable && !flags.write {
+        return false;
+    }
+    if executable && !flags.exec {
+        return false;
+    }
+    true
 }
 
 /// Checks if we've allocated space to any sections which aren't listed in our output ordering.
@@ -6300,6 +6535,7 @@ fn test_no_disallowed_overlaps() {
         &output_order,
         &symbol_db,
         &mut HashMap::new(),
+        &[],
         0,
     )
     .unwrap();
@@ -6538,10 +6774,13 @@ fn harvest_and_sort_script_sections<'data, P: Platform>(
                     if let SectionSlot::Sorted(sec) = &obj.sections[sorted_section.index.0] {
                         let part_id = obj.section_part_id(sorted_section.index, section_part_ids);
                         let capacity = sec.section.capacity(part_id, output_sections);
+                        let name = obj
+                            .object
+                            .section_name(sorted_section.index)
+                            .unwrap_or_default();
                         sections_out.push((
-                            obj.object
-                                .section_name(sorted_section.index)
-                                .unwrap_or_default(),
+                            sorted_section.sort_by_init_priority,
+                            name,
                             InputSortedSection {
                                 file_id: obj.file_id,
                                 section_index: sorted_section.index,
@@ -6556,10 +6795,19 @@ fn harvest_and_sort_script_sections<'data, P: Platform>(
         }
     }
 
-    sections_out.sort_by_key(|a| a.0);
+    sections_out.sort_by(|a, b| match (a.0, b.0) {
+        (true, true) => {
+            let pa = P::init_section_priority(a.1).unwrap_or(u16::MAX);
+            let pb = P::init_section_priority(b.1).unwrap_or(u16::MAX);
+            pa.cmp(&pb).then_with(|| a.1.cmp(b.1))
+        }
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        (false, false) => a.1.cmp(b.1),
+    });
     sections_out
         .into_iter()
-        .map(|(_, harvested)| harvested)
+        .map(|(_, _, harvested)| harvested)
         .collect()
 }
 

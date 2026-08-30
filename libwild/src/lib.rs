@@ -27,6 +27,7 @@ pub(crate) mod gdb_index;
 pub(crate) mod glob_match;
 pub(crate) mod grouping;
 pub(crate) mod hash;
+pub(crate) mod incremental;
 pub(crate) mod input_data;
 pub(crate) mod input_section_id;
 pub(crate) mod layout;
@@ -409,6 +410,56 @@ impl<F: FileSystem> Linker<F> {
 
         P::write_output_file::<A, F>(&output, &layout)?;
         diff::maybe_diff()?;
+
+        if args.common().incremental {
+            let plugin_active = plugin.as_ref().is_some_and(|p| p.is_initialised());
+            if let Some(mut session) = crate::incremental::IncrementalSession::from_args(args) {
+                if let Some(reason) =
+                    crate::incremental::fallback_for_plugin_or_gc::<P>(args, plugin_active)
+                {
+                    session.record_fallback(reason);
+                }
+                if session.mode == crate::incremental::IncrementalMode::Update
+                    && crate::incremental::inputs_changed(
+                        &session.state_dir,
+                        &file_loader.loaded_files,
+                    )
+                {
+                    session.record_fallback("input identity changed; full padded relink");
+                }
+                let mut sections = Vec::new();
+                let mut has_strict_order_sections = false;
+                layout.section_layouts.for_each(|id, rec| {
+                    let name = layout
+                        .output_sections
+                        .name(id)
+                        .map(|n| String::from_utf8_lossy(n.bytes()).into_owned())
+                        .unwrap_or_default();
+                    if rec.mem_size > 0 && (name == ".init" || name == ".fini") {
+                        has_strict_order_sections = true;
+                    }
+                    sections.push(crate::incremental::PersistedSection {
+                        name,
+                        file_offset: rec.file_offset,
+                        file_size: rec.file_size,
+                        mem_size: rec.mem_size,
+                    });
+                });
+                if has_strict_order_sections {
+                    session.record_fallback("strict-order .init/.fini");
+                }
+                let resolutions: Vec<u64> = layout.symbol_resolutions.raw_values().collect();
+                let reverse_relocs = crate::incremental::ReverseRelocIndex::new(resolutions.len());
+                session.finish(
+                    &file_loader.loaded_files,
+                    plugin_active,
+                    has_strict_order_sections,
+                    &sections,
+                    &resolutions,
+                    &reverse_relocs,
+                )?;
+            }
+        }
 
         // We've finished linking. We consider everything from this point onwards as shutdown.
         let (g1, g2) = timing_guard!("Shutdown");

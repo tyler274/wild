@@ -26,7 +26,7 @@ fn line_number(file_bytes: &[u8], remainder: &[u8]) -> u32 {
     consumed.iter().filter(|&&b| b == b'\n').count() as u32 + 1
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub(crate) struct ResolvedLocationCounter {
     pub(crate) value: u64,
     pub(crate) section_offset: Option<u64>,
@@ -926,6 +926,8 @@ mod tests {
                         origin: 0x08000000,
                         length: 0x100000,
                         used: 0,
+                        used_lma: 0,
+                        flags: None,
                     },
                 ),
                 (
@@ -934,6 +936,8 @@ mod tests {
                         origin: 0x20000000,
                         length: 0x40000,
                         used: 0,
+                        used_lma: 0,
+                        flags: None,
                     },
                 ),
             ]);

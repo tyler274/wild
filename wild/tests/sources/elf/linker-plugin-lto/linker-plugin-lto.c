@@ -53,9 +53,8 @@
 //#ExpectError:(contains GCC-IR, but the linker plugin|Wild was compiled without linker-plugin support)
 //#Cross:false
 
-// LTO, but no linker plugin was supplied by the compiler. We could try to find the plugin
-// ourselves, but we don't currently support that.
-//#Config:clang-no-plugin:error
+// LTO, no --plugin from the driver. Wild auto-discovers LLVMgold.so.
+//#Config:clang-no-plugin:default
 //#Compiler:clang
 //#CompArgs:-flto
 //#LinkerDriver:clang
@@ -63,7 +62,26 @@
 //#LinkArgs:-Wl,-znow -nostdlib
 //#Object:runtime.c
 //#Object:linker-plugin-lto-2.c
-//#ExpectError:(contains LLVM-IR, but linker plugin was not supplied|Wild was compiled without linker-plugin support)
+//#DiffIgnore:section.eh_frame.type
+//#DiffEnabled:false
+
+// Direct wild invocation, no --plugin. Auto-discovers liblto_plugin.so.
+//#Config:gcc-no-plugin:default
+//#Compiler:gcc
+//#CompArgs:-flto
+//#Object:runtime.c
+//#Object:linker-plugin-lto-2.c
+//#LinkArgs:-nostdlib -znow
+//#ReferenceLinkers:
+//#DiffEnabled:false
+
+//#Config:gcc-thin:default
+//#Compiler:gcc
+//#CompArgs:-flto=auto
+//#LinkerDriver:gcc
+//#LinkArgs:-flto=auto -nostdlib -znow
+//#Object:runtime.c
+//#Object:linker-plugin-lto-2.c
 
 // The only LTO input is in an archive and we end up not using it.
 //#Config:clang-empty-lto:default
@@ -128,6 +146,25 @@
 //#Object:linker-plugin-lto-2.c
 //#DiffIgnore:section-diff-failed..text
 //#DoesNotContain: foo
+
+// Fat LTO objects linked without -flto on the link line (native ELF, or IR if claimed).
+//#Config:gcc-fat-native:default
+//#Compiler:gcc
+//#CompArgs:-flto -ffat-lto-objects -O1
+//#Object:runtime.c
+//#Object:linker-plugin-lto-2.c
+//#LinkArgs:-nostdlib -znow
+//#ReferenceLinkers:
+//#DiffEnabled:false
+
+//#Config:clang-fat-native:default
+//#Compiler:clang
+//#CompArgs:-flto -ffat-lto-objects -O1
+//#Object:runtime.c
+//#Object:linker-plugin-lto-2.c
+//#LinkArgs:-nostdlib -znow
+//#ReferenceLinkers:
+//#DiffEnabled:false
 
 #include "../common/runtime.h"
 

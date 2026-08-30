@@ -66,6 +66,10 @@ pub(crate) struct LoadedInputs<'data, P: Platform> {
     pub(crate) stub_libraries: Vec<LoadedStubLibrary<'data>>,
 
     pub(crate) lto_objects: Vec<Result<Box<LtoInputInfo<'data>>>>,
+
+    /// Number of regular objects seen on the command line before the first LTO input. Used to
+    /// place plugin codegen at that position (#1935).
+    pub(crate) objects_before_first_lto: Option<usize>,
 }
 
 pub(crate) struct LoadedStubLibrary<'data> {
@@ -390,6 +394,7 @@ impl<'data, F: FileSystem> FileLoader<'data, F> {
             linker_scripts: Vec::new(),
             stub_libraries: Vec::new(),
             lto_objects: Vec::new(),
+            objects_before_first_lto: None,
         };
 
         for i in 0..files.len() {
@@ -456,16 +461,21 @@ impl<'data, F: FileSystem> FileLoader<'data, F> {
     }
 }
 
-fn process_linker_script<'data, I: InputFileData>(
-    input_file: &'data InputFile<I>,
+fn process_linker_script<'data, F: FileSystem>(
+    input_file: &'data InputFile<F::Input>,
     args: &impl platform::Args,
-    file_system: &impl FileSystem,
+    file_system: &F,
+    inputs_arena: &'data Arena<InputFile<F::Input>>,
 ) -> Result<LoadedLinkerScript<'data>> {
     let bytes = input_file.data();
-    let script = LinkerScript::parse(bytes, &input_file.filename)?;
+    let mut script = LinkerScript::parse(bytes, &input_file.filename)?;
 
     let script_path = file_system.canonicalize(&input_file.filename)?;
     let directory = script_path.parent().expect("expected an absolute path");
+
+    script.expand_includes(&mut |include_path| {
+        load_included_linker_script(include_path, directory, args, file_system, inputs_arena)
+    })?;
 
     let mut extra_inputs = Vec::new();
 
@@ -492,6 +502,50 @@ fn process_linker_script<'data, I: InputFileData>(
         },
         extra_inputs,
     })
+}
+
+fn load_included_linker_script<'data, F: FileSystem>(
+    include_path: &[u8],
+    directory: &Path,
+    args: &impl platform::Args,
+    file_system: &F,
+    inputs_arena: &'data Arena<InputFile<F::Input>>,
+) -> Result<&'data [u8]> {
+    let path_str = String::from_utf8_lossy(include_path);
+    let path = Path::new(path_str.as_ref());
+
+    let mut candidates = Vec::new();
+    if path.is_absolute() {
+        candidates.push(path.to_path_buf());
+    } else {
+        candidates.push(directory.join(path));
+        candidates.push(path.to_path_buf());
+        for search in args.lib_search_path() {
+            candidates.push(search.join(path));
+        }
+        if let Some(sysroot) = args.sysroot() {
+            candidates.push(sysroot.join(path));
+        }
+    }
+
+    for candidate in &candidates {
+        if file_system.file_type(candidate).is_ok() {
+            let (data, _) = file_system
+                .open_input(candidate, args.common().prepopulate_maps)
+                .with_context(|| {
+                    format!("Failed to read INCLUDE file `{}`", candidate.display())
+                })?;
+            let file = inputs_arena.alloc(InputFile {
+                filename: candidate.clone(),
+                original_filename: candidate.clone(),
+                modifiers: Default::default(),
+                data: Some(data),
+            });
+            return Ok(file.data());
+        }
+    }
+
+    crate::bail!("cannot open INCLUDE file `{}`", path.display())
 }
 
 fn process_archive<'data, P: Platform, F: FileSystem>(
@@ -693,8 +747,12 @@ impl<'data, P: Platform, F: FileSystem> TemporaryState<'data, P, F> {
             FileKind::Archive => process_archive(input_file, &input_ref, file.as_ref(), self),
             FileKind::ThinArchive => process_thin_archive(input_file, self),
             FileKind::Text => {
-                let script =
-                    process_linker_script(input_file, self.args, self.file_system.as_ref())?;
+                let script = process_linker_script(
+                    input_file,
+                    self.args,
+                    self.file_system.as_ref(),
+                    self.inputs_arena,
+                )?;
 
                 let file_indexes = script
                     .extra_inputs
@@ -1075,6 +1133,9 @@ impl<'data, P: Platform> LoadedInputs<'data, P> {
         match record {
             InputRecord::Object(obj) => self.objects.push(obj),
             InputRecord::LtoInput(obj) => {
+                if self.objects_before_first_lto.is_none() {
+                    self.objects_before_first_lto = Some(self.objects.len());
+                }
                 let UnclaimedLtoInput {
                     input_ref,
                     file,

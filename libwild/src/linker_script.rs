@@ -78,6 +78,7 @@ pub(crate) enum Command<'a> {
     Memory(Vec<MemoryRegion<'a>>),
     Phdrs(Vec<Phdr<'a>>),
     OutputFormat(OutputFormat<'a>),
+    Include(&'a [u8]),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -92,6 +93,20 @@ pub(crate) enum SectionCommand<'a> {
     Assert(AssertCommand<'a>),
     Provide(ProvideSymbolDefinition<'a>),
     SymbolAssignment(SymbolAssignment<'a>),
+    Overlay(Overlay<'a>),
+    Include(&'a [u8]),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct Overlay<'a> {
+    pub(crate) start_address: Option<Expression<'a>>,
+    pub(crate) at_address: Option<Expression<'a>>,
+    pub(crate) nocrossrefs: bool,
+    pub(crate) sections: Vec<Section<'a>>,
+    pub(crate) region: Option<&'a [u8]>,
+    pub(crate) at_region: Option<&'a [u8]>,
+    pub(crate) phdrs: Vec<&'a [u8]>,
+    pub(crate) fill: Option<Fill<'a>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -123,8 +138,17 @@ pub(crate) struct Section<'a> {
     pub(crate) phdrs: Vec<&'a [u8]>,
     pub(crate) at_address: Option<Expression<'a>>,
     pub(crate) region: Option<&'a [u8]>,
+    pub(crate) at_region: Option<&'a [u8]>,
     pub(crate) fill: Option<Fill<'a>>,
     pub(crate) attributes: Option<SectionAttributes>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
+pub(crate) struct MemoryFlags {
+    pub(crate) read: bool,
+    pub(crate) write: bool,
+    pub(crate) exec: bool,
+    pub(crate) alloc: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -132,6 +156,7 @@ pub(crate) struct MemoryRegion<'a> {
     pub(crate) name: &'a [u8],
     pub(crate) origin: Expression<'a>,
     pub(crate) length: Expression<'a>,
+    pub(crate) flags: Option<MemoryFlags>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -142,6 +167,22 @@ pub(crate) enum ContentsCommand<'a> {
     SetLocation(Location<'a>),
     Constructors,
     Assert(AssertCommand<'a>),
+    Fill(Fill<'a>),
+    OutputData(OutputData<'a>),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub(crate) enum OutputDataWidth {
+    Byte = 1,
+    Short = 2,
+    Long = 4,
+    Quad = 8,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub(crate) struct OutputData<'a> {
+    pub(crate) width: OutputDataWidth,
+    pub(crate) value: Expression<'a>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -181,6 +222,7 @@ pub(crate) struct Phdr<'a> {
     pub(crate) flags: Option<Expression<'a>>,
     pub(crate) has_filehdr: bool,
     pub(crate) has_phdrs: bool,
+    pub(crate) at_address: Option<Expression<'a>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -263,10 +305,25 @@ pub(crate) enum Expression<'a> {
     Assert(AssertCommand<'a>),
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
+pub(crate) enum SortKind {
+    #[default]
+    None,
+    Name,
+    Alignment,
+    InitPriority,
+}
+
+impl SortKind {
+    pub(crate) fn needs_name_sort(self) -> bool {
+        matches!(self, SortKind::Name | SortKind::InitPriority)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct SectionPattern<'a> {
     pub(crate) name: &'a [u8],
-    pub(crate) sorted: bool,
+    pub(crate) sort: SortKind,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -275,6 +332,8 @@ pub(crate) struct Matcher<'a> {
     /// Optional glob pattern for matching input filenames. `None` means match all files (i.e. the
     /// `*` wildcard was used, or no filename was specified).
     pub(crate) input_file_pattern: Option<&'a [u8]>,
+    /// Glob patterns of files to skip even when `input_file_pattern` matches.
+    pub(crate) exclude_file_patterns: Vec<&'a [u8]>,
     pub(crate) input_section_name_patterns: Vec<SectionPattern<'a>>,
 }
 
@@ -344,6 +403,17 @@ impl<'data> LinkerScript<'data> {
         })?;
 
         Ok(LinkerScript { commands })
+    }
+
+    /// Recursively expand `INCLUDE` commands. `load` maps an include path to the included file's
+    /// bytes (which must live as long as `'data`).
+    pub(crate) fn expand_includes(
+        &mut self,
+        load: &mut dyn FnMut(&[u8]) -> Result<&'data [u8]>,
+    ) -> Result {
+        let mut stack = Vec::new();
+        self.commands = expand_commands(std::mem::take(&mut self.commands), load, &mut stack)?;
+        Ok(())
     }
 
     pub(crate) fn foreach_input(
@@ -427,6 +497,10 @@ fn parse_command<'input>(input: &mut &'input BStr) -> winnow::Result<Command<'in
         }
         b"MEMORY" => Command::Memory(parse_memory(input)?),
         b"PHDRS" => Command::Phdrs(parse_phdrs(input)?),
+        b"INCLUDE" => {
+            let path = parse_include_path(input)?;
+            Command::Include(path)
+        }
         other => {
             if let Some(op) = opt(parse_assignment_op).parse_next(input)? {
                 // Symbol definition
@@ -504,9 +578,50 @@ fn parse_assert<'input>(input: &mut &'input BStr) -> winnow::Result<AssertComman
     })
 }
 
+fn parse_include_path<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
+    skip_comments_and_whitespace(input)?;
+    let has_paren = opt('(').parse_next(input)?.is_some();
+    skip_comments_and_whitespace(input)?;
+    let path = parse_token(input)?;
+    skip_comments_and_whitespace(input)?;
+    if has_paren {
+        ')'.parse_next(input)?;
+        skip_comments_and_whitespace(input)?;
+    }
+    opt(';').parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    Ok(path)
+}
+
+fn parse_memory_flags(input: &mut &BStr) -> winnow::Result<MemoryFlags> {
+    '('.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    let flags_bytes = take_while(0.., |b: u8| b != b')').parse_next(input)?;
+    ')'.parse_next(input)?;
+    let mut flags = MemoryFlags::default();
+    for &b in flags_bytes {
+        match b {
+            b'r' | b'R' => flags.read = true,
+            b'w' | b'W' => flags.write = true,
+            b'x' | b'X' => flags.exec = true,
+            b'a' | b'A' => flags.alloc = true,
+            _ => {}
+        }
+    }
+    Ok(flags)
+}
+
 fn parse_memory_region<'input>(input: &mut &'input BStr) -> winnow::Result<MemoryRegion<'input>> {
     let name = parse_token(input)?;
     skip_comments_and_whitespace(input)?;
+
+    let flags = if input.starts_with(b"(") {
+        let flags = parse_memory_flags(input)?;
+        skip_comments_and_whitespace(input)?;
+        Some(flags)
+    } else {
+        None
+    };
 
     // Parse the colon separator
     ':'.parse_next(input)?;
@@ -535,6 +650,7 @@ fn parse_memory_region<'input>(input: &mut &'input BStr) -> winnow::Result<Memor
         name,
         origin,
         length,
+        flags,
     })
 }
 
@@ -585,7 +701,8 @@ fn parse_phdr<'input>(input: &mut &'input BStr) -> winnow::Result<Phdr<'input>> 
     let mut flags = None;
     let mut has_filehdr = false;
     let mut has_phdrs = false;
-    while let Some(prefix) = opt(alt((b"FLAGS", b"FILEHDR", b"PHDRS"))).parse_next(input)? {
+    let mut at_address = None;
+    while let Some(prefix) = opt(alt((b"FLAGS", b"FILEHDR", b"PHDRS", b"AT"))).parse_next(input)? {
         skip_comments_and_whitespace(input)?;
         match prefix {
             b"FLAGS" => {
@@ -595,6 +712,9 @@ fn parse_phdr<'input>(input: &mut &'input BStr) -> winnow::Result<Phdr<'input>> 
             }
             b"FILEHDR" => has_filehdr = true,
             b"PHDRS" => has_phdrs = true,
+            b"AT" => {
+                at_address = Some(parse_at_address.parse_next(input)?);
+            }
             _ => unreachable!(),
         }
         skip_comments_and_whitespace(input)?;
@@ -609,6 +729,7 @@ fn parse_phdr<'input>(input: &mut &'input BStr) -> winnow::Result<Phdr<'input>> 
         flags,
         has_filehdr,
         has_phdrs,
+        at_address,
     })
 }
 
@@ -1034,6 +1155,14 @@ fn parse_identifier_or_function<'a>(input: &mut &'a BStr) -> winnow::Result<Expr
                 let symbol = parse_function_arg.parse_next(input)?;
                 Ok(Expression::Defined(symbol))
             }
+            b"ABSOLUTE" => {
+                '('.parse_next(input)?;
+                skip_comments_and_whitespace(input)?;
+                let inner = parse_expression.parse_next(input)?;
+                skip_comments_and_whitespace(input)?;
+                ')'.parse_next(input)?;
+                Ok(inner)
+            }
             b"ASSERT" => {
                 let assert = parse_assert.parse_next(input)?;
                 Ok(Expression::Assert(assert))
@@ -1157,6 +1286,137 @@ fn parse_commands<'input>(input: &mut &'input BStr) -> winnow::Result<Vec<Comman
     Ok(repeat_till(0.., parse_command, eof).parse_next(input)?.0)
 }
 
+fn expand_commands<'data>(
+    commands: Vec<Command<'data>>,
+    load: &mut dyn FnMut(&[u8]) -> Result<&'data [u8]>,
+    stack: &mut Vec<Vec<u8>>,
+) -> Result<Vec<Command<'data>>> {
+    let mut out = Vec::with_capacity(commands.len());
+    for cmd in commands {
+        match cmd {
+            Command::Include(path) => {
+                let included = load_included_script(path, load, stack)?;
+                out.extend(included);
+            }
+            Command::Sections(mut sections) => {
+                sections.commands =
+                    expand_section_commands(std::mem::take(&mut sections.commands), load, stack)?;
+                out.push(Command::Sections(sections));
+            }
+            Command::Group(inner) => {
+                out.push(Command::Group(expand_commands(inner, load, stack)?));
+            }
+            Command::AsNeeded(inner) => {
+                out.push(Command::AsNeeded(expand_commands(inner, load, stack)?));
+            }
+            other => out.push(other),
+        }
+    }
+    Ok(out)
+}
+
+fn expand_section_commands<'data>(
+    commands: Vec<SectionCommand<'data>>,
+    load: &mut dyn FnMut(&[u8]) -> Result<&'data [u8]>,
+    stack: &mut Vec<Vec<u8>>,
+) -> Result<Vec<SectionCommand<'data>>> {
+    let mut out = Vec::with_capacity(commands.len());
+    for cmd in commands {
+        match cmd {
+            SectionCommand::Include(path) => {
+                out.extend(load_included_section_commands(path, load, stack)?);
+            }
+            other => out.push(other),
+        }
+    }
+    Ok(out)
+}
+
+fn load_included_script<'data>(
+    path: &[u8],
+    load: &mut dyn FnMut(&[u8]) -> Result<&'data [u8]>,
+    stack: &mut Vec<Vec<u8>>,
+) -> Result<Vec<Command<'data>>> {
+    push_include_path(path, stack)?;
+    let bytes = load(path)?;
+    let parsed = parse_commands
+        .parse(BStr::new(bytes))
+        .map_err(|error| error!("Failed to parse included linker script:\n{error}"))?;
+    let expanded = expand_commands(parsed, load, stack)?;
+    stack.pop();
+    Ok(expanded)
+}
+
+fn load_included_section_commands<'data>(
+    path: &[u8],
+    load: &mut dyn FnMut(&[u8]) -> Result<&'data [u8]>,
+    stack: &mut Vec<Vec<u8>>,
+) -> Result<Vec<SectionCommand<'data>>> {
+    push_include_path(path, stack)?;
+    let bytes = load(path)?;
+    let section_cmds = match parse_section_command_list.parse(BStr::new(bytes)) {
+        Ok(cmds) => cmds,
+        Err(_) => {
+            let parsed = parse_commands
+                .parse(BStr::new(bytes))
+                .map_err(|error| error!("Failed to parse included linker script:\n{error}"))?;
+            section_commands_from_top_level(parsed)?
+        }
+    };
+    let expanded = expand_section_commands(section_cmds, load, stack)?;
+    stack.pop();
+    Ok(expanded)
+}
+
+fn section_commands_from_top_level<'data>(
+    commands: Vec<Command<'data>>,
+) -> Result<Vec<SectionCommand<'data>>> {
+    let mut out = Vec::new();
+    for cmd in commands {
+        match cmd {
+            Command::Sections(sections) => out.extend(sections.commands),
+            Command::SetLocation(loc) => out.push(SectionCommand::SetLocation(loc)),
+            Command::Assert(assert_cmd) => out.push(SectionCommand::Assert(assert_cmd)),
+            Command::Provide(provide) => out.push(SectionCommand::Provide(provide)),
+            Command::SymbolDefinition { name, value } => {
+                out.push(SectionCommand::SymbolAssignment(SymbolAssignment {
+                    name,
+                    expr: value,
+                }));
+            }
+            Command::Include(path) => out.push(SectionCommand::Include(path)),
+            Command::Ignored => {}
+            Command::Arg(name) => {
+                crate::bail!(
+                    "INCLUDE inside SECTIONS cannot contain `{}`",
+                    String::from_utf8_lossy(name)
+                );
+            }
+            _ => {
+                crate::bail!("INCLUDE inside SECTIONS cannot contain that top-level command");
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn push_include_path(path: &[u8], stack: &mut Vec<Vec<u8>>) -> Result {
+    if stack.iter().any(|p| p == path) {
+        crate::bail!("cyclic INCLUDE of `{}`", String::from_utf8_lossy(path));
+    }
+    stack.push(path.to_vec());
+    Ok(())
+}
+
+fn parse_section_command_list<'input>(
+    input: &mut &'input BStr,
+) -> winnow::Result<Vec<SectionCommand<'input>>> {
+    skip_comments_and_whitespace(input)?;
+    Ok(repeat_till(0.., parse_section_command, eof)
+        .parse_next(input)?
+        .0)
+}
+
 fn parse_entry<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
     skip_comments_and_whitespace(input)?;
     '('.parse_next(input)?;
@@ -1224,6 +1484,13 @@ fn parse_section_command<'input>(
         b"PROVIDE_HIDDEN" => {
             return Ok(SectionCommand::Provide(parse_provide(input, true)?));
         }
+        b"OVERLAY" => {
+            return parse_overlay(input, None);
+        }
+        b"INCLUDE" => {
+            let path = parse_include_path(input)?;
+            return Ok(SectionCommand::Include(path));
+        }
         _ => {}
     }
 
@@ -1245,7 +1512,7 @@ fn parse_section_command<'input>(
 
     let mut start_address_expression = None;
     let mut section_type = None;
-    while !input.starts_with(b":") {
+    while !input.starts_with(b":") && !input.starts_with(b"{") {
         if let Some(stype) = opt(parse_section_attribute).parse_next(input)? {
             section_type = Some(stype);
         } else {
@@ -1254,7 +1521,7 @@ fn parse_section_command<'input>(
         skip_comments_and_whitespace(input)?;
     }
 
-    ':'.parse_next(input)?;
+    opt(':').parse_next(input)?;
 
     skip_comments_and_whitespace(input)?;
 
@@ -1262,11 +1529,16 @@ fn parse_section_command<'input>(
     let mut at_address = None;
 
     while !input.starts_with(b"{") {
+        skip_comments_and_whitespace(input)?;
+        if input.starts_with(b"AT>") {
+            break;
+        }
         if opt("AT").parse_next(input)?.is_some() {
             at_address = Some(parse_at_address.parse_next(input)?);
         } else {
             alignment = Some(parse_alignment.parse_next(input)?);
         }
+        skip_comments_and_whitespace(input)?;
     }
 
     '{'.parse_next(input)?;
@@ -1278,8 +1550,18 @@ fn parse_section_command<'input>(
 
     let mut phdrs = vec![];
     let mut region = None;
+    let mut at_region = None;
     let mut fill = None;
-    while let Some(prefix) = opt(alt((b":", b">", b"="))).parse_next(input)? {
+    loop {
+        skip_comments_and_whitespace(input)?;
+        if opt("AT>").parse_next(input)?.is_some() {
+            skip_comments_and_whitespace(input)?;
+            at_region = Some(parse_token(input)?);
+            continue;
+        }
+        let Some(prefix) = opt(alt((b":", b">", b"="))).parse_next(input)? else {
+            break;
+        };
         skip_comments_and_whitespace(input)?;
         match prefix {
             b":" => phdrs.push(parse_token(input)?),
@@ -1287,7 +1569,6 @@ fn parse_section_command<'input>(
             b"=" => fill = Some(parse_fill(input)?),
             _ => unreachable!(),
         }
-        skip_comments_and_whitespace(input)?;
     }
 
     opt(',').parse_next(input)?;
@@ -1301,8 +1582,87 @@ fn parse_section_command<'input>(
         phdrs,
         at_address,
         region,
+        at_region,
         fill,
         attributes: section_type,
+    }))
+}
+
+fn parse_overlay<'input>(
+    input: &mut &'input BStr,
+    start_address: Option<Expression<'input>>,
+) -> winnow::Result<SectionCommand<'input>> {
+    skip_comments_and_whitespace(input)?;
+    let mut start_address = start_address;
+    if !input.starts_with(b":") && !input.starts_with(b"{") {
+        start_address = Some(parse_expression.parse_next(input)?);
+        skip_comments_and_whitespace(input)?;
+    }
+    ':'.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+
+    let mut nocrossrefs = false;
+    let mut at_address = None;
+    while !input.starts_with(b"{") {
+        if opt("NOCROSSREFS").parse_next(input)?.is_some() {
+            nocrossrefs = true;
+        } else if opt("AT").parse_next(input)?.is_some() {
+            at_address = Some(parse_at_address.parse_next(input)?);
+        } else {
+            break;
+        }
+        skip_comments_and_whitespace(input)?;
+    }
+
+    '{'.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+
+    let mut sections = Vec::new();
+    while !input.starts_with(b"}") {
+        let SectionCommand::Section(section) = parse_section_command.parse_next(input)? else {
+            return Err(ContextError::default());
+        };
+        sections.push(section);
+        skip_comments_and_whitespace(input)?;
+    }
+    '}'.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+
+    let mut phdrs = vec![];
+    let mut region = None;
+    let mut at_region = None;
+    let mut fill = None;
+    loop {
+        skip_comments_and_whitespace(input)?;
+        if opt("AT>").parse_next(input)?.is_some() {
+            skip_comments_and_whitespace(input)?;
+            at_region = Some(parse_token(input)?);
+            continue;
+        }
+        let Some(prefix) = opt(alt((b":", b">", b"="))).parse_next(input)? else {
+            break;
+        };
+        skip_comments_and_whitespace(input)?;
+        match prefix {
+            b":" => phdrs.push(parse_token(input)?),
+            b">" => region = Some(parse_token(input)?),
+            b"=" => fill = Some(parse_fill(input)?),
+            _ => unreachable!(),
+        }
+    }
+
+    opt(',').parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+
+    Ok(SectionCommand::Overlay(Overlay {
+        start_address,
+        at_address,
+        nocrossrefs,
+        sections,
+        region,
+        at_region,
+        phdrs,
+        fill,
     }))
 }
 
@@ -1366,11 +1726,49 @@ fn parse_contents_command<'input>(
     alt((
         parse_contents_provide,
         parse_contents_assert,
+        parse_contents_fill,
+        parse_output_data,
         parse_matcher,
         parse_assignment,
         parse_constructors,
     ))
     .parse_next(input)
+}
+
+fn parse_contents_fill<'input>(
+    input: &mut &'input BStr,
+) -> winnow::Result<ContentsCommand<'input>> {
+    "FILL".parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    '('.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    let value = parse_expression.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    ')'.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    opt(';').parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    Ok(ContentsCommand::Fill(Fill { value }))
+}
+
+fn parse_output_data<'input>(input: &mut &'input BStr) -> winnow::Result<ContentsCommand<'input>> {
+    let width = alt((
+        "QUAD".map(|_| OutputDataWidth::Quad),
+        "LONG".map(|_| OutputDataWidth::Long),
+        "SHORT".map(|_| OutputDataWidth::Short),
+        "BYTE".map(|_| OutputDataWidth::Byte),
+    ))
+    .parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    '('.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    let value = parse_expression.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    ')'.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    opt(';').parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    Ok(ContentsCommand::OutputData(OutputData { width, value }))
 }
 
 fn parse_contents_provide<'input>(
@@ -1430,12 +1828,36 @@ fn parse_keep<'input>(input: &mut &'input BStr) -> winnow::Result<Matcher<'input
     Ok(matcher)
 }
 
+fn parse_exclude_file_list<'input>(input: &mut &'input BStr) -> winnow::Result<Vec<&'input [u8]>> {
+    "EXCLUDE_FILE".parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    '('.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    let mut files = Vec::new();
+    while !input.starts_with(b")") {
+        files.push(parse_token(input)?);
+        skip_comments_and_whitespace(input)?;
+    }
+    ')'.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    Ok(files)
+}
+
 fn parse_matcher_pattern<'input>(input: &mut &'input BStr) -> winnow::Result<Matcher<'input>> {
+    let mut exclude_file_patterns = Vec::new();
+    if input.starts_with(b"EXCLUDE_FILE") {
+        exclude_file_patterns = parse_exclude_file_list(input)?;
+    }
+
     // Parse the file pattern token (e.g., *, foo.o, *crtbegin*.o).
     let file_pattern = parse_token(input)?;
     skip_comments_and_whitespace(input)?;
     '('.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
+
+    if input.starts_with(b"EXCLUDE_FILE") {
+        exclude_file_patterns.extend(parse_exclude_file_list(input)?);
+    }
 
     let (patterns, _) = repeat_till(0.., parse_pattern, ')').parse_next(input)?;
     skip_comments_and_whitespace(input)?;
@@ -1450,25 +1872,25 @@ fn parse_matcher_pattern<'input>(input: &mut &'input BStr) -> winnow::Result<Mat
     Ok(Matcher {
         must_keep: false,
         input_file_pattern,
+        exclude_file_patterns,
         input_section_name_patterns: patterns,
     })
 }
 
-fn parse_sort(input: &mut &BStr) -> winnow::Result<bool> {
-    let sort_kw = alt((
-        "SORT_BY_NAME".map(|_| true),
-        "SORT_BY_ALIGNMENT".map(|_| false),
-        "SORT".map(|_| true),
+fn parse_sort(input: &mut &BStr) -> winnow::Result<SortKind> {
+    alt((
+        "SORT_BY_INIT_PRIORITY".map(|_| SortKind::InitPriority),
+        "SORT_BY_NAME".map(|_| SortKind::Name),
+        "SORT_BY_ALIGNMENT".map(|_| SortKind::Alignment),
+        "SORT".map(|_| SortKind::Name),
     ))
-    .parse_next(input)?;
-    Ok(sort_kw)
+    .parse_next(input)
 }
 
 fn parse_pattern<'input>(input: &mut &'input BStr) -> winnow::Result<SectionPattern<'input>> {
-    let sort_kw = opt(parse_sort).parse_next(input)?;
-    let sorted = sort_kw.unwrap_or(false);
+    let sort = opt(parse_sort).parse_next(input)?.unwrap_or(SortKind::None);
 
-    if sort_kw.is_some() {
+    if sort != SortKind::None {
         skip_comments_and_whitespace(input)?;
         '('.parse_next(input)?;
         winnow::combinator::not(parse_sort)
@@ -1482,12 +1904,12 @@ fn parse_pattern<'input>(input: &mut &'input BStr) -> winnow::Result<SectionPatt
     let name = take_while(1.., |b: u8| b != b')' && !b.is_ascii_whitespace()).parse_next(input)?;
     skip_comments_and_whitespace(input)?;
 
-    if sort_kw.is_some() {
+    if sort != SortKind::None {
         ')'.parse_next(input)?;
         skip_comments_and_whitespace(input)?;
     }
 
-    Ok(SectionPattern { name, sorted })
+    Ok(SectionPattern { name, sort })
 }
 
 fn parse_contents_assert<'input>(
@@ -1710,23 +2132,25 @@ mod tests {
                     ContentsCommand::Matcher(Matcher {
                         must_keep: false,
                         input_file_pattern: None,
+                        exclude_file_patterns: vec![],
                         input_section_name_patterns: vec![
                             SectionPattern {
                                 name: b".text",
-                                sorted: false,
+                                sort: SortKind::None,
                             },
                             SectionPattern {
                                 name: b".text2",
-                                sorted: false,
+                                sort: SortKind::None,
                             },
                         ],
                     }),
                     ContentsCommand::Matcher(Matcher {
                         must_keep: false,
                         input_file_pattern: None,
+                        exclude_file_patterns: vec![],
                         input_section_name_patterns: vec![SectionPattern {
                             name: b".text3",
-                            sorted: false,
+                            sort: SortKind::None,
                         }],
                     }),
                 ],
@@ -1735,6 +2159,7 @@ mod tests {
                 phdrs: vec![],
                 at_address: None,
                 region: None,
+                at_region: None,
                 fill: None,
                 attributes: None,
             }),
@@ -1750,9 +2175,10 @@ mod tests {
                 commands: vec![ContentsCommand::Matcher(Matcher {
                     must_keep: false,
                     input_file_pattern: None,
+                    exclude_file_patterns: vec![],
                     input_section_name_patterns: vec![SectionPattern {
                         name: b"___ksymtab+",
-                        sorted: false,
+                        sort: SortKind::None,
                     }],
                 })],
                 alignment: Some(Alignment::new(8).unwrap()),
@@ -1760,6 +2186,7 @@ mod tests {
                 phdrs: vec![],
                 at_address: None,
                 region: None,
+                at_region: None,
                 fill: None,
                 attributes: None,
             }),
@@ -1809,9 +2236,10 @@ mod tests {
                                     ContentsCommand::Matcher(Matcher {
                                         must_keep: true,
                                         input_file_pattern: None,
+                                        exclude_file_patterns: vec![],
                                         input_section_name_patterns: vec![SectionPattern {
                                             name: b".rodata.foo",
-                                            sorted: false,
+                                            sort: SortKind::None,
                                         }],
                                     }),
                                     ContentsCommand::SetLocation(Location {
@@ -1830,6 +2258,7 @@ mod tests {
                                 phdrs: vec![],
                                 at_address: None,
                                 region: None,
+                                at_region: None,
                                 fill: None,
                                 attributes: None,
                             }),
@@ -1958,23 +2387,25 @@ mod tests {
                     ContentsCommand::Matcher(Matcher {
                         must_keep: false,
                         input_file_pattern: Some(b"foo.o"),
+                        exclude_file_patterns: vec![],
                         input_section_name_patterns: vec![
                             SectionPattern {
                                 name: b".text",
-                                sorted: false,
+                                sort: SortKind::None,
                             },
                             SectionPattern {
                                 name: b".text2",
-                                sorted: false,
+                                sort: SortKind::None,
                             },
                         ],
                     }),
                     ContentsCommand::Matcher(Matcher {
                         must_keep: false,
                         input_file_pattern: None,
+                        exclude_file_patterns: vec![],
                         input_section_name_patterns: vec![SectionPattern {
                             name: b".text3",
-                            sorted: false,
+                            sort: SortKind::None,
                         }],
                     }),
                 ],
@@ -1983,6 +2414,7 @@ mod tests {
                 phdrs: vec![],
                 at_address: None,
                 region: None,
+                at_region: None,
                 fill: None,
                 attributes: None,
             }),
@@ -1998,9 +2430,10 @@ mod tests {
                 commands: vec![ContentsCommand::Matcher(Matcher {
                     must_keep: false,
                     input_file_pattern: Some(b"*crtbegin*.o"),
+                    exclude_file_patterns: vec![],
                     input_section_name_patterns: vec![SectionPattern {
                         name: b".ctors",
-                        sorted: false,
+                        sort: SortKind::None,
                     }],
                 })],
                 alignment: None,
@@ -2008,6 +2441,7 @@ mod tests {
                 phdrs: vec![],
                 at_address: None,
                 region: None,
+                at_region: None,
                 fill: None,
                 attributes: None,
             }),
@@ -2023,9 +2457,10 @@ mod tests {
                 commands: vec![ContentsCommand::Matcher(Matcher {
                     must_keep: true,
                     input_file_pattern: Some(b"crti.o"),
+                    exclude_file_patterns: vec![],
                     input_section_name_patterns: vec![SectionPattern {
                         name: b".init",
-                        sorted: false,
+                        sort: SortKind::None,
                     }],
                 })],
                 alignment: None,
@@ -2033,6 +2468,7 @@ mod tests {
                 phdrs: vec![],
                 at_address: None,
                 region: None,
+                at_region: None,
                 fill: None,
                 attributes: None,
             }),
@@ -2056,9 +2492,10 @@ mod tests {
                             commands: vec![ContentsCommand::Matcher(Matcher {
                                 must_keep: false,
                                 input_file_pattern: None,
+                                exclude_file_patterns: vec![],
                                 input_section_name_patterns: vec![SectionPattern {
                                     name: b".text",
-                                    sorted: false,
+                                    sort: SortKind::None,
                                 }],
                             })],
                             alignment: None,
@@ -2066,6 +2503,7 @@ mod tests {
                             phdrs: vec![],
                             at_address: None,
                             region: None,
+                            at_region: None,
                             fill: None,
                             attributes: None,
                         })],
@@ -2100,9 +2538,10 @@ mod tests {
                             commands: vec![ContentsCommand::Matcher(Matcher {
                                 must_keep: false,
                                 input_file_pattern: None,
+                                exclude_file_patterns: vec![],
                                 input_section_name_patterns: vec![SectionPattern {
                                     name: b".text",
-                                    sorted: false,
+                                    sort: SortKind::None,
                                 }],
                             })],
                             alignment: None,
@@ -2110,6 +2549,7 @@ mod tests {
                             phdrs: vec![],
                             at_address: None,
                             region: None,
+                            at_region: None,
                             fill: None,
                             attributes: None,
                         }),

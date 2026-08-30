@@ -262,6 +262,7 @@ fn write_file_contents<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     let (mut section_buffers, padding) = split_output_into_sections(layout, &mut sized_output.out);
 
     fill_padding_for_sections::<C, A>(layout, padding);
+    write_script_output_data(layout, &mut section_buffers)?;
 
     let sym_index_map = if layout.args().should_output_partial_object() {
         build_sym_index_map(layout)
@@ -412,7 +413,11 @@ fn write_program_headers<C: ElfClass>(
         segment_header.set_flags(segment_flags);
         segment_header.set_offset(segment_sizes.file_offset as u64)?;
         segment_header.set_virtual_address(segment_sizes.mem_offset)?;
-        segment_header.set_physical_address(segment_sizes.lma_offset)?;
+        let p_paddr = layout
+            .program_segments
+            .at_lma(segment_id)
+            .unwrap_or(segment_sizes.lma_offset);
+        segment_header.set_physical_address(p_paddr)?;
         segment_header.set_file_size(segment_sizes.file_size as u64)?;
         segment_header.set_memory_size(segment_sizes.mem_size)?;
         segment_header.set_alignment(alignment.value())?;
@@ -6172,4 +6177,70 @@ fn fill_section_padding<C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     } else {
         A::fill_section_padding(padding, section_info.section_attributes.flags);
     }
+}
+
+fn write_script_output_data<C: ElfClass>(
+    layout: &ElfLayout<C>,
+    section_buffers: &mut OutputSectionMap<&mut [u8]>,
+) -> Result {
+    if layout.output_sections.script_output_data.is_empty() {
+        return Ok(());
+    }
+
+    let sizeof_headers = crate::elf::program_headers_size::<C>(&layout.prelude().header_info)
+        + u64::from(C::FILE_HEADER_SIZE);
+    let empty_regions = hashbrown::HashMap::new();
+
+    for data in &layout.output_sections.script_output_data {
+        let end = layout
+            .resolved_location_counters
+            .get(data.location_counter_index)
+            .and_then(|lc| lc.section_offset)
+            .unwrap_or(u64::from(data.width)) as usize;
+        let offset = end.saturating_sub(usize::from(data.width));
+        let value = crate::expression_eval::evaluate_expression(
+            &data.value,
+            &SymbolLoc::None,
+            None,
+            &layout.section_layouts,
+            &layout.output_sections,
+            &empty_regions,
+            &layout.symbol_db,
+            sizeof_headers,
+            &layout.resolved_location_counters,
+            &|name| {
+                let Some(symbol_id) = layout
+                    .symbol_db
+                    .get_unversioned(&crate::symbol::UnversionedSymbolName::prehashed(name))
+                else {
+                    crate::bail!(
+                        "undefined symbol `{}` in linker script BYTE/SHORT/LONG/QUAD",
+                        String::from_utf8_lossy(name)
+                    );
+                };
+                let canonical = layout.symbol_db.definition(symbol_id);
+                layout
+                    .symbol_resolutions
+                    .get(canonical)
+                    .map(|r| r.raw_value)
+                    .with_context(|| {
+                        format!(
+                            "unresolved symbol `{}` in linker script BYTE/SHORT/LONG/QUAD",
+                            String::from_utf8_lossy(name)
+                        )
+                    })
+            },
+        )?;
+        let buf = section_buffers.get_mut(data.section_id);
+        let end = offset + usize::from(data.width);
+        if end > buf.len() {
+            bail!(
+                "BYTE/SHORT/LONG/QUAD at offset {offset} does not fit in section {}",
+                layout.output_sections.display_name(data.section_id)
+            );
+        }
+        let bytes = value.to_le_bytes();
+        buf[offset..end].copy_from_slice(&bytes[..usize::from(data.width)]);
+    }
+    Ok(())
 }

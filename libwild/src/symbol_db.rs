@@ -107,6 +107,11 @@ pub struct SymbolDb<'data, P: Platform> {
     /// sections, this will indicate the part that the section would have been placed in had it
     /// been loaded.
     pub(crate) section_part_ids: Vec<PartId>,
+
+    /// Index of the first LTO input group. Plugin codegen is still appended after regular objects
+    /// (#1935) because `Group::Objects` is an arena slice whose FileIds cannot be remapped.
+    #[allow(dead_code)]
+    pub(crate) first_lto_group_index: Option<usize>,
 }
 
 /// Borrows from a SymbolDb, but allows temporary atomic access to some of the tables. These tables
@@ -370,6 +375,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
             herd,
             section_part_ids: Vec::new(),
             next_input_section_id: crate::input_section_id::InputSectionId::from_usize(0),
+            first_lto_group_index: None,
         };
 
         for symbol in args.force_export_symbol_names() {
@@ -418,6 +424,10 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
             loaded.stub_libraries,
             processed_linker_scripts,
         );
+
+        if self.first_lto_group_index.is_none() && loaded.objects_before_first_lto.is_some() {
+            self.first_lto_group_index = Some(self.groups.len());
+        }
 
         self.create_lto_input_groups(loaded.lto_objects)?;
 
@@ -486,6 +496,10 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         }
 
         verbose_timing_phase!("Create LTO input groups");
+
+        if self.first_lto_group_index.is_none() {
+            self.first_lto_group_index = Some(self.groups.len());
+        }
 
         let lto_objects = lto_objects.into_iter().collect::<Result<Vec<_>>>()?;
 
@@ -1037,6 +1051,15 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
 
     pub(crate) fn add_group(&mut self, group: Group<'data, P>) {
         self.groups.push(group);
+    }
+
+    #[allow(dead_code)]
+    fn remap_symbol_file_ids_from(&mut self, from_group: usize, delta: u32) {
+        for file_id in &mut self.symbol_file_ids {
+            if file_id.group() >= from_group {
+                *file_id = FileId::new(file_id.group() as u32 + delta, file_id.file() as u32);
+            }
+        }
     }
 
     #[cfg(all(feature = "plugins", unix))]
