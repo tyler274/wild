@@ -30,6 +30,7 @@ use crate::input_section_id::SectionIdRange;
 use crate::layout_rules::SectionKind;
 use crate::linker_script::Expression;
 use crate::output_section_id;
+use crate::output_section_id::GnuBuildIdPlacement;
 use crate::output_section_id::OrderEvent;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSectionId;
@@ -2220,6 +2221,11 @@ fn compute_total_section_part_sizes<'data, P: Platform>(
     };
 
     epilogue.apply_late_size_adjustments(&mut last_group.common, &mut total_sizes, resources)?;
+    relocate_gnu_build_id_allocation(
+        output_sections,
+        &mut total_sizes,
+        &mut last_group.common.mem_sizes,
+    );
 
     let first_group = group_states.first_mut().unwrap();
     let Some(FileLayoutState::Prelude(prelude)) = first_group.files.first_mut() else {
@@ -2250,6 +2256,72 @@ fn compute_total_section_part_sizes<'data, P: Platform>(
     }
 
     Ok((total_sizes, gdb_index_data))
+}
+
+/// Move the generated GNU build-id note into the script section that matches
+/// `.note.gnu.build-id`, or drop it when that name is discarded.
+fn relocate_gnu_build_id_allocation<P: Platform>(
+    output_sections: &mut OutputSections<P>,
+    total_sizes: &mut OutputSectionPartMap<u64>,
+    epilogue_sizes: &mut OutputSectionPartMap<u64>,
+) {
+    let Some(builtin) = P::NOTE_GNU_BUILD_ID_SECTION_ID else {
+        return;
+    };
+    let Some(builtin_part) = P::single_part_id(builtin) else {
+        return;
+    };
+    let size = total_sizes.get(builtin_part);
+    if size == 0 {
+        return;
+    }
+
+    match output_sections.gnu_build_id_placement {
+        GnuBuildIdPlacement::Builtin => {}
+        GnuBuildIdPlacement::Discard => {
+            total_sizes.decrement(builtin_part, size);
+            epilogue_sizes.decrement(builtin_part, size);
+            output_sections.gnu_build_id_allocated = size;
+        }
+        GnuBuildIdPlacement::Merge(target) => {
+            if target == builtin {
+                return;
+            }
+            total_sizes.decrement(builtin_part, size);
+            epilogue_sizes.decrement(builtin_part, size);
+            output_sections.bump_min_alignment(target, alignment::NOTE_GNU_BUILD_ID);
+            let dest = target.part_id_with_alignment::<P>(alignment::NOTE_GNU_BUILD_ID);
+            total_sizes.increment(dest, size);
+            epilogue_sizes.increment(dest, size);
+            output_sections.gnu_build_id_allocated = size;
+            let attr = output_sections
+                .section_infos
+                .get(builtin)
+                .section_attributes;
+            attr.apply(output_sections, target);
+        }
+    }
+}
+
+/// The epilogue still advances the builtin build-id cursor; redirect it after a merge or discard.
+fn relocate_gnu_build_id_layout_offset<P: Platform>(
+    memory_offsets: &mut OutputSectionPartMap<u64>,
+    output_sections: &OutputSections<P>,
+) {
+    let size = output_sections.gnu_build_id_allocated;
+    if size == 0 {
+        return;
+    }
+    let Some(builtin) = P::NOTE_GNU_BUILD_ID_SECTION_ID else {
+        return;
+    };
+    let Some(builtin_part) = P::single_part_id(builtin) else {
+        return;
+    };
+    memory_offsets.decrement(builtin_part, size);
+    if let Some(dest) = output_sections.gnu_build_id_dest_part() {
+        memory_offsets.increment(dest, size);
+    }
 }
 
 /// Allocates space for thunk blocks in each object that owns one.
@@ -4188,6 +4260,7 @@ impl<'data, P: Platform> EpilogueLayoutState<P> {
             dynsym_start_index,
             resources.dynamic_symbol_definitions,
         )?;
+        relocate_gnu_build_id_layout_offset(memory_offsets, resources.output_sections);
         for sec in resources.script_sorted_sections {
             let offset = memory_offsets.get_mut(sec.part_id);
             *offset = sec.alignment.align_up(*offset);
@@ -6414,13 +6487,9 @@ fn script_def_layout_value<'data, P: Platform>(
             },
         ),
         SymbolPlacement::SectionStart(id) => Ok(section_layouts.get(*id).mem_offset),
-        SymbolPlacement::SectionEnd(id) | SymbolPlacement::SectionGroupEnd(id) => {
-            Ok(crate::expression_eval::section_mem_end(
-                *id,
-                section_layouts,
-                output_sections,
-            ))
-        }
+        SymbolPlacement::SectionEnd(id) | SymbolPlacement::SectionGroupEnd(id) => Ok(
+            crate::expression_eval::section_mem_end(*id, section_layouts, output_sections),
+        ),
         _ => bail!(
             "Symbols with the set location operation are not yet supported (`{}`).",
             String::from_utf8_lossy(name)

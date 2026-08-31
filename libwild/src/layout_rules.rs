@@ -17,6 +17,7 @@ use crate::linker_script;
 use crate::linker_script::ContentsCommand;
 use crate::linker_script::Expression;
 use crate::linker_script::SectionCommand;
+use crate::output_section_id::GnuBuildIdPlacement;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::SectionIdentity;
 use crate::output_section_id::SectionLocationInfo;
@@ -32,6 +33,7 @@ use crate::platform::Platform;
 use crate::platform::SectionHeader;
 use glob::Pattern;
 use hashbrown::HashTable;
+use linker_utils::elf::secnames::NOTE_GNU_BUILD_ID_SECTION_NAME;
 use std::borrow::Cow;
 
 pub(crate) struct LayoutRules<'data> {
@@ -251,12 +253,18 @@ impl<'data> LayoutRulesBuilder<'data> {
                                     match contents_cmd {
                                         ContentsCommand::Matcher(matcher) => {
                                             for pattern in &matcher.input_section_name_patterns {
-                                                self.add_section_rule(SectionRule::new(
+                                                let rule = SectionRule::new(
                                                     pattern.name,
                                                     matcher.input_file_pattern,
                                                     crate::layout_rules::SectionRuleOutcome::Discard,
                                                 )?
-                                                .with_excludes(&matcher.exclude_file_patterns)?);
+                                                .with_excludes(&matcher.exclude_file_patterns)?;
+                                                record_gnu_build_id_placement(
+                                                    output_sections,
+                                                    &rule,
+                                                    GnuBuildIdPlacement::Discard,
+                                                );
+                                                self.add_section_rule(rule);
                                             }
                                         }
                                         _ => crate::bail!("Illegal use of /DISCARD/ section"),
@@ -365,14 +373,18 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                 primary_section_id, output_info
                                             );
 
-                                            self.add_section_rule(
-                                                SectionRule::new(
-                                                    pattern.name,
-                                                    matcher.input_file_pattern,
-                                                    outcome,
-                                                )?
-                                                .with_excludes(&matcher.exclude_file_patterns)?,
+                                            let rule = SectionRule::new(
+                                                pattern.name,
+                                                matcher.input_file_pattern,
+                                                outcome,
+                                            )?
+                                            .with_excludes(&matcher.exclude_file_patterns)?;
+                                            record_gnu_build_id_placement(
+                                                output_sections,
+                                                &rule,
+                                                GnuBuildIdPlacement::Merge(primary_section_id),
                                             );
+                                            self.add_section_rule(rule);
                                         }
 
                                         last_section_id = Some(section_id);
@@ -704,6 +716,21 @@ impl<'data> LayoutRulesBuilder<'data> {
 
     pub(crate) fn add_section_rule(&mut self, rule: SectionRule<'data>) {
         self.rules.push(rule);
+    }
+}
+
+/// First matching linker-script rule for `.note.gnu.build-id` wins, matching GNU ld.
+fn record_gnu_build_id_placement<P: Platform>(
+    output_sections: &mut OutputSections<P>,
+    rule: &SectionRule<'_>,
+    placement: GnuBuildIdPlacement,
+) {
+    if output_sections.gnu_build_id_placement != GnuBuildIdPlacement::Builtin {
+        return;
+    }
+    // Linker-generated notes have no input filename; `*` still matches an empty name.
+    if rule.matches(NOTE_GNU_BUILD_ID_SECTION_NAME, Some(b"")) {
+        output_sections.gnu_build_id_placement = placement;
     }
 }
 

@@ -42,7 +42,7 @@ matching all three.
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Output section definitions (`name : { ... }`) | ✅ | Empty sections inherit the location-counter VMA when they sit in a `PT_LOAD`. Sections with an explicit address of 0 (e.g. `.comment 0 :`) stay at 0 and do not contribute to `PT_LOAD` bounds. Empty loadable sections with no file contents are `NOBITS` |
-| Input section matchers (`*(pattern)`, `file(pattern)`) | ✅ | |
+| Input section matchers (`*(pattern)`, `file(pattern)`) | ✅ | `*(.note.*)` absorbs the linker-generated `--build-id` note (GNU ld); `/DISCARD/` of that name drops it |
 | Glob patterns in section and file names | ✅ | |
 | `KEEP(...)` to prevent garbage collection | ✅ | |
 | `PROVIDE(sym = expr)` inside sections | ✅ | |
@@ -140,3 +140,4 @@ ld with `readelf` and, where possible, QEMU boot.
 | `DEFINED(sym)` function | ✅ | |
 | `SIZEOF_HEADERS` built-in symbol | ✅ | |
 | `/DISCARD/` command | ✅ | |
+| `--build-id` into `*(.note.*)` | ✅ | Merged into the matching output section (kernel `.notes`); not a leftover `PT_LOAD` |

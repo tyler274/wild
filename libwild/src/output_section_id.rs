@@ -15,6 +15,7 @@
 //! later in `SECTION_DEFINITIONS`.
 
 use crate::Result;
+use crate::alignment;
 use crate::alignment::Alignment;
 use crate::alignment::NUM_ALIGNMENTS;
 use crate::grouping::SequencedLinkerScript;
@@ -115,6 +116,25 @@ pub(crate) struct OutputSections<'data, P: Platform> {
 
     /// BYTE/SHORT/LONG/QUAD data emitted by linker scripts, keyed by location-counter index.
     pub(crate) script_output_data: Vec<ScriptOutputData<'data>>,
+
+    /// Where the linker-generated GNU build-id note should go when a linker script is in use.
+    pub(crate) gnu_build_id_placement: GnuBuildIdPlacement,
+
+    /// Size of the generated build-id note that was moved off the builtin section, if any.
+    /// Used to redirect the epilogue layout cursor after GNU ld-style merging or discard.
+    pub(crate) gnu_build_id_allocated: u64,
+}
+
+/// How a linker script maps the generated `.note.gnu.build-id` section.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum GnuBuildIdPlacement {
+    /// Keep the dedicated builtin section (no script matcher, or the script named that section).
+    #[default]
+    Builtin,
+    /// Merge into this output section (e.g. kernel `.notes : { KEEP(*(.note.*)) }`).
+    Merge(OutputSectionId),
+    /// A `/DISCARD/` matcher matched `.note.gnu.build-id`.
+    Discard,
 }
 
 /// Encodes the order of output sections and the start and end of each program segment. This struct
@@ -895,6 +915,24 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             rosegment: true,
             output_kind,
             script_output_data: Vec::new(),
+            gnu_build_id_placement: GnuBuildIdPlacement::Builtin,
+            gnu_build_id_allocated: 0,
+        }
+    }
+
+    /// Part that holds the generated GNU build-id note, if it is being emitted.
+    pub(crate) fn gnu_build_id_dest_part(&self) -> Option<PartId> {
+        let builtin = P::NOTE_GNU_BUILD_ID_SECTION_ID?;
+        match self.gnu_build_id_placement {
+            GnuBuildIdPlacement::Discard => None,
+            GnuBuildIdPlacement::Builtin => P::single_part_id(builtin),
+            GnuBuildIdPlacement::Merge(target) => {
+                if target == builtin || !target.is_regular::<P>() {
+                    P::single_part_id(builtin)
+                } else {
+                    Some(target.part_id_with_alignment::<P>(alignment::NOTE_GNU_BUILD_ID))
+                }
+            }
         }
     }
 

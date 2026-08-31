@@ -307,6 +307,7 @@ pub(crate) trait Platform:
     const PLT_GOT_SECTION_ID: Option<OutputSectionId> = None;
     const EH_FRAME_SECTION_ID: Option<OutputSectionId> = None;
     const NOTE_GNU_PROPERTY_SECTION_ID: Option<OutputSectionId> = None;
+    const NOTE_GNU_BUILD_ID_SECTION_ID: Option<OutputSectionId> = None;
     const RISCV_ATTRIBUTES_SECTION_ID: Option<OutputSectionId> = None;
     const GOT_RELR_SECTION_ID: Option<OutputSectionId> = None;
     const GNU_VERSION_SECTION_ID: Option<OutputSectionId> = None;

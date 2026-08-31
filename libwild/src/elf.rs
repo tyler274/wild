@@ -670,6 +670,8 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     const EH_FRAME_SECTION_ID: Option<OutputSectionId> = Some(output_section_id::EH_FRAME);
     const NOTE_GNU_PROPERTY_SECTION_ID: Option<OutputSectionId> =
         Some(output_section_id::NOTE_GNU_PROPERTY);
+    const NOTE_GNU_BUILD_ID_SECTION_ID: Option<OutputSectionId> =
+        Some(output_section_id::NOTE_GNU_BUILD_ID);
     const RISCV_ATTRIBUTES_SECTION_ID: Option<OutputSectionId> =
         Some(output_section_id::RISCV_ATTRIBUTES);
     const GOT_RELR_SECTION_ID: Option<OutputSectionId> = Some(output_section_id::GOT_RELR);
@@ -5297,7 +5299,7 @@ impl<'data> Sonames<'data> {
 impl platform::SegmentType for SegmentType {}
 
 impl EpilogueLayoutExt {
-    fn gnu_build_id_note_section_size<C: ElfClass>(&self) -> Option<u64> {
+    pub(crate) fn gnu_build_id_note_section_size<C: ElfClass>(&self) -> Option<u64> {
         Some(C::NOTE_HEADER_SIZE + GNU_NOTE_NAME.len() as u64 + self.build_id_size? as u64)
     }
 }

@@ -231,10 +231,32 @@ fn write_gnu_build_id_note<C: ElfClass>(
         BuildIdOption::None => return Ok(()),
     };
 
+    let dest_part = match layout.output_sections.gnu_build_id_dest_part() {
+        Some(part) => part,
+        None => return Ok(()),
+    };
+    let section_id = dest_part.output_section_id::<elf::Elf<C>>();
     let mut buffers = split_output_into_sections(layout, &mut sized_output.out).0;
-    let (note_header, mut rest) =
-        from_bytes_mut::<elf::NoteHeader<C>>(buffers.get_mut(output_section_id::NOTE_GNU_BUILD_ID))
-            .map_err(|_| insufficient_allocation(NOTE_GNU_BUILD_ID_SECTION_NAME_STR))?;
+    let section_buf = buffers.get_mut(section_id);
+    let part_layout = layout.section_part_layouts.get(dest_part);
+    let section_layout = layout.section_layouts.get(section_id);
+    if part_layout.file_size == 0 {
+        return Ok(());
+    }
+    let part_start = part_layout
+        .file_offset
+        .saturating_sub(section_layout.file_offset);
+    let part_end = part_start + part_layout.file_size;
+    let part_buf = section_buf
+        .get_mut(part_start..part_end)
+        .ok_or_else(|| insufficient_allocation(NOTE_GNU_BUILD_ID_SECTION_NAME_STR))?;
+    let note_size = C::NOTE_HEADER_SIZE as usize + GNU_NOTE_NAME.len() + build_id.len();
+    let start = part_buf
+        .len()
+        .checked_sub(note_size)
+        .ok_or_else(|| insufficient_allocation(NOTE_GNU_BUILD_ID_SECTION_NAME_STR))?;
+    let (note_header, mut rest) = from_bytes_mut::<elf::NoteHeader<C>>(&mut part_buf[start..])
+        .map_err(|_| insufficient_allocation(NOTE_GNU_BUILD_ID_SECTION_NAME_STR))?;
     note_header.set_name_size(GNU_NOTE_NAME.len() as u32);
     note_header.set_descriptor_size(build_id.len() as u32);
     note_header.set_type(NT_GNU_BUILD_ID);
@@ -4328,8 +4350,19 @@ fn write_epilogue<C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     // The actual build-id will be filled in later once all writing has completed. It's important
     // that we fill it with zeros now however, since if we're overwriting an existing file, there
     // might be other data there and we don't zero it, then the build ID will be hashing that data.
-    let build_id_buffer = buffers.get_mut(part_id::NOTE_GNU_BUILD_ID);
-    build_id_buffer.fill(0);
+    if let Some(dest_part) = layout.output_sections.gnu_build_id_dest_part() {
+        let build_id_buffer = buffers.get_mut(dest_part);
+        let note_size = epilogue
+            .format_specific
+            .gnu_build_id_note_section_size::<C>()
+            .unwrap_or(0) as usize;
+        let len = build_id_buffer.len();
+        if note_size > 0 && len >= note_size {
+            build_id_buffer[len - note_size..].fill(0);
+        } else {
+            build_id_buffer.fill(0);
+        }
+    }
 
     for sorted_section in &layout.script_sorted_sections {
         let crate::layout::FileLayout::Object(object) = layout.file_layout(sorted_section.file_id)
