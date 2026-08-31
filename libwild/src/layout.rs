@@ -634,12 +634,17 @@ fn update_defsym_symbol_resolution<'data, P: Platform>(
         }
 
         let current_section_base = match redirect.loc {
-            SymbolLoc::SectionStartRelative(id)
-            | SymbolLoc::SectionEndRelative(id)
-            | SymbolLoc::LocationCounter(_, Some(id)) => {
+            SymbolLoc::SectionStartRelative(id) | SymbolLoc::SectionEndRelative(id) => {
                 let primary_id = output_sections.primary_output_section(id);
                 Some(section_layouts.get(primary_id).mem_offset)
             }
+            SymbolLoc::LocationCounter(idx, Some(id)) => resolved_location_counters
+                .get(idx)
+                .and_then(|entry| entry.section_offset)
+                .map(|_| {
+                    let primary_id = output_sections.primary_output_section(id);
+                    section_layouts.get(primary_id).mem_offset
+                }),
             _ => None,
         };
 
@@ -6539,7 +6544,7 @@ fn object_symbol_address_in_layout<'data, P: Platform>(
 }
 
 /// Last non-PROVIDE linker-script assignment of `name`, if any.
-fn script_assignment_def<'data, 's, P: Platform>(
+pub(crate) fn script_assignment_def<'data, 's, P: Platform>(
     name: &[u8],
     symbol_db: &'s SymbolDb<'data, P>,
 ) -> Option<&'s InternalSymDefInfo<'data, P>> {

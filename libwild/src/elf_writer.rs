@@ -4804,14 +4804,7 @@ fn get_symbol_attributes<C: ElfClass>(
         FileLayout::Prelude(prelude) => {
             let offset = symbol_id.offset_from(SymbolId::undefined());
             let def_info = &prelude.internal_symbols.symbol_definitions[offset];
-            let shndx = def_info
-                .section_id()
-                .and_then(|section_id| {
-                    let section_id = layout.output_sections.primary_output_section(section_id);
-                    layout.output_sections.output_index_of_section(section_id)
-                })
-                .map_or(object::elf::SHN_ABS.into(), SymbolSection::Index);
-            Ok((shndx, def_info.symbol.st_type()))
+            prelude_symbol_section_and_type(layout, def_info)
         }
         FileLayout::SyntheticSymbols(_) => {
             // For other non-object files (e.g. epilogue), default to ABS
@@ -4860,7 +4853,10 @@ fn get_defsym_attributes<C: ElfClass>(
             SymbolLoc::FirstSection => Some(1),
             SymbolLoc::LocationCounter(_, Some(os)) => {
                 let os = layout.output_sections.primary_output_section(os);
-                layout.output_sections.output_index_of_section(os)
+                layout
+                    .output_sections
+                    .output_index_of_section(os)
+                    .or_else(|| layout.output_sections.output_index_of_nearest_section(os))
             }
             SymbolLoc::LocationCounter(_, None) => Some(1),
             SymbolLoc::None => return Ok((object::elf::SHN_ABS.into(), object::elf::STT_NOTYPE)),
@@ -5081,6 +5077,40 @@ fn write_regular_object_dynamic_symbol_definition<'data, C: ElfClass>(
     Ok(())
 }
 
+/// Section index and type for a prelude (or script-overridden prelude) symbol.
+///
+/// When a linker script assigns the same name (`_etext = .`), GNU ld attaches the
+/// symbol to that script section, not to the unused builtin `.text`.
+fn prelude_symbol_section_and_type<C: ElfClass>(
+    layout: &ElfLayout<C>,
+    def_info: &crate::parsing::InternalSymDefInfo<elf::Elf<C>>,
+) -> Result<(SymbolSection, object::elf::SymbolType)> {
+    if matches!(
+        def_info.placement,
+        crate::parsing::SymbolPlacement::Redirect(_)
+    ) {
+        return get_defsym_attributes(layout, def_info);
+    }
+    if let Some(script_def) = crate::layout::script_assignment_def(def_info.name, &layout.symbol_db)
+        && matches!(
+            script_def.placement,
+            crate::parsing::SymbolPlacement::Redirect(_)
+        )
+    {
+        return get_defsym_attributes(layout, script_def);
+    }
+
+    let shndx = def_info
+        .section_id()
+        .and_then(|section_id| {
+            let section_id = layout.output_sections.primary_output_section(section_id);
+            layout.output_sections.output_index_of_section(section_id)
+        })
+        .map_or(object::elf::SHN_ABS.into(), SymbolSection::Index);
+
+    Ok((shndx, def_info.symbol.st_type()))
+}
+
 fn write_internal_symbols<C: ElfClass>(
     internal_symbols: &InternalSymbols<elf::Elf<C>>,
     layout: &ElfLayout<C>,
@@ -5119,23 +5149,10 @@ fn write_internal_symbols<C: ElfClass>(
 
         let symbol_name = layout.symbol_db.symbol_name(symbol_id)?;
 
-        // For Redirect, get attributes from the target symbol
-        let (mut shndx, st_type) = if matches!(
-            def_info.placement,
-            crate::parsing::SymbolPlacement::Redirect(_)
-        ) {
-            get_defsym_attributes(layout, def_info)?
-        } else {
-            let shndx = def_info
-                .section_id()
-                .and_then(|section_id| {
-                    let section_id = layout.output_sections.primary_output_section(section_id);
-                    layout.output_sections.output_index_of_section(section_id)
-                })
-                .map_or(object::elf::SHN_ABS.into(), SymbolSection::Index);
-
-            (shndx, def_info.symbol.st_type())
-        };
+        // For Redirect, get attributes from the target symbol. A linker-script assignment
+        // of the same name (e.g. `_etext = .`) overrides the prelude section, so `_etext` is
+        // in the script `.text` rather than SHN_ABS from the unused builtin.
+        let (mut shndx, st_type) = prelude_symbol_section_and_type(layout, def_info)?;
 
         // Move symbols that are in our header (section 0) into the first section, otherwise they'll
         // show up as undefined.

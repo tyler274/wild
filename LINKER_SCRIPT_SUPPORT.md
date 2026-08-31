@@ -47,7 +47,7 @@ matching all three.
 | `KEEP(...)` to prevent garbage collection | ✅ | |
 | `PROVIDE(sym = expr)` inside sections | ✅ | |
 | `PROVIDE_HIDDEN(sym = expr)` inside sections | ✅ | |
-| Symbol assignment inside sections (`sym = .`) | ✅ | |
+| Symbol assignment inside sections (`sym = .`) | ✅ | Script assignments override prelude section-boundary symbols of the same name in the symbol table (kernel `_etext` is in `.text`, not `SHN_ABS`). An assignment after `. = ALIGN(...)` between sections stays on the previous output section (kernel `_end` in `.brk`) |
 | Location counter assignment (`. = expr`) | 🧪 | Constants, script-defined constants, script assignments (`_etext = .`), and object symbols in already-laid-out sections are supported. Script assignments override prelude section-boundary symbols of the same name. Object symbols are GNU ld absolute addresses, so `. = symbol \| mask` (x86 `srso_alias_untrain_ret`) applies the mask to the VMA. The object-symbol address is the start of that output section/secondary plus the symbol's input offset. Forward references are not supported |
 | `ALIGN(n)` on the location counter (`. = ALIGN(n)`) | ✅ | Aligns the absolute VMA, matching GNU ld |
 | Per-section `ALIGN(n)` specifier | ✅ | |

@@ -496,7 +496,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                         SectionCommand::SetLocation(new_location) => {
                             location_counters
                                 .push(LocationCounter::Absolute(new_location.address.clone(), loc));
-                            loc = SymbolLoc::LocationCounter(last_lc_idx, None);
+                            loc = SymbolLoc::LocationCounter(last_lc_idx, current_section_id);
                             if current_section_id.is_none() && self.num_location_counters == 0 {
                                 output_sections.set_base_address(new_location.address.clone());
                                 section_start_lc_idx = location_counters.len();

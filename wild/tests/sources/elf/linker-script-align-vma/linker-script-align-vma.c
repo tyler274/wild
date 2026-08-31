@@ -8,8 +8,9 @@
 
 //#Config:basic:default
 //#LinkerScript:linker-script-align-vma.ld
-//#ExpectSym:_stext address=0x400004
+//#ExpectSym:_stext address=0x400004,section=".text"
 //#ExpectSym:aligned_sym address=0x400010
+//#ExpectSym:_etext section=".text"
 //#ExpectProgramHeader:LOAD flags=RX,vaddr=0x400004
 
 //#Config:two-load:default
@@ -18,5 +19,10 @@
 //#ExpectProgramHeader:LOAD flags=RX,vaddr=0x400000
 //#ExpectProgramHeader:LOAD flags=RW,vaddr=0x600000
 
+//#Config:end-sym:default
+//#LinkerScript:linker-script-align-vma-end.ld
+//#ExpectSym:_end section=".bss"
+
 void _start(void) {}
 int payload = 1;
+char bss_byte __attribute__((used));

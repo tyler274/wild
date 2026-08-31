@@ -4,8 +4,8 @@ use crate::error::Result;
 use crate::input_data::InputRef;
 use crate::layout;
 use crate::layout::OutputRecordLayout;
-use crate::linker_script::Expression;
 use crate::layout_rules::SectionKind;
+use crate::linker_script::Expression;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
 use crate::output_section_id::SectionName;
@@ -47,6 +47,22 @@ impl ExpressionValueKind {
     }
 }
 
+/// True when `.` is a section offset. Top-level `. = ALIGN(...)` is an
+/// absolute VMA even when the location is tagged with the previous output
+/// section so that `_end = .` lands in `.brk` rather than `SHN_ABS`.
+fn location_is_section_relative(
+    expr_loc: &SymbolLoc,
+    resolved_location_counters: &[ResolvedLocationCounter],
+) -> bool {
+    match expr_loc {
+        SymbolLoc::SectionStartRelative(_) | SymbolLoc::SectionEndRelative(_) => true,
+        SymbolLoc::LocationCounter(idx, Some(_)) => resolved_location_counters
+            .get(*idx)
+            .is_some_and(|entry| entry.section_offset.is_some()),
+        _ => false,
+    }
+}
+
 fn evaluate_location<'data, P: Platform>(
     expr_loc: &SymbolLoc,
     section_layouts: &OutputSectionMap<OutputRecordLayout>,
@@ -62,23 +78,19 @@ fn evaluate_location<'data, P: Platform>(
             let id_end = id_layout.mem_offset + id_layout.mem_size;
             Ok(id_end - primary_start)
         }
-        SymbolLoc::SectionEnd(id) => Ok(section_mem_end(
-            *id,
-            section_layouts,
-            output_sections,
-        )),
+        SymbolLoc::SectionEnd(id) => Ok(section_mem_end(*id, section_layouts, output_sections)),
         SymbolLoc::FirstSection | SymbolLoc::None => Ok(0),
-        SymbolLoc::LocationCounter(idx, section_id) => {
+        SymbolLoc::LocationCounter(idx, _) => {
             let entry = resolved_location_counters.get(*idx).ok_or_else(|| {
                 crate::error!(
                     "location counter index {idx} out of range (len: {})",
                     resolved_location_counters.len()
                 )
             })?;
-            if section_id.is_none() {
-                Ok(entry.value)
-            } else {
+            if location_is_section_relative(expr_loc, resolved_location_counters) {
                 Ok(entry.section_offset.unwrap_or(0))
+            } else {
+                Ok(entry.value)
             }
         }
     }
@@ -98,14 +110,18 @@ fn absolute_location_counter<'data, P: Platform>(
         output_sections,
         resolved_location_counters,
     )?;
-    let base = match expr_loc {
-        SymbolLoc::SectionStartRelative(id)
-        | SymbolLoc::SectionEndRelative(id)
-        | SymbolLoc::LocationCounter(_, Some(id)) => {
-            let primary_id = output_sections.primary_output_section(*id);
-            section_layouts.get(primary_id).mem_offset
+    let base = if location_is_section_relative(expr_loc, resolved_location_counters) {
+        match expr_loc {
+            SymbolLoc::SectionStartRelative(id)
+            | SymbolLoc::SectionEndRelative(id)
+            | SymbolLoc::LocationCounter(_, Some(id)) => {
+                let primary_id = output_sections.primary_output_section(*id);
+                section_layouts.get(primary_id).mem_offset
+            }
+            _ => 0,
         }
-        _ => 0,
+    } else {
+        0
     };
     Ok(relative.wrapping_add(base))
 }
@@ -137,14 +153,13 @@ pub(crate) fn evaluate_expression<'data, P: Platform>(
         symbol_resolution_callback,
     )?;
 
-    let offset = if value_kind.needs_section_base() {
+    let offset = if value_kind.needs_section_base()
+        && location_is_section_relative(expr_loc, resolved_location_counters)
+    {
         match expr_loc {
-            SymbolLoc::SectionStartRelative(id) | SymbolLoc::SectionEndRelative(id) => {
-                let primary_id = output_sections.primary_output_section(*id);
-                let section_layout = section_layouts.get(primary_id);
-                section_layout.mem_offset
-            }
-            SymbolLoc::LocationCounter(_, Some(id)) => {
+            SymbolLoc::SectionStartRelative(id)
+            | SymbolLoc::SectionEndRelative(id)
+            | SymbolLoc::LocationCounter(_, Some(id)) => {
                 let primary_id = output_sections.primary_output_section(*id);
                 let section_layout = section_layouts.get(primary_id);
                 section_layout.mem_offset
@@ -275,7 +290,7 @@ fn evaluate_expression_value<'data, P: Platform>(
                 Ok(eval!(e)?.next_multiple_of(align))
             } else {
                 // One-arg ALIGN(n) aligns the location counter's absolute VMA, matching GNU ld.
-                *has_section_relative_offset = false;
+                value_kind.contains_absolute = true;
                 Ok(absolute_location_counter(
                     expr_loc,
                     section_layouts,

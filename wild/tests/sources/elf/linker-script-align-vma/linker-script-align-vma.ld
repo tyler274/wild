@@ -33,7 +33,7 @@ SECTIONS {
     __global_pointer$ = . + 0x800;
 
     /DISCARD/ : {
-        *(.comment .note .note.* .eh_frame .eh_frame_hdr .data .data.*)
+        *(.comment .note .note.* .eh_frame .eh_frame_hdr .data .data.* .bss .bss.*)
     }
 }
 
