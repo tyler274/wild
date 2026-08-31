@@ -40,6 +40,9 @@ pub(crate) struct SequencedInputObject<'data, P: Platform> {
     pub(crate) symbol_id_range: SymbolIdRange,
     pub(crate) section_id_range: SectionIdRange,
     pub(crate) file_id: FileId,
+    /// Command-line position used for section concatenation. Plugin codegen shares the
+    /// position of the first LTO input (#1935). Independent of FileId / SymbolId order.
+    pub(crate) link_order: u32,
 }
 
 #[derive(Debug)]
@@ -168,28 +171,23 @@ pub(crate) fn remap_groups_file_ids<P: Platform>(
     }
 }
 
-pub(crate) fn create_groups<'data, P: Platform>(
+fn emit_object_groups<'data, P: Platform>(
     symbol_db: &mut SymbolDb<'data, P>,
     parsed_objects: Vec<Box<ParsedInputObject<'data, P>>>,
-    stub_libraries: Vec<LoadedStubLibrary<'data>>,
-    linker_scripts: Vec<ProcessedLinkerScript<'data, P>>,
+    max_files_per_group: usize,
+    symbols_per_group: usize,
+    next_symbol_id: &mut SymbolId,
+    next_input_section_id: &mut InputSectionId,
+    link_order: impl Fn(usize) -> u32,
 ) {
-    timing_phase!("Group files");
-
-    let max_files_per_group = determine_max_files_per_group(symbol_db.args);
-    let num_symbols = count_symbols(&parsed_objects);
-    let symbols_per_group = determine_symbols_per_group(num_symbols, symbol_db.args);
-
-    symbol_db.groups_reserve(parsed_objects.len() / max_files_per_group + 3);
-
-    let mut next_symbol_id = symbol_db.next_symbol_id();
-    let mut next_input_section_id = symbol_db.next_input_section_id;
+    if parsed_objects.is_empty() {
+        return;
+    }
 
     let mut objects = parsed_objects.into_iter().peekable();
-
     let mut num_symbols_in_group = 0;
     let mut group_objects = Vec::new();
-
+    let mut object_index = 0;
     let allocator = symbol_db.herd.get();
 
     while let Some(parsed) = objects.next() {
@@ -197,8 +195,6 @@ pub(crate) fn create_groups<'data, P: Platform>(
         let num_symbols_in_file = parsed.object.num_symbols();
 
         let section_count = if parsed.object.is_dynamic() {
-            // We don't copy sections from dynamic objects into the output, so for our purposes,
-            // there are no sections.
             0
         } else {
             parsed.object.num_sections()
@@ -206,18 +202,18 @@ pub(crate) fn create_groups<'data, P: Platform>(
 
         group_objects.push(SequencedInputObject {
             parsed,
-            symbol_id_range: SymbolIdRange::input(next_symbol_id, num_symbols_in_file),
-            section_id_range: SectionIdRange::input(next_input_section_id, section_count),
+            symbol_id_range: SymbolIdRange::input(*next_symbol_id, num_symbols_in_file),
+            section_id_range: SectionIdRange::input(*next_input_section_id, section_count),
             file_id,
+            link_order: link_order(object_index),
         });
+        object_index += 1;
 
-        next_symbol_id = next_symbol_id.add_usize(num_symbols_in_file);
-        next_input_section_id = next_input_section_id.add_usize(section_count);
+        *next_symbol_id = next_symbol_id.add_usize(num_symbols_in_file);
+        *next_input_section_id = next_input_section_id.add_usize(section_count);
 
         num_symbols_in_group += num_symbols_in_file;
 
-        // Finish the current group if we've reached the maximum number of files for the group, if
-        // this is the last file or if the next file would put us over the per-group symbol limit.
         let finish_group = group_objects.len() >= max_files_per_group
             || objects.peek().is_none_or(|next_obj| {
                 num_symbols_in_group + next_obj.object.num_symbols() > symbols_per_group
@@ -237,6 +233,77 @@ pub(crate) fn create_groups<'data, P: Platform>(
 
             symbol_db.add_group(Group::Objects(objects_slice));
         }
+    }
+}
+
+pub(crate) fn create_groups<'data, P: Platform>(
+    symbol_db: &mut SymbolDb<'data, P>,
+    parsed_objects: Vec<Box<ParsedInputObject<'data, P>>>,
+    stub_libraries: Vec<LoadedStubLibrary<'data>>,
+    linker_scripts: Vec<ProcessedLinkerScript<'data, P>>,
+    objects_before_first_lto: Option<usize>,
+) {
+    timing_phase!("Group files");
+
+    let max_files_per_group = determine_max_files_per_group(symbol_db.args);
+    let num_symbols = count_symbols(&parsed_objects);
+    let symbols_per_group = determine_symbols_per_group(num_symbols, symbol_db.args);
+
+    symbol_db.groups_reserve(parsed_objects.len() / max_files_per_group + 4);
+
+    let mut next_symbol_id = symbol_db.next_symbol_id();
+    let mut next_input_section_id = symbol_db.next_input_section_id;
+
+    if let Some(codegen_order) = symbol_db.plugin_codegen_link_order {
+        // Plugin codegen: all objects share the first-IR command-line position.
+        emit_object_groups(
+            symbol_db,
+            parsed_objects,
+            max_files_per_group,
+            symbols_per_group,
+            &mut next_symbol_id,
+            &mut next_input_section_id,
+            |_| codegen_order,
+        );
+    } else if let Some(n) = objects_before_first_lto {
+        // Split ELF objects at the first LTO input so codegen can sit between the two
+        // batches in section layout without remapping FileIds (#1935).
+        symbol_db.plugin_codegen_link_order = Some(n as u32);
+        let mut before = parsed_objects;
+        let after = if n < before.len() {
+            before.split_off(n)
+        } else {
+            Vec::new()
+        };
+        emit_object_groups(
+            symbol_db,
+            before,
+            max_files_per_group,
+            symbols_per_group,
+            &mut next_symbol_id,
+            &mut next_input_section_id,
+            |i| i as u32,
+        );
+        let after_base = n as u32 + 1;
+        emit_object_groups(
+            symbol_db,
+            after,
+            max_files_per_group,
+            symbols_per_group,
+            &mut next_symbol_id,
+            &mut next_input_section_id,
+            move |i| after_base + i as u32,
+        );
+    } else {
+        emit_object_groups(
+            symbol_db,
+            parsed_objects,
+            max_files_per_group,
+            symbols_per_group,
+            &mut next_symbol_id,
+            &mut next_input_section_id,
+            |i| i as u32,
+        );
     }
 
     let linker_scripts: Vec<SequencedLinkerScript<'_, P>> = linker_scripts
@@ -334,6 +401,7 @@ pub(crate) fn fill_plugin_codegen_group<'data, P: Platform>(
             symbol_id_range: SymbolIdRange::input(next_symbol_id, num_symbols_in_file),
             section_id_range: SectionIdRange::input(next_input_section_id, section_count),
             file_id: FileId::new(group_index as u32, file_index as u32),
+            link_order: 0,
         });
         next_symbol_id = next_symbol_id.add_usize(num_symbols_in_file);
         next_input_section_id = next_input_section_id.add_usize(section_count);

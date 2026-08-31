@@ -109,6 +109,7 @@ pub(crate) struct StringMergeSectionExtra<'data> {
     pub(crate) index: object::SectionIndex,
     pub(crate) section_data: &'data [u8],
     pub(crate) is_strings: bool,
+    pub(crate) alignment: alignment::Alignment,
 }
 
 /// An input offset. We pretend that we've placed all input sections for a given output section one
@@ -140,12 +141,24 @@ struct StringMergeInputSection<'data> {
     start_input_offset: LinearInputOffset,
 
     is_string: bool,
+
+    /// `sh_addralign` of the input section. Strings from different alignments are not deduped
+    /// and are placed at offsets congruent to 0 modulo this alignment.
+    alignment: alignment::Alignment,
 }
 
 /// A string from a string-merge section. Includes the null terminator.
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub(crate) struct MergeString<'data> {
     bytes: &'data [u8],
+    alignment: alignment::Alignment,
+}
+
+/// A merged string together with its offset in the hash bucket. Trailing padding up to the
+/// string's alignment is not stored; the writer zeros the bucket then copies `bytes` at `offset`.
+struct BucketString<'data> {
+    bytes: &'data [u8],
+    offset: u32,
 }
 
 /// The addresses of the start of the merged strings for each output section.
@@ -190,10 +203,11 @@ pub(crate) struct MergeStringsSectionBucket<'data> {
     /// non-deterministic results. This is the index of the next input group that should be added.
     next_input_group_index: usize,
 
-    /// The strings in this section, in order. Includes null terminators.
+    /// The strings in this section, in order. Includes null terminators. Offsets may skip
+    /// padding so that each string is aligned to its input section's `sh_addralign`.
     /// TODO: Debug
     #[debug(skip)]
-    pub(crate) strings: Vec<&'data [u8]>,
+    strings: Vec<BucketString<'data>>,
 
     /// The offset within the section of the next string to be added, or if we're done adding
     /// things, then this is the size of the output section.
@@ -326,6 +340,7 @@ fn group_merge_string_sections_by_output<'data, P: Platform>(
                         section_data: extra.section_data,
                         start_input_offset: *starting_offset,
                         is_string: extra.is_strings,
+                        alignment: extra.alignment,
                     });
 
                 *starting_offset = *starting_offset
@@ -409,7 +424,7 @@ fn process_input_section<'data, 'offsets>(
 
     // Non-string section is just a single slice.
     if !input_section.is_string {
-        let section_data = MergeString::take_hashed(&mut remaining);
+        let section_data = MergeString::take_hashed(&mut remaining, input_section.alignment);
 
         insert_data(section_data, &mut input_offset);
         return Ok(());
@@ -417,7 +432,7 @@ fn process_input_section<'data, 'offsets>(
 
     // String section, so split at null terminators.
     while !remaining.is_empty() && input_offset < range.end {
-        let string = MergeString::take_string_hashed(&mut remaining)?;
+        let string = MergeString::take_string_hashed(&mut remaining, input_section.alignment)?;
 
         insert_data(string, &mut input_offset);
     }
@@ -470,6 +485,19 @@ impl<'data> MergedStringsSection<'data> {
             .map(|b| *b)
             .collect_vec();
         buckets.sort_by_key(|b| b.index);
+
+        // Pad each hash bucket so concatenating them preserves the max input alignment. An
+        // align-8 string in bucket 1 would otherwise start at `len(bucket0)`, which may not
+        // be 8-aligned.
+        let max_align = input_sections
+            .iter()
+            .map(|s| s.alignment)
+            .max()
+            .unwrap_or(alignment::MIN);
+        for bucket in &mut buckets {
+            bucket.next_offset = max_align.align_up(u64::from(bucket.next_offset)) as u32;
+        }
+
         self.buckets = buckets;
 
         // Compute the starting offset of each bucket.
@@ -944,8 +972,10 @@ impl<'data> MergeStringsSectionBucket<'data> {
         Ok(())
     }
 
-    /// Adds `string`, deduplicating with an existing string if an identical string is already
-    /// present.
+    /// Adds `string`, deduplicating with an existing string if an identical string with the same
+    /// alignment is already present. The string is placed at the next offset congruent to 0
+    /// modulo its alignment, and occupies `align_up(len)` bytes so the following string stays
+    /// aligned.
     fn add_string(
         &mut self,
         string: PreHashed<MergeString<'data>>,
@@ -954,9 +984,14 @@ impl<'data> MergeStringsSectionBucket<'data> {
         self.input_string_byte_size += string.bytes.len();
         self.input_string_count += 1;
         let offset = *self.string_offsets.entry(string).or_insert_with(|| {
-            let offset = self.next_offset;
-            self.next_offset += string.bytes.len() as u32;
-            self.strings.push(string.bytes);
+            let alignment = string.alignment;
+            let offset = alignment.align_up(u64::from(self.next_offset)) as u32;
+            let padded_len = alignment.align_up(string.bytes.len() as u64) as u32;
+            self.next_offset = offset + padded_len;
+            self.strings.push(BucketString {
+                bytes: string.bytes,
+                offset,
+            });
             offset
         });
         BucketOffset::new(offset, bucket_index)
@@ -972,6 +1007,17 @@ impl<'data> MergeStringsSectionBucket<'data> {
     pub(crate) fn len(&self) -> usize {
         self.next_offset as usize
     }
+
+    /// Writes this bucket into `buffer`, which must be exactly `self.len()` bytes. Padding
+    /// between strings (and at the end of the bucket) is left as zero.
+    pub(crate) fn write_to(&self, buffer: &mut [u8]) {
+        debug_assert_eq!(buffer.len(), self.len());
+        buffer.fill(0);
+        for string in &self.strings {
+            let start = string.offset as usize;
+            buffer[start..start + string.bytes.len()].copy_from_slice(string.bytes);
+        }
+    }
 }
 
 impl<'data> MergeString<'data> {
@@ -979,22 +1025,31 @@ impl<'data> MergeString<'data> {
     /// was taken.
     pub(crate) fn take_string_hashed(
         source: &mut &'data [u8],
+        alignment: alignment::Alignment,
     ) -> Result<PreHashed<MergeString<'data>>> {
         let len = memchr::memchr(0, source)
             .map(|i| i + 1)
             .context("String in merge-string section is not null-terminated")?;
         let (bytes, rest) = source.split_at(len);
-        let hash = crate::hash::hash_bytes(bytes);
+        let hash = hash_merge_string(bytes, alignment);
         *source = rest;
-        Ok(PreHashed::new(MergeString { bytes }, hash))
+        Ok(PreHashed::new(MergeString { bytes, alignment }, hash))
     }
 
     /// Takes the whole `source`. Returns a prehashed reference to what was taken.
-    pub(crate) fn take_hashed(source: &mut &'data [u8]) -> PreHashed<MergeString<'data>> {
+    pub(crate) fn take_hashed(
+        source: &mut &'data [u8],
+        alignment: alignment::Alignment,
+    ) -> PreHashed<MergeString<'data>> {
         let bytes = take(source);
-        let hash = crate::hash::hash_bytes(bytes);
-        PreHashed::new(MergeString { bytes }, hash)
+        let hash = hash_merge_string(bytes, alignment);
+        PreHashed::new(MergeString { bytes, alignment }, hash)
     }
+}
+
+fn hash_merge_string(bytes: &[u8], alignment: alignment::Alignment) -> u64 {
+    crate::hash::hash_bytes(bytes)
+        ^ (0x9e37_79b9_7f4a_7c15u64.wrapping_mul(u64::from(alignment.exponent)))
 }
 
 /// Looks for a merged string at `symbol_index` + `addend` in the input and if found, returns its

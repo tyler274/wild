@@ -758,6 +758,7 @@ pub(crate) struct ResolvedCommon<'data, P: Platform> {
     pub(crate) object: &'data P::File<'data>,
     pub(crate) file_id: FileId,
     pub(crate) symbol_id_range: SymbolIdRange,
+    pub(crate) link_order: u32,
 }
 #[derive(Debug, Clone)]
 pub(crate) struct ScriptSortedSectionDetail {
@@ -1188,6 +1189,7 @@ impl<'data, P: Platform> ResolvedCommon<'data, P> {
             object: &obj.parsed.object,
             file_id: obj.file_id,
             symbol_id_range: obj.symbol_id_range,
+            link_order: obj.link_order,
         }
     }
 
@@ -1292,7 +1294,10 @@ fn resolve_sections_for_object<'data, P: Platform>(
     Ok((sections, section_part_ids))
 }
 
-fn part_id_for_output<P: Platform>(output_info: &SectionOutputInfo, alignment: Alignment) -> PartId {
+fn part_id_for_output<P: Platform>(
+    output_info: &SectionOutputInfo,
+    alignment: Alignment,
+) -> PartId {
     if output_info.input_order {
         output_info
             .section_id
@@ -1453,6 +1458,7 @@ fn resolve_section<'data, P: Platform>(
             index: input_section_index,
             section_data,
             is_strings: input_section.is_strings(),
+            alignment,
         });
 
         SectionSlot::MergeStrings(StringMergeSectionSlot::new())

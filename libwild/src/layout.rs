@@ -83,6 +83,7 @@ use crate::verbose_timing_phase;
 use crossbeam_queue::ArrayQueue;
 use crossbeam_queue::SegQueue;
 use hashbrown::HashMap;
+use hashbrown::HashSet;
 use itertools::Itertools;
 use linker_utils::elf::RelocationKind;
 use linker_utils::relaxation::RelaxDeltaMap;
@@ -105,6 +106,7 @@ use std::mem::size_of;
 use std::mem::swap;
 use std::mem::take;
 use std::num::NonZeroU32;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
@@ -183,6 +185,7 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
         queue: LocalWorkQueue::new(epilogue_file_id.group()),
         common: CommonGroupState::new(&output_sections),
         num_symbols: 0,
+        section_group_order: SectionGroupOrder::Epilogue,
     });
 
     let finalise_sizes_ext =
@@ -247,6 +250,15 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
     if symbol_db.args.common().incremental {
         for (section_id, _) in output_sections.ids_with_info() {
             if !section_id.is_regular::<P>() || !output_sections.has_data_in_file(section_id) {
+                continue;
+            }
+            // Metadata sections (.comment, .symtab, …) are rewritten on every update; only
+            // allocated content needs spare room to grow.
+            if !output_sections
+                .output_info(section_id)
+                .section_attributes
+                .is_alloc()
+            {
                 continue;
             }
             let range = section_id.part_id_range::<P>();
@@ -490,6 +502,12 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
 
     let format_specific = P::create_layout_ext(finalise_sizes_ext, &symbol_resolutions)?;
 
+    let incremental_reverse_relocs = Mutex::new(if symbol_db.args.common().incremental {
+        crate::incremental::ReverseRelocIndex::new(symbol_resolutions.resolutions.len())
+    } else {
+        crate::incremental::ReverseRelocIndex::new(0)
+    });
+
     let mut layout = Layout {
         symbol_db,
         symbol_resolutions,
@@ -516,6 +534,8 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
         gdb_index_data,
         script_sorted_sections,
         resolved_location_counters,
+        incremental_skip_payloads: HashSet::new(),
+        incremental_reverse_relocs,
     };
 
     P::maybe_compress_debug_sections::<A>(&mut layout)?;
@@ -851,6 +871,11 @@ pub struct Layout<'data, P: Platform> {
     pub(crate) gdb_index_data: Option<P::GdbIndexScanResult<'data>>,
     pub(crate) script_sorted_sections: Vec<InputSortedSection>,
     pub(crate) resolved_location_counters: Vec<ResolvedLocationCounter>,
+    /// Object FileIds whose allocatable section payloads can be left in the existing output during
+    /// an incremental update. Empty unless `--incremental` is doing an in-place rewrite.
+    pub(crate) incremental_skip_payloads: HashSet<FileId>,
+    /// Sites that applied a relocation, keyed by defined symbol. Empty when not incremental.
+    pub(crate) incremental_reverse_relocs: Mutex<crate::incremental::ReverseRelocIndex>,
 }
 
 #[derive(Debug, Default)]
@@ -1424,6 +1449,10 @@ pub(crate) struct ObjectLayoutState<'data, P: Platform> {
     pub(crate) section_id_range: SectionIdRange,
     pub(crate) object: &'data P::File<'data>,
 
+    /// Command-line section concatenation order. Plugin codegen shares the first LTO input's
+    /// position (#1935).
+    pub(crate) link_order: u32,
+
     /// Info about each of our sections. Indexed the same as the sections in the input object.
     pub(crate) sections: Vec<SectionSlot>,
 
@@ -1490,6 +1519,35 @@ pub(crate) struct SortedSection {
     pub(crate) section: Section,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum SectionGroupOrder {
+    Prelude,
+    Object(u32),
+    Other,
+    Epilogue,
+}
+
+fn section_group_order<P: Platform>(files: &[FileLayoutState<P>]) -> SectionGroupOrder {
+    let mut saw_object: Option<u32> = None;
+    for file in files {
+        match file {
+            FileLayoutState::Prelude(_) => return SectionGroupOrder::Prelude,
+            FileLayoutState::Epilogue(_) => return SectionGroupOrder::Epilogue,
+            FileLayoutState::Object(obj) => {
+                saw_object = Some(match saw_object {
+                    Some(existing) => existing.min(obj.link_order),
+                    None => obj.link_order,
+                });
+            }
+            _ => {}
+        }
+    }
+    match saw_object {
+        Some(link_order) => SectionGroupOrder::Object(link_order),
+        None => SectionGroupOrder::Other,
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct GroupLayout<'data, P: Platform> {
     pub(crate) files: Vec<FileLayout<'data, P>>,
@@ -1507,6 +1565,8 @@ pub(crate) struct GroupLayout<'data, P: Platform> {
     pub(crate) file_sizes: OutputSectionPartMap<usize>,
 
     pub(crate) format_specific: P::GroupLayoutExt,
+
+    pub(crate) section_group_order: SectionGroupOrder,
 }
 
 #[derive(Debug)]
@@ -1515,6 +1575,7 @@ pub(crate) struct GroupState<'data, P: Platform> {
     pub(crate) files: Vec<FileLayoutState<'data, P>>,
     pub(crate) common: CommonGroupState<'data, P>,
     num_symbols: usize,
+    section_group_order: SectionGroupOrder,
 }
 
 /// The sizes and positions of either a segment or an output section. Note, we use usize for file
@@ -1646,6 +1707,54 @@ impl<'data, P: Platform> Layout<'data, P> {
 
     pub(crate) fn args(&self) -> &'data P::Args {
         self.symbol_db.args
+    }
+
+    /// Loaded allocatable section sizes per input object, for incremental layout matching.
+    pub(crate) fn incremental_object_records(&self) -> Vec<(FileId, PathBuf, Vec<u64>)> {
+        let mut records = Vec::new();
+        for group in &self.group_layouts {
+            for file in &group.files {
+                let FileLayout::Object(obj) = file else {
+                    continue;
+                };
+                let sizes = obj
+                    .sections
+                    .iter()
+                    .filter_map(|slot| match slot {
+                        SectionSlot::Loaded(sec) => Some(sec.size),
+                        _ => None,
+                    })
+                    .collect();
+                records.push((
+                    obj.file_id,
+                    obj.input.file.filename.to_path_buf(),
+                    sizes,
+                ));
+            }
+        }
+        records
+    }
+
+    pub(crate) fn skip_incremental_payload(&self, file_id: FileId) -> bool {
+        self.incremental_skip_payloads.contains(&file_id)
+    }
+
+    pub(crate) fn record_reverse_reloc(&self, symbol_id: SymbolId, file_offset: u64) {
+        if !self.args().common().incremental {
+            return;
+        }
+        let defined = self.symbol_db.definition(symbol_id);
+        self.incremental_reverse_relocs
+            .lock()
+            .unwrap()
+            .push(defined.as_usize(), file_offset);
+    }
+
+    pub(crate) fn take_reverse_relocs(&self) -> crate::incremental::ReverseRelocIndex {
+        replace(
+            &mut *self.incremental_reverse_relocs.lock().unwrap(),
+            crate::incremental::ReverseRelocIndex::new(0),
+        )
     }
 
     pub(crate) fn symbol_debug<'layout>(
@@ -1935,10 +2044,15 @@ fn compute_start_offsets_by_group<P: Platform>(
 ) -> Vec<OutputSectionPartMap<u64>> {
     timing_phase!("Compute per-group start offsets");
 
-    group_states
-        .iter()
-        .map(|group| mem_offsets.merge_and_return_start_offsets(&group.common.mem_sizes))
-        .collect_vec()
+    let mut indices: Vec<usize> = (0..group_states.len()).collect();
+    indices.sort_by_key(|&i| (group_states[i].section_group_order, i));
+
+    let mut starts = Vec::new();
+    starts.resize_with(group_states.len(), || mem_offsets.new_empty_like());
+    for i in indices {
+        starts[i] = mem_offsets.merge_and_return_start_offsets(&group_states[i].common.mem_sizes);
+    }
+    starts
 }
 
 fn compute_symbols_and_layouts<'data, P: Platform>(
@@ -2481,7 +2595,9 @@ impl<'data, P: Platform> GroupActivationInputs<'data, P> {
             num_symbols,
             files,
             common: CommonGroupState::new(resources.output_sections),
+            section_group_order: SectionGroupOrder::Other,
         };
+        group.section_group_order = section_group_order(&group.files);
 
         let mut should_delay_processing = false;
 
@@ -2736,6 +2852,7 @@ impl<'data, P: Platform> GroupState<'data, P> {
             file_sizes: compute_file_sizes(&self.common.mem_sizes, resources.output_sections),
             mem_sizes: self.common.mem_sizes,
             format_specific,
+            section_group_order: self.section_group_order,
         })
     }
 }
@@ -4324,6 +4441,7 @@ fn new_object_layout_state<P: Platform>(
         section_id_range: input_state.section_id_range,
         input: input_state.common.input,
         object: input_state.common.object,
+        link_order: input_state.common.link_order,
         sections: input_state.sections,
         relocations: input_state.relocations,
         format_specific: P::new_object_layout_state_ext(input_state.format_specific),
@@ -5745,6 +5863,7 @@ fn perform_iterative_relaxation<'data, A: Arch>(
 struct InputOrderItem {
     part_id: PartId,
     group_idx: usize,
+    link_order: u32,
     alignment: Alignment,
     size: u64,
 }
@@ -5797,7 +5916,6 @@ fn collect_input_order_contributions<P: Platform>(
     output_sections: &OutputSections<P>,
     section_part_ids: &[PartId],
 ) -> (HashMap<PartId, Vec<(Alignment, u64)>>, Vec<InputOrderItem>) {
-    let mut by_part: HashMap<PartId, Vec<(Alignment, u64)>> = HashMap::new();
     let mut ordered = Vec::new();
 
     for (group_idx, group) in group_states.iter().enumerate() {
@@ -5813,18 +5931,24 @@ fn collect_input_order_contributions<P: Platform>(
                 if !output_sections.uses_input_order(part_id.output_section_id::<P>()) {
                     continue;
                 }
-                by_part
-                    .entry(part_id)
-                    .or_default()
-                    .push((sec.alignment, sec.size));
                 ordered.push(InputOrderItem {
                     part_id,
                     group_idx,
+                    link_order: obj.link_order,
                     alignment: sec.alignment,
                     size: sec.size,
                 });
             }
         }
+    }
+
+    ordered.sort_by_key(|item| (item.link_order, item.group_idx));
+    let mut by_part: HashMap<PartId, Vec<(Alignment, u64)>> = HashMap::new();
+    for item in &ordered {
+        by_part
+            .entry(item.part_id)
+            .or_default()
+            .push((item.alignment, item.size));
     }
 
     (by_part, ordered)
@@ -5839,6 +5963,9 @@ fn redistribute_input_order_sizes<P: Platform>(
     let mut items_by_part: HashMap<PartId, Vec<&InputOrderItem>> = HashMap::new();
     for item in ordered {
         items_by_part.entry(item.part_id).or_default().push(item);
+    }
+    for items in items_by_part.values_mut() {
+        items.sort_by_key(|item| (item.link_order, item.group_idx));
     }
 
     for (part_id, items) in items_by_part {
@@ -5979,8 +6106,7 @@ fn compute_layout_sections<'data, P: Platform>(
         let Some(max_align) = inputs.iter().map(|(alignment, _)| *alignment).max() else {
             continue;
         };
-        let section_id =
-            output_sections.primary_output_section(part_id.output_section_id::<P>());
+        let section_id = output_sections.primary_output_section(part_id.output_section_id::<P>());
         input_order_max_align
             .entry(section_id)
             .and_modify(|existing| *existing = (*existing).max(max_align))

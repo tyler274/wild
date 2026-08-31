@@ -1,0 +1,5 @@
+SECTIONS {
+    .rodata : {
+        *(.rodata .rodata.*)
+    }
+}

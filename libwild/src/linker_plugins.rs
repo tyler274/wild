@@ -224,8 +224,8 @@ impl<'data> LinkerPlugin<'data> {
             return Ok(());
         }
 
-        // Plugin codegen objects are currently appended after regular inputs. Placing them at the
-        // first LTO command-line position (#1935) needs remappable FileIds on `Group::Objects`.
+        // Plugin codegen objects are given the command-line position of the first LTO input
+        // (#1935) via `link_order`; FileIds and SymbolIds stay at the end of the ID space.
 
         // Mark wrapped symbol names and their __wrap_/__real_ variants as referenced by non-IR
         // code. This ensures the plugin keeps them in the LTO output rather than
@@ -234,7 +234,8 @@ impl<'data> LinkerPlugin<'data> {
 
         mark_lto_symbols_for_dynamic_export(symbol_db, per_symbol_flags, &resolver.resolved_groups);
 
-        let plugin_outputs = self.store.loaded()?.with_callbacks(|callbacks| {
+        let plugin_path = self.path.clone();
+        let plugin_outputs = self.store.loaded(&plugin_path)?.with_callbacks(|callbacks| {
             if let Some(cb) = callbacks.all_symbols_read {
                 let ctx = AllSymbolsReadContext {
                     symbol_db,
@@ -288,7 +289,8 @@ impl<'data> LinkerPlugin<'data> {
         input_ref: InputRef<'data>,
         fd: RawFd,
     ) -> Result<Option<Box<LtoInputInfo<'data>>>> {
-        self.store.loaded()?.with_callbacks(|callbacks| {
+        let plugin_path = self.path.clone();
+        self.store.loaded(&plugin_path)?.with_callbacks(|callbacks| {
             let data = input_ref.data();
             let offset = input_ref
                 .entry
@@ -1521,17 +1523,21 @@ impl SymbolKind {
 }
 
 impl<'data> Store<'data> {
-    fn loaded(&mut self) -> Result<&mut LoadedPlugin> {
+    fn loaded(&mut self, plugin_path: &Path) -> Result<&mut LoadedPlugin> {
         match self {
             Store::Unloaded(load_info) => {
-                // Unwrap can't fail because we checked previously that there was a plugin path.
-                let path = Path::new(load_info.args.plugin_path.as_ref().unwrap());
+                if plugin_path.as_os_str().is_empty() {
+                    crate::bail!("No linker plugin path");
+                }
 
                 *self = Store::Loaded(
                     load_info.arena.alloc(
-                        LoadedPlugin::new(path, load_info.args, load_info.get_symbols_v3)
+                        LoadedPlugin::new(plugin_path, load_info.args, load_info.get_symbols_v3)
                             .with_context(|| {
-                                format!("Failed to initialise linker plugin `{}`", path.display())
+                                format!(
+                                    "Failed to initialise linker plugin `{}`",
+                                    plugin_path.display()
+                                )
                             })?,
                     ),
                 );

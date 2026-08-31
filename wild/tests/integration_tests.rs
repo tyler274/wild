@@ -2802,6 +2802,16 @@ impl ProgramInputs {
         config: &'a Config,
         cross_arch: Option<Architecture>,
     ) -> Result<Program<'a>> {
+        if config.test_incremental {
+            // A previous incremental run may have left a -DWILD_INC object. Force a clean
+            // compile so GNU ld and Wild both start from the unmarked object.
+            let obj = add_to_path(
+                &config.build_dir().join(self.source_file.file_name().unwrap()),
+                ".o",
+            );
+            let _ = std::fs::remove_file(&obj);
+        }
+
         let primary = build_linker_input(
             &Dep {
                 files: vec![FilenameArgumentPair::new(
@@ -2829,6 +2839,14 @@ impl ProgramInputs {
 
         if config.test_update_in_place && linker.is_wild() {
             let _ = std::fs::remove_file(linker.output_path(self.name(), config));
+        }
+
+        if config.test_incremental && linker.is_wild() {
+            let output = linker.output_path(self.name(), config);
+            let _ = std::fs::remove_file(&output);
+            let mut incr = output.into_os_string();
+            incr.push(".incr");
+            let _ = std::fs::remove_dir_all(PathBuf::from(incr));
         }
 
         let link_output = linker.link(self.name(), &inputs, config, cross_arch)?;
@@ -2941,6 +2959,23 @@ impl ProgramInputs {
         cross_arch: Option<Architecture>,
         reference_output: &LinkOutput,
     ) -> Result {
+        fn reverse_reloc_nodes(bytes: &[u8]) -> Result<u64> {
+            ensure!(bytes.len() >= 8, "reverse reloc index is truncated");
+            let heads_len = u64::from_le_bytes(bytes[0..8].try_into()?);
+            let heads_bytes = usize::try_from(heads_len)
+                .ok()
+                .and_then(|n| n.checked_mul(4))
+                .context("reverse reloc head count overflow")?;
+            let nodes_at = 8usize
+                .checked_add(heads_bytes)
+                .context("reverse reloc index overflow")?;
+            ensure!(
+                bytes.len() >= nodes_at + 8,
+                "reverse reloc index is truncated at node count"
+            );
+            Ok(u64::from_le_bytes(bytes[nodes_at..nodes_at + 8].try_into()?))
+        }
+
         let state_dir = {
             let mut dir = reference_output.binary.as_os_str().to_os_string();
             dir.push(".incr");
@@ -2961,6 +2996,17 @@ impl ProgramInputs {
             "Incremental reverse reloc index was not written to {}",
             state_dir.display()
         );
+        let reverse_reloc_bytes = std::fs::read(state_dir.join("reverse_relocs.bin"))
+            .with_context(|| {
+                format!(
+                    "Failed to read reverse reloc index {}",
+                    state_dir.join("reverse_relocs.bin").display()
+                )
+            })?;
+        ensure!(
+            reverse_reloc_nodes(&reverse_reloc_bytes)? > 0,
+            "Incremental reverse reloc index should record applied reloc sites"
+        );
 
         let second = linker.link(self.name(), inputs, config, cross_arch)?;
         let log = std::fs::read_to_string(state_dir.join("log")).with_context(|| {
@@ -2977,6 +3023,68 @@ impl ProgramInputs {
             second.binary == reference_output.binary,
             "Incremental relink wrote a different path"
         );
+
+        struct RestoreObject {
+            dest: PathBuf,
+            bytes: Vec<u8>,
+        }
+        impl Drop for RestoreObject {
+            fn drop(&mut self) {
+                let _ = std::fs::write(&self.dest, &self.bytes);
+            }
+        }
+        let restore = RestoreObject {
+            dest: inputs[0].path.clone(),
+            bytes: std::fs::read(&inputs[0].path).with_context(|| {
+                format!("Failed to snapshot {}", inputs[0].path.display())
+            })?,
+        };
+
+        self.rebuild_primary_c(config, &inputs[0].path, cross_arch, true)
+            .context("Failed to recompile primary source with -DWILD_INC=1")?;
+        let updated = linker.link(self.name(), inputs, config, cross_arch)?;
+        let log = std::fs::read_to_string(state_dir.join("log")).with_context(|| {
+            format!(
+                "Failed to read incremental log {}",
+                state_dir.join("log").display()
+            )
+        })?;
+        let last_line = log.lines().next_back().unwrap_or("");
+        ensure!(
+            last_line.contains("incremental-update") && !last_line.contains("fallback"),
+            "Expected in-place incremental-update after a same-size edit, got:\n{log}"
+        );
+        updated
+            .run_expecting(cross_arch, 43)
+            .context("Incrementally updated binary should exit 43")?;
+
+        drop(restore);
+        linker.link(self.name(), inputs, config, cross_arch)?;
+        Ok(())
+    }
+
+    fn rebuild_primary_c(
+        &self,
+        config: &Config,
+        dest: &Path,
+        cross_arch: Option<Architecture>,
+        wild_inc: bool,
+    ) -> Result {
+        let compiler = get_c_compiler("gcc", CLanguage::C, cross_arch)?;
+        let tmp = dest.with_extension("inc.o");
+        let mut command = Command::new(&compiler);
+        command.current_dir(config.build_dir());
+        command.arg("-c").arg("-o").arg(&tmp).arg(&self.source_file);
+        if wild_inc {
+            command.arg("-DWILD_INC=1");
+        }
+        let status = command
+            .status()
+            .with_context(|| format!("Failed to run {command:?}"))?;
+        ensure!(status.success(), "Recompile failed: {command:?}");
+        std::fs::copy(&tmp, dest).with_context(|| {
+            format!("Failed to copy {} onto {}", tmp.display(), dest.display())
+        })?;
         Ok(())
     }
 
@@ -3125,6 +3233,10 @@ const EXIT_SUCCESS: i32 = 42;
 
 impl LinkOutput {
     fn run(&self, cross_arch: Option<Architecture>) -> Result {
+        self.run_expecting(cross_arch, EXIT_SUCCESS)
+    }
+
+    fn run_expecting(&self, cross_arch: Option<Architecture>, expected_exit: i32) -> Result {
         if self.command.config.platform == PlatformKind::Wasm {
             return run_wasm_with_wasmtime(&self.binary, self.linker_used.name());
         }
@@ -3183,7 +3295,7 @@ impl LinkOutput {
 
         let output = String::from_utf8_lossy(&output);
 
-        if status.code() != Some(EXIT_SUCCESS) {
+        if status.code() != Some(expected_exit) {
             bail!("Binary exited with unexpected {status}: {output}\nCommand:\n  {command:?}");
         }
 

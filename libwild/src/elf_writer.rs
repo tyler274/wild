@@ -2230,7 +2230,18 @@ fn write_object_section<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
         }
     }
 
-    let out = write_section_raw::<C, A>(object, layout, section, section_index, buffers)?;
+    let skip_payload = layout.skip_incremental_payload(object.file_id);
+    let out = write_section_raw::<C, A>(
+        object,
+        layout,
+        section,
+        section_index,
+        buffers,
+        !skip_payload,
+    )?;
+    if skip_payload {
+        return Ok(());
+    }
 
     // We need to reverse the contents and adjust relocations because .ctors/.dtors are executed in
     // reverse order while .init_array/.fini_array are executed in forward order.
@@ -2367,7 +2378,18 @@ fn write_debug_section<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
         return Ok(());
     }
 
-    let out = write_section_raw::<C, A>(object, layout, section, section_index, buffers)?;
+    let skip_payload = layout.skip_incremental_payload(object.file_id);
+    let out = write_section_raw::<C, A>(
+        object,
+        layout,
+        section,
+        section_index,
+        buffers,
+        !skip_payload,
+    )?;
+    if skip_payload {
+        return Ok(());
+    }
     let relocations = object.relocations(section_index)?;
     let result = match relocations {
         elf::RelocationList::Rela(rela) => apply_debug_relocations::<C, A, elf::ElfRela<C>, _>(
@@ -2431,6 +2453,7 @@ fn write_section_raw<'out, 'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     sec: Section,
     section_index: object::SectionIndex,
     buffers: &'out mut OutputSectionPartMap<&mut [u8]>,
+    copy: bool,
 ) -> Result<&'out mut [u8]> {
     let part_id = object.section_part_id(section_index, &layout.symbol_db.section_part_ids);
     if layout
@@ -2438,13 +2461,8 @@ fn write_section_raw<'out, 'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
         .has_data_in_file(part_id.output_section_id::<elf::Elf<C>>())
     {
         let section_buffer = buffers.get_mut(part_id);
-        let (leading_pad, allocation_size) = input_section_buffer_split(
-            section_buffer.len(),
-            sec,
-            part_id,
-            layout,
-            object.file_id,
-        );
+        let (leading_pad, allocation_size) =
+            input_section_buffer_split(section_buffer.len(), sec, part_id, layout, object.file_id);
         if section_buffer.len() < allocation_size {
             bail!(
                 "Insufficient space allocated to section `{}`. Tried to take {} bytes, but only {} remain",
@@ -2456,6 +2474,11 @@ fn write_section_raw<'out, 'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
         let out = section_buffer.split_off_mut(..allocation_size).unwrap();
         let (leading, out) = out.split_at_mut(leading_pad);
         let object_section = object.object.section(section_index)?;
+        let section_size = object.object.section_size(object_section)? as usize;
+        if !copy {
+            let n = section_size.min(out.len());
+            return Ok(&mut out[..n]);
+        }
         let relax_deltas = object.section_relax_deltas.get(section_index.0);
 
         let section_info = layout
@@ -2610,6 +2633,12 @@ fn apply_relocations<
         .context("Attempted to apply relocations to a section that we didn't load")?;
     let object_section = object.object.section(section_index)?;
     let section_flags = object_section.sh_flags(LittleEndian);
+    let section_info = SectionInfo {
+        section_address,
+        is_writable: object_section.is_writable(),
+        section_flags,
+        part_id: object.section_part_id(section_index, &layout.symbol_db.section_part_ids),
+    };
     let mut modifier = RelocationModifier::Normal;
 
     let mut relocation_count = 0;
@@ -2620,6 +2649,14 @@ fn apply_relocations<
     while let Some(rel) = relocations.next() {
         let rel = rel?;
         relocation_count += 1;
+        if layout.args().common().incremental
+            && let Some(sym) = rel.symbol()
+        {
+            layout.record_reverse_reloc(
+                object.symbol_id_range.input_to_id(sym),
+                reloc_file_offset(layout, section_info, rel.offset()),
+            );
+        }
         if A::high_part_relocations().contains(&rel.raw_type()) {
             let cache_offset = opt_input_to_output(relax_deltas, rel.offset());
             relocation_cache.high_part_symbols.insert(cache_offset, rel);
@@ -2643,12 +2680,7 @@ fn apply_relocations<
             object,
             offset_in_section,
             &rel,
-            SectionInfo {
-                section_address,
-                is_writable: object_section.is_writable(),
-                section_flags,
-                part_id: object.section_part_id(section_index, &layout.symbol_db.section_part_ids),
-            },
+            section_info,
             layout,
             out,
             table_writer,
@@ -3007,6 +3039,17 @@ struct SectionInfo<S: platform::SectionFlags> {
     is_writable: bool,
     section_flags: S,
     part_id: PartId,
+}
+
+fn reloc_file_offset<C: ElfClass, S: platform::SectionFlags>(
+    layout: &ElfLayout<C>,
+    section_info: SectionInfo<S>,
+    offset_in_section: u64,
+) -> u64 {
+    let rec = layout.section_part_layouts.get(section_info.part_id);
+    rec.file_offset as u64
+        + section_info.section_address.wrapping_sub(rec.mem_offset)
+        + offset_in_section
 }
 
 fn get_resolution<'data, C: ElfClass, R: Relocation>(
@@ -4108,11 +4151,8 @@ pub(crate) fn write_merged_strings_to_buffer(
         .iter()
         .map(|b| (b, buffer.split_off_mut(..b.len()).unwrap()))
         .par_bridge()
-        .for_each(|(bucket, mut buffer)| {
-            for string in &bucket.strings {
-                let dest = buffer.split_off_mut(..string.len()).unwrap();
-                dest.copy_from_slice(string);
-            }
+        .for_each(|(bucket, buffer)| {
+            bucket.write_to(buffer);
         });
 }
 

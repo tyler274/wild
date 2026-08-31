@@ -2,16 +2,19 @@
   pkgs ? import <nixpkgs> { },
 }:
 let
-  inherit (pkgs.callPackage ./wrappers.nix { }) gccWrapper gppWrapper;
+  inherit (pkgs.callPackage ./wrappers.nix { }) gccWrapper gppWrapper clangWrapper;
+  inherit (pkgs.llvmPackages) clang-tools lld;
 in
 pkgs.mkShell {
   packages = [
     pkgs.binutils-unwrapped-all-targets
     pkgs.cargo-chef
-    pkgs.llvmPackages_20.clang
-    pkgs.clang-tools
+    clangWrapper
+    clang-tools
     pkgs.taplo
-    pkgs.lld
+    lld
+    # llvm-config so Wild can auto-discover LLVMgold.so without --plugin.
+    pkgs.llvmPackages.llvm.dev
     pkgs.glibc.out
     pkgs.glibc.static
     pkgs.rustup

@@ -6,7 +6,6 @@
   callPackage,
   path,
   lld,
-  clang,
   clang-tools,
   taplo,
   binutils-unwrapped-all-targets,
@@ -52,7 +51,7 @@ let
     };
   };
 
-  inherit (callPackage ./wrappers.nix { }) gccWrapper gppWrapper;
+  inherit (callPackage ./wrappers.nix { }) gccWrapper gppWrapper clangWrapper;
 in
 craneLib.buildPackage (
   commonArgs
@@ -65,7 +64,7 @@ craneLib.buildPackage (
     doCheck = false;
     nativeCheckInputs = [
       lld
-      clang
+      clangWrapper
       clang-tools
       taplo
       binutils-unwrapped-all-targets

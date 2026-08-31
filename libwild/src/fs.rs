@@ -10,6 +10,9 @@ use memmap2::Mmap;
 use memmap2::MmapOptions;
 use std::fs::File;
 use std::io::ErrorKind;
+use std::io::Read as _;
+use std::io::Seek as _;
+use std::io::SeekFrom;
 use std::io::Write as _;
 use std::ops::Deref;
 use std::path::Path;
@@ -385,6 +388,9 @@ impl OutputFileData for OsOutputFile {
     fn finish(mut self) -> Result {
         if let OsOutputBuffer::InMemory(bytes) = &self.buffer {
             self.file
+                .seek(SeekFrom::Start(0))
+                .with_context(|| format!("Failed to rewind {}", self.path.display()))?;
+            self.file
                 .write_all(bytes)
                 .with_context(|| format!("Failed to write to {}", self.path.display()))?;
         }
@@ -513,7 +519,7 @@ impl FileSystem for OsFileSystem {
             }
         }
 
-        let file = match open_options.read(true).write(true).create(true).open(&path) {
+        let mut file = match open_options.read(true).write(true).create(true).open(&path) {
             Ok(file) => file,
             Err(error) => {
                 // Retry open operation with UnlinkAndReplace if it's an ETXTBSY error and
@@ -551,7 +557,14 @@ impl FileSystem for OsFileSystem {
 
         let set_len_result = file.set_len(options.size);
 
+        let preserve_existing = matches!(
+            options.file_replacement_mode,
+            FileReplacementMode::UpdateInPlace | FileReplacementMode::UpdateInPlaceWithFallback
+        );
+
+        // fallocate zeros allocated ranges, which would wipe payloads we intend to keep.
         if fallocate
+            && !preserve_existing
             && let Err(error) = preallocate_output_file(&file, options.size)
             && options.fallocate.is_some()
         {
@@ -583,23 +596,30 @@ impl FileSystem for OsFileSystem {
                                 )
                             });
                         }
-                        Err(_) => OsOutputBuffer::InMemory(vec![0; options.size as usize]),
+                        Err(_) => OsOutputBuffer::InMemory(load_existing_output(
+                            &mut file,
+                            options.size,
+                            preserve_existing,
+                        )),
                     },
                     Err(error) if huge_pages_required => {
                         return Err(error).with_context(|| {
                             format!("Failed to set size `{}` for mmap", path.display())
                         });
                     }
-                    Err(_) => OsOutputBuffer::InMemory(vec![0; options.size as usize]),
+                    Err(_) => OsOutputBuffer::InMemory(load_existing_output(
+                        &mut file,
+                        options.size,
+                        preserve_existing,
+                    )),
                 }
             }
             FileWriteMode::BufferThenWrite => {
-                // Try to set the length of the file. We ignore failures here because it's expected
-                // to fail for some types of files, e.g. /dev/null. If there's actually a problem
-                // writing to the file, we'll discover that when we go to write the content later
-                // on.
+                // Preserve existing bytes so incremental skip can leave them. `set_len` has
+                // already run; without fallocate the overlapping prefix is still readable.
+                let buf = load_existing_output(&mut file, options.size, preserve_existing);
                 let _ = set_len_result;
-                OsOutputBuffer::InMemory(vec![0; options.size as usize])
+                OsOutputBuffer::InMemory(buf)
             }
         };
 
@@ -611,6 +631,18 @@ impl FileSystem for OsFileSystem {
         (&file).write_all(bytes)?;
         Ok(())
     }
+}
+
+/// Load existing output into an in-memory buffer. Used when we cannot mmap but still need to leave
+/// unchanged section payloads in place during an incremental update.
+fn load_existing_output(file: &mut File, size: u64, preserve: bool) -> Vec<u8> {
+    let mut buf = vec![0; size as usize];
+    if preserve && size > 0 {
+        let _ = file.seek(SeekFrom::Start(0));
+        let _ = file.read(&mut buf);
+        let _ = file.seek(SeekFrom::Start(0));
+    }
+    buf
 }
 
 #[cfg(target_os = "linux")]

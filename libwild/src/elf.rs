@@ -4758,9 +4758,11 @@ pub(crate) struct LinkerScriptOverrides {
 }
 
 /// Section flags that should not be propagated from input sections to the output section in which
-/// they are placed. This is passed to `without`, so we keep all flags other than the one listed
-/// here.
-const SECTION_FLAGS_PROPAGATION_MASK: SectionFlags = object::elf::SHF_GROUP;
+/// they are placed. This is passed to `without`, so we keep all flags other than the ones listed
+/// here. `SHF_MERGE`/`SHF_STRINGS` describe how to combine input contents, not the output section
+/// (GNU ld); mixing merge-string inputs into `.rodata` must not mark the output `WAMS`.
+const SECTION_FLAGS_PROPAGATION_MASK: SectionFlags =
+    object::elf::SHF_GROUP.with(object::elf::SHF_MERGE).with(object::elf::SHF_STRINGS);
 
 impl<C: ElfClass> platform::SectionAttributes for SectionAttributes<C> {
     type Platform = Elf<C>;

@@ -231,6 +231,13 @@ fn default_file_replacement_mode<P: Platform>(
     output_kind: OutputKind,
     file_system: &impl FileSystem,
 ) -> FileReplacementMode {
+    if args.common().incremental {
+        let dir = crate::incremental::incremental_state_dir(args.output());
+        if dir.join("inputs.txt").is_file() {
+            return FileReplacementMode::UpdateInPlace;
+        }
+    }
+
     if output_kind.is_shared_object() {
         return FileReplacementMode::UnlinkAndReplace;
     }
@@ -324,11 +331,18 @@ pub(crate) fn split_output_by_group<'layout, 'data, 'out, P: Platform>(
     OutputSectionPartMap<&'out mut [u8]>,
 )> {
     timing_phase!("Split output buffers by group");
-    layout
-        .group_layouts
-        .iter()
-        .map(|group| (group, writable_buckets.take_mut(&group.file_sizes)))
-        .collect()
+    let n = layout.group_layouts.len();
+    let mut indices: Vec<usize> = (0..n).collect();
+    indices.sort_by_key(|&i| (layout.group_layouts[i].section_group_order, i));
+
+    let mut out: Vec<Option<(&GroupLayout<'data, P>, OutputSectionPartMap<&'out mut [u8]>)>> =
+        (0..n).map(|_| None).collect();
+    for i in indices {
+        let group = &layout.group_layouts[i];
+        let buffers = writable_buckets.take_mut(&group.file_sizes);
+        out[i] = Some((group, buffers));
+    }
+    out.into_iter().map(|pair| pair.unwrap()).collect()
 }
 
 pub(crate) struct PaddingSlice<'out> {

@@ -108,10 +108,9 @@ pub struct SymbolDb<'data, P: Platform> {
     /// been loaded.
     pub(crate) section_part_ids: Vec<PartId>,
 
-    /// Index of the first LTO input group. Plugin codegen is still appended after regular objects
-    /// (#1935) because `Group::Objects` is an arena slice whose FileIds cannot be remapped.
-    #[allow(dead_code)]
-    pub(crate) first_lto_group_index: Option<usize>,
+    /// Link-order assigned to plugin codegen objects so they are placed where the first LTO
+    /// input appeared on the command line (#1935). SymbolIds stay at the end of the ID space.
+    pub(crate) plugin_codegen_link_order: Option<u32>,
 }
 
 /// Borrows from a SymbolDb, but allows temporary atomic access to some of the tables. These tables
@@ -375,7 +374,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
             herd,
             section_part_ids: Vec::new(),
             next_input_section_id: crate::input_section_id::InputSectionId::from_usize(0),
-            first_lto_group_index: None,
+            plugin_codegen_link_order: None,
         };
 
         for symbol in args.force_export_symbol_names() {
@@ -423,11 +422,8 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
             parsed_objects,
             loaded.stub_libraries,
             processed_linker_scripts,
+            loaded.objects_before_first_lto,
         );
-
-        if self.first_lto_group_index.is_none() && loaded.objects_before_first_lto.is_some() {
-            self.first_lto_group_index = Some(self.groups.len());
-        }
 
         self.create_lto_input_groups(loaded.lto_objects)?;
 
@@ -496,10 +492,6 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         }
 
         verbose_timing_phase!("Create LTO input groups");
-
-        if self.first_lto_group_index.is_none() {
-            self.first_lto_group_index = Some(self.groups.len());
-        }
 
         let lto_objects = lto_objects.into_iter().collect::<Result<Vec<_>>>()?;
 
