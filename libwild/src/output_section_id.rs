@@ -149,6 +149,9 @@ pub(crate) struct OutputOrderBuilder<'scope, 'data, P: Platform> {
     has_custom_phdrs: bool,
     location_counters: &'scope [crate::layout_rules::LocationCounter<'data>],
     last_location_counter: Option<LocationCounterIndex>,
+    /// Custom-PHDR `PT_LOAD` starts that must wait until this section's leading
+    /// `. = ALIGN(...)` has been emitted, so the LOAD inherits the script VMA.
+    pending_segment_starts: Vec<ProgramSegmentId>,
 }
 
 impl<'scope, 'data, P: Platform> OutputOrderBuilder<'scope, 'data, P> {
@@ -173,7 +176,12 @@ impl<'scope, 'data, P: Platform> OutputOrderBuilder<'scope, 'data, P> {
             has_custom_phdrs,
             location_counters,
             last_location_counter: location_counters.last().map(|_| 0),
+            pending_segment_starts: Vec::new(),
         }
+    }
+
+    pub(crate) fn queue_segment_start(&mut self, segment_id: ProgramSegmentId) {
+        self.pending_segment_starts.push(segment_id);
     }
 
     fn emit_location_counters(
@@ -232,13 +240,20 @@ impl<'scope, 'data, P: Platform> OutputOrderBuilder<'scope, 'data, P> {
                 .push(OrderEvent::SetSectionAddress(location.clone()));
         }
 
-        for segment_id in start {
-            self.events.push(OrderEvent::SegmentStart(segment_id));
-        }
-
+        // Inter-section `. = ALIGN(...)` must run before the LOAD starts, otherwise
+        // `align_load_segment_start` advances the VMA by `max-page-size` and the
+        // script alignment is applied on top of that (kernel `.data` at +2MB).
         if let Some(ref loc_info) = section_info.location_info {
             let (lc_start, lc_stop) = loc_info.location_counters;
             self.emit_location_counters(lc_start, lc_stop);
+        }
+
+        for segment_id in self.pending_segment_starts.drain(..) {
+            self.events.push(OrderEvent::SegmentStart(segment_id));
+        }
+
+        for segment_id in start {
+            self.events.push(OrderEvent::SegmentStart(segment_id));
         }
 
         self.events.push(OrderEvent::Section(section_id));
@@ -413,6 +428,10 @@ impl<'scope, 'data, P: Platform> OutputOrderBuilder<'scope, 'data, P> {
     }
 
     pub(crate) fn build(mut self) -> (OutputOrder<'data>, ProgramSegments<P::ProgramSegmentDef>) {
+        for segment_id in self.pending_segment_starts.drain(..) {
+            self.events.push(OrderEvent::SegmentStart(segment_id));
+        }
+
         if let Some(lc) = self.last_location_counter {
             self.emit_location_counters(lc, self.location_counters.len());
         }

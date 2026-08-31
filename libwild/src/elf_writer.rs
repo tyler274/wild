@@ -4809,6 +4809,8 @@ fn get_defsym_attributes<C: ElfClass>(
         if let Some(target_id) = target_symbol_id {
             let canonical_id = layout.symbol_db.definition(target_id);
             get_symbol_attributes(layout, canonical_id)
+        } else if def_info.is_provide {
+            Ok((object::elf::SHN_ABS.into(), object::elf::STT_NOTYPE))
         } else {
             Err(redirect.missing_target(target_name))
         }
@@ -5055,6 +5057,25 @@ fn write_internal_symbols<C: ElfClass>(
         if def_info.name.is_empty() {
             continue;
         }
+        if def_info.is_provide
+            && let crate::parsing::SymbolPlacement::Redirect(redirect) = &def_info.placement
+        {
+            let mut missing_rhs = false;
+            redirect.expression.visit_expressions(&mut |e| {
+                if let Expression::Symbol(name) = e
+                    && layout
+                        .symbol_db
+                        .get_unversioned(&crate::symbol::UnversionedSymbolName::prehashed(name))
+                        .is_none()
+                {
+                    missing_rhs = true;
+                }
+                true
+            });
+            if missing_rhs {
+                continue;
+            }
+        }
         let symbol_id = internal_symbols.start_symbol_id.add_usize(local_index);
         if !layout.symbol_db.is_canonical(symbol_id) {
             continue;
@@ -5074,21 +5095,10 @@ fn write_internal_symbols<C: ElfClass>(
         } else {
             let shndx = def_info
                 .section_id()
-                .map(|section_id| {
+                .and_then(|section_id| {
                     let section_id = layout.output_sections.primary_output_section(section_id);
-
-                    layout
-                        .output_sections
-                        .output_index_of_section(section_id)
-                        .with_context(|| {
-                            format!(
-                                "symbol '{}' in section '{}' that we're not going to output {resolution:?}",
-                                layout.symbol_db.symbol_name_for_display(symbol_id),
-                                layout.output_sections.display_name(section_id)
-                            )
-                        })
+                    layout.output_sections.output_index_of_section(section_id)
                 })
-                .transpose()?
                 .map_or(object::elf::SHN_ABS.into(), SymbolSection::Index);
 
             (shndx, def_info.symbol.st_type())
@@ -5712,7 +5722,7 @@ fn write_section_headers<C: ElfClass>(out: &mut [u8], layout: &ElfLayout<C>) -> 
     }
     ensure!(
         entries.next().is_none(),
-        "Allocated section entries that weren't used"
+        "Allocated section entries that weren't used (leftover section headers)"
     );
 
     Ok(())

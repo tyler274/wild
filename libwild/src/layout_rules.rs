@@ -223,6 +223,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                 });
                 symbol_defs.push(
                     crate::parsing::InternalSymDefInfo::new(placement, provide.name)
+                        .with_provide()
                         .with_hidden(provide.hidden),
                 );
             } else if let linker_script::Command::SymbolDefinition { name, value } = cmd {
@@ -261,6 +262,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                         _ => crate::bail!("Illegal use of /DISCARD/ section"),
                                     }
                                 }
+                                continue;
                             }
                             let min_alignment =
                                 sec.alignment.unwrap_or(alignment::MIN).max(alignment::MIN);
@@ -395,6 +397,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                         });
                                         symbol_defs.push(
                                             InternalSymDefInfo::new(placement, provide.name)
+                                                .with_provide()
                                                 .with_hidden(provide.hidden),
                                         );
                                     }
@@ -504,6 +507,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                             });
                             symbol_defs.push(
                                 InternalSymDefInfo::new(placement, provide.name)
+                                    .with_provide()
                                     .with_hidden(provide.hidden),
                             );
                         }

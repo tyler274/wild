@@ -683,6 +683,8 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     const CUSTOM_PHDR_EXCLUDED_SECTION_IDS: &'static [OutputSectionId] = &[
         output_section_id::PROGRAM_HEADERS,
         output_section_id::SECTION_HEADERS,
+        // GNU ld only emits RELRO padding when the script has a GNU_RELRO phdr.
+        output_section_id::RELRO_PADDING,
     ];
 
     /// The `.init` section `crti.o` contains the start of a function and `crtn.o` contains the end
@@ -1221,7 +1223,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                 output_sections.section_debug(section_id),
             );
             ensure!(
-                section_flags.is_alloc(),
+                section_flags.is_alloc() || section_info.location_info.is_some(),
                 "Missing SHF_ALLOC section flag for section {} present in a program \
                          segment.",
                 output_sections.section_debug(section_id)
@@ -1450,6 +1452,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             },
             name: b"_TLS_MODULE_BASE_",
             symbol: elf_symbol,
+            is_provide: false,
         });
     }
 
@@ -2727,14 +2730,13 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                 }
                 builder.push_event(OrderEvent::Section(output_section_id::SECTION_HEADERS));
                 for (_, seg_id) in it {
-                    builder.push_event(OrderEvent::SegmentStart(seg_id));
+                    builder.queue_segment_start(seg_id);
                 }
             } else {
                 for (seg_idx, segment) in starts.iter().enumerate().take(num_phdrs) {
                     let entry = segment_entries[seg_idx];
                     if *segment == Some(pos) && !entry.has_filehdr && !entry.has_phdrs {
-                        builder
-                            .push_event(OrderEvent::SegmentStart(ProgramSegmentId::new(seg_idx)));
+                        builder.queue_segment_start(ProgramSegmentId::new(seg_idx));
                     }
                 }
             }
@@ -4798,6 +4800,18 @@ impl<C: ElfClass> platform::SectionAttributes for SectionAttributes<C> {
 
     fn set_to_default_type(&mut self) {
         self.ty = sht::PROGBITS;
+    }
+
+    fn set_alloc(&mut self) {
+        self.flags |= shf::ALLOC;
+    }
+
+    fn set_no_bits(&mut self) {
+        self.ty = sht::NOBITS;
+    }
+
+    fn avoids_alloc(&self) -> bool {
+        self.overrides.avoid_progpogation.contains(shf::ALLOC)
     }
 
     fn is_executable(&self) -> bool {

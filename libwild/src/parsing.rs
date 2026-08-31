@@ -70,6 +70,9 @@ pub(crate) struct InternalSymDefInfo<'data, P: Platform> {
     pub(crate) placement: SymbolPlacement<'data, P>,
     #[debug("{:?}", String::from_utf8_lossy(name))]
     pub(crate) name: &'data [u8],
+    /// `PROVIDE` / `PROVIDE_HIDDEN`. Unused PROVIDE is ignored, including when the
+    /// right-hand side is an undefined symbol (GNU ld).
+    pub(crate) is_provide: bool,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -162,6 +165,14 @@ impl<'data, P: Platform> InternalSymDefInfo<'data, P> {
             placement,
             name,
             symbol: P::default_symtab_entry(),
+            is_provide: false,
+        }
+    }
+
+    pub(crate) fn with_provide(self) -> Self {
+        Self {
+            is_provide: true,
+            ..self
         }
     }
 

@@ -1401,6 +1401,20 @@ pub(crate) trait SectionAttributes:
 
     /// Called for custom sections that return true to `is_null`.
     fn set_to_default_type(&mut self);
+
+    /// Mark a custom script section as allocated. Empty kernel-style sections with `AT()` sit
+    /// in a `PT_LOAD` and need `SHF_ALLOC` so they contribute to segment bounds.
+    fn set_alloc(&mut self) {}
+
+    /// Mark a custom script section as `NOBITS`. Used when the section has no file contents
+    /// (only `. +=` reservations and symbol assignments).
+    fn set_no_bits(&mut self) {}
+
+    /// True when the script used `(INFO)` / `(DSECT)` / `(COPY)` / `(OVERLAY)` so ALLOC
+    /// should not be inferred.
+    fn avoids_alloc(&self) -> bool {
+        false
+    }
 }
 
 pub(crate) struct SourceInfo(pub(crate) Option<SourceInfoDetails>);

@@ -1,14 +1,12 @@
-/// Evaluation of linker script ASSERT commands after layout is complete.
-///
-/// NOTE: ASSERT expression evaluation currently supports a subset of GNU ld expression
-/// features. Symbol resolution and full location counter semantics (e.g. ALIGN with a non-zero
-/// current address) will be implemented in future work.
+/// Evaluation of linker script ASSERT commands and location-counter expressions.
 use crate::bail;
 use crate::error::Result;
 use crate::input_data::InputRef;
 use crate::layout;
 use crate::layout::OutputRecordLayout;
 use crate::linker_script::Expression;
+use crate::layout_rules::SectionKind;
+use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
 use crate::output_section_id::SectionName;
 use crate::output_section_map::OutputSectionMap;
@@ -64,10 +62,11 @@ fn evaluate_location<'data, P: Platform>(
             let id_end = id_layout.mem_offset + id_layout.mem_size;
             Ok(id_end - primary_start)
         }
-        SymbolLoc::SectionEnd(id) => {
-            let layout = section_layouts.get(*id);
-            Ok(layout.mem_offset + layout.mem_size)
-        }
+        SymbolLoc::SectionEnd(id) => Ok(section_mem_end(
+            *id,
+            section_layouts,
+            output_sections,
+        )),
         SymbolLoc::FirstSection | SymbolLoc::None => Ok(0),
         SymbolLoc::LocationCounter(idx, section_id) => {
             let entry = resolved_location_counters.get(*idx).ok_or_else(|| {
@@ -83,6 +82,32 @@ fn evaluate_location<'data, P: Platform>(
             }
         }
     }
+}
+
+/// Absolute VMA of the location counter. Inside a section, `evaluate_location` is relative to
+/// the section start; GNU ld's one-arg `ALIGN(n)` aligns the absolute address.
+fn absolute_location_counter<'data, P: Platform>(
+    expr_loc: &SymbolLoc,
+    section_layouts: &OutputSectionMap<OutputRecordLayout>,
+    output_sections: &OutputSections<'data, P>,
+    resolved_location_counters: &[ResolvedLocationCounter],
+) -> Result<u64> {
+    let relative = evaluate_location(
+        expr_loc,
+        section_layouts,
+        output_sections,
+        resolved_location_counters,
+    )?;
+    let base = match expr_loc {
+        SymbolLoc::SectionStartRelative(id)
+        | SymbolLoc::SectionEndRelative(id)
+        | SymbolLoc::LocationCounter(_, Some(id)) => {
+            let primary_id = output_sections.primary_output_section(*id);
+            section_layouts.get(primary_id).mem_offset
+        }
+        _ => 0,
+    };
+    Ok(relative.wrapping_add(base))
 }
 
 pub(crate) fn evaluate_expression<'data, P: Platform>(
@@ -245,18 +270,20 @@ fn evaluate_expression_value<'data, P: Platform>(
             if align == 0 {
                 bail!("ALIGN(0) is invalid");
             }
-            let expr = expr.as_ref().map_or_else(
-                || {
-                    evaluate_location(
-                        expr_loc,
-                        section_layouts,
-                        output_sections,
-                        resolved_location_counters,
-                    )
-                },
-                |e| eval!(e),
-            )?;
-            Ok(expr.next_multiple_of(align))
+            if let Some(e) = expr.as_ref() {
+                // Two-arg ALIGN(value, align) — used by ASSERT(ALIGN(0x38, 16) == 0x40).
+                Ok(eval!(e)?.next_multiple_of(align))
+            } else {
+                // One-arg ALIGN(n) aligns the location counter's absolute VMA, matching GNU ld.
+                *has_section_relative_offset = false;
+                Ok(absolute_location_counter(
+                    expr_loc,
+                    section_layouts,
+                    output_sections,
+                    resolved_location_counters,
+                )?
+                .next_multiple_of(align))
+            }
         }
 
         Expression::Min(l, r) => Ok(eval!(l)?.min(eval!(r)?)),
@@ -385,6 +412,26 @@ pub(crate) fn evaluate_const<'data>(expr: &Expression<'data>) -> Result<u64> {
     }
 }
 
+/// End VMA of `section_id`, including secondary contributions that have not yet been
+/// merged into the primary. Needed for `_etext = .` / `text_size = _etext - _stext` while
+/// later sections (`.orc_lookup`) are still being laid out.
+pub(crate) fn section_mem_end<'data, P: Platform>(
+    section_id: OutputSectionId,
+    section_layouts: &OutputSectionMap<OutputRecordLayout>,
+    output_sections: &OutputSections<'data, P>,
+) -> u64 {
+    let primary = output_sections.primary_output_section(section_id);
+    let primary_layout = section_layouts.get(primary);
+    let mut end = primary_layout.mem_offset + primary_layout.mem_size;
+    for (id, info) in output_sections.ids_with_info() {
+        if matches!(info.kind, SectionKind::Secondary(p) if p == primary) {
+            let layout = section_layouts.get(id);
+            end = end.max(layout.mem_offset + layout.mem_size);
+        }
+    }
+    end
+}
+
 fn section_size<'data, P: Platform>(
     name: &[u8],
     section_layouts: &OutputSectionMap<OutputRecordLayout>,
@@ -395,7 +442,8 @@ fn section_size<'data, P: Platform>(
     let Some(id) = output_sections.section_id_by_name(SectionName(name)) else {
         return 0;
     };
-    section_layouts.get(id).mem_size
+    section_mem_end(id, section_layouts, output_sections)
+        .saturating_sub(section_layouts.get(id).mem_offset)
 }
 
 fn section_align<'data, P: Platform>(

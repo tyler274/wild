@@ -23,7 +23,7 @@ matching all three.
 | `SECTIONS { ... }` | ✅ | |
 | `ENTRY(symbol)` | ✅ | |
 | `VERSION { ... }` | ✅ | |
-| `PROVIDE(sym = expr)` | ✅ | |
+| `PROVIDE(sym = expr)` | ✅ | Unused PROVIDE is ignored, including when the RHS is undefined |
 | `PROVIDE_HIDDEN(sym = expr)` | ✅ | |
 | `ASSERT(expr, "msg")` | ✅ | |
 | `MEMORY { ... }` | ✅ | Regions, `(rwx)` flags, `>region`, and `AT>region` |
@@ -35,21 +35,21 @@ matching all three.
 | `INSERT [AFTER\|BEFORE] section` | ❌ | |
 | Top-level symbol assignment (`sym = expr`) | ✅ | Constant assignments are available during layout |
 | Compound assignment operators (`+=`, `-=`, etc.) | ✅ | |
-| `PHDRS` command for explicit program header definition | ✅ | `FILEHDR`, `PHDRS`, `FLAGS`, and `AT(expr)` |
+| `PHDRS` command for explicit program header definition | ✅ | `FILEHDR`, `PHDRS`, `FLAGS`, and `AT(expr)`. Without `FILEHDR`, ELF headers occupy file space only and do not advance the VMA. A `. = ALIGN(...)` immediately before a new `PT_LOAD` is applied before the LOAD starts, so `p_vaddr` is the script address rather than `max-page-size` plus that address |
 
 ## SECTIONS Block
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Output section definitions (`name : { ... }`) | ✅ | |
+| Output section definitions (`name : { ... }`) | ✅ | Empty sections inherit the location-counter VMA when they sit in a `PT_LOAD`. Sections with an explicit address of 0 (e.g. `.comment 0 :`) stay at 0 and do not contribute to `PT_LOAD` bounds. Empty loadable sections with no file contents are `NOBITS` |
 | Input section matchers (`*(pattern)`, `file(pattern)`) | ✅ | |
 | Glob patterns in section and file names | ✅ | |
 | `KEEP(...)` to prevent garbage collection | ✅ | |
 | `PROVIDE(sym = expr)` inside sections | ✅ | |
 | `PROVIDE_HIDDEN(sym = expr)` inside sections | ✅ | |
 | Symbol assignment inside sections (`sym = .`) | ✅ | |
-| Location counter assignment (`. = expr`) | 🧪 | Constants, script-defined constants, and object symbols in already-laid-out sections are supported. Object symbols are GNU ld absolute addresses, so `. = symbol \| mask` (x86 `srso_alias_untrain_ret`) applies the mask to the VMA. The object-symbol address is the start of that output section/secondary plus the symbol's input offset. Forward references are not supported |
-| `ALIGN(n)` on the location counter (`. = ALIGN(n)`) | ✅ | |
+| Location counter assignment (`. = expr`) | 🧪 | Constants, script-defined constants, script assignments (`_etext = .`), and object symbols in already-laid-out sections are supported. Script assignments override prelude section-boundary symbols of the same name. Object symbols are GNU ld absolute addresses, so `. = symbol \| mask` (x86 `srso_alias_untrain_ret`) applies the mask to the VMA. The object-symbol address is the start of that output section/secondary plus the symbol's input offset. Forward references are not supported |
+| `ALIGN(n)` on the location counter (`. = ALIGN(n)`) | ✅ | Aligns the absolute VMA, matching GNU ld |
 | Per-section `ALIGN(n)` specifier | ✅ | |
 | `ASSERT(expr, "msg")` inside `SECTIONS` | ✅ | |
 | `OVERLAY { ... }` | ✅ | Shared VMA, consecutive LMAs, `__load_start_*` / `__load_stop_*` |
@@ -84,7 +84,7 @@ matching all three.
 | `ALIGNOF(section)` | ✅ | |
 | `ADDR(section)` | ✅ | |
 | `LOADADDR(section)` | ✅ | Returns the section LMA |
-| `ALIGN(expr)` | ✅ | |
+| `ALIGN(expr)` | ✅ | One-arg form aligns the absolute location-counter VMA |
 | `LENGTH(region)` | ✅ | |
 | `ORIGIN(region)` | ✅ | |
 | `MIN(a, b)` | ✅ | |

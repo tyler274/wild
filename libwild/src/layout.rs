@@ -613,6 +613,25 @@ fn update_defsym_symbol_resolution<'data, P: Platform>(
     resolved_location_counters: &[ResolvedLocationCounter],
 ) -> Result {
     if let SymbolPlacement::Redirect(redirect) = &def_info.placement {
+        // GNU ld ignores unused PROVIDE, including when the right-hand side is undefined
+        // (kernel `PROVIDE(foo = __pi_foo)` when the startup object is not built).
+        if def_info.is_provide {
+            let mut missing_rhs = false;
+            redirect.expression.visit_expressions(&mut |e| {
+                if let crate::linker_script::Expression::Symbol(name) = e
+                    && symbol_db
+                        .get_unversioned(&UnversionedSymbolName::prehashed(name))
+                        .is_none()
+                {
+                    missing_rhs = true;
+                }
+                true
+            });
+            if missing_rhs {
+                return Ok(());
+            }
+        }
+
         let current_section_base = match redirect.loc {
             SymbolLoc::SectionStartRelative(id)
             | SymbolLoc::SectionEndRelative(id)
@@ -2074,6 +2093,14 @@ fn compute_segment_layout<'data, P: Platform>(
                             continue;
                         }
 
+                        // GNU ld keeps non-ALLOC sections (`.comment 0 :`, empty script
+                        // markers that never received SHF_ALLOC) out of PT_LOAD bounds.
+                        if !section_flags.is_alloc()
+                            && program_segments.is_load_segment(rec.segment_id)
+                        {
+                            continue;
+                        }
+
                         rec.file_start = rec.file_start.min(section_layout.file_offset);
                         rec.mem_start = rec.mem_start.min(section_layout.mem_offset);
                         rec.lma_start = rec.lma_start.min(section_layout.lma_offset);
@@ -3499,24 +3526,36 @@ impl<'data, P: Platform> PreludeLayoutState<'data, P> {
                 && section_id != crate::output_section_id::FILE_HEADER
             {
                 if section_id.is_custom::<P>() {
-                    output_sections
-                        .section_infos
-                        .get_mut(section_id)
-                        .section_attributes
-                        .set_to_default_type();
+                    let has_output_data = output_sections.script_output_data.iter().any(|data| {
+                        output_sections.primary_output_section(data.section_id) == section_id
+                    });
+                    let info = output_sections.section_infos.get_mut(section_id);
+                    info.section_attributes.set_to_default_type();
+                    if !info.section_attributes.avoids_alloc() {
+                        let explicit_zero = info
+                            .location_info
+                            .as_ref()
+                            .is_some_and(|loc| matches!(loc.location, Some(Expression::Number(0))));
+                        let loadable = !info.phdrs.is_empty();
+                        if !explicit_zero && loadable {
+                            info.section_attributes.set_alloc();
+                            if !has_output_data {
+                                info.section_attributes.set_no_bits();
+                            }
+                        }
+                    }
                 } else {
                     *keep_sections.get_mut(section_id) = false;
                 }
             }
         }
 
-        let mut num_sections = keep_sections.values_iter().filter(|p| **p).count();
-        if P::requires_symtab_shndx(num_sections) {
+        let num_keep = keep_sections.values_iter().filter(|p| **p).count();
+        if P::requires_symtab_shndx(num_keep) {
             *keep_sections.get_mut(
                 P::SYMTAB_SHNDX_LOCAL_SECTION_ID
                     .expect("platform requires a symbol-table section-index table"),
             ) = true;
-            num_sections += 1;
         }
 
         // Compute output indexes of each section.
@@ -3536,6 +3575,9 @@ impl<'data, P: Platform> PreludeLayoutState<'data, P> {
             }
         }
         output_sections.output_section_indexes = output_section_indexes;
+        // Only sections that appear in the output order receive a section header. Custom
+        // PHDRS order can omit some kept builtins; size the table from the indexes we assigned.
+        let num_sections = next_output_index;
 
         // Determine which program segments contain sections that we're keeping.
         let mut keep_segments = if program_segments.has_custom_phdrs() {
@@ -3706,6 +3748,36 @@ fn load_expression_referenced_symbols<'data, 'scope, A: Arch>(
     });
 }
 
+fn load_redirect_expression_targets<'data, 'scope, A: Arch>(
+    resources: &'scope GraphResources<'data, '_, <A as Arch>::Platform>,
+    queue: &mut LocalWorkQueue<A::Platform>,
+    scope: &Scope<'scope>,
+    redirect: &crate::parsing::Redirect<'_>,
+) {
+    load_expression_referenced_symbols::<A>(resources, queue, scope, &redirect.expression);
+}
+
+fn provide_has_missing_rhs<'data, P: Platform>(
+    def_info: &InternalSymDefInfo<'data, P>,
+    symbol_db: &SymbolDb<'data, P>,
+) -> bool {
+    let SymbolPlacement::Redirect(redirect) = &def_info.placement else {
+        return false;
+    };
+    let mut missing = false;
+    redirect.expression.visit_expressions(&mut |e| {
+        if let crate::linker_script::Expression::Symbol(name) = e
+            && symbol_db
+                .get_unversioned(&UnversionedSymbolName::prehashed(name))
+                .is_none()
+        {
+            missing = true;
+        }
+        true
+    });
+    missing
+}
+
 impl<'data, P: Platform> InternalSymbols<'data, P> {
     fn activate_symbols<'scope, A: Arch<Platform = P>>(
         &self,
@@ -3742,19 +3814,32 @@ impl<'data, P: Platform> InternalSymbols<'data, P> {
 
             // PROVIDE_HIDDEN symbols should not be exported to dynsym.
             if def_info.symbol.is_hidden() {
+                if def_info.is_provide
+                    && let SymbolPlacement::Redirect(redirect) = &def_info.placement
+                {
+                    load_redirect_expression_targets::<A>(resources, queue, scope, redirect);
+                }
                 continue;
             }
 
             match &def_info.placement {
                 SymbolPlacement::Redirect(redirect) => {
-                    load_redirect_referenced_symbols::<A>(
-                        resources, queue, scope, symbol_id, redirect,
-                    );
+                    if def_info.is_provide {
+                        load_redirect_expression_targets::<A>(resources, queue, scope, redirect);
+                    } else {
+                        load_redirect_referenced_symbols::<A>(
+                            resources, queue, scope, symbol_id, redirect,
+                        );
+                    }
                 }
                 _ => {}
             }
 
             if def_info.name.is_empty() {
+                continue;
+            }
+
+            if def_info.is_provide && provide_has_missing_rhs(def_info, resources.symbol_db) {
                 continue;
             }
 
@@ -5719,6 +5804,13 @@ fn compute_layout_sections<'data, P: Platform>(
     // template, so we don't do it.
     let mut tls_memsave: Option<u64> = None;
 
+    // ALLOC sections not covered by a PT_LOAD (typical: ELF file/program/section headers when
+    // the linker script's PHDRS omit FILEHDR) occupy file space only. GNU ld does not put them
+    // in the process VMA, so the first loadable section keeps the script address. When those
+    // file-only headers precede the first LOAD, pad the file offset so `p_offset ≡ p_vaddr`.
+    let mut load_segment_depth = 0u32;
+    let mut pad_file_at_next_load = false;
+
     for event in output_order {
         match event {
             OrderEvent::SetLocation(expr, mut loc, idx) => {
@@ -5754,6 +5846,15 @@ fn compute_layout_sections<'data, P: Platform>(
                     &resolved_lc,
                     &laid_out_mem_offsets,
                 )?;
+                // `. += N` is `. = . + N`. Inside a section, `.` is a section offset, so
+                // `evaluate_expression` returns `section_base + N` when the RHS is relative.
+                // If the RHS mentions a symbol (`text_size`), the expression is treated as
+                // absolute and we get just `N`. Convert that back into an absolute VMA.
+                let value = if value >= section_base {
+                    value
+                } else {
+                    section_base.wrapping_add(value)
+                };
                 let offset = value - section_base;
                 pending_location = Some(value);
                 resolved_lc[idx] = ResolvedLocationCounter {
@@ -5784,6 +5885,13 @@ fn compute_layout_sections<'data, P: Platform>(
                         lma_offset = mem_offset;
                         file_offset =
                             segment_alignment.align_modulo(mem_offset, file_offset as u64) as usize;
+                        pad_file_at_next_load = false;
+                    } else if pad_file_at_next_load {
+                        // Keep the script VMA; pad the file so p_offset ≡ p_vaddr.
+                        file_offset =
+                            segment_alignment.align_modulo(mem_offset, file_offset as u64) as usize;
+                        lma_offset = mem_offset;
+                        pad_file_at_next_load = false;
                     } else {
                         let segment_def = *program_segments.segment_def(segment_id);
                         P::align_load_segment_start(
@@ -5799,12 +5907,36 @@ fn compute_layout_sections<'data, P: Platform>(
                             &mut lma_offset,
                         );
                     }
+                    load_segment_depth += 1;
                 }
             }
-            OrderEvent::SegmentEnd(_) => {}
+            OrderEvent::SegmentEnd(segment_id) => {
+                if program_segments.is_load_segment(segment_id) {
+                    load_segment_depth = load_segment_depth.saturating_sub(1);
+                }
+            }
             OrderEvent::Section(section_id) => {
                 let section_info = output_sections.output_info(section_id);
-                let section_offset = pending_location.take();
+                let merge_target = output_sections.primary_output_section(section_id);
+                let primary_info = output_sections.output_info(merge_target);
+                // `.comment 0 :` / `.symtab 0 :` have an explicit VMA of 0 and are not ALLOC.
+                // They must not consume a pending `. = ALIGN(...)` or follow the location
+                // counter into a PT_LOAD. Only custom script sections (empty markers like
+                // `.init.begin`) follow `.` when they inherit a LOAD without SHF_ALLOC.
+                let has_explicit_nonalloc_vma = !primary_info.section_attributes.is_alloc()
+                    && primary_info
+                        .location_info
+                        .as_ref()
+                        .and_then(|info| info.location.as_ref())
+                        .is_some();
+                let section_offset = if has_explicit_nonalloc_vma {
+                    None
+                } else {
+                    pending_location.take()
+                };
+                let mut follow_location_counter = load_segment_depth > 0
+                    && !has_explicit_nonalloc_vma
+                    && merge_target.is_custom::<P>();
 
                 if section_info
                     .section_attributes
@@ -5883,7 +6015,6 @@ fn compute_layout_sections<'data, P: Platform>(
 
                 if let Some(offset) = section_offset {
                     let merge_target = output_sections.primary_output_section(section_id);
-                    let section_flags = output_sections.section_flags(merge_target);
                     let is_top_level = section_info
                         .location_info
                         .as_ref()
@@ -5899,13 +6030,18 @@ fn compute_layout_sections<'data, P: Platform>(
                         );
                     }
                     if offset >= mem_offset {
-                        if (section_id == merge_target || !is_top_level)
-                            && section_flags.is_alloc()
+                        if load_segment_depth > 0
+                            && (section_id == merge_target || !is_top_level)
                             && output_sections.has_data_in_file(merge_target)
                         {
                             file_offset += (offset - mem_offset) as usize;
                         }
-                        mem_offset = offset;
+                        if load_segment_depth > 0 {
+                            mem_offset = offset;
+                        }
+                    } else {
+                        // Explicit VMA behind the location counter (`.comment 0 :`).
+                        follow_location_counter = false;
                     }
                 }
                 if at_region.is_none()
@@ -5958,53 +6094,70 @@ fn compute_layout_sections<'data, P: Platform>(
                         file_offset = alignment.align_up_usize(file_offset);
                     }
 
-                    if section_flags.is_alloc() {
-                        if args.should_output_partial_object() {
-                            let file_size = if output_sections.has_data_in_file(merge_target) {
-                                mem_size as usize
-                            } else {
-                                0
-                            };
-
-                            let section_id = part_id.output_section_id::<P>();
-                            let part_mem_offset =
-                                alignment.align_up(*reloc_alloc_mem_offsets.get(section_id));
-                            *reloc_alloc_mem_offsets.get_mut(section_id) =
-                                part_mem_offset + mem_size;
-
-                            *part_layout = OutputRecordLayout {
-                                file_size,
-                                mem_size,
-                                alignment,
-                                file_offset,
-                                mem_offset: part_mem_offset,
-                                lma_offset: part_mem_offset,
-                            };
-
-                            file_offset += file_size;
+                    if section_flags.is_alloc() && args.should_output_partial_object() {
+                        let file_size = if output_sections.has_data_in_file(merge_target) {
+                            mem_size as usize
                         } else {
-                            mem_offset = alignment.align_up(mem_offset);
-                            lma_offset = alignment.align_up(lma_offset);
+                            0
+                        };
 
-                            let file_size = if output_sections.has_data_in_file(merge_target) {
-                                mem_size as usize
-                            } else {
-                                0
-                            };
+                        let section_id = part_id.output_section_id::<P>();
+                        let part_mem_offset =
+                            alignment.align_up(*reloc_alloc_mem_offsets.get(section_id));
+                        *reloc_alloc_mem_offsets.get_mut(section_id) = part_mem_offset + mem_size;
 
-                            *part_layout = OutputRecordLayout {
-                                file_size,
-                                mem_size,
-                                alignment,
-                                file_offset,
-                                mem_offset,
-                                lma_offset,
-                            };
+                        *part_layout = OutputRecordLayout {
+                            file_size,
+                            mem_size,
+                            alignment,
+                            file_offset,
+                            mem_offset: part_mem_offset,
+                            lma_offset: part_mem_offset,
+                        };
 
-                            file_offset += file_size;
-                            mem_offset += mem_size;
-                            lma_offset += mem_size;
-                        }
+                        file_offset += file_size;
+                    } else if section_flags.is_alloc() && load_segment_depth == 0 {
+                        // Headers (and any other ALLOC content) outside PT_LOAD occupy the
+                        // file only, matching GNU ld PHDRS without FILEHDR.
+                        pad_file_at_next_load = true;
+                        let file_size = if output_sections.has_data_in_file(merge_target) {
+                            mem_size as usize
+                        } else {
+                            0
+                        };
+                        *part_layout = OutputRecordLayout {
+                            file_size,
+                            mem_size,
+                            alignment,
+                            file_offset,
+                            mem_offset: 0,
+                            lma_offset: 0,
+                        };
+                        file_offset += file_size;
+                    } else if section_flags.is_alloc() || follow_location_counter {
+                        // ALLOC sections in a PT_LOAD, and empty/non-ALLOC custom sections that
+                        // inherit that LOAD, follow the location-counter VMA (GNU ld).
+                        mem_offset = alignment.align_up(mem_offset);
+                        lma_offset = alignment.align_up(lma_offset);
+
+                        let file_size = if output_sections.has_data_in_file(merge_target) {
+                            mem_size as usize
+                        } else {
+                            0
+                        };
+
+                        *part_layout = OutputRecordLayout {
+                            file_size,
+                            mem_size,
+                            alignment,
+                            file_offset,
+                            mem_offset,
+                            lma_offset,
+                        };
+
+                        file_offset += file_size;
+                        mem_offset += mem_size;
+                        lma_offset += mem_size;
                     } else {
                         let section_id = part_id.output_section_id::<P>();
                         let mem_offset = alignment.align_up(*nonalloc_mem_offsets.get(section_id));
@@ -6138,6 +6291,26 @@ fn layout_time_symbol_value<'data, P: Platform>(
         return Ok(*value);
     }
 
+    // A linker-script assignment (`_etext = .`) overrides the prelude's
+    // `SectionEnd(.text)` of the same name. Without this, `. += text_size` during
+    // layout sees `_etext == 0` because the builtin `.text` has not been merged yet
+    // (or is a different section from the script's `.text`).
+    if let Some(def) = script_assignment_def(name, symbol_db) {
+        return script_def_layout_value(
+            name,
+            def,
+            symbol_db,
+            section_layouts,
+            output_sections,
+            memory_regions,
+            loc,
+            sizeof_headers,
+            resolved_lc,
+            const_script_symbols,
+            recursion_depth,
+        );
+    }
+
     let Some(symbol_id) = symbol_db.get_unversioned(&UnversionedSymbolName::prehashed(name)) else {
         bail!(
             "undefined symbol `{}` in linker-script expression",
@@ -6242,8 +6415,11 @@ fn script_def_layout_value<'data, P: Platform>(
         ),
         SymbolPlacement::SectionStart(id) => Ok(section_layouts.get(*id).mem_offset),
         SymbolPlacement::SectionEnd(id) | SymbolPlacement::SectionGroupEnd(id) => {
-            let layout = section_layouts.get(*id);
-            Ok(layout.mem_offset + layout.mem_size)
+            Ok(crate::expression_eval::section_mem_end(
+                *id,
+                section_layouts,
+                output_sections,
+            ))
         }
         _ => bail!(
             "Symbols with the set location operation are not yet supported (`{}`).",
@@ -6291,6 +6467,27 @@ fn object_symbol_address_in_layout<'data, P: Platform>(
     }
 
     Ok(layout.mem_offset + offset)
+}
+
+/// Last non-PROVIDE linker-script assignment of `name`, if any.
+fn script_assignment_def<'data, 's, P: Platform>(
+    name: &[u8],
+    symbol_db: &'s SymbolDb<'data, P>,
+) -> Option<&'s InternalSymDefInfo<'data, P>> {
+    let mut found = None;
+    for group in &symbol_db.groups {
+        let Group::LinkerScripts(scripts) = group else {
+            continue;
+        };
+        for script in scripts {
+            for def in &script.parsed.symbol_defs {
+                if !def.is_provide && def.name == name {
+                    found = Some(def);
+                }
+            }
+        }
+    }
+    found
 }
 
 fn collect_const_script_symbols<'data, P: Platform>(

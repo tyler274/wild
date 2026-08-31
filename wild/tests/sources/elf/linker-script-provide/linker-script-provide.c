@@ -15,6 +15,7 @@
 //#ExpectSym:__data_end
 // GNU ld doesn't emit unreferenced `PROVIDE` symbols
 //#NoSym:unreferenced_symbol
+//#NoSym:unused_missing
 //#DiffIgnore:.dynamic.*
 //#DiffIgnore:section.got
 //#DiffIgnore:section.rela.dyn
