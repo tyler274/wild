@@ -17,6 +17,7 @@ use crate::input_data::FileId;
 use crate::input_data::InputRef;
 use crate::input_data::PRELUDE_FILE_ID;
 use crate::input_section_id::SectionIdRange;
+use crate::layout_rules::SectionOutputInfo;
 use crate::layout_rules::SectionRuleOutcome;
 use crate::layout_rules::SectionRules;
 use crate::linker_script::Expression;
@@ -1291,6 +1292,20 @@ fn resolve_sections_for_object<'data, P: Platform>(
     Ok((sections, section_part_ids))
 }
 
+fn part_id_for_output<P: Platform>(output_info: &SectionOutputInfo, alignment: Alignment) -> PartId {
+    if output_info.input_order {
+        output_info
+            .section_id
+            .part_id_with_alignment::<P>(crate::alignment::MIN)
+    } else if output_info.section_id.is_regular::<P>() {
+        output_info
+            .section_id
+            .part_id_with_alignment::<P>(alignment)
+    } else {
+        output_info.section_id.base_part_id::<P>()
+    }
+}
+
 #[inline(always)]
 fn resolve_section<'data, P: Platform>(
     input_section_index: SectionIndex,
@@ -1339,13 +1354,7 @@ fn resolve_section<'data, P: Platform>(
 
     match rule_outcome {
         SectionRuleOutcome::Section(output_info) => {
-            part_id = if output_info.section_id.is_regular::<P>() {
-                output_info
-                    .section_id
-                    .part_id_with_alignment::<P>(alignment)
-            } else {
-                output_info.section_id.base_part_id::<P>()
-            };
+            part_id = part_id_for_output::<P>(&output_info, alignment);
 
             must_load |= output_info.must_keep;
 
@@ -1354,13 +1363,7 @@ fn resolve_section<'data, P: Platform>(
             unloaded_section.sort_by_init_priority = output_info.sort_by_init_priority;
         }
         SectionRuleOutcome::SortedSection(output_info) => {
-            part_id = if output_info.section_id.is_regular::<P>() {
-                output_info
-                    .section_id
-                    .part_id_with_alignment::<P>(alignment)
-            } else {
-                output_info.section_id.base_part_id::<P>()
-            };
+            part_id = part_id_for_output::<P>(&output_info, alignment);
             if let Some(priority) = P::init_section_priority(section_name) {
                 obj.init_fini_sections.push(InitFiniSectionDetail {
                     index: input_section_index.0 as u32,

@@ -284,6 +284,7 @@ fn write_file_contents<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     let (mut section_buffers, padding) = split_output_into_sections(layout, &mut sized_output.out);
 
     fill_padding_for_sections::<C, A>(layout, padding);
+    prefill_script_fill::<C, A>(layout, &mut section_buffers);
     write_script_output_data(layout, &mut section_buffers)?;
 
     let sym_index_map = if layout.args().should_output_partial_object() {
@@ -293,6 +294,7 @@ fn write_file_contents<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     };
 
     let mut writable_buckets = split_buffers_by_alignment(&mut section_buffers, layout);
+    prefill_script_fill_parts::<C, A>(layout, &mut writable_buckets);
     let groups_and_buffers = split_output_by_group(layout, &mut writable_buckets);
     groups_and_buffers
         .into_par_iter()
@@ -339,7 +341,7 @@ fn write_file_contents<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
         }
     }
 
-    fill_padding(section_buffers);
+    fill_padding::<C, A>(layout, section_buffers);
 
     Ok(())
 }
@@ -351,7 +353,16 @@ fn fill_padding_for_sections<C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     timing_phase!("Fill padding for sections");
 
     for pslice in padding.slices {
-        if let Some(section_id) = pslice.parent_section_id {
+        if pslice.slice.is_empty() {
+            continue;
+        }
+        // Gaps between secondaries of the same primary already carry that section. Trailing
+        // `. = . + N` after the last input sits between that primary and the next output
+        // section, so look up the merged file range that still owns those bytes.
+        let section_id = pslice
+            .parent_section_id
+            .or_else(|| section_covering_file_offset(layout, pslice.file_offset));
+        if let Some(section_id) = section_id {
             let section_info = layout.output_sections.output_info(section_id);
             fill_section_padding::<C, A>(pslice.slice, section_info);
         } else {
@@ -360,9 +371,66 @@ fn fill_padding_for_sections<C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     }
 }
 
-fn fill_padding(mut section_buffers: OutputSectionMap<&mut [u8]>) {
-    section_buffers.for_each_mut(|_, out| {
-        out.fill(0);
+fn section_covering_file_offset<C: ElfClass>(
+    layout: &Layout<'_, elf::Elf<C>>,
+    file_offset: usize,
+) -> Option<crate::output_section_id::OutputSectionId> {
+    let mut found = None;
+    layout.merged_section_layouts.for_each(|id, rec| {
+        if rec.file_size == 0 {
+            return;
+        }
+        if file_offset >= rec.file_offset && file_offset < rec.file_end() {
+            let info = layout.output_sections.output_info(id);
+            if info.fill.is_some() {
+                found = Some(id);
+            }
+        }
+    });
+    found
+}
+
+fn prefill_script_fill<C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
+    layout: &Layout<'_, elf::Elf<C>>,
+    section_buffers: &mut OutputSectionMap<&mut [u8]>,
+) {
+    for (section_id, info) in layout.output_sections.ids_with_info() {
+        if info.fill.is_some() {
+            fill_section_padding::<C, A>(section_buffers.get_mut(section_id), info);
+        }
+    }
+}
+
+fn prefill_script_fill_parts<C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
+    layout: &Layout<'_, elf::Elf<C>>,
+    writable_buckets: &mut OutputSectionPartMap<&mut [u8]>,
+) {
+    for event in &layout.output_order {
+        let OrderEvent::Section(section_id) = event else {
+            continue;
+        };
+        let info = layout.output_sections.output_info(section_id);
+        if info.fill.is_none() {
+            continue;
+        }
+        for part_id in section_id.parts::<elf::Elf<C>>() {
+            let buf = writable_buckets.get_mut(part_id);
+            if !buf.is_empty() {
+                fill_section_padding::<C, A>(buf, info);
+            }
+        }
+    }
+}
+
+fn fill_padding<C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
+    layout: &Layout<'_, elf::Elf<C>>,
+    mut section_buffers: OutputSectionMap<&mut [u8]>,
+) {
+    section_buffers.for_each_mut(|section_id, out| {
+        if out.is_empty() {
+            return;
+        }
+        fill_section_padding::<C, A>(out, layout.output_sections.output_info(section_id));
     });
 }
 
@@ -2329,6 +2397,34 @@ fn write_debug_section<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     Ok(())
 }
 
+fn input_section_buffer_split<C: ElfClass>(
+    remaining: usize,
+    sec: Section,
+    part_id: PartId,
+    layout: &ElfLayout<C>,
+    file_id: crate::input_data::FileId,
+) -> (usize, usize) {
+    if layout
+        .output_sections
+        .uses_input_order(part_id.output_section_id::<elf::Elf<C>>())
+    {
+        let part_layout = layout.section_part_layouts.get(part_id);
+        let group_idx = file_id.group();
+        let mut group_start = part_layout.mem_offset;
+        for group in layout.group_layouts.iter().take(group_idx) {
+            group_start += group.mem_sizes.get(part_id);
+        }
+        let group_file_size = layout.group_layouts[group_idx].file_sizes.get(part_id);
+        let written_in_group = group_file_size.saturating_sub(remaining);
+        let current_vma = group_start + written_in_group as u64;
+        let aligned_vma = sec.alignment.align_up(current_vma);
+        let leading_pad = (aligned_vma - current_vma) as usize;
+        (leading_pad, leading_pad + sec.size as usize)
+    } else {
+        (0, sec.capacity(part_id, &layout.output_sections) as usize)
+    }
+}
+
 fn write_section_raw<'out, 'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     object: &ObjectLayout<'data, elf::Elf<C>>,
     layout: &ElfLayout<C>,
@@ -2342,7 +2438,13 @@ fn write_section_raw<'out, 'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
         .has_data_in_file(part_id.output_section_id::<elf::Elf<C>>())
     {
         let section_buffer = buffers.get_mut(part_id);
-        let allocation_size = sec.capacity(part_id, &layout.output_sections) as usize;
+        let (leading_pad, allocation_size) = input_section_buffer_split(
+            section_buffer.len(),
+            sec,
+            part_id,
+            layout,
+            object.file_id,
+        );
         if section_buffer.len() < allocation_size {
             bail!(
                 "Insufficient space allocated to section `{}`. Tried to take {} bytes, but only {} remain",
@@ -2352,12 +2454,14 @@ fn write_section_raw<'out, 'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
             );
         }
         let out = section_buffer.split_off_mut(..allocation_size).unwrap();
+        let (leading, out) = out.split_at_mut(leading_pad);
         let object_section = object.object.section(section_index)?;
         let relax_deltas = object.section_relax_deltas.get(section_index.0);
 
         let section_info = layout
             .output_sections
             .output_info(part_id.output_section_id::<elf::Elf<C>>());
+        fill_section_padding::<C, A>(leading, section_info);
         match relax_deltas {
             None => {
                 let section_size = object.object.section_size(object_section)?;

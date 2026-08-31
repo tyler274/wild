@@ -42,7 +42,7 @@ matching all three.
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Output section definitions (`name : { ... }`) | ✅ | Empty sections inherit the location-counter VMA when they sit in a `PT_LOAD`. Sections with an explicit address of 0 (e.g. `.comment 0 :`) stay at 0 and do not contribute to `PT_LOAD` bounds. Empty loadable sections with no file contents are `NOBITS` |
-| Input section matchers (`*(pattern)`, `file(pattern)`) | ✅ | `*(.note.*)` absorbs the linker-generated `--build-id` note (GNU ld); `/DISCARD/` of that name drops it |
+| Input section matchers (`*(pattern)`, `file(pattern)`) | ✅ | `*(.note.*)` absorbs the linker-generated `--build-id` note (GNU ld); `/DISCARD/` of that name drops it. Input `SHT_REL`/`SHT_RELA`/`SHT_SYMTAB`/`SHT_STRTAB` are not matched (`*(.rela.*)` does not fill `.rela.dyn`; `*(.symtab)` does not replace the linker's symbol table). Matchers without `SORT*` keep GNU ld input order and align each input to its own `sh_addralign` |
 | Glob patterns in section and file names | ✅ | |
 | `KEEP(...)` to prevent garbage collection | ✅ | |
 | `PROVIDE(sym = expr)` inside sections | ✅ | |
@@ -59,7 +59,7 @@ matching all three.
 | `AT(addr)` load-address specifier on output sections | ✅ | |
 | Numeric address between section name and `:` (e.g. `name 0 : { ... }`) | 🧪 | Only numeric literals are currently supported |
 | `SORT(...)`, `SORT_BY_NAME(...)` | ✅ | |
-| `SORT_BY_ALIGNMENT(...)` | ✅ | Parsed and ignored, as sections are sorted by alignment by default |
+| `SORT_BY_ALIGNMENT(...)` | 🧪 | Parsed; without `SORT*`, matchers use GNU ld input order rather than alignment buckets |
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | Uses GCC `init_priority` encoded in `.init_array.N` / `.ctors.N` names |
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | Both `*(EXCLUDE_FILE(a.o) .text)` and `EXCLUDE_FILE(a.o) *(.text)` |
 | `BYTE(expr)`, `SHORT(expr)`, `LONG(expr)`, `QUAD(expr)` output data | ✅ | Written in the target endianness |
@@ -116,8 +116,9 @@ section has no explicit `>region`, a compatible region is selected from the flag
 The Linux kernel's build system uses a rich set of linker script features across `vmlinux.lds` and
 related architecture-specific scripts. The table below lists each such feature along with its
 current status. Kernel-like scripts for x86_64, aarch64, riscv64, loongarch64, and ppc64le are
-covered by Wild's integration tests; full `vmlinux` / module links should be validated against GNU
-ld with `readelf` and, where possible, QEMU boot.
+covered by Wild's integration tests. An x86_64 `vmlinux` link with `--no-gc-sections` matches GNU ld
+for `_stext`, `_etext`, `__init_begin`, and `_end`. Remaining layout gaps include `.rodata` size
+and flags (Wild is larger and still propagates `SHF_MERGE`/`SHF_STRINGS` from merge-string inputs).
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -129,7 +130,7 @@ ld with `readelf` and, where possible, QEMU boot.
 | `>region` memory region placement | ✅ | |
 | `AT>region` load-region placement | ✅ | |
 | `SORT(...)`, `SORT_BY_NAME(...)` | ✅ | |
-| `SORT_BY_ALIGNMENT(...)` | ✅ | Parsed and ignored, as sections are sorted by alignment by default |
+| `SORT_BY_ALIGNMENT(...)` | 🧪 | Parsed; without `SORT*`, matchers use GNU ld input order rather than alignment buckets |
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | |
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | |
 | `BYTE` / `SHORT` / `LONG` / `QUAD` | ✅ | Used by RISC-V/EFI kernel scripts |

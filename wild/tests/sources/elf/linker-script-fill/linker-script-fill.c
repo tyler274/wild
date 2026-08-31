@@ -14,8 +14,7 @@
 //#ExpectSectionBytes:.fill3=0x119090909090909022 0..9
 //#ExpectSectionBytes:.fill4=0x110000009000000022 0..9
 //#ExpectSectionBytes:.fill5=0x110000000900000022 0..9
-//#ExpectSectionBytes:.fill6=0x90909090909090901190909090909090 0..16
-//#ExpectSectionBytes:.fill6=0x90909090909090902290909090909090 16..32
+//#ExpectSectionBytes:.fill6=0x909090909090909011909090909090909090909090909090229090909090909090
 
 //#Config:overflow-u32:default
 //#LinkerScript:linker-script-fill-overflow.ld

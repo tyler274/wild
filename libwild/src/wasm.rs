@@ -6798,6 +6798,7 @@ impl platform::Platform for Wasm {
                 region_name: None,
                 fill: None,
                 phdrs: Vec::new(),
+                input_order: false,
             })
             .collect()
     }

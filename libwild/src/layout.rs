@@ -324,8 +324,8 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
     P::finalise_output_section_alignments(&section_part_sizes, &mut output_sections);
 
     let (mut section_part_layouts, mut section_layouts, mut resolved_location_counters) =
-        compute_layout_sections::<A::Platform>(
-            &group_states,
+        compute_and_apply_section_layout::<A::Platform>(
+            &mut group_states,
             &section_part_sizes,
             &output_sections,
             &program_segments,
@@ -1481,6 +1481,7 @@ pub(crate) struct Section {
     /// Size in the output. This starts as the input section size, then may be reduced by
     /// relaxation-induced byte deletions during `scan_relaxations`.
     pub(crate) size: u64,
+    pub(crate) alignment: Alignment,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -3218,7 +3219,9 @@ impl Section {
         _part_id: PartId,
     ) -> Result<Section> {
         let size = object_state.object.section_size(header)?;
-        let section = Section { size };
+        let raw_alignment = object_state.object.section_alignment(header)?;
+        let alignment = Alignment::new(raw_alignment.max(1))?;
+        let section = Section { size, alignment };
         Ok(section)
     }
 
@@ -3234,6 +3237,28 @@ impl Section {
         } else {
             part_id.alignment(output_sections).align_up(self.size)
         }
+    }
+
+    fn place(self, offset: u64) -> (u64, u64) {
+        let address = self.alignment.align_up(offset);
+        (address, address + self.size)
+    }
+}
+
+fn advance_section_offset<P: Platform>(
+    offset: &mut u64,
+    sec: Section,
+    part_id: PartId,
+    output_sections: &OutputSections<P>,
+) -> u64 {
+    if output_sections.uses_input_order(part_id.output_section_id::<P>()) {
+        let (address, end) = sec.place(*offset);
+        *offset = end;
+        address
+    } else {
+        let address = *offset;
+        *offset += sec.capacity(part_id, output_sections);
+        address
     }
 }
 
@@ -4671,12 +4696,17 @@ impl<'data, P: Platform> ObjectLayoutState<'data, P> {
         for (slot, &part_id) in self.sections.iter_mut().zip(object_part_ids) {
             let resolution = match slot {
                 SectionSlot::Loaded(sec) => {
-                    let address = memory_offsets.get(part_id);
+                    let mut offset = memory_offsets.get(part_id);
+                    let address = advance_section_offset(
+                        &mut offset,
+                        *sec,
+                        part_id,
+                        resources.output_sections,
+                    );
+                    *memory_offsets.get_mut(part_id) = offset;
 
                     // TODO: We probably need to be able to handle sections that are ifuncs and
                     // sections that need a TLS GOT struct.
-                    *memory_offsets.get_mut(part_id) +=
-                        sec.capacity(part_id, resources.output_sections);
 
                     // Collect SFrame section ranges while we're already iterating
                     if Some(part_id.output_section_id::<P>()) == sframe_section_id {
@@ -4693,9 +4723,14 @@ impl<'data, P: Platform> ObjectLayoutState<'data, P> {
                 },
 
                 &mut SectionSlot::LoadedDebugInfo(sec) => {
-                    let address = memory_offsets.get(part_id);
-                    *memory_offsets.get_mut(part_id) +=
-                        sec.capacity(part_id, resources.output_sections);
+                    let mut offset = memory_offsets.get(part_id);
+                    let address = advance_section_offset(
+                        &mut offset,
+                        sec,
+                        part_id,
+                        resources.output_sections,
+                    );
+                    *memory_offsets.get_mut(part_id) = offset;
                     SectionResolution { address }
                 }
                 SectionSlot::FrameData(..) => {
@@ -5242,17 +5277,19 @@ fn compute_object_section_positions<'data, P: Platform>(
         match slot {
             SectionSlot::Loaded(sec) => {
                 let part_id = obj.section_part_id(sec_idx, &symbol_db.section_part_ids);
-                positions[sec_idx.0] = Some(InputSectionPosition {
-                    part_id,
-                    address: offsets.get(part_id),
-                });
-                *offsets.get_mut(part_id) += sec.capacity(part_id, output_sections);
+                let mut offset = offsets.get(part_id);
+                let address =
+                    advance_section_offset(&mut offset, *sec, part_id, output_sections);
+                *offsets.get_mut(part_id) = offset;
+                positions[sec_idx.0] = Some(InputSectionPosition { part_id, address });
             }
             SectionSlot::LoadedDebugInfo(sec) => {
                 // Advance offsets so subsequent sections are placed correctly, but we don't need
                 // the address for relaxation.
                 let part_id = obj.section_part_id(sec_idx, &symbol_db.section_part_ids);
-                *offsets.get_mut(part_id) += sec.capacity(part_id, output_sections);
+                let mut offset = offsets.get(part_id);
+                advance_section_offset(&mut offset, *sec, part_id, output_sections);
+                *offsets.get_mut(part_id) = offset;
             }
             _ => {}
         }
@@ -5320,6 +5357,7 @@ fn compute_section_and_symbol_addresses<'data, P: Platform>(
                 .files
                 .iter()
                 .map(|file| match file {
+                    FileLayoutState::Object(obj) => {
                     FileLayoutState::Object(obj) => {
                         let positions = compute_object_section_positions(
                             obj,
@@ -5689,7 +5727,7 @@ fn perform_iterative_relaxation<'data, A: Arch>(
             *section_part_layouts,
             *section_layouts,
             *resolved_location_counters,
-        ) = compute_layout_sections::<A::Platform>(
+        ) = compute_and_apply_section_layout::<A::Platform>(
             group_states,
             section_part_sizes,
             output_sections,
@@ -5704,6 +5742,203 @@ fn perform_iterative_relaxation<'data, A: Arch>(
     Ok(())
 }
 
+struct InputOrderItem {
+    part_id: PartId,
+    group_idx: usize,
+    alignment: Alignment,
+    size: u64,
+}
+
+fn packed_span(start: u64, inputs: &[(Alignment, u64)]) -> u64 {
+    let mut offset = start;
+    for &(alignment, size) in inputs {
+        offset = alignment.align_up(offset) + size;
+    }
+    offset - start
+}
+
+/// Sizes of non-object groups that sit before/after input-order object contributions
+/// (prelude merged strings, epilogue). Those groups must keep their `mem_sizes`; packing
+/// only replaces the object groups.
+fn input_order_affix_sizes<P: Platform>(
+    group_states: &[GroupState<P>],
+    ordered: &[InputOrderItem],
+) -> HashMap<PartId, (u64, u64)> {
+    let mut object_range: HashMap<PartId, (usize, usize)> = HashMap::new();
+    for item in ordered {
+        let range = object_range
+            .entry(item.part_id)
+            .or_insert((item.group_idx, item.group_idx));
+        range.0 = range.0.min(item.group_idx);
+        range.1 = range.1.max(item.group_idx);
+    }
+
+    let mut affixes = HashMap::new();
+    for (part_id, &(first_obj, last_obj)) in &object_range {
+        let mut prefix = 0u64;
+        let mut suffix = 0u64;
+        for (idx, group) in group_states.iter().enumerate() {
+            let size = group.common.mem_sizes.get(*part_id);
+            if idx < first_obj {
+                prefix += size;
+            } else if idx > last_obj {
+                suffix += size;
+            }
+        }
+        if prefix > 0 || suffix > 0 {
+            affixes.insert(*part_id, (prefix, suffix));
+        }
+    }
+    affixes
+}
+
+fn collect_input_order_contributions<P: Platform>(
+    group_states: &[GroupState<P>],
+    output_sections: &OutputSections<P>,
+    section_part_ids: &[PartId],
+) -> (HashMap<PartId, Vec<(Alignment, u64)>>, Vec<InputOrderItem>) {
+    let mut by_part: HashMap<PartId, Vec<(Alignment, u64)>> = HashMap::new();
+    let mut ordered = Vec::new();
+
+    for (group_idx, group) in group_states.iter().enumerate() {
+        for file in &group.files {
+            let FileLayoutState::Object(obj) = file else {
+                continue;
+            };
+            for (sec_idx, slot) in obj.sections.iter().enumerate() {
+                let (SectionSlot::Loaded(sec) | SectionSlot::LoadedDebugInfo(sec)) = slot else {
+                    continue;
+                };
+                let part_id = obj.section_part_id(SectionIndex(sec_idx), section_part_ids);
+                if !output_sections.uses_input_order(part_id.output_section_id::<P>()) {
+                    continue;
+                }
+                by_part
+                    .entry(part_id)
+                    .or_default()
+                    .push((sec.alignment, sec.size));
+                ordered.push(InputOrderItem {
+                    part_id,
+                    group_idx,
+                    alignment: sec.alignment,
+                    size: sec.size,
+                });
+            }
+        }
+    }
+
+    (by_part, ordered)
+}
+
+fn redistribute_input_order_sizes<P: Platform>(
+    group_states: &mut [GroupState<P>],
+    ordered: &[InputOrderItem],
+    section_part_layouts: &OutputSectionPartMap<OutputRecordLayout>,
+    affixes: &HashMap<PartId, (u64, u64)>,
+) {
+    let mut items_by_part: HashMap<PartId, Vec<&InputOrderItem>> = HashMap::new();
+    for item in ordered {
+        items_by_part.entry(item.part_id).or_default().push(item);
+    }
+
+    for (part_id, items) in items_by_part {
+        let mut is_object_group = vec![false; group_states.len()];
+        for item in &items {
+            is_object_group[item.group_idx] = true;
+        }
+        for (group_idx, group) in group_states.iter_mut().enumerate() {
+            if is_object_group[group_idx] {
+                *group.common.mem_sizes.get_mut(part_id) = 0;
+            }
+        }
+
+        let prefix = affixes.get(&part_id).map(|(p, _)| *p).unwrap_or(0);
+        let mut offset = section_part_layouts.get(part_id).mem_offset + prefix;
+        let mut current_group = None;
+        let mut group_start = offset;
+        for item in items {
+            if current_group != Some(item.group_idx) {
+                if let Some(group_idx) = current_group {
+                    *group_states[group_idx].common.mem_sizes.get_mut(part_id) =
+                        offset - group_start;
+                }
+                current_group = Some(item.group_idx);
+                group_start = offset;
+            }
+            offset = item.alignment.align_up(offset) + item.size;
+        }
+        if let Some(group_idx) = current_group {
+            *group_states[group_idx].common.mem_sizes.get_mut(part_id) = offset - group_start;
+        }
+    }
+}
+
+fn apply_input_order_section_alignments<P: Platform>(
+    section_layouts: &mut OutputSectionMap<OutputRecordLayout>,
+    by_part: &HashMap<PartId, Vec<(Alignment, u64)>>,
+) {
+    for (part_id, inputs) in by_part {
+        let Some(max_align) = inputs.iter().map(|(alignment, _)| *alignment).max() else {
+            continue;
+        };
+        let layout = section_layouts.get_mut(part_id.output_section_id::<P>());
+        layout.alignment = layout.alignment.max(max_align);
+    }
+}
+
+fn compute_and_apply_section_layout<'data, P: Platform>(
+    group_states: &mut [GroupState<'data, P>],
+    sizes: &OutputSectionPartMap<u64>,
+    output_sections: &OutputSections<'data, P>,
+    program_segments: &ProgramSegments<P::ProgramSegmentDef>,
+    output_order: &OutputOrder<'data>,
+    symbol_db: &SymbolDb<'data, P>,
+    memory_regions: &mut HashMap<&[u8], MemoryRegion>,
+    memory_region_order: &[&[u8]],
+    sizeof_headers: u64,
+) -> Result<(
+    OutputSectionPartMap<OutputRecordLayout>,
+    OutputSectionMap<OutputRecordLayout>,
+    Vec<ResolvedLocationCounter>,
+)> {
+    let (by_part, ordered) = collect_input_order_contributions(
+        group_states,
+        output_sections,
+        &symbol_db.section_part_ids,
+    );
+    let affixes = input_order_affix_sizes(group_states, &ordered);
+    let mut layout_inputs = by_part.clone();
+    for (part_id, (prefix, suffix)) in &affixes {
+        let inputs = layout_inputs.entry(*part_id).or_default();
+        if *prefix > 0 {
+            inputs.insert(0, (alignment::MIN, *prefix));
+        }
+        if *suffix > 0 {
+            inputs.push((alignment::MIN, *suffix));
+        }
+    }
+    let (section_part_layouts, mut section_layouts, resolved_location_counters) =
+        compute_layout_sections::<P>(
+            group_states,
+            sizes,
+            output_sections,
+            program_segments,
+            output_order,
+            symbol_db,
+            memory_regions,
+            memory_region_order,
+            sizeof_headers,
+            &layout_inputs,
+        )?;
+    redistribute_input_order_sizes(group_states, &ordered, &section_part_layouts, &affixes);
+    apply_input_order_section_alignments::<P>(&mut section_layouts, &by_part);
+    Ok((
+        section_part_layouts,
+        section_layouts,
+        resolved_location_counters,
+    ))
+}
+
 fn compute_layout_sections<'data, P: Platform>(
     group_states: &[GroupState<'data, P>],
     sizes: &OutputSectionPartMap<u64>,
@@ -5714,6 +5949,7 @@ fn compute_layout_sections<'data, P: Platform>(
     memory_regions: &mut HashMap<&[u8], MemoryRegion>,
     memory_region_order: &[&[u8]],
     sizeof_headers: u64,
+    input_order_sizes: &HashMap<PartId, Vec<(Alignment, u64)>>,
 ) -> Result<(
     OutputSectionPartMap<OutputRecordLayout>,
     OutputSectionMap<OutputRecordLayout>,
@@ -5738,6 +5974,18 @@ fn compute_layout_sections<'data, P: Platform>(
     let mut overlay_vma: HashMap<u32, u64> = HashMap::new();
     let mut overlay_lma_end: HashMap<u32, u64> = HashMap::new();
     let mut overlay_max_size: HashMap<u32, u64> = HashMap::new();
+    let mut input_order_max_align: HashMap<OutputSectionId, Alignment> = HashMap::new();
+    for (part_id, inputs) in input_order_sizes {
+        let Some(max_align) = inputs.iter().map(|(alignment, _)| *alignment).max() else {
+            continue;
+        };
+        let section_id =
+            output_sections.primary_output_section(part_id.output_section_id::<P>());
+        input_order_max_align
+            .entry(section_id)
+            .and_modify(|existing| *existing = (*existing).max(max_align))
+            .or_insert(max_align);
+    }
 
     let expression_eval =
         |expr: &Expression<'data>,
@@ -6133,6 +6381,24 @@ fn compute_layout_sections<'data, P: Platform>(
                     lma_offset = mem_offset;
                 }
 
+                let is_top_level = section_info
+                    .location_info
+                    .as_ref()
+                    .is_some_and(|info| info.is_top_level);
+                // GNU ld aligns a script output section to the max input sh_addralign
+                // when the VMA is not already fixed by `. = ...`. A pending ALIGN()
+                // must be kept (kernel `. = ALIGN(16)` before `.text`).
+                if is_top_level
+                    && section_offset.is_none()
+                    && let Some(&max_input_align) = input_order_max_align.get(&section_id)
+                {
+                    mem_offset = max_input_align.align_up(mem_offset);
+                    lma_offset = max_input_align.align_up(lma_offset);
+                    if output_sections.has_data_in_file(merge_target) {
+                        file_offset = max_input_align.align_up_usize(file_offset);
+                    }
+                }
+
                 let mut is_first_part = true;
 
                 let merge_target = output_sections.primary_output_section(section_id);
@@ -6157,10 +6423,13 @@ fn compute_layout_sections<'data, P: Platform>(
                     } else {
                         part_id.alignment(output_sections).min(max_alignment)
                     };
+                    let aligned_mem_offset = alignment.align_up(mem_offset);
                     let mem_size = if Some(section_id) == P::RELRO_PADDING_SECTION_ID {
                         let page_alignment = args.loadable_segment_alignment();
                         let aligned_offset = page_alignment.align_up(mem_offset);
                         aligned_offset - mem_offset
+                    } else if let Some(inputs) = input_order_sizes.get(&part_id) {
+                        packed_span(aligned_mem_offset, inputs)
                     } else {
                         part_size
                     };
@@ -7024,6 +7293,7 @@ fn test_no_disallowed_overlaps() {
         &mut HashMap::new(),
         &[],
         0,
+        &HashMap::new(),
     )
     .unwrap();
 

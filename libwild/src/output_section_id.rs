@@ -559,6 +559,9 @@ pub(crate) struct SectionOutputInfo<'data, P: Platform> {
     pub(crate) region_name: Option<&'data [u8]>,
     pub(crate) fill: Option<[u8; 4]>,
     pub(crate) phdrs: Vec<&'data [u8]>,
+    /// Place inputs in command-line / section-index order, aligning each to its own
+    /// `sh_addralign` (GNU ld linker-script default). Alignment-bucket parts are not used.
+    pub(crate) input_order: bool,
 }
 
 impl OutputSectionId {
@@ -857,6 +860,7 @@ impl<'data, P: Platform> OutputSections<'data, P> {
                         region_name,
                         fill,
                         phdrs,
+                        input_order: false,
                     });
                     return *e.insert(new_id);
                 }
@@ -886,6 +890,7 @@ impl<'data, P: Platform> OutputSections<'data, P> {
         min_alignment: Alignment,
         secondary_order: Option<SecondaryOrder>,
         location_info: Option<SectionLocationInfo<'data>>,
+        input_order: bool,
     ) -> OutputSectionId {
         let primary_info = self.section_infos.get(primary_id);
         let section_attributes = primary_info.section_attributes;
@@ -899,7 +904,16 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             region_name: primary_info.region_name,
             fill: primary_info.fill,
             phdrs: Vec::new(),
+            input_order,
         })
+    }
+
+    pub(crate) fn set_input_order(&mut self, sid: OutputSectionId, input_order: bool) {
+        self.section_infos.get_mut(sid).input_order = input_order;
+    }
+
+    pub(crate) fn uses_input_order(&self, sid: OutputSectionId) -> bool {
+        self.section_infos.get(sid).input_order
     }
 
     pub(crate) fn with_base_address(base_address: u64, output_kind: OutputKind) -> Self {
@@ -962,6 +976,7 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             min_alignment,
             Some(SecondaryOrder::InitFini { priority }),
             None,
+            false,
         );
 
         self.init_fini_by_priority.insert(key, sid);

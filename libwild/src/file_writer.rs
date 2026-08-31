@@ -334,6 +334,7 @@ pub(crate) fn split_output_by_group<'layout, 'data, 'out, P: Platform>(
 pub(crate) struct PaddingSlice<'out> {
     pub(crate) slice: &'out mut [u8],
     pub(crate) parent_section_id: Option<OutputSectionId>,
+    pub(crate) file_offset: usize,
 }
 
 #[derive(Default)]
@@ -386,6 +387,7 @@ pub(crate) fn split_output_into_sections<'out, 'data, P: Platform>(
         padding_slices.slices.push(PaddingSlice {
             slice: data.split_off_mut(..padding_size).unwrap(),
             parent_section_id: prev_primary_id.filter(|prev| *prev == curr_primary_id),
+            file_offset: offset,
         });
 
         *section_data.get_mut(a.id) = data.split_off_mut(..a.size).unwrap();

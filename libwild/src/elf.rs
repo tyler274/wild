@@ -1477,6 +1477,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                 region_name: None,
                 fill: None,
                 phdrs: Vec::new(),
+                input_order: false,
             })
             .collect()
     }
@@ -3875,6 +3876,20 @@ impl platform::SectionHeader for object::elf::SectionHeader64<LittleEndian> {
 
     fn is_no_bits(&self) -> bool {
         self.sh_type(LittleEndian) == sht::NOBITS
+    }
+
+    fn skip_linker_script_matching(&self) -> bool {
+        let ty = self.sh_type(LittleEndian);
+        matches!(
+            ty,
+            sht::REL
+                | sht::RELA
+                | sht::SYMTAB
+                | sht::STRTAB
+                | sht::DYNSYM
+                | sht::GROUP
+                | sht::SYMTAB_SHNDX
+        )
     }
 }
 

@@ -1336,6 +1336,7 @@ impl platform::Platform for MachO {
                     region_name: None,
                     fill: None,
                     phdrs: Vec::new(),
+                    input_order: false,
                 }
             })
             .collect()

@@ -142,6 +142,9 @@ pub(crate) struct SectionOutputInfo {
     pub(crate) must_keep: bool,
     pub(crate) sorted: bool,
     pub(crate) sort_by_init_priority: bool,
+    /// GNU ld default for script matchers without `SORT*`: input order, each input
+    /// aligned to its own `sh_addralign`.
+    pub(crate) input_order: bool,
 }
 
 impl SectionOutputInfo {
@@ -151,6 +154,7 @@ impl SectionOutputInfo {
             must_keep: false,
             sorted: false,
             sort_by_init_priority: false,
+            input_order: false,
         }
     }
 
@@ -160,8 +164,16 @@ impl SectionOutputInfo {
             must_keep: true,
             sorted: false,
             sort_by_init_priority: false,
+            input_order: false,
         }
     }
+}
+
+fn matcher_uses_input_order(matcher: &linker_script::Matcher<'_>) -> bool {
+    matcher
+        .input_section_name_patterns
+        .iter()
+        .all(|p| p.sort == linker_script::SortKind::None)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -333,9 +345,12 @@ impl<'data> LayoutRulesBuilder<'data> {
                             for contents_cmd in &sec.commands {
                                 match contents_cmd {
                                     ContentsCommand::Matcher(matcher) => {
+                                        let input_order = matcher_uses_input_order(matcher);
                                         let section_id = if last_section_id.is_none()
                                             && inner_lc_idx == inner_lc_start_idx
                                         {
+                                            output_sections
+                                                .set_input_order(primary_section_id, input_order);
                                             primary_section_id
                                         } else {
                                             let sec_location_info = SectionLocationInfo {
@@ -355,6 +370,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                 alignment::MIN,
                                                 None,
                                                 Some(sec_location_info),
+                                                input_order,
                                             )
                                         };
 
@@ -365,6 +381,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                 sorted: pattern.sort.needs_name_sort(),
                                                 sort_by_init_priority: pattern.sort
                                                     == linker_script::SortKind::InitPriority,
+                                                input_order,
                                             };
 
                                             let outcome = SectionRuleOutcome::section_rule_from_id::<
@@ -488,6 +505,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                     alignment::MIN,
                                     None,
                                     Some(trailing_lc_info),
+                                    false,
                                 );
                             }
                             last_lc_idx = inner_lc_idx;
@@ -580,6 +598,9 @@ impl<'data> LayoutRulesBuilder<'data> {
                                 loc = SymbolLoc::SectionEnd(primary_section_id);
                                 for contents_cmd in &sec.commands {
                                     if let ContentsCommand::Matcher(matcher) = contents_cmd {
+                                        let input_order = matcher_uses_input_order(matcher);
+                                        output_sections
+                                            .set_input_order(primary_section_id, input_order);
                                         for pattern in &matcher.input_section_name_patterns {
                                             let output_info = SectionOutputInfo {
                                                 section_id: primary_section_id,
@@ -587,6 +608,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                 sorted: pattern.sort.needs_name_sort(),
                                                 sort_by_init_priority: pattern.sort
                                                     == linker_script::SortKind::InitPriority,
+                                                input_order,
                                             };
                                             let outcome = SectionRuleOutcome::section_rule_from_id::<
                                                 P,
@@ -924,6 +946,13 @@ impl<'data> SectionRules<'data> {
             return SectionRuleOutcome::Discard;
         }
 
+        // GNU ld and LLD ignore reloc and symbol/string-table sections for script
+        // wildcards. Input `.rela.text` must not fill `.rela.dyn : { *(.rela.*) }`,
+        // and input `.symtab` must not be concatenated into the linker's table.
+        if section_header.skip_linker_script_matching() {
+            return SectionRuleOutcome::Discard;
+        }
+
         if let Some(hash) = section_name_prefix_hash(section_name)
             && let Some(rule) = self
                 .rules
@@ -1012,7 +1041,26 @@ fn test_section_mapping() {
             must_keep: true,
             sorted: false,
             sort_by_init_priority: false,
+            input_order: false,
         })
+    );
+
+    let rela_header = object::elf::SectionHeader64::<object::LittleEndian> {
+        sh_type: object::U32::new(object::LittleEndian, object::elf::SHT_RELA),
+        ..header
+    };
+    assert_eq!(
+        rules.lookup::<crate::elf::Elf64>(b".rela.data", None, &rela_header),
+        SectionRuleOutcome::Discard
+    );
+
+    let symtab_header = object::elf::SectionHeader64::<object::LittleEndian> {
+        sh_type: object::U32::new(object::LittleEndian, object::elf::SHT_SYMTAB),
+        ..header
+    };
+    assert_eq!(
+        rules.lookup::<crate::elf::Elf64>(b".symtab", None, &symtab_header),
+        SectionRuleOutcome::Discard
     );
 }
 

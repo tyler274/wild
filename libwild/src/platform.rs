@@ -1246,6 +1246,14 @@ pub(crate) trait SectionHeader: std::fmt::Debug + Send + Sync + 'static {
 
     /// Returns whether the section has no contents in the file (zero initialised).
     fn is_no_bits(&self) -> bool;
+
+    /// GNU ld does not match these with linker-script wildcards. Input
+    /// `SHT_REL`/`SHT_RELA` (`.rela.text`) must not fill `.rela.dyn : { *(.rela.*) }`,
+    /// and input `SHT_SYMTAB`/`SHT_STRTAB` must not be concatenated into the
+    /// linker's tables via `*(.symtab)` / `*(.strtab)` (kernel `vmlinux.lds`).
+    fn skip_linker_script_matching(&self) -> bool {
+        false
+    }
 }
 
 pub(crate) trait SectionType:
