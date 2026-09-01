@@ -119,7 +119,11 @@ current status. Kernel-like scripts for x86_64, aarch64, riscv64, loongarch64, a
 covered by Wild's integration tests. An x86_64 `vmlinux` link with `--no-gc-sections` matches GNU ld
 for `_stext`, `_etext`, `__init_begin`, `_end`, and `.rodata` size. Merge-string inputs are merged at
 their section alignment without mixing different alignments in one pool, and `SHF_STRINGS`
-tail-merges like GNU ld. `SHF_MERGE` inputs with relocations are concatenated, not unique'd.
+tail-merges like GNU ld. `SHF_MERGE` inputs with relocations are concatenated, not unique'd. Constant
+pools of different entsize/alignment are kept in separate classes. Merge class starts are padded
+to the absolute VMA (GNU ld), so 64-byte crypto tables land on 64-byte addresses. `__sched_class_highest`
+can still differ by a few hundred bytes of string-pool packing inside `.rodata`; later symbols match
+because `.data..ro_after_init` is 4KiB-aligned.
 
 | Feature | Status | Notes |
 |---------|--------|-------|

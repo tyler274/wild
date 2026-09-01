@@ -4223,6 +4223,10 @@ pub(crate) fn write_merged_strings_to_buffer(
     merged: &crate::string_merging::MergedStringsSection,
     buffer: &mut &mut [u8],
 ) {
+    let leading = merged.leading_pad();
+    if leading > 0 {
+        buffer.split_off_mut(..leading).unwrap().fill(0);
+    }
     merged
         .buckets
         .iter()

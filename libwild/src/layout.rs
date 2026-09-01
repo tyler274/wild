@@ -155,7 +155,7 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
         },
     );
 
-    let merged_strings = merged_strings?;
+    let mut merged_strings = merged_strings?;
     let gc_outputs = gc_outputs?;
 
     let mut group_states = gc_outputs.group_states;
@@ -246,6 +246,7 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
         gc_outputs.must_keep_sections,
         &finalise_sizes_resources,
     )?;
+    drop(finalise_sizes_resources);
 
     if symbol_db.args.common().incremental {
         for (section_id, _) in output_sections.ids_with_info() {
@@ -347,6 +348,29 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
             &memory_region_order,
             sizeof_headers,
         )?;
+
+    if apply_merge_vma_padding::<A::Platform>(
+        &mut merged_strings,
+        &mut group_states,
+        &mut section_part_sizes,
+        &section_part_layouts,
+    ) {
+        (
+            section_part_layouts,
+            section_layouts,
+            resolved_location_counters,
+        ) = compute_and_apply_section_layout::<A::Platform>(
+            &mut group_states,
+            &section_part_sizes,
+            &output_sections,
+            &program_segments,
+            &output_order,
+            &symbol_db,
+            &mut memory_regions,
+            &memory_region_order,
+            sizeof_headers,
+        )?;
+    }
 
     extend_sections_for_script_output_data(
         &output_sections,
@@ -6026,6 +6050,51 @@ fn apply_input_order_section_alignments<P: Platform>(
         let layout = section_layouts.get_mut(part_id.output_section_id::<P>());
         layout.alignment = layout.alignment.max(max_align);
     }
+}
+
+fn apply_merge_vma_padding<P: Platform>(
+    merged_strings: &mut OutputSectionMap<MergedStringsSection>,
+    group_states: &mut [GroupState<P>],
+    section_part_sizes: &mut OutputSectionPartMap<u64>,
+    section_part_layouts: &OutputSectionPartMap<OutputRecordLayout>,
+) -> bool {
+    let prelude_sizes = group_states.iter_mut().find_map(|g| {
+        if g.files
+            .iter()
+            .any(|f| matches!(f, FileLayoutState::Prelude(_)))
+        {
+            Some(&mut g.common.mem_sizes)
+        } else {
+            None
+        }
+    });
+    let Some(prelude_sizes) = prelude_sizes else {
+        return false;
+    };
+
+    let mut changed = false;
+    merged_strings.for_each_mut(|section_id, merged| {
+        if merged.len() == 0 {
+            return;
+        }
+        let part_id = section_id.part_id_with_alignment::<P>(alignment::MIN);
+        let start_vma = section_part_layouts.get(part_id).mem_offset;
+        let delta = merged.repad_to_vma(start_vma);
+        if delta == 0 {
+            return;
+        }
+        changed = true;
+        if delta > 0 {
+            let mag = delta as u64;
+            section_part_sizes.increment(part_id, mag);
+            prelude_sizes.increment(part_id, mag);
+        } else {
+            let mag = (-delta) as u64;
+            section_part_sizes.decrement(part_id, mag);
+            prelude_sizes.decrement(part_id, mag);
+        }
+    });
+    changed
 }
 
 fn compute_and_apply_section_layout<'data, P: Platform>(

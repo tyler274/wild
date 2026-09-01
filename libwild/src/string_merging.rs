@@ -7,7 +7,9 @@
 //!
 //! When an output section contains both strings and constant-pool units (entsize > 1),
 //! or strings of different alignments, they are hashed into separate bucket ranges so that
-//! high alignment does not pad lower-alignment strings.
+//! high alignment does not pad lower-alignment strings. Constant pools of different
+//! `(entsize, alignment)` are also kept apart so a `.rodata.cst2` unit cannot pad a
+//! 64-byte crypto table out to the next 64-byte boundary.
 //!
 //! We group input sections by the output section into which they are to be placed. We then process
 //! each output section one at a time.
@@ -162,19 +164,35 @@ impl StringMergeInputSection<'_> {
         !self.is_string && self.entsize > 1
     }
 
+    /// Alignment used when packing units of this section. GNU ld aligns
+    /// `SHF_MERGE` constant-pool entities to `max(sh_addralign, sh_entsize)` when
+    /// `sh_entsize` is a power of two.
+    fn layout_alignment(self) -> alignment::Alignment {
+        if self.is_constant_pool() {
+            alignment::Alignment::new(self.entsize)
+                .ok()
+                .map(|entsize_align| self.alignment.max(entsize_align))
+                .unwrap_or(self.alignment)
+        } else {
+            self.alignment
+        }
+    }
+
     /// GNU ld does not mix SHF_MERGE inputs of different alignment (or strings vs
-    /// constants). We approximate that by hashing each class into its own bucket
-    /// range so intra-bucket padding cannot blow up `.rodata`.
+    /// constants, or constant pools of different entsize). We approximate that by
+    /// hashing each class into its own bucket range so intra-bucket padding cannot
+    /// blow up `.rodata`.
     fn merge_class_key(self) -> u32 {
         if self.is_constant_pool() {
-            u32::MAX
+            // Distinct from string keys (alignment exponents are small).
+            0x8000_0000 | ((self.entsize as u32) << 8) | u32::from(self.alignment.exponent)
         } else {
             u32::from(self.alignment.exponent)
         }
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct MergeClassBuckets {
     key: u32,
     base: usize,
@@ -252,34 +270,41 @@ fn merge_bucket_index(
     class.base + (hash as usize % class.count)
 }
 
-/// Pad each hash bucket so concatenating them preserves that merge class's
-/// alignment. Each class occupies a contiguous bucket range; the start of the
-/// next class is aligned to that class's max input alignment.
-fn pad_merge_buckets(buckets: &mut [MergeStringsSectionBucket<'_>], classes: &[MergeClassBuckets]) {
+/// Restore each class to its unpadded tail-merged size, then pad so class
+/// starts are aligned in the output VMA (`start_vma` is the address of merge
+/// offset 0). GNU ld aligns `SHF_MERGE` groups to absolute VMA, not to offset
+/// 0 of the merged blob. Returns leading padding before the first class.
+fn pad_merge_buckets(
+    buckets: &mut [MergeStringsSectionBucket<'_>],
+    classes: &[MergeClassBuckets],
+    start_vma: u64,
+    class_unpadded: &[u32],
+) -> u32 {
+    for (class, &sz) in classes.iter().zip(class_unpadded.iter()) {
+        for bucket in buckets.iter_mut().skip(class.base).take(class.count) {
+            bucket.next_offset = if bucket.index == class.base { sz } else { 0 };
+        }
+        let dest = &mut buckets[class.base];
+        dest.next_offset = class.pad_align.align_up(u64::from(dest.next_offset)) as u32;
+    }
+
+    let mut leading_pad = 0u32;
     let mut offset = 0u64;
     for (i, class) in classes.iter().enumerate() {
-        for bucket in buckets
-            .iter_mut()
-            .skip(class.base)
-            .take(class.count)
-        {
-            bucket.next_offset = class.pad_align.align_up(u64::from(bucket.next_offset)) as u32;
-        }
-        let class_size: u64 = buckets
-            .iter()
-            .skip(class.base)
-            .take(class.count)
-            .map(|b| u64::from(b.next_offset))
-            .sum();
-        offset += class_size;
-        if let Some(next) = classes.get(i + 1) {
-            let extra = next.pad_align.align_up(offset) - offset;
-            if extra > 0 {
-                buckets[class.base + class.count - 1].next_offset += extra as u32;
-                offset += extra;
+        let aligned = class.pad_align.align_up(start_vma + offset);
+        let extra = aligned - (start_vma + offset);
+        if extra > 0 {
+            if i == 0 {
+                leading_pad = extra as u32;
+            } else {
+                let prev = &classes[i - 1];
+                buckets[prev.base + prev.count - 1].next_offset += extra as u32;
             }
+            offset += extra;
         }
+        offset += u64::from(buckets[class.base].next_offset);
     }
+    leading_pad
 }
 
 struct TailMergePiece<'data> {
@@ -438,6 +463,10 @@ pub(crate) struct MergedStringsSection<'data> {
     /// class-pool offset. Missing keys are left unchanged.
     #[debug(skip)]
     tail_remap: HashMap<u32, BucketOffset>,
+
+    class_buckets: Vec<MergeClassBuckets>,
+    /// Tail-merged size of each class before VMA / inter-class padding.
+    class_unpadded: Vec<u32>,
 }
 
 impl Default for MergedStringsSection<'_> {
@@ -448,6 +477,8 @@ impl Default for MergedStringsSection<'_> {
             string_offsets: Default::default(),
             overflowed_string_offsets: HashMap::new(),
             tail_remap: HashMap::new(),
+            class_buckets: Vec::new(),
+            class_unpadded: Vec::new(),
         }
     }
 }
@@ -690,7 +721,7 @@ fn process_input_section<'data, 'offsets>(
             while !remaining.is_empty() && input_offset < range.end {
                 let unit = MergeString::take_sized_hashed(
                     &mut remaining,
-                    input_section.alignment,
+                    input_section.layout_alignment(),
                     entsize,
                     false,
                 );
@@ -704,8 +735,22 @@ fn process_input_section<'data, 'offsets>(
         return Ok(());
     }
 
-    // String section, so split at null terminators.
+    // String section, so split at null terminators. Alignment padding zeros
+    // between strings (`.rodata.str1.8`) are not empty-string merge entities.
+    let section_align = input_section.alignment.value() as usize;
     while !remaining.is_empty() && input_offset < range.end {
+        if section_align > 1 {
+            let in_sec = (input_offset - input_section.start_input_offset) as usize;
+            let mis = in_sec % section_align;
+            if mis != 0 {
+                let skip = (section_align - mis).min(remaining.len());
+                if remaining[..skip].iter().all(|b| *b == 0) {
+                    remaining = &remaining[skip..];
+                    input_offset = input_offset + skip as u64;
+                    continue;
+                }
+            }
+        }
         let string = MergeString::take_string_hashed(&mut remaining, input_section.alignment)?;
 
         insert_data(string, &mut input_offset);
@@ -761,11 +806,21 @@ impl<'data> MergedStringsSection<'data> {
         buckets.sort_by_key(|b| b.index);
 
         apply_string_tail_merge(&mut buckets, &resources.class_buckets, &mut self.tail_remap)?;
-        pad_merge_buckets(&mut buckets, &resources.class_buckets);
-
+        let class_unpadded: Vec<u32> = resources
+            .class_buckets
+            .iter()
+            .map(|c| buckets[c.base].next_offset)
+            .collect();
+        self.class_buckets = resources.class_buckets.clone();
+        self.class_unpadded = class_unpadded;
         self.buckets = buckets;
-
-        // Compute the starting offset of each bucket.
+        let leading = pad_merge_buckets(
+            &mut self.buckets,
+            &self.class_buckets,
+            0,
+            &self.class_unpadded,
+        );
+        self.bucket_offsets[0] = u64::from(leading);
         for i in 1..MERGE_STRING_BUCKETS {
             self.bucket_offsets[i] =
                 self.bucket_offsets[i - 1] + u64::from(self.buckets[i - 1].next_offset);
@@ -800,6 +855,35 @@ impl<'data> MergedStringsSection<'data> {
 
     pub(crate) fn string_count(&self) -> usize {
         self.buckets.iter().map(|b| b.strings.len()).sum()
+    }
+
+    fn recompute_bucket_offsets(&mut self, start_vma: u64) {
+        if self.class_buckets.is_empty() {
+            return;
+        }
+        let leading = pad_merge_buckets(
+            &mut self.buckets,
+            &self.class_buckets,
+            start_vma,
+            &self.class_unpadded,
+        );
+        self.bucket_offsets[0] = u64::from(leading);
+        for i in 1..MERGE_STRING_BUCKETS {
+            self.bucket_offsets[i] =
+                self.bucket_offsets[i - 1] + u64::from(self.buckets[i - 1].next_offset);
+        }
+    }
+
+    /// Re-pad merge classes so each starts at an aligned absolute VMA. Returns
+    /// the change in section size (new minus old).
+    pub(crate) fn repad_to_vma(&mut self, start_vma: u64) -> i64 {
+        let old = self.len();
+        self.recompute_bucket_offsets(start_vma);
+        self.len() as i64 - old as i64
+    }
+
+    pub(crate) fn leading_pad(&self) -> usize {
+        self.bucket_offsets[0] as usize
     }
 }
 
