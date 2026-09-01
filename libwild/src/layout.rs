@@ -536,6 +536,7 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
         resolved_location_counters,
         incremental_skip_payloads: HashSet::new(),
         incremental_reverse_relocs,
+        incremental_patch: None,
     };
 
     P::maybe_compress_debug_sections::<A>(&mut layout)?;
@@ -876,6 +877,8 @@ pub struct Layout<'data, P: Platform> {
     pub(crate) incremental_skip_payloads: HashSet<FileId>,
     /// Sites that applied a relocation, keyed by defined symbol. Empty when not incremental.
     pub(crate) incremental_reverse_relocs: Mutex<crate::incremental::ReverseRelocIndex>,
+    /// Loaded previous reverse-reloc index + resolutions for patching skipped objects.
+    pub(crate) incremental_patch: Option<crate::incremental::IncrementalPatchJob>,
 }
 
 #[derive(Debug, Default)]
@@ -1739,15 +1742,27 @@ impl<'data, P: Platform> Layout<'data, P> {
         self.incremental_skip_payloads.contains(&file_id)
     }
 
-    pub(crate) fn record_reverse_reloc(&self, symbol_id: SymbolId, file_offset: u64) {
+    pub(crate) fn record_reverse_reloc(
+        &self,
+        symbol_id: SymbolId,
+        file_offset: u64,
+        place: u64,
+        addend: i64,
+        r_type: u32,
+        file_id: FileId,
+    ) {
         if !self.args().common().incremental {
             return;
         }
         let defined = self.symbol_db.definition(symbol_id);
-        self.incremental_reverse_relocs
-            .lock()
-            .unwrap()
-            .push(defined.as_usize(), file_offset);
+        self.incremental_reverse_relocs.lock().unwrap().push(
+            defined.as_usize(),
+            file_offset,
+            place,
+            addend,
+            r_type,
+            file_id.as_u32(),
+        );
     }
 
     pub(crate) fn take_reverse_relocs(&self) -> crate::incremental::ReverseRelocIndex {

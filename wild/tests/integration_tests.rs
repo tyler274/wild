@@ -217,6 +217,9 @@
 //! and check that `{output}.incr/log` records an incremental-update. Recompiles C sources with
 //! `-DWILD_INC=1` for the second link when the primary source is C/C++.
 //!
+//! IncrementalExpect:{exit-code} Exit status expected after the `-DWILD_INC=1` incremental update.
+//! Defaults to 43.
+//!
 //! AssertOutputFileMatches:{filename}:{regex} Verifies that a file in the output directory contains
 //! at least one line matching the specified regex. Such output files are generally written by
 //! specifying a flag in LinkArgs that uses $OUT_DIR.
@@ -1381,6 +1384,7 @@ struct Config {
     test_update_in_place: bool,
     test_relink_after_run: bool,
     test_incremental: bool,
+    incremental_expect_exit: i32,
     test_config: TestConfig,
     tracked_files: Vec<PathBuf>,
     so_single_linker: Option<Linker>,
@@ -2166,6 +2170,7 @@ impl Config {
             test_update_in_place: false,
             test_relink_after_run: false,
             test_incremental: false,
+            incremental_expect_exit: 43,
             test_config: test_config.clone(),
             tracked_files: Default::default(),
             available_linkers: linker_catalog.available.clone(),
@@ -2774,6 +2779,9 @@ fn process_directive(
         "TestIncremental" => {
             config.test_incremental = arg.parse()?;
         }
+        "IncrementalExpect" => {
+            config.incremental_expect_exit = arg.parse()?;
+        }
         "DriverMode" => {
             config.driver_mode = Some(DriverMode::from_str(arg).map_err(|_| {
                 error!(
@@ -2960,13 +2968,19 @@ impl ProgramInputs {
         reference_output: &LinkOutput,
     ) -> Result {
         fn reverse_reloc_nodes(bytes: &[u8]) -> Result<u64> {
-            ensure!(bytes.len() >= 8, "reverse reloc index is truncated");
-            let heads_len = u64::from_le_bytes(bytes[0..8].try_into()?);
+            ensure!(bytes.len() >= 16, "reverse reloc index is truncated");
+            ensure!(
+                &bytes[0..4] == b"WREV",
+                "reverse reloc index missing WREV magic"
+            );
+            let version = u32::from_le_bytes(bytes[4..8].try_into()?);
+            ensure!(version == 1, "unsupported reverse reloc version {version}");
+            let heads_len = u64::from_le_bytes(bytes[8..16].try_into()?);
             let heads_bytes = usize::try_from(heads_len)
                 .ok()
                 .and_then(|n| n.checked_mul(4))
                 .context("reverse reloc head count overflow")?;
-            let nodes_at = 8usize
+            let nodes_at = 16usize
                 .checked_add(heads_bytes)
                 .context("reverse reloc index overflow")?;
             ensure!(
@@ -3055,8 +3069,13 @@ impl ProgramInputs {
             "Expected in-place incremental-update after a same-size edit, got:\n{log}"
         );
         updated
-            .run_expecting(cross_arch, 43)
-            .context("Incrementally updated binary should exit 43")?;
+            .run_expecting(cross_arch, config.incremental_expect_exit)
+            .with_context(|| {
+                format!(
+                    "Incrementally updated binary should exit {}",
+                    config.incremental_expect_exit
+                )
+            })?;
 
         drop(restore);
         linker.link(self.name(), inputs, config, cross_arch)?;

@@ -28,6 +28,7 @@ pub(crate) const fn regular_part_base<P: Platform>() -> PartId {
 /// alignment and identical strings from different alignments are not deduped. Non-string
 /// `SHF_MERGE` (constants) is merged at any alignment; sections with `sh_entsize > 1` are split
 /// into that many bytes so duplicate `.rodata.cst8` / `.rodata.cst16` units can share storage.
+/// Inputs that have relocations are not merged (GNU ld concatenates them).
 pub(crate) fn should_merge_sections(
     section_header: &impl platform::SectionHeader,
     _section_alignment: u64,

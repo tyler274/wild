@@ -1186,6 +1186,17 @@ pub(crate) trait ObjectFile<'data>: Sized + Send + Sync + std::fmt::Debug + 'dat
 
     fn parse_relocations(&self) -> Result<<Self::Platform as Platform>::RelocationSections>;
 
+    /// Whether `index` has an associated relocation section. `SHF_MERGE` inputs with relocs
+    /// must not be unique'd: GNU ld concatenates them because reloc fields are often zero in the
+    /// file and would otherwise collapse.
+    fn section_has_relocations(
+        &self,
+        _index: object::SectionIndex,
+        _relocations: &<Self::Platform as Platform>::RelocationSections,
+    ) -> bool {
+        false
+    }
+
     /// Get the version of a symbol. Only intended for diagnostic purposes since it's potentially
     /// quite slow.
     fn symbol_version_debug(&self, symbol_index: object::SymbolIndex) -> Option<String>;

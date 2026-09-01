@@ -474,6 +474,7 @@ fn resolve_sections<'data, P: Platform>(
                 for file in &mut group.files {
                     match file {
                         ResolvedFile::Object(obj) => {
+                            obj.relocations = obj.common.object.parse_relocations()?;
                             let (sections, part_ids) = resolve_sections_for_object(
                                 &mut *obj,
                                 symbol_db.args,
@@ -485,7 +486,6 @@ fn resolve_sections<'data, P: Platform>(
                             for part_id in part_ids {
                                 shard.push(part_id);
                             }
-                            obj.relocations = obj.common.object.parse_relocations()?;
                         }
                         ResolvedFile::NotLoaded(n) => {
                             for _ in 0..n.section_id_range.len() {
@@ -1331,7 +1331,11 @@ fn resolve_section<'data, P: Platform>(
 
     let raw_alignment = obj.common.object.section_alignment(input_section)?;
     let alignment = Alignment::new(raw_alignment.max(1))?;
-    let should_merge_sections = part_id::should_merge_sections(input_section, raw_alignment, args);
+    let should_merge_sections = part_id::should_merge_sections(input_section, raw_alignment, args)
+        && !obj
+            .common
+            .object
+            .section_has_relocations(input_section_index, &obj.relocations);
 
     let mut unloaded_section;
     let mut is_debug_info = false;

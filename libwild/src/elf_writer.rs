@@ -189,6 +189,7 @@ pub(crate) fn write<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     layout: &ElfLayout<'data, C>,
 ) -> Result {
     write_file_contents::<C, A>(sized_output, layout)?;
+    apply_incremental_reloc_patches::<C, A>(sized_output, layout)?;
     if layout.args().common().validate_output {
         crate::validation::validate_bytes(layout, &sized_output.out)?;
     }
@@ -208,6 +209,77 @@ pub(crate) fn write<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     write_sframe_section(section_buffers.get_mut(output_section_id::SFRAME), layout)?;
 
     write_gnu_build_id_note(sized_output, &layout.args().build_id, layout)?;
+    Ok(())
+}
+
+fn apply_incremental_reloc_patches<C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
+    sized_output: &mut SizedOutput<impl OutputFileData>,
+    layout: &ElfLayout<C>,
+) -> Result {
+    let Some(job) = &layout.incremental_patch else {
+        return Ok(());
+    };
+    if layout.incremental_skip_payloads.is_empty() {
+        return Ok(());
+    }
+
+    let new_res: Vec<u64> = layout.symbol_resolutions.raw_values().collect();
+    let out = &mut sized_output.out;
+    let n = job
+        .old_resolutions
+        .len()
+        .min(new_res.len())
+        .min(job.reverse_relocs.heads.len());
+    let mut patched = 0u64;
+    for sym_id in 0..n {
+        let old = job.old_resolutions[sym_id];
+        let new = new_res[sym_id];
+        if old == new {
+            continue;
+        }
+        let mut idx = job.reverse_relocs.heads[sym_id];
+        while idx != u32::MAX {
+            let node = &job.reverse_relocs.nodes[idx as usize];
+            idx = node.next;
+            if !layout
+                .incremental_skip_payloads
+                .contains(&crate::input_data::FileId::from_encoded(node.file_id))
+            {
+                continue;
+            }
+            patch_skipped_reloc_site::<C, A>(out, node, new)?;
+            patched += 1;
+        }
+    }
+    if patched > 0 {
+        tracing::debug!(patched, "incremental reverse-reloc patches");
+    }
+    Ok(())
+}
+
+fn patch_skipped_reloc_site<C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
+    out: &mut [u8],
+    node: &crate::incremental::ReverseRelocNode,
+    new_s: u64,
+) -> Result {
+    let r_type = object::elf::RelocationType(node.r_type);
+    let Ok(rel_info) = A::relocation_from_raw(r_type) else {
+        return Ok(());
+    };
+    let value = match rel_info.kind {
+        RelocationKind::Absolute | RelocationKind::AbsoluteSet => {
+            new_s.wrapping_add(node.addend as u64)
+        }
+        RelocationKind::Relative => new_s
+            .wrapping_add(node.addend as u64)
+            .wrapping_sub(node.place),
+        _ => return Ok(()),
+    };
+    let start = usize::try_from(node.file_offset).context("reloc file offset overflow")?;
+    if start >= out.len() {
+        return Ok(());
+    }
+    rel_info.write_to_buffer(value, &mut out[start..])?;
     Ok(())
 }
 
@@ -2649,14 +2721,6 @@ fn apply_relocations<
     while let Some(rel) = relocations.next() {
         let rel = rel?;
         relocation_count += 1;
-        if layout.args().common().incremental
-            && let Some(sym) = rel.symbol()
-        {
-            layout.record_reverse_reloc(
-                object.symbol_id_range.input_to_id(sym),
-                reloc_file_offset(layout, section_info, rel.offset()),
-            );
-        }
         if A::high_part_relocations().contains(&rel.raw_type()) {
             let cache_offset = opt_input_to_output(relax_deltas, rel.offset());
             relocation_cache.high_part_symbols.insert(cache_offset, rel);
@@ -2675,6 +2739,19 @@ fn apply_relocations<
             Some(cursor) => cursor.translate(rel.offset()),
             None => rel.offset(),
         };
+
+        if layout.args().common().incremental
+            && let Some(sym) = rel.symbol()
+        {
+            layout.record_reverse_reloc(
+                object.symbol_id_range.input_to_id(sym),
+                reloc_file_offset(layout, section_info, offset_in_section),
+                section_address.wrapping_add(offset_in_section),
+                rel.addend(),
+                rel.raw_type().0,
+                object.file_id,
+            );
+        }
 
         modifier = apply_relocation::<C, A, R, _>(
             object,

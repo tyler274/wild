@@ -49,8 +49,22 @@ pub(crate) struct ReverseRelocIndex {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ReverseRelocNode {
     pub(crate) file_offset: u64,
+    pub(crate) place: u64,
+    pub(crate) addend: i64,
+    pub(crate) r_type: u32,
+    pub(crate) file_id: u32,
     pub(crate) next: u32,
 }
+
+/// Previous resolutions and reverse-reloc index, used to patch skipped objects.
+#[derive(Debug, Clone)]
+pub(crate) struct IncrementalPatchJob {
+    pub(crate) old_resolutions: Vec<u64>,
+    pub(crate) reverse_relocs: ReverseRelocIndex,
+}
+
+const REVERSE_RELOC_MAGIC: &[u8; 4] = b"WREV";
+const REVERSE_RELOC_VERSION: u32 = 1;
 
 impl ReverseRelocIndex {
     pub(crate) fn new(num_symbols: usize) -> Self {
@@ -60,15 +74,109 @@ impl ReverseRelocIndex {
         }
     }
 
-    pub(crate) fn push(&mut self, symbol_id: usize, file_offset: u64) {
+    pub(crate) fn push(
+        &mut self,
+        symbol_id: usize,
+        file_offset: u64,
+        place: u64,
+        addend: i64,
+        r_type: u32,
+        file_id: u32,
+    ) {
         if symbol_id >= self.heads.len() {
             self.heads.resize(symbol_id + 1, u32::MAX);
         }
         let next = self.heads[symbol_id];
         let index = self.nodes.len() as u32;
-        self.nodes.push(ReverseRelocNode { file_offset, next });
+        self.nodes.push(ReverseRelocNode {
+            file_offset,
+            place,
+            addend,
+            r_type,
+            file_id,
+            next,
+        });
         self.heads[symbol_id] = index;
     }
+}
+
+pub(crate) fn write_reverse_relocs(path: &Path, index: &ReverseRelocIndex) -> Result {
+    let mut reloc_bytes = Vec::new();
+    reloc_bytes.extend_from_slice(REVERSE_RELOC_MAGIC);
+    reloc_bytes.extend_from_slice(&REVERSE_RELOC_VERSION.to_le_bytes());
+    reloc_bytes.extend_from_slice(&(index.heads.len() as u64).to_le_bytes());
+    for head in &index.heads {
+        reloc_bytes.extend_from_slice(&head.to_le_bytes());
+    }
+    reloc_bytes.extend_from_slice(&(index.nodes.len() as u64).to_le_bytes());
+    for node in &index.nodes {
+        reloc_bytes.extend_from_slice(&node.file_offset.to_le_bytes());
+        reloc_bytes.extend_from_slice(&node.place.to_le_bytes());
+        reloc_bytes.extend_from_slice(&node.addend.to_le_bytes());
+        reloc_bytes.extend_from_slice(&node.r_type.to_le_bytes());
+        reloc_bytes.extend_from_slice(&node.file_id.to_le_bytes());
+        reloc_bytes.extend_from_slice(&node.next.to_le_bytes());
+    }
+    fs::write(path, reloc_bytes)?;
+    Ok(())
+}
+
+pub(crate) fn read_reverse_relocs(path: &Path) -> Option<ReverseRelocIndex> {
+    let bytes = fs::read(path).ok()?;
+    if bytes.len() < 16 || bytes.get(..4) != Some(REVERSE_RELOC_MAGIC.as_slice()) {
+        return None;
+    }
+    let version = u32::from_le_bytes(bytes[4..8].try_into().ok()?);
+    if version != REVERSE_RELOC_VERSION {
+        return None;
+    }
+    let mut rest = &bytes[8..];
+    let take_u64 = |rest: &mut &[u8]| -> Option<u64> {
+        let (head, tail) = rest.split_at_checked(8)?;
+        *rest = tail;
+        Some(u64::from_le_bytes(head.try_into().ok()?))
+    };
+    let take_u32 = |rest: &mut &[u8]| -> Option<u32> {
+        let (head, tail) = rest.split_at_checked(4)?;
+        *rest = tail;
+        Some(u32::from_le_bytes(head.try_into().ok()?))
+    };
+    let take_i64 = |rest: &mut &[u8]| -> Option<i64> {
+        let (head, tail) = rest.split_at_checked(8)?;
+        *rest = tail;
+        Some(i64::from_le_bytes(head.try_into().ok()?))
+    };
+    let heads_len = take_u64(&mut rest)? as usize;
+    let mut heads = Vec::with_capacity(heads_len);
+    for _ in 0..heads_len {
+        heads.push(take_u32(&mut rest)?);
+    }
+    let nodes_len = take_u64(&mut rest)? as usize;
+    let mut nodes = Vec::with_capacity(nodes_len);
+    for _ in 0..nodes_len {
+        nodes.push(ReverseRelocNode {
+            file_offset: take_u64(&mut rest)?,
+            place: take_u64(&mut rest)?,
+            addend: take_i64(&mut rest)?,
+            r_type: take_u32(&mut rest)?,
+            file_id: take_u32(&mut rest)?,
+            next: take_u32(&mut rest)?,
+        });
+    }
+    Some(ReverseRelocIndex { heads, nodes })
+}
+
+pub(crate) fn read_resolutions(path: &Path) -> Option<Vec<u64>> {
+    let bytes = fs::read(path).ok()?;
+    if bytes.len() % 8 != 0 {
+        return None;
+    }
+    Some(
+        bytes
+            .chunks_exact(8)
+            .map(|c| u64::from_le_bytes(c.try_into().unwrap()))
+            .collect(),
+    )
 }
 
 #[derive(Debug)]
@@ -77,6 +185,8 @@ pub(crate) struct IncrementalSession {
     pub(crate) state_dir: PathBuf,
     pub(crate) fallback_reason: Option<String>,
     skip_payload_count: usize,
+    pub(crate) previous_resolutions: Option<Vec<u64>>,
+    pub(crate) previous_reverse_relocs: Option<ReverseRelocIndex>,
 }
 
 impl IncrementalSession {
@@ -90,11 +200,21 @@ impl IncrementalSession {
         } else {
             IncrementalMode::Initial
         };
+        let (previous_resolutions, previous_reverse_relocs) = if mode == IncrementalMode::Update {
+            (
+                read_resolutions(&state_dir.join("resolutions.bin")),
+                read_reverse_relocs(&state_dir.join("reverse_relocs.bin")),
+            )
+        } else {
+            (None, None)
+        };
         Some(Self {
             mode,
             state_dir,
             fallback_reason: None,
             skip_payload_count: 0,
+            previous_resolutions,
+            previous_reverse_relocs,
         })
     }
 
@@ -207,21 +327,8 @@ impl IncrementalSession {
 
         // A skip update only rewrites changed objects, so the in-memory index is incomplete.
         // Layout is unchanged, so previously recorded sites remain valid.
-        if !reverse_relocs.nodes.is_empty()
-            || self.skip_payload_count == 0
-            || !self.state_dir.join("reverse_relocs.bin").is_file()
-        {
-            let mut reloc_bytes = Vec::new();
-            reloc_bytes.extend_from_slice(&(reverse_relocs.heads.len() as u64).to_le_bytes());
-            for head in &reverse_relocs.heads {
-                reloc_bytes.extend_from_slice(&head.to_le_bytes());
-            }
-            reloc_bytes.extend_from_slice(&(reverse_relocs.nodes.len() as u64).to_le_bytes());
-            for node in &reverse_relocs.nodes {
-                reloc_bytes.extend_from_slice(&node.file_offset.to_le_bytes());
-                reloc_bytes.extend_from_slice(&node.next.to_le_bytes());
-            }
-            fs::write(self.state_dir.join("reverse_relocs.bin"), reloc_bytes)?;
+        if self.skip_payload_count == 0 || !self.state_dir.join("reverse_relocs.bin").is_file() {
+            write_reverse_relocs(&self.state_dir.join("reverse_relocs.bin"), reverse_relocs)?;
         }
 
         let mut sizes_file = fs::File::create(self.state_dir.join("object_sizes.txt"))?;
@@ -443,14 +550,30 @@ mod tests {
     #[test]
     fn reverse_reloc_index_chains_sites() {
         let mut index = ReverseRelocIndex::new(2);
-        index.push(1, 0x100);
-        index.push(1, 0x200);
+        index.push(1, 0x100, 0x1000, 0, 1, 0);
+        index.push(1, 0x200, 0x2000, 0, 1, 0);
         assert_eq!(index.heads[0], u32::MAX);
         let first = index.heads[1] as usize;
         assert_eq!(index.nodes[first].file_offset, 0x200);
         let second = index.nodes[first].next as usize;
         assert_eq!(index.nodes[second].file_offset, 0x100);
         assert_eq!(index.nodes[second].next, u32::MAX);
+    }
+
+    #[test]
+    fn reverse_reloc_roundtrip_preserves_nodes() {
+        let mut index = ReverseRelocIndex::new(2);
+        index.push(0, 0x10, 0x1000, -4, 2, 3);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("reverse_relocs.bin");
+        write_reverse_relocs(&path, &index).unwrap();
+        let loaded = read_reverse_relocs(&path).unwrap();
+        assert_eq!(loaded.heads, index.heads);
+        assert_eq!(loaded.nodes[0].file_offset, 0x10);
+        assert_eq!(loaded.nodes[0].place, 0x1000);
+        assert_eq!(loaded.nodes[0].addend, -4);
+        assert_eq!(loaded.nodes[0].r_type, 2);
+        assert_eq!(loaded.nodes[0].file_id, 3);
     }
 
     #[test]

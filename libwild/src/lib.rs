@@ -430,6 +430,17 @@ impl<F: FileSystem> Linker<F> {
                 &object_records,
                 &file_loader.loaded_files,
             );
+            if !layout.incremental_skip_payloads.is_empty() {
+                if let (Some(old_resolutions), Some(reverse_relocs)) = (
+                    session.previous_resolutions.take(),
+                    session.previous_reverse_relocs.take(),
+                ) {
+                    layout.incremental_patch = Some(crate::incremental::IncrementalPatchJob {
+                        old_resolutions,
+                        reverse_relocs,
+                    });
+                }
+            }
         }
 
         P::write_output_file::<A, F>(&output, &layout)?;

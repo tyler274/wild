@@ -3251,6 +3251,14 @@ impl<'data, C: ElfClass> platform::ObjectFile<'data> for File<'data, C> {
             .relocation_sections(LittleEndian, self.symbols.section())?)
     }
 
+    fn section_has_relocations(
+        &self,
+        index: object::SectionIndex,
+        relocations: &RelocationSections,
+    ) -> bool {
+        relocations.get(index).is_some()
+    }
+
     fn num_symbols(&self) -> usize {
         self.symbols.len()
     }
