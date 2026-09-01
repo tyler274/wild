@@ -147,3 +147,24 @@ because `.data..ro_after_init` is 4KiB-aligned.
 | `SIZEOF_HEADERS` built-in symbol | ✅ | |
 | `/DISCARD/` command | ✅ | |
 | `--build-id` into `*(.note.*)` | ✅ | Merged into the matching output section (kernel `.notes`); not a leftover `PT_LOAD` |
+
+## Known gaps / follow-ups
+
+These are tracked here so they are not forgotten. They are not part of the current layout /
+`elf_writer` module split.
+
+### GNU symbol `st_shndx` (aliases / `ABSOLUTE()`)
+
+Empty omitted-section symbols already use a nearby section, like GNU ld (`__init_end` in
+`.data_nosave`). Remaining mismatches:
+
+* Wild still `A`: `jiffies`, `const_current_task`, `const_cpu_current_top_of_stack`,
+  `__ref_stack_chk_guard` (script aliases should copy the target's section).
+* GNU still `A`, Wild section-relative: `phys_startup_64`, `text_size` (`ABSOLUTE()` / difference of
+  two section symbols).
+
+### Lower priority versus GNU
+
+* RELA header interleaving after `--emit-relocs` targets
+* `.strtab` suffix sharing
+* `--build-id` blake3 versus SHA-1 (do not change unless asked)

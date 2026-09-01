@@ -7307,6 +7307,11 @@ fn available_linkers_for_linux() -> Result<LinkerCatalog> {
             direct_args: Vec::new(),
             enabled_by_default: false,
         }));
+    } else {
+        unavailable.push(UnavailableLinker {
+            gcc_name: "mold",
+            reason: "mold not found on PATH".to_owned(),
+        });
     }
 
     available.push(Linker::Wild);

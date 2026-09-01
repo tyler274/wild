@@ -15,12 +15,12 @@ level phases are:
 * `symbol_db.rs`: Build a hashmap from symbol names to symbol IDs.
 * `resolution.rs`: Resolve all undefined symbols and in the process decide which archived objects
   will be processed.
-* `layout.rs`:
+* `layout/`:
   * Traverse graph of relocations, in the process, determining which input sections are needed and
     how much space is needed in the various linker-generated sections such as the GOT (global offset
     table), symbol tables, dynamic relocation tables etc.
   * Allocate addresses for sections, symbols, program segments etc.
-* `elf_writer.rs`: Copy input sections to the output file, applying relocations as we go. Write
+* `elf_writer/`: Copy input sections to the output file, applying relocations as we go. Write
   linker-generated sections.
 
 For a more detailed look at the phases of the linker, run with the `--time` flag.
@@ -43,3 +43,13 @@ C, C++, Rust and assembly. It then links them with our reference linkers - GNU l
 also LLD. It links them with Wild and compares the resulting binaries using our own custom diff
 tool, `linker-diff`. Provided that succeeds, it then executes all the linked programs and checks
 that they give the correct answer.
+
+Follow-ups (not implemented yet):
+
+* Incremental coverage is only `incremental` and `incremental-reloc`, both with `DiffEnabled:false`.
+  There is no `-O2` / `-O3` / `-flto` matrix.
+* Ccache is untested. A follow-up is one integration config with `CC=ccache gcc` (or equivalent) so
+  object hashing and incremental inputs still work.
+* There is no CI `vmlinux` job. Follow-up: x86_64 `vmlinux` versus GNU unstripped, plus a small
+  userspace (for example `trivial` / `libc-integration` as initramfs) linked with Wild. GNU ld remains
+  the kernel oracle; do not 4-way the kernel.
