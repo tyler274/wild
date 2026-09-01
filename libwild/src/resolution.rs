@@ -1459,6 +1459,7 @@ fn resolve_section<'data, P: Platform>(
             section_data,
             is_strings: input_section.is_strings(),
             alignment,
+            entsize: input_section.merge_entsize(),
         });
 
         SectionSlot::MergeStrings(StringMergeSectionSlot::new())

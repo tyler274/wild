@@ -117,9 +117,9 @@ The Linux kernel's build system uses a rich set of linker script features across
 related architecture-specific scripts. The table below lists each such feature along with its
 current status. Kernel-like scripts for x86_64, aarch64, riscv64, loongarch64, and ppc64le are
 covered by Wild's integration tests. An x86_64 `vmlinux` link with `--no-gc-sections` matches GNU ld
-for `_stext`, `_etext`, `__init_begin`, and `_end`. Merge-string inputs are merged at their section
-alignment without mixing different alignments in one pool. Remaining layout gaps include `.rodata`
-size (Wild is still 32KiB larger than GNU ld).
+for `_stext`, `_etext`, `__init_begin`, and `.rodata` size. Merge-string inputs are merged at their
+section alignment without mixing different alignments in one pool, and `SHF_STRINGS` tail-merges
+like GNU ld. `_end` can still differ by a few pages from later alignment.
 
 | Feature | Status | Notes |
 |---------|--------|-------|

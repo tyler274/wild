@@ -1234,6 +1234,11 @@ pub(crate) trait SectionHeader: std::fmt::Debug + Send + Sync + 'static {
 
     fn is_strings(&self) -> bool;
 
+    /// `sh_entsize` for `SHF_MERGE` inputs. Zero if the platform has no merge entsize.
+    fn merge_entsize(&self) -> u64 {
+        0
+    }
+
     fn should_retain(&self) -> bool;
 
     fn should_exclude(&self) -> bool;

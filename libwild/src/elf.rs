@@ -3854,6 +3854,10 @@ impl platform::SectionHeader for object::elf::SectionHeader64<LittleEndian> {
         self.sh_flags(LittleEndian).contains(shf::STRINGS)
     }
 
+    fn merge_entsize(&self) -> u64 {
+        self.sh_entsize(LittleEndian).into()
+    }
+
     fn should_retain(&self) -> bool {
         self.sh_flags(LittleEndian).contains(shf::GNU_RETAIN)
     }

@@ -7,6 +7,9 @@ s1h: .ascii "Hello\0"
 .globl s1w
 s1w: .ascii "World\0"
 
+.globl helloworld
+helloworld: .ascii "HelloWorld\0"
+
 // Put some regular data in .rodata with alignment >1 to make sure that doesn't mess up our merged
 // string offsets.
 

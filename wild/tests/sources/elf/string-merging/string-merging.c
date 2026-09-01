@@ -30,6 +30,7 @@ extern const char s4h[];
 extern const char s1w[];
 extern const char s2w[];
 extern const char a1[];
+extern const char helloworld[];
 
 const char* get_loc1(void);
 const char* get_s1w(void);
@@ -77,6 +78,10 @@ void _start(void) {
   }
   if (get_s2w_via_offset() != get_s2w()) {
     exit_syscall(111);
+  }
+  if (s1w != helloworld + 5) {
+    // "World" should tail-merge into "HelloWorld".
+    exit_syscall(112);
   }
   exit_syscall(42);
 }

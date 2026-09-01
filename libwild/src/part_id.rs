@@ -24,21 +24,16 @@ pub(crate) const fn regular_part_base<P: Platform>() -> PartId {
 }
 
 /// Returns whether the supplied section meets our criteria for section merging. Section merging is
-/// optional. Non-string `SHF_MERGE` (constants) is only merged when alignment is 1, because each
-/// input is treated as a single slice. `SHF_MERGE|SHF_STRINGS` is merged at any alignment; strings
-/// are padded to that alignment and identical strings from different alignments are not deduped.
+/// optional. `SHF_MERGE|SHF_STRINGS` is merged at any alignment; strings are padded to that
+/// alignment and identical strings from different alignments are not deduped. Non-string
+/// `SHF_MERGE` (constants) is merged at any alignment; sections with `sh_entsize > 1` are split
+/// into that many bytes so duplicate `.rodata.cst8` / `.rodata.cst16` units can share storage.
 pub(crate) fn should_merge_sections(
     section_header: &impl platform::SectionHeader,
-    section_alignment: u64,
+    _section_alignment: u64,
     args: &impl platform::Args,
 ) -> bool {
-    if !args.should_merge_sections() {
-        return false;
-    }
-    if !section_header.is_merge_section() {
-        return false;
-    }
-    section_alignment <= 1 || section_header.is_strings()
+    args.should_merge_sections() && section_header.is_merge_section()
 }
 
 impl PartId {

@@ -1,9 +1,13 @@
 //! Input sections that are marked as string-merge sections need special processing. Our algorithm
 //! is somewhat complicated in an attempt to get good performance. A rough outline of our algorithm
 //! is here with more details throughout the code. Contrary to what the name might suggest, this
-//! algorithm also supports merging non-string sections. The only difference between handling string
-//! and non-string sections is we split the former into multiple slices at the null terminators, and
-//! treat the latter as a single slice.
+//! algorithm also supports merging non-string sections. String sections are split at null
+//! terminators. Non-string sections with `sh_entsize > 1` are split into that many bytes;
+//! otherwise the whole section is treated as a single slice.
+//!
+//! When an output section contains both strings and constant-pool units (entsize > 1),
+//! or strings of different alignments, they are hashed into separate bucket ranges so that
+//! high alignment does not pad lower-alignment strings.
 //!
 //! We group input sections by the output section into which they are to be placed. We then process
 //! each output section one at a time.
@@ -110,6 +114,7 @@ pub(crate) struct StringMergeSectionExtra<'data> {
     pub(crate) section_data: &'data [u8],
     pub(crate) is_strings: bool,
     pub(crate) alignment: alignment::Alignment,
+    pub(crate) entsize: u64,
 }
 
 /// An input offset. We pretend that we've placed all input sections for a given output section one
@@ -145,6 +150,251 @@ struct StringMergeInputSection<'data> {
     /// `sh_addralign` of the input section. Strings from different alignments are not deduped
     /// and are placed at offsets congruent to 0 modulo this alignment.
     alignment: alignment::Alignment,
+
+    /// `sh_entsize`. Non-string merge sections with entsize > 1 are split into that many bytes.
+    entsize: u64,
+}
+
+impl StringMergeInputSection<'_> {
+    /// `.rodata.cst8` / `.cst16` / … — kept in their own merge class so their
+    /// alignment does not pad strings.
+    fn is_constant_pool(self) -> bool {
+        !self.is_string && self.entsize > 1
+    }
+
+    /// GNU ld does not mix SHF_MERGE inputs of different alignment (or strings vs
+    /// constants). We approximate that by hashing each class into its own bucket
+    /// range so intra-bucket padding cannot blow up `.rodata`.
+    fn merge_class_key(self) -> u32 {
+        if self.is_constant_pool() {
+            u32::MAX
+        } else {
+            u32::from(self.alignment.exponent)
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct MergeClassBuckets {
+    key: u32,
+    base: usize,
+    count: usize,
+    pad_align: alignment::Alignment,
+}
+
+fn build_merge_class_buckets(
+    input_sections: &[StringMergeInputSection<'_>],
+) -> Vec<MergeClassBuckets> {
+    let mut keys = Vec::new();
+    for s in input_sections {
+        let key = s.merge_class_key();
+        if !keys.contains(&key) {
+            keys.push(key);
+        }
+    }
+    if keys.is_empty() {
+        return vec![MergeClassBuckets {
+            key: 0,
+            base: 0,
+            count: MERGE_STRING_BUCKETS,
+            pad_align: alignment::MIN,
+        }];
+    }
+    let pad_align_for = |key: u32| {
+        input_sections
+            .iter()
+            .filter(|s| s.merge_class_key() == key)
+            .map(|s| s.alignment)
+            .max()
+            .unwrap_or(alignment::MIN)
+    };
+    if keys.len() == 1 {
+        return vec![MergeClassBuckets {
+            key: keys[0],
+            base: 0,
+            count: MERGE_STRING_BUCKETS,
+            pad_align: pad_align_for(keys[0]),
+        }];
+    }
+    let n = keys.len().min(MERGE_STRING_BUCKETS);
+    let mut remaining_buckets = MERGE_STRING_BUCKETS;
+    let mut remaining_classes = n;
+    let mut base = 0;
+    keys.into_iter()
+        .take(n)
+        .map(|key| {
+            let count = remaining_buckets / remaining_classes;
+            let class = MergeClassBuckets {
+                key,
+                base,
+                count,
+                pad_align: pad_align_for(key),
+            };
+            remaining_buckets -= count;
+            remaining_classes -= 1;
+            base += count;
+            class
+        })
+        .collect()
+}
+
+fn merge_bucket_index(
+    hash: u64,
+    section: &StringMergeInputSection<'_>,
+    classes: &[MergeClassBuckets],
+) -> usize {
+    let key = section.merge_class_key();
+    let class = classes
+        .iter()
+        .find(|c| c.key == key)
+        .or_else(|| classes.last())
+        .unwrap();
+    class.base + (hash as usize % class.count)
+}
+
+/// Pad each hash bucket so concatenating them preserves that merge class's
+/// alignment. Each class occupies a contiguous bucket range; the start of the
+/// next class is aligned to that class's max input alignment.
+fn pad_merge_buckets(buckets: &mut [MergeStringsSectionBucket<'_>], classes: &[MergeClassBuckets]) {
+    let mut offset = 0u64;
+    for (i, class) in classes.iter().enumerate() {
+        for bucket in buckets
+            .iter_mut()
+            .skip(class.base)
+            .take(class.count)
+        {
+            bucket.next_offset = class.pad_align.align_up(u64::from(bucket.next_offset)) as u32;
+        }
+        let class_size: u64 = buckets
+            .iter()
+            .skip(class.base)
+            .take(class.count)
+            .map(|b| u64::from(b.next_offset))
+            .sum();
+        offset += class_size;
+        if let Some(next) = classes.get(i + 1) {
+            let extra = next.pad_align.align_up(offset) - offset;
+            if extra > 0 {
+                buckets[class.base + class.count - 1].next_offset += extra as u32;
+                offset += extra;
+            }
+        }
+    }
+}
+
+struct TailMergePiece<'data> {
+    bytes: &'data [u8],
+    alignment: alignment::Alignment,
+    is_string: bool,
+    old_bucket: usize,
+    old_offset: u32,
+    absorbed_by: Option<usize>,
+}
+
+/// GNU ld tail-merges `SHF_STRINGS`: `"World"` shares storage with `"HelloWorld"` when the
+/// suffix offset satisfies the string's alignment. Hash buckets cannot see cross-bucket
+/// suffixes, so after unique-ing we re-layout each merge class as a linear pool.
+fn apply_string_tail_merge(
+    buckets: &mut [MergeStringsSectionBucket<'_>],
+    classes: &[MergeClassBuckets],
+    tail_remap: &mut HashMap<u32, BucketOffset>,
+) -> Result {
+    for class in classes {
+        tail_merge_class(buckets, class, tail_remap)?;
+    }
+    Ok(())
+}
+
+fn tail_merge_class(
+    buckets: &mut [MergeStringsSectionBucket<'_>],
+    class: &MergeClassBuckets,
+    tail_remap: &mut HashMap<u32, BucketOffset>,
+) -> Result {
+    let mut pieces = Vec::new();
+    for bucket in buckets.iter().skip(class.base).take(class.count) {
+        for (string, &offset) in &bucket.string_offsets {
+            pieces.push(TailMergePiece {
+                bytes: string.bytes,
+                alignment: string.alignment,
+                is_string: string.is_string,
+                old_bucket: bucket.index,
+                old_offset: offset,
+                absorbed_by: None,
+            });
+        }
+    }
+    if pieces.is_empty() {
+        return Ok(());
+    }
+
+    let mut by_bytes: HashMap<&[u8], usize> = HashMap::with_capacity(pieces.len());
+    for (i, piece) in pieces.iter().enumerate() {
+        by_bytes.insert(piece.bytes, i);
+    }
+    for i in 0..pieces.len() {
+        if !pieces[i].is_string {
+            continue;
+        }
+        let align = pieces[i].alignment.value() as usize;
+        if align == 0 {
+            continue;
+        }
+        let bytes = pieces[i].bytes;
+        let mut off = align;
+        while off < bytes.len() {
+            if let Some(&j) = by_bytes.get(&bytes[off..])
+                && j != i
+            {
+                pieces[j].absorbed_by = Some(i);
+            }
+            off += align;
+        }
+    }
+
+    let dest_bucket = class.base;
+    let mut new_strings = Vec::new();
+    let mut next_offset = 0u32;
+    let mut laid_out = vec![None; pieces.len()];
+    for i in 0..pieces.len() {
+        if pieces[i].absorbed_by.is_some() {
+            continue;
+        }
+        let alignment = pieces[i].alignment;
+        let offset = alignment.align_up(u64::from(next_offset)) as u32;
+        let padded_len = alignment.align_up(pieces[i].bytes.len() as u64) as u32;
+        next_offset = offset + padded_len;
+        new_strings.push(BucketString {
+            bytes: pieces[i].bytes,
+            offset,
+        });
+        laid_out[i] = Some(offset);
+    }
+
+    fn root_offset(pieces: &[TailMergePiece<'_>], laid_out: &[Option<u32>], mut i: usize) -> u32 {
+        let mut delta = 0u32;
+        while let Some(host) = pieces[i].absorbed_by {
+            delta += (pieces[host].bytes.len() - pieces[i].bytes.len()) as u32;
+            i = host;
+        }
+        laid_out[i].unwrap() + delta
+    }
+
+    for i in 0..pieces.len() {
+        let new_offset = root_offset(&pieces, &laid_out, i);
+        let old = BucketOffset::new(pieces[i].old_offset, pieces[i].old_bucket)?;
+        let new = BucketOffset::new(new_offset, dest_bucket)?;
+        if old.0 != new.0 {
+            tail_remap.insert(old.0, new);
+        }
+    }
+
+    for bucket in buckets.iter_mut().skip(class.base).take(class.count) {
+        bucket.strings.clear();
+        bucket.next_offset = 0;
+    }
+    buckets[dest_bucket].strings = new_strings;
+    buckets[dest_bucket].next_offset = next_offset;
+    Ok(())
 }
 
 /// A string from a string-merge section. Includes the null terminator.
@@ -152,6 +402,7 @@ struct StringMergeInputSection<'data> {
 pub(crate) struct MergeString<'data> {
     bytes: &'data [u8],
     alignment: alignment::Alignment,
+    is_string: bool,
 }
 
 /// A merged string together with its offset in the hash bucket. Trailing padding up to the
@@ -182,6 +433,11 @@ pub(crate) struct MergedStringsSection<'data> {
 
     /// Offsets of strings that didn't fit in `string_offsets`.
     overflowed_string_offsets: HashMap<LinearInputOffset, BucketOffset>,
+
+    /// After tail-merging, maps hash-bucket `BucketOffset` values to the linear
+    /// class-pool offset. Missing keys are left unchanged.
+    #[debug(skip)]
+    tail_remap: HashMap<u32, BucketOffset>,
 }
 
 impl Default for MergedStringsSection<'_> {
@@ -191,6 +447,7 @@ impl Default for MergedStringsSection<'_> {
             bucket_offsets: [0; MERGE_STRING_BUCKETS],
             string_offsets: Default::default(),
             overflowed_string_offsets: HashMap::new(),
+            tail_remap: HashMap::new(),
         }
     }
 }
@@ -341,6 +598,7 @@ fn group_merge_string_sections_by_output<'data, P: Platform>(
                         start_input_offset: *starting_offset,
                         is_string: extra.is_strings,
                         alignment: extra.alignment,
+                        entsize: extra.entsize,
                     });
 
                 *starting_offset = *starting_offset
@@ -381,6 +639,7 @@ fn process_input_section<'data, 'offsets>(
     buckets: &mut [Vec<StringToMerge<'data, 'offsets>>; MERGE_STRING_BUCKETS],
     offsets_shard: &mut sharded_offset_map::Shard<'offsets, BucketOffset, MAP_BLOCK_SIZE>,
     range: &Range<LinearInputOffset>,
+    classes: &[MergeClassBuckets],
 ) -> Result {
     let mut input_offset = input_section.start_input_offset;
     let mut remaining = input_section.section_data;
@@ -415,18 +674,33 @@ fn process_input_section<'data, 'offsets>(
             Ok(offset_in_shard) => OffsetOut::InShard(offset_in_shard),
             Err(_) => OffsetOut::Overflow(*input_offset),
         };
-        buckets[(data.hash() as usize) % MERGE_STRING_BUCKETS].push(StringToMerge {
+        buckets[merge_bucket_index(data.hash(), input_section, classes)].push(StringToMerge {
             string: data,
             offset_out: offset_key,
         });
         *input_offset = *input_offset + data.bytes.len() as u64;
     };
 
-    // Non-string section is just a single slice.
+    // Non-string SHF_MERGE: split into `entsize` units when that is a real constant
+    // width (`.rodata.cst8` / `.rodata.cst16`). entsize 0 or 1 keeps the whole section
+    // as one slice so existing byte-blob merge tests stay intact.
     if !input_section.is_string {
-        let section_data = MergeString::take_hashed(&mut remaining, input_section.alignment);
-
-        insert_data(section_data, &mut input_offset);
+        let entsize = input_section.entsize as usize;
+        if entsize > 1 && remaining.len().is_multiple_of(entsize) {
+            while !remaining.is_empty() && input_offset < range.end {
+                let unit = MergeString::take_sized_hashed(
+                    &mut remaining,
+                    input_section.alignment,
+                    entsize,
+                    false,
+                );
+                insert_data(unit, &mut input_offset);
+            }
+        } else {
+            let section_data =
+                MergeString::take_hashed(&mut remaining, input_section.alignment, false);
+            insert_data(section_data, &mut input_offset);
+        }
         return Ok(());
     }
 
@@ -486,17 +760,8 @@ impl<'data> MergedStringsSection<'data> {
             .collect_vec();
         buckets.sort_by_key(|b| b.index);
 
-        // Pad each hash bucket so concatenating them preserves the max input alignment. An
-        // align-8 string in bucket 1 would otherwise start at `len(bucket0)`, which may not
-        // be 8-aligned.
-        let max_align = input_sections
-            .iter()
-            .map(|s| s.alignment)
-            .max()
-            .unwrap_or(alignment::MIN);
-        for bucket in &mut buckets {
-            bucket.next_offset = max_align.align_up(u64::from(bucket.next_offset)) as u32;
-        }
+        apply_string_tail_merge(&mut buckets, &resources.class_buckets, &mut self.tail_remap)?;
+        pad_merge_buckets(&mut buckets, &resources.class_buckets);
 
         self.buckets = buckets;
 
@@ -557,6 +822,9 @@ struct SplitResources<'data, 'offsets, 'scope> {
 
     /// Hash buckets that we've finished with. These have had all input groups applied.
     finished_buckets: ArrayQueue<Box<MergeStringsSectionBucket<'data>>>,
+
+    /// Bucket ranges for each merge class (string alignment vs constant pool).
+    class_buckets: Vec<MergeClassBuckets>,
 
     offset_writer: sharded_offset_map::ShardedWriter<'offsets, BucketOffset, MAP_BLOCK_SIZE>,
 
@@ -660,6 +928,7 @@ fn create_split_resources<'data, 'offsets, 'scope>(
         offset_writer,
         errors: ArrayQueue::new(1),
         reuse_pool,
+        class_buckets: build_merge_class_buckets(input_sections),
     };
 
     (0..MERGE_STRING_BUCKETS).for_each(|i| {
@@ -855,6 +1124,7 @@ fn process_input_section_group<'data, 'offsets, 'scope>(
             &mut buckets,
             &mut group_in.offsets_shard,
             &group_in.range,
+            resources.class_buckets.as_slice(),
         )?;
     }
 
@@ -1031,25 +1301,66 @@ impl<'data> MergeString<'data> {
             .map(|i| i + 1)
             .context("String in merge-string section is not null-terminated")?;
         let (bytes, rest) = source.split_at(len);
-        let hash = hash_merge_string(bytes, alignment);
+        let hash = hash_merge_string(bytes, alignment, true);
         *source = rest;
-        Ok(PreHashed::new(MergeString { bytes, alignment }, hash))
+        Ok(PreHashed::new(
+            MergeString {
+                bytes,
+                alignment,
+                is_string: true,
+            },
+            hash,
+        ))
+    }
+
+    /// Takes `size` bytes (or the remainder) from `source`.
+    pub(crate) fn take_sized_hashed(
+        source: &mut &'data [u8],
+        alignment: alignment::Alignment,
+        size: usize,
+        is_string: bool,
+    ) -> PreHashed<MergeString<'data>> {
+        let take_n = size.min(source.len());
+        let (bytes, rest) = source.split_at(take_n);
+        *source = rest;
+        let hash = hash_merge_string(bytes, alignment, is_string);
+        PreHashed::new(
+            MergeString {
+                bytes,
+                alignment,
+                is_string,
+            },
+            hash,
+        )
     }
 
     /// Takes the whole `source`. Returns a prehashed reference to what was taken.
     pub(crate) fn take_hashed(
         source: &mut &'data [u8],
         alignment: alignment::Alignment,
+        is_string: bool,
     ) -> PreHashed<MergeString<'data>> {
         let bytes = take(source);
-        let hash = hash_merge_string(bytes, alignment);
-        PreHashed::new(MergeString { bytes, alignment }, hash)
+        let hash = hash_merge_string(bytes, alignment, is_string);
+        PreHashed::new(
+            MergeString {
+                bytes,
+                alignment,
+                is_string,
+            },
+            hash,
+        )
     }
 }
 
-fn hash_merge_string(bytes: &[u8], alignment: alignment::Alignment) -> u64 {
+fn hash_merge_string(bytes: &[u8], alignment: alignment::Alignment, is_string: bool) -> u64 {
     crate::hash::hash_bytes(bytes)
         ^ (0x9e37_79b9_7f4a_7c15u64.wrapping_mul(u64::from(alignment.exponent)))
+        ^ if is_string {
+            0
+        } else {
+            0x517c_c1b7_2722_0a95
+        }
 }
 
 /// Looks for a merged string at `symbol_index` + `addend` in the input and if found, returns its
@@ -1107,6 +1418,14 @@ pub(crate) fn get_merged_string_output_address<'data, P: Platform>(
     Ok(Some(address))
 }
 
+fn remap_tail_offset(offset: BucketOffset, section: &MergedStringsSection<'_>) -> BucketOffset {
+    section
+        .tail_remap
+        .get(&offset.0)
+        .copied()
+        .unwrap_or(offset)
+}
+
 fn find_string(
     merge_slot: StringMergeSectionSlot,
     input_offset: u64,
@@ -1124,7 +1443,7 @@ fn find_string(
         });
 
     if let Some(string_offset) = string_offset {
-        return Ok(string_offset);
+        return Ok(remap_tail_offset(string_offset, strings_section));
     }
 
     // Our input offset wasn't found, so it likely points part way into a string. Search backwards
@@ -1143,7 +1462,8 @@ fn find_string(
             });
 
         if let Some(string_offset) = string_offset {
-            return Ok(BucketOffset(string_offset.0 + i as u32));
+            let start = remap_tail_offset(string_offset, strings_section);
+            return Ok(BucketOffset(start.0 + i as u32));
         }
     }
 
