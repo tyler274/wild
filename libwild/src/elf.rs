@@ -4841,6 +4841,10 @@ impl<C: ElfClass> platform::SectionAttributes for SectionAttributes<C> {
         self.ty = sht::NOBITS;
     }
 
+    fn set_writable(&mut self) {
+        self.flags |= shf::WRITE;
+    }
+
     fn avoids_alloc(&self) -> bool {
         self.overrides.avoid_progpogation.contains(shf::ALLOC)
     }

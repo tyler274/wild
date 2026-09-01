@@ -38,7 +38,6 @@ use crate::output_section_id::OutputSections;
 use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::parsing::InternalSymDefInfo;
-use crate::parsing::Redirect;
 use crate::parsing::SymbolLoc;
 use crate::parsing::SymbolPlacement;
 use crate::part_id::PartId;
@@ -86,6 +85,7 @@ use hashbrown::HashMap;
 use hashbrown::HashSet;
 use itertools::Itertools;
 use linker_utils::elf::RelocationKind;
+use linker_utils::elf::pf;
 use linker_utils::relaxation::RelaxDeltaMap;
 use linker_utils::relaxation::SectionRelaxDeltas;
 use linker_utils::relaxation::opt_input_to_output;
@@ -3734,6 +3734,18 @@ impl<'data, P: Platform> PreludeLayoutState<'data, P> {
     ) {
         use output_section_id::OrderEvent;
 
+        // Empty object sections with symbols must still be emitted
+        // (empty-section-alignment). Script-only markers with no inputs are
+        // omitted later, matching GNU ld (kernel `.init.begin`, `.builtin_fw`).
+        let mut loaded_empty_input = vec![false; output_sections.num_sections()];
+        for i in 0..output_sections.num_sections() {
+            let section_id = OutputSectionId::from_usize(i);
+            if *must_keep_sections.get(section_id) {
+                let primary = output_sections.primary_output_section(section_id);
+                loaded_empty_input[primary.as_usize()] = true;
+            }
+        }
+
         // Determine which sections to keep. To start with, we keep all sections that we've
         // previously marked as needing to be kept. These may include sections that are empty, but
         // into which we've loaded an empty input section.
@@ -3795,8 +3807,13 @@ impl<'data, P: Platform> PreludeLayoutState<'data, P> {
                             .as_ref()
                             .is_some_and(|loc| matches!(loc.location, Some(Expression::Number(0))));
                         let loadable = !info.phdrs.is_empty();
+                        let writable =
+                            script_phdrs_writable(&info.phdrs, resources.symbol_db);
                         if !explicit_zero && loadable {
                             info.section_attributes.set_alloc();
+                            if writable {
+                                info.section_attributes.set_writable();
+                            }
                             if !has_output_data {
                                 info.section_attributes.set_no_bits();
                             }
@@ -3805,6 +3822,39 @@ impl<'data, P: Platform> PreludeLayoutState<'data, P> {
                 } else {
                     *keep_sections.get_mut(section_id) = false;
                 }
+            }
+        }
+
+        // GNU ld omits empty output sections that never received an input and
+        // have no `. +=` / BYTE data. `.orc_lookup { . += N; }` stays because
+        // it has a relative location counter even before that size is known.
+        let mut content_size = vec![0u64; output_sections.num_sections()];
+        for i in 0..output_sections.num_sections() {
+            let section_id = OutputSectionId::from_usize(i);
+            let primary = output_sections.primary_output_section(section_id);
+            for (_, &part_size) in total_sizes.in_range(section_id.part_id_range::<P>()) {
+                content_size[primary.as_usize()] += part_size;
+            }
+        }
+        let mut has_relative_lc = vec![false; output_sections.num_sections()];
+        for event in output_order {
+            if let OrderEvent::SetLocationRelative(_, section_id, ..) = event {
+                has_relative_lc[section_id.as_usize()] = true;
+            }
+        }
+        for data in &output_sections.script_output_data {
+            let primary = output_sections.primary_output_section(data.section_id);
+            has_relative_lc[primary.as_usize()] = true;
+        }
+        for i in 0..output_sections.num_sections() {
+            let section_id = OutputSectionId::from_usize(i);
+            if !section_id.is_custom::<P>() || output_sections.merge_target(section_id).is_some() {
+                continue;
+            }
+            if has_relative_lc[i] {
+                *keep_sections.get_mut(section_id) = true;
+            } else if content_size[i] == 0 && !loaded_empty_input[i] {
+                *keep_sections.get_mut(section_id) = false;
             }
         }
 
@@ -3957,6 +4007,33 @@ impl<'data, P: Platform> PreludeLayoutState<'data, P> {
     }
 }
 
+/// GNU ld copies `PF_W` from an assigned `PT_LOAD` onto script-only output
+/// sections that have no input flags to inherit (kernel `.orc_lookup`).
+fn script_phdrs_writable<P: Platform>(phdr_names: &[&[u8]], symbol_db: &SymbolDb<P>) -> bool {
+    for group in &symbol_db.groups {
+        let Group::LinkerScripts(scripts) = group else {
+            continue;
+        };
+        for script in scripts {
+            for phdr in &script.parsed.program_headers {
+                if !phdr_names.contains(&phdr.name) {
+                    continue;
+                }
+                let Some(flags_expr) = &phdr.flags else {
+                    continue;
+                };
+                let Ok(flags) = evaluate_const(flags_expr) else {
+                    continue;
+                };
+                if flags & u64::from(pf::WRITABLE.0) != 0 {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 fn load_redirect_referenced_symbols<'data, 'scope, A: Arch>(
     resources: &'scope GraphResources<'data, '_, <A as Arch>::Platform>,
     queue: &mut LocalWorkQueue<A::Platform>,
@@ -4048,26 +4125,6 @@ impl<'data, P: Platform> InternalSymbols<'data, P> {
             let symbol_id = self.start_symbol_id.add_usize(offset);
             if !resources.symbol_db.is_canonical(symbol_id) {
                 continue;
-            }
-
-            // Mark the section referenced by this symbol so that empty sections defined by the
-            // linker script are still emitted. Symbols defined within an output-section body keep
-            // that section alive. Symbols between output sections instead belong to the preceding
-            // emitted section, so they must not retain an otherwise discarded section.
-            let section_id = match &def_info.placement {
-                SymbolPlacement::Redirect(Redirect {
-                    loc:
-                        SymbolLoc::SectionStartRelative(section_id)
-                        | SymbolLoc::SectionEndRelative(section_id),
-                    ..
-                }) => Some(*section_id),
-                _ => None,
-            };
-            if let Some(section_id) = section_id {
-                resources
-                    .must_keep_sections
-                    .get(section_id)
-                    .fetch_or(true, atomic::Ordering::Relaxed);
             }
 
             // PROVIDE_HIDDEN symbols should not be exported to dynsym.
@@ -6595,11 +6652,17 @@ fn compute_layout_sections<'data, P: Platform>(
                     .location_info
                     .as_ref()
                     .is_some_and(|info| info.is_top_level);
+                let has_explicit_section_addr = section_info
+                    .location_info
+                    .as_ref()
+                    .and_then(|info| info.location.as_ref())
+                    .is_some();
                 // GNU ld aligns a script output section to the max input sh_addralign
-                // when the VMA is not already fixed by `. = ...`. A pending ALIGN()
-                // must be kept (kernel `. = ALIGN(16)` before `.text`).
+                // even after `. = ALIGN(n)` (kernel `. = ALIGN(8); .exit.text` with
+                // 16-byte inputs). An explicit section address (`.foo 0x1000 :`)
+                // still wins.
                 if is_top_level
-                    && section_offset.is_none()
+                    && !has_explicit_section_addr
                     && let Some(&max_input_align) = input_order_max_align.get(&section_id)
                 {
                     mem_offset = max_input_align.align_up(mem_offset);

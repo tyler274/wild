@@ -1435,6 +1435,10 @@ pub(crate) trait SectionAttributes:
     /// (only `. +=` reservations and symbol assignments).
     fn set_no_bits(&mut self) {}
 
+    /// Mark a custom script section as writable. GNU ld copies `PF_W` from the
+    /// assigned `PT_LOAD` onto script-only sections (kernel `.orc_lookup`).
+    fn set_writable(&mut self) {}
+
     /// True when the script used `(INFO)` / `(DSECT)` / `(COPY)` / `(OVERLAY)` so ALLOC
     /// should not be inferred.
     fn avoids_alloc(&self) -> bool {

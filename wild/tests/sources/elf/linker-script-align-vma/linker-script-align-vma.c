@@ -23,6 +23,16 @@
 //#LinkerScript:linker-script-align-vma-end.ld
 //#ExpectSym:_end section=".bss"
 
+//#Config:exit-align:default
+//#LinkerScript:linker-script-input-align.ld
+
+//#Config:orc-flags:default
+//#LinkerScript:linker-script-orc-flags.ld
+//#ExpectSection:.orc_lookup flags=WA,type=0x8
+
 void _start(void) {}
 int payload = 1;
 char bss_byte __attribute__((used));
+
+__attribute__((section(".exit.text"), aligned(16), used))
+static const char exit_text_bytes[16] = {1};
