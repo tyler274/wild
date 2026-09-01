@@ -42,7 +42,7 @@ static int foo = 0;
 static int bar = 0;
 static int baz = 0;
 
-// Three consecutive constructors — their function pointers go into .init_array
+// Three consecutive constructors - their function pointers go into .init_array
 // at consecutive 8-byte-aligned offsets, making them RELR bitmap-packable.
 __attribute__((constructor)) static void ctor_foo(void) { foo = 1; }
 __attribute__((constructor)) static void ctor_bar(void) { bar = 2; }

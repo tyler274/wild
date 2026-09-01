@@ -277,7 +277,7 @@ pub(crate) enum Expression<'a> {
     /// MIN and MAX functions (take two expressions)
     Min(Box<Expression<'a>>, Box<Expression<'a>>),
     Max(Box<Expression<'a>>, Box<Expression<'a>>),
-    /// SEGMENT_START("segment-name", default) — returns the `-T` command-line override for the
+    /// SEGMENT_START("segment-name", default) - returns the `-T` command-line override for the
     /// named segment if one was provided, otherwise returns `default`.
     /// Unknown segment names always return `default` (matching GNU ld behavior).
     SegmentStart(crate::parsing::SegmentName, Box<Expression<'a>>),

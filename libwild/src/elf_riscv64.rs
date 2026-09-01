@@ -232,7 +232,7 @@ impl crate::platform::Arch for ElfRiscV64 {
                         })
                     }
                 } else {
-                    // Target resolved to zero (e.g. weak undef) — replace with nop.
+                    // Target resolved to zero (e.g. weak undef) - replace with nop.
                     Some(Relaxation {
                         kind: RelaxationKind::ReplaceWithNop,
                         rel_info: rel_info_from_type!(object::elf::R_RISCV_NONE),

@@ -973,7 +973,7 @@ impl<'layout, 'out, C: ElfClass> TableWriter<'layout, 'out, C> {
             self.write_ifunc_relocation::<A>(res)?;
         } else {
             let value = if is_got_relr {
-                // GOT_RELR entries are bitmap-packed by write_got_relr_bitmap — just store value.
+                // GOT_RELR entries are bitmap-packed by write_got_relr_bitmap - just store value.
                 res.raw_value
             } else if res.flags.has_link_time_address()
                 && self.output_kind.is_position_independent()

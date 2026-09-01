@@ -158,7 +158,7 @@ struct StringMergeInputSection<'data> {
 }
 
 impl StringMergeInputSection<'_> {
-    /// `.rodata.cst8` / `.cst16` / … — kept in their own merge class so their
+    /// `.rodata.cst8` / `.cst16` / … - kept in their own merge class so their
     /// alignment does not pad strings.
     fn is_constant_pool(self) -> bool {
         !self.is_string && self.entsize > 1

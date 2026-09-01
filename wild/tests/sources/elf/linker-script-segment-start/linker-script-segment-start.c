@@ -13,8 +13,8 @@
 // GNU ld uses the architecture's natural instruction alignment (4 on aarch64).
 //#DiffIgnore:section.text.alignment
 
-// Config 1: no -T flags — SEGMENT_START returns the linker script defaults.
-// Defaults are 0x10/0x11/0x12/0x13 — distinct from actual section addresses
+// Config 1: no -T flags - SEGMENT_START returns the linker script defaults.
+// Defaults are 0x10/0x11/0x12/0x13 - distinct from actual section addresses
 // to prove SEGMENT_START returns the default, not the actual segment address.
 //#Config:no-overrides:default
 //#Variant:0

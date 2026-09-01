@@ -286,7 +286,7 @@ fn evaluate_expression_value<'data, P: Platform>(
                 bail!("ALIGN(0) is invalid");
             }
             if let Some(e) = expr.as_ref() {
-                // Two-arg ALIGN(value, align) — used by ASSERT(ALIGN(0x38, 16) == 0x40).
+                // Two-arg ALIGN(value, align) - used by ASSERT(ALIGN(0x38, 16) == 0x40).
                 Ok(eval!(e)?.next_multiple_of(align))
             } else {
                 // One-arg ALIGN(n) aligns the location counter's absolute VMA, matching GNU ld.

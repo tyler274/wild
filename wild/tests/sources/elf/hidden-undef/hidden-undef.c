@@ -8,7 +8,7 @@
 
 #include "../common/runtime.h"
 
-// foo is declared hidden — must not be resolved from the DSO above.
+// foo is declared hidden - must not be resolved from the DSO above.
 __attribute__((visibility("hidden"))) int foo(void);
 
 void _start(void) {

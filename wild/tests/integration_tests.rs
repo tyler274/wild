@@ -5503,10 +5503,10 @@ impl Assertions {
         while i + 8 <= data.len() {
             let val = u64::from_le_bytes(data[i..i + 8].try_into().unwrap());
             if val & 1 == 0 {
-                // Address entry — encodes 1 relocation.
+                // Address entry - encodes 1 relocation.
                 count += 1;
             } else {
-                // Bitmap entry — count set bits excluding LSB marker.
+                // Bitmap entry - count set bits excluding LSB marker.
                 count += (val >> 1).count_ones() as u64;
             }
             i += 8;
