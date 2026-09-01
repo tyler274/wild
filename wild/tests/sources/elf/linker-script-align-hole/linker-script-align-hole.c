@@ -5,6 +5,7 @@
 //#LinkArgs:--no-gc-sections
 //#ExpectSym:after_var section=".after"
 //#ExpectSym:__init_end address=0x401000
+//#NoSym:__ehdr_start
 //#DiffIgnore:section.got
 //#DiffIgnore:segment.LOAD.RX.alignment
 //#DiffIgnore:segment.LOAD.RWX.alignment

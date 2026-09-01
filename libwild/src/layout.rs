@@ -3715,6 +3715,12 @@ impl<'data, P: Platform> PreludeLayoutState<'data, P> {
                 // metadata sections (file header, program headers, section headers, symtab, strtab)
                 // since those are not meaningful in a relocatable object.
                 should_emit |= def_info.section_id().is_some_and(|sec_id| {
+                    // GNU ld defines `__ehdr_start` only when referenced (PROVIDE_HIDDEN).
+                    // FILE_HEADER is always kept for ELF header space, which would otherwise
+                    // put an unreferenced `__ehdr_start` in `.symtab`.
+                    if sec_id == crate::output_section_id::FILE_HEADER {
+                        return false;
+                    }
                     if symbol_db.args.should_output_partial_object() {
                         output_sections.will_emit_section_symbol_for_partial_objects(sec_id)
                     } else {

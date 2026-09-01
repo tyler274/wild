@@ -1385,8 +1385,15 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             .add_symbol(InternalSymDefInfo::new(SymbolPlacement::Undefined, b""))
             .hide();
 
+        // GNU ld PROVIDE_HIDDEN: define __ehdr_start only when referenced.
         symbols
-            .section_start(crate::output_section_id::FILE_HEADER, "__ehdr_start")
+            .add_symbol(
+                InternalSymDefInfo::new(
+                    SymbolPlacement::SectionStart(crate::output_section_id::FILE_HEADER),
+                    b"__ehdr_start",
+                )
+                .with_provide(),
+            )
             .hide();
 
         symbols.section_start(output_section_id::GOT, "_GLOBAL_OFFSET_TABLE_");
