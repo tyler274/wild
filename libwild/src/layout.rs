@@ -2034,6 +2034,19 @@ pub(crate) fn merge_secondary_parts<P: Platform>(
                 .as_ref()
                 .is_some_and(|li| li.location_counters.0 < li.location_counters.1);
             if has_location_counters {
+                // An empty primary is an artifact of splitting on `. = ALIGN(...)`
+                // before the first matcher (kernel `.data_nosave`). Keep its VMA
+                // but take the file offset of the first file-backed secondary so
+                // `sh_offset` matches `p_offset ≡ p_vaddr` (GNU ld). Do not adopt
+                // a trailing empty ALIGN secondary, which sits at the hole's end.
+                if primary.file_size == 0
+                    && primary.mem_size == 0
+                    && secondary_layout.file_size > 0
+                    && secondary_layout.file_offset > primary.file_offset
+                {
+                    primary.file_offset = secondary_layout.file_offset;
+                    primary.lma_offset = secondary_layout.lma_offset;
+                }
                 let mem_end = secondary_layout.mem_offset + secondary_layout.mem_size;
                 if mem_end > primary.mem_offset + primary.mem_size {
                     primary.mem_size = mem_end - primary.mem_offset;
