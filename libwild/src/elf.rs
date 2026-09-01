@@ -1284,6 +1284,10 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         PROGRAM_SEGMENT_DEFS
     }
 
+    fn phdr_flags_writable(flags: u64) -> bool {
+        flags & u64::from(pf::WRITABLE.0) != 0
+    }
+
     fn unconditional_segment_defs() -> &'static [ProgramSegmentDef] {
         &[STACK_SEGMENT_DEF]
     }

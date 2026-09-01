@@ -85,7 +85,6 @@ use hashbrown::HashMap;
 use hashbrown::HashSet;
 use itertools::Itertools;
 use linker_utils::elf::RelocationKind;
-use linker_utils::elf::pf;
 use linker_utils::relaxation::RelaxDeltaMap;
 use linker_utils::relaxation::SectionRelaxDeltas;
 use linker_utils::relaxation::opt_input_to_output;
@@ -4025,7 +4024,7 @@ fn script_phdrs_writable<P: Platform>(phdr_names: &[&[u8]], symbol_db: &SymbolDb
                 let Ok(flags) = evaluate_const(flags_expr) else {
                     continue;
                 };
-                if flags & u64::from(pf::WRITABLE.0) != 0 {
+                if P::phdr_flags_writable(flags) {
                     return true;
                 }
             }
@@ -4087,7 +4086,7 @@ fn load_redirect_expression_targets<'data, 'scope, A: Arch>(
     resources: &'scope GraphResources<'data, '_, <A as Arch>::Platform>,
     queue: &mut LocalWorkQueue<A::Platform>,
     scope: &Scope<'scope>,
-    redirect: &crate::parsing::Redirect<'_>,
+    redirect: &crate::parsing::Redirect<'data>,
 ) {
     load_expression_referenced_symbols::<A>(resources, queue, scope, &redirect.expression);
 }
@@ -5572,7 +5571,6 @@ fn compute_section_and_symbol_addresses<'data, P: Platform>(
                 .iter()
                 .map(|file| match file {
                     FileLayoutState::Object(obj) => {
-                    FileLayoutState::Object(obj) => {
                         let positions = compute_object_section_positions(
                             obj,
                             &mut offsets,
@@ -6335,8 +6333,14 @@ fn compute_layout_sections<'data, P: Platform>(
                                 .primary_output_section(part_id.output_section_id::<P>());
                             let current_section = match loc {
                                 SymbolLoc::SectionStartRelative(id)
-                                | SymbolLoc::SectionEndRelative(id)
-                                | SymbolLoc::LocationCounter(_, Some(id)) => {
+                                | SymbolLoc::SectionEndRelative(id) => {
+                                    Some(output_sections.primary_output_section(*id))
+                                }
+                                SymbolLoc::LocationCounter(idx, Some(id))
+                                    if resolved_lc
+                                        .get(*idx)
+                                        .is_some_and(|entry| entry.section_offset.is_some()) =>
+                                {
                                     Some(output_sections.primary_output_section(*id))
                                 }
                                 _ => None,

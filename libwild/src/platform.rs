@@ -624,6 +624,11 @@ pub(crate) trait Platform:
 
     fn program_segment_defs() -> &'static [Self::ProgramSegmentDef];
 
+    /// True when program-header `FLAGS()` include write permission (ELF `PF_W`).
+    fn phdr_flags_writable(_flags: u64) -> bool {
+        false
+    }
+
     /// Returns segment definitions that should be unconditionally emitted without content.
     fn unconditional_segment_defs() -> &'static [Self::ProgramSegmentDef];
 
