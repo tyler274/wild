@@ -1179,8 +1179,8 @@ impl<'data, P: Platform> OutputSections<'data, P> {
         found
     }
 
-    /// Returns whether the specified section should have a symbol emitted for it. This function is
-    /// mainly used during partial linking.
+    /// Returns whether the specified section should have a `STT_SECTION` symbol emitted for it.
+    /// Used for relocatable output (`-r`) and for fully linked `--emit-relocs`.
     pub(crate) fn will_emit_section_symbol_for_partial_objects(
         &self,
         section_id: OutputSectionId,

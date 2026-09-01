@@ -3641,7 +3641,7 @@ impl<'data, P: Platform> PreludeLayoutState<'data, P> {
 
         let entry_size = size_of::<P::SymtabEntry>() as u64;
 
-        if resources.symbol_db.args.should_output_partial_object() {
+        if resources.symbol_db.args.should_copy_input_relocs() {
             let mut num_section_syms = 0;
             for (id, _) in output_sections.ids_with_info() {
                 if output_sections.will_emit_section_symbol_for_partial_objects(id) {
@@ -3650,7 +3650,7 @@ impl<'data, P: Platform> PreludeLayoutState<'data, P> {
             }
             extra_sizes.increment(
                 P::SYMTAB_LOCAL_SECTION_ID
-                    .expect("partial objects require a local symbol table")
+                    .expect("copying input relocs requires a local symbol table")
                     .base_part_id::<P>(),
                 num_section_syms * entry_size,
             );
@@ -6418,6 +6418,7 @@ fn compute_layout_sections<'data, P: Platform>(
     // file-only headers precede the first LOAD, pad the file offset so `p_offset ≡ p_vaddr`.
     let mut load_segment_depth = 0u32;
     let mut pad_file_at_next_load = false;
+    let mut load_origins: Vec<(u64, u64, usize)> = Vec::new();
 
     for event in output_order {
         match event {
@@ -6515,11 +6516,13 @@ fn compute_layout_sections<'data, P: Platform>(
                             &mut lma_offset,
                         );
                     }
+                    load_origins.push((mem_offset, lma_offset, file_offset));
                     load_segment_depth += 1;
                 }
             }
             OrderEvent::SegmentEnd(segment_id) => {
                 if program_segments.is_load_segment(segment_id) {
+                    load_origins.pop();
                     load_segment_depth = load_segment_depth.saturating_sub(1);
                 }
             }
@@ -6780,6 +6783,24 @@ fn compute_layout_sections<'data, P: Platform>(
                         } else {
                             0
                         };
+
+                        // Skip file space for NOBITS in this LOAD (`p_offset ≡ p_vaddr`). Never
+                        // rewind: disjoint MEMORY VMAs in one LOAD stay packed in the file.
+                        if file_size > 0
+                            && let Some(&(load_vma, load_lma, load_file)) = load_origins.last()
+                        {
+                            let delta = if overlay.is_some_and(|ov| ov.member > 0) {
+                                lma_offset.checked_sub(load_lma)
+                            } else {
+                                mem_offset.checked_sub(load_vma)
+                            };
+                            if let Some(delta) = delta {
+                                let candidate = load_file.saturating_add(delta as usize);
+                                if candidate > file_offset {
+                                    file_offset = candidate;
+                                }
+                            }
+                        }
 
                         *part_layout = OutputRecordLayout {
                             file_size,

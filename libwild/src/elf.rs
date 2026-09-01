@@ -852,6 +852,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             ty: header.sh_type(LittleEndian),
             entsize: header.sh_entsize(LittleEndian).into(),
             overrides: Default::default(),
+            received_input_flags: false,
             class: PhantomData,
         }
     }
@@ -1507,6 +1508,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                     ty: d.ty,
                     entsize: d.element_size,
                     overrides: Default::default(),
+                    received_input_flags: false,
                     class: PhantomData,
                 },
                 kind: d.kind,
@@ -4819,6 +4821,9 @@ pub(crate) struct SectionAttributes<C: ElfClass> {
     pub(crate) ty: SectionType,
     pub(crate) entsize: u64,
     pub(crate) overrides: LinkerScriptOverrides,
+    /// True after at least one input section's flags have been applied to this
+    /// output section. `SHF_MERGE`/`SHF_STRINGS` are then intersected (GNU ld).
+    received_input_flags: bool,
     class: PhantomData<C>,
 }
 
@@ -4828,38 +4833,71 @@ pub(crate) struct LinkerScriptOverrides {
     pub(crate) has_fixed_type: bool,
 }
 
-/// Section flags that should not be propagated from input sections to the output section in which
-/// they are placed. This is passed to `without`, so we keep all flags other than the ones listed
-/// here. `SHF_MERGE`/`SHF_STRINGS` describe how to combine input contents, not the output section
-/// (GNU ld); mixing merge-string inputs into `.rodata` must not mark the output `WAMS`.
-const SECTION_FLAGS_PROPAGATION_MASK: SectionFlags =
-    object::elf::SHF_GROUP.with(object::elf::SHF_MERGE).with(object::elf::SHF_STRINGS);
+/// Section flags that should not be propagated from input sections to the output
+/// section in which they are placed. `SHF_GROUP` is input-only. `SHF_MERGE` /
+/// `SHF_STRINGS` are propagated only when every contributing input has them
+/// (GNU ld): a dedicated `__ex_table` stays `AM`, mixed `.rodata` stays `A`.
+const SECTION_FLAGS_PROPAGATION_MASK: SectionFlags = object::elf::SHF_GROUP;
+
+const MERGE_STRINGS_FLAGS: SectionFlags = object::elf::SHF_MERGE.with(object::elf::SHF_STRINGS);
+
+fn flags_intersection(a: SectionFlags, b: SectionFlags) -> SectionFlags {
+    a.without(a.without(b))
+}
 
 impl<C: ElfClass> platform::SectionAttributes for SectionAttributes<C> {
     type Platform = Elf<C>;
 
     fn merge(&mut self, rhs: Self) {
-        self.flags |= rhs.flags;
+        let merge_strings =
+            flags_intersection(flags_intersection(self.flags, rhs.flags), MERGE_STRINGS_FLAGS);
+        self.flags = (self.flags | rhs.flags).without(MERGE_STRINGS_FLAGS) | merge_strings;
 
         // We somewhat arbitrarily tie-break by selecting the maximum type. This means for example
         // that types like SHT_INIT_ARRAY win out over more generic types like SHT_PROGBITS.
         self.ty = self.ty.max(rhs.ty);
 
         // If all input sections specify the same entsize, then we use that. If there's any
-        // inconsistency, then we set entsize to 0.
+        // inconsistency, then we set entsize to 0 and drop merge flags (GNU ld).
         if self.entsize != rhs.entsize {
             self.entsize = 0;
+            self.flags = self.flags.without(MERGE_STRINGS_FLAGS);
         }
     }
 
     fn apply(&self, output_sections: &mut OutputSections<Elf<C>>, section_id: OutputSectionId) {
         let info = output_sections.section_infos.get_mut(section_id);
 
+        let incoming_merge = flags_intersection(self.flags, MERGE_STRINGS_FLAGS);
         info.section_attributes.flags |= self.flags.without(
-            SECTION_FLAGS_PROPAGATION_MASK | info.section_attributes.overrides.avoid_progpogation,
+            SECTION_FLAGS_PROPAGATION_MASK
+                | MERGE_STRINGS_FLAGS
+                | info.section_attributes.overrides.avoid_progpogation,
         );
 
-        info.section_attributes.entsize = self.entsize;
+        if !info.section_attributes.received_input_flags {
+            info.section_attributes.flags = info
+                .section_attributes
+                .flags
+                .without(MERGE_STRINGS_FLAGS)
+                | incoming_merge;
+            info.section_attributes.entsize = self.entsize;
+            info.section_attributes.received_input_flags = true;
+        } else {
+            let mut keep = flags_intersection(
+                flags_intersection(info.section_attributes.flags, self.flags),
+                MERGE_STRINGS_FLAGS,
+            );
+            if info.section_attributes.entsize != self.entsize {
+                info.section_attributes.entsize = 0;
+                keep = incoming_merge.without(MERGE_STRINGS_FLAGS);
+            }
+            info.section_attributes.flags = info
+                .section_attributes
+                .flags
+                .without(MERGE_STRINGS_FLAGS)
+                | keep;
+        }
 
         if !info.section_attributes.overrides.has_fixed_type {
             info.section_attributes.ty = info.section_attributes.ty.max(self.ty);

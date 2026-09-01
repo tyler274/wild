@@ -9,6 +9,7 @@
 //#Arch: x86_64
 
 //#Config:keep_reloc_merge:default
+//#ExpectSection:.altinstructions flags=AM
 
 #include "../common/runtime.h"
 

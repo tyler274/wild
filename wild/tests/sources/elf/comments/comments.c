@@ -25,3 +25,4 @@ void _start(void) {
 //#ExpectComment:GCC*
 //#ExpectComment:Foo
 //#ExpectComment:Bar
+//#ExpectSection:.comment flags=MS

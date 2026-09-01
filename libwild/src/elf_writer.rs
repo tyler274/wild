@@ -4309,7 +4309,7 @@ fn write_symbol_table_entries<C: ElfClass>(
     // Define symbol 0. This needs to be a null placeholder.
     symbol_writer.undefined_symbol(true, &[])?;
 
-    if layout.args().should_output_partial_object() {
+    if layout.args().should_copy_input_relocs() {
         write_section_symbols(symbol_writer, layout)?;
     }
 
@@ -4336,7 +4336,13 @@ fn write_section_symbols<C: ElfClass>(
         {
             continue;
         }
-        let entry = symbol_writer.define_symbol(true, SymbolSection::Index(shndx), 0, 0, None)?;
+        // Unnamed, matching GNU ld. Value is 0 for -r and the section VMA when fully linked.
+        let value = if layout.args().should_output_partial_object() {
+            0
+        } else {
+            layout.section_layouts.get(section_id).mem_offset
+        };
+        let entry = symbol_writer.define_symbol(true, SymbolSection::Index(shndx), value, 0, None)?;
         entry.set_binding_and_type(object::elf::STB_LOCAL, object::elf::STT_SECTION);
     }
     Ok(())

@@ -947,6 +947,7 @@ pub(crate) trait Platform:
         ))
     }
 
+    /// Whether this output section gets a `STT_SECTION` symbol (`-r` and `--emit-relocs`).
     fn will_emit_section_symbol_for_partial_objects(
         _output_sections: &OutputSections<Self>,
         _section_id: OutputSectionId,
