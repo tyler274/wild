@@ -11,6 +11,7 @@
 //#ExpectSym:_stext address=0x400004,section=".text"
 //#ExpectSym:aligned_sym address=0x400010
 //#ExpectSym:_etext section=".text"
+//#ExpectSym:__init_begin section=".text"
 //#ExpectProgramHeader:LOAD flags=RX,vaddr=0x400004
 
 //#Config:two-load:default

@@ -5023,28 +5023,18 @@ fn get_symbol_attributes<C: ElfClass>(
         FileLayout::LinkerScript(script) => {
             let local_index = symbol_id.to_input(script.symbol_id_range);
             let def_info = &script.internal_symbols.symbol_definitions[local_index.0];
-            let shndx = if let crate::parsing::SymbolPlacement::Redirect(redirect) =
-                &def_info.placement
-                && let SymbolLoc::SectionEnd(section_id) = redirect.loc
-            {
-                let section_id = layout.output_sections.primary_output_section(section_id);
-                layout
-                    .output_sections
-                    .output_index_of_nearest_section(section_id)
-            } else {
-                def_info.section_id().and_then(|section_id| {
-                    let section_id = layout.output_sections.primary_output_section(section_id);
-                    layout.output_sections.output_index_of_section(section_id)
-                })
-            }
-            .map_or(object::elf::SHN_ABS.into(), SymbolSection::Index);
-
-            Ok((shndx, object::elf::STT_NOTYPE))
+            let addr = layout
+                .local_symbol_resolution(symbol_id)
+                .map_or(0, |res| res.value());
+            get_defsym_attributes(layout, def_info, addr)
         }
         FileLayout::Prelude(prelude) => {
             let offset = symbol_id.offset_from(SymbolId::undefined());
             let def_info = &prelude.internal_symbols.symbol_definitions[offset];
-            prelude_symbol_section_and_type(layout, def_info)
+            let addr = layout
+                .local_symbol_resolution(symbol_id)
+                .map_or(0, |res| res.value());
+            prelude_symbol_section_and_type(layout, def_info, addr)
         }
         FileLayout::SyntheticSymbols(_) => {
             // For other non-object files (e.g. epilogue), default to ABS
@@ -5060,6 +5050,7 @@ fn get_symbol_attributes<C: ElfClass>(
 fn get_defsym_attributes<C: ElfClass>(
     layout: &ElfLayout<C>,
     def_info: &crate::parsing::InternalSymDefInfo<elf::Elf<C>>,
+    addr: u64,
 ) -> Result<(SymbolSection, object::elf::SymbolType), error::Error> {
     let crate::parsing::SymbolPlacement::Redirect(redirect) = &def_info.placement else {
         unreachable!()
@@ -5088,7 +5079,10 @@ fn get_defsym_attributes<C: ElfClass>(
             }
             SymbolLoc::SectionStartRelative(os) | SymbolLoc::SectionEndRelative(os) => {
                 let os = layout.output_sections.primary_output_section(os);
-                layout.output_sections.output_index_of_section(os)
+                layout
+                    .output_sections
+                    .output_index_of_section(os)
+                    .or_else(|| output_index_of_nearby_section(layout, os, addr))
             }
             SymbolLoc::FirstSection => Some(1),
             SymbolLoc::LocationCounter(_, Some(os)) => {
@@ -5109,6 +5103,75 @@ fn get_defsym_attributes<C: ElfClass>(
             object::elf::STT_NOTYPE,
         ))
     }
+}
+
+fn section_is_loaded<A: crate::platform::SectionAttributes>(attr: &A) -> bool {
+    attr.is_alloc() && !attr.is_no_bits()
+}
+
+/// GNU ld `SEC_READONLY`. Unflagged empty sections are not readonly; `!SHF_WRITE`
+/// only counts once the section is allocated.
+fn section_is_readonly<A: crate::platform::SectionAttributes>(attr: &A) -> bool {
+    attr.is_alloc() && !attr.is_writable()
+}
+
+/// GNU ld `_bfd_nearby_section`: map a symbol whose output section was omitted
+/// onto a neighbouring kept section in the same segment.
+fn output_index_of_nearby_section<C: ElfClass>(
+    layout: &ElfLayout<C>,
+    section_id: OutputSectionId,
+    addr: u64,
+) -> Option<u32> {
+    let os = &layout.output_sections;
+    let prev_id = os.previous_emitted_section_id(section_id);
+    let next_id = os.following_emitted_section_id(section_id);
+    let best_id = match (prev_id, next_id) {
+        (None, None) => return None,
+        (Some(prev), None) => prev,
+        (None, Some(next)) => next,
+        (Some(prev), Some(next)) => {
+            // GNU ld often never sets SEC_ALLOC/SEC_LOAD on an empty omitted
+            // section (no input contributed flags). Wild may already have
+            // PHDR-derived ALLOC, which would pick the wrong neighbour.
+            let omitted = <elf::Elf<C> as Platform>::SectionAttributes::default();
+            let s = &omitted;
+            let prev_attr = &os.output_info(prev).section_attributes;
+            let next_attr = &os.output_info(next).section_attributes;
+            let alloc_tls_load_differ = prev_attr.is_alloc() != next_attr.is_alloc()
+                || prev_attr.is_tls() != next_attr.is_tls()
+                || section_is_loaded(prev_attr) != section_is_loaded(next_attr);
+            if alloc_tls_load_differ {
+                if next_attr.is_alloc() != s.is_alloc()
+                    || next_attr.is_tls() != s.is_tls()
+                    || (section_is_loaded(prev_attr) && !section_is_loaded(next_attr))
+                {
+                    prev
+                } else {
+                    next
+                }
+            } else if section_is_readonly(prev_attr) != section_is_readonly(next_attr) {
+                if section_is_readonly(next_attr) != section_is_readonly(s) {
+                    prev
+                } else {
+                    next
+                }
+            } else if prev_attr.is_executable() != next_attr.is_executable() {
+                if next_attr.is_executable() != s.is_executable() {
+                    prev
+                } else {
+                    next
+                }
+            } else {
+                let next_vma = layout.merged_section_layouts.get(next).mem_offset;
+                if addr < next_vma {
+                    prev
+                } else {
+                    next
+                }
+            }
+        }
+    };
+    os.output_index_of_section(best_id)
 }
 
 fn write_prelude_dynsym<C: ElfClass>(
@@ -5176,12 +5239,11 @@ fn write_defsym_dynsym<C: ElfClass>(
     symbol_id: SymbolId,
     def_info: &crate::parsing::InternalSymDefInfo<elf::Elf<C>>,
 ) -> Result {
-    let (shndx, st_type) = get_defsym_attributes(layout, def_info)?;
-
     let resolution = layout
         .local_symbol_resolution(symbol_id)
         .with_context(|| format!("Missing resolution for {}", layout.symbol_debug(symbol_id)))?;
     let address = resolution.raw_value;
+    let (shndx, st_type) = get_defsym_attributes(layout, def_info, address)?;
     let name = layout.symbol_db.symbol_name(symbol_id)?;
 
     let entry = dynsym_writer
@@ -5324,12 +5386,13 @@ fn write_regular_object_dynamic_symbol_definition<'data, C: ElfClass>(
 fn prelude_symbol_section_and_type<C: ElfClass>(
     layout: &ElfLayout<C>,
     def_info: &crate::parsing::InternalSymDefInfo<elf::Elf<C>>,
+    addr: u64,
 ) -> Result<(SymbolSection, object::elf::SymbolType)> {
     if matches!(
         def_info.placement,
         crate::parsing::SymbolPlacement::Redirect(_)
     ) {
-        return get_defsym_attributes(layout, def_info);
+        return get_defsym_attributes(layout, def_info, addr);
     }
     if let Some(script_def) = crate::layout::script_assignment_def(def_info.name, &layout.symbol_db)
         && matches!(
@@ -5337,7 +5400,7 @@ fn prelude_symbol_section_and_type<C: ElfClass>(
             crate::parsing::SymbolPlacement::Redirect(_)
         )
     {
-        return get_defsym_attributes(layout, script_def);
+        return get_defsym_attributes(layout, script_def, addr);
     }
 
     let shndx = def_info
@@ -5389,18 +5452,18 @@ fn write_internal_symbols<C: ElfClass>(
 
         let symbol_name = layout.symbol_db.symbol_name(symbol_id)?;
 
+        let mut address = resolution.value();
+
         // For Redirect, get attributes from the target symbol. A linker-script assignment
         // of the same name (e.g. `_etext = .`) overrides the prelude section, so `_etext` is
         // in the script `.text` rather than SHN_ABS from the unused builtin.
-        let (mut shndx, st_type) = prelude_symbol_section_and_type(layout, def_info)?;
+        let (mut shndx, st_type) = prelude_symbol_section_and_type(layout, def_info, address)?;
 
         // Move symbols that are in our header (section 0) into the first section, otherwise they'll
         // show up as undefined.
         if matches!(shndx, SymbolSection::Index(0)) {
             shndx = SymbolSection::Index(1);
         }
-
-        let mut address = resolution.value();
 
         if platform::Symbol::is_tls(&def_info.symbol) {
             address -= layout.tls_start_address();

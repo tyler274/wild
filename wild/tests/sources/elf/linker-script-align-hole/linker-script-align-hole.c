@@ -4,7 +4,7 @@
 //#LinkerScript:linker-script-align-hole.ld
 //#LinkArgs:--no-gc-sections
 //#ExpectSym:after_var section=".after"
-//#ExpectSym:__init_end address=0x401000
+//#ExpectSym:__init_end address=0x401000,section=".after"
 //#NoSym:__ehdr_start
 //#DiffIgnore:section.got
 //#DiffIgnore:segment.LOAD.RX.alignment

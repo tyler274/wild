@@ -1098,14 +1098,44 @@ impl<'data, P: Platform> OutputSections<'data, P> {
     }
 
     pub(crate) fn output_index_of_nearest_section(&self, id: OutputSectionId) -> Option<u32> {
-        let sections = self.output_section_indexes[..=id.as_usize()].iter().rev();
+        self.output_index_of_section(id).or_else(|| {
+            self.previous_emitted_section_id(id)
+                .and_then(|prev| self.output_index_of_section(prev))
+        })
+    }
 
-        for section in sections {
-            if section.is_some() {
-                return *section;
-            }
+    /// Previous emitted section in output-section-id order, skipping the file-header
+    /// placeholder that GNU ld does not treat as a real section.
+    pub(crate) fn previous_emitted_section_id(
+        &self,
+        id: OutputSectionId,
+    ) -> Option<OutputSectionId> {
+        self.output_section_indexes[..id.as_usize()]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(i, idx)| idx.and_then(|_| self.emitted_neighbor_id(i)))
+    }
+
+    /// Next emitted section in output-section-id order.
+    pub(crate) fn following_emitted_section_id(
+        &self,
+        id: OutputSectionId,
+    ) -> Option<OutputSectionId> {
+        self.output_section_indexes
+            .iter()
+            .enumerate()
+            .skip(id.as_usize() + 1)
+            .find_map(|(i, idx)| idx.and_then(|_| self.emitted_neighbor_id(i)))
+    }
+
+    fn emitted_neighbor_id(&self, index: usize) -> Option<OutputSectionId> {
+        let id = OutputSectionId::from_usize(index);
+        if id == FILE_HEADER {
+            None
+        } else {
+            Some(id)
         }
-        None
     }
 
     /// Returns whether we're going to emit the specified section.
