@@ -127,6 +127,8 @@ pub struct ElfArgs {
 
     pub(crate) should_output_executable: bool,
     pub(crate) should_output_partial_object: bool,
+    pub(crate) emit_relocs: bool,
+    pub(crate) discard_none: bool,
 
     pub(crate) nmagic: bool,
     pub(crate) rosegment: bool,
@@ -238,9 +240,6 @@ const SILENTLY_IGNORED_FLAGS: &[&str] = &[
     // Kernel vmlinux.lds / Makefile flags that we do not implement yet.
     "no-warn-rwx-segments",
     "warn-rwx-segments",
-    "emit-relocs",
-    "q", // alias for --emit-relocs
-    "discard-none",
 ];
 const SILENTLY_IGNORED_SHORT_FLAGS: &[&str] = &[
     "(",
@@ -280,6 +279,8 @@ impl Default for ElfArgs {
             lib_search_path: Vec::new(),
             should_output_executable: true,
             should_output_partial_object: false,
+            emit_relocs: false,
+            discard_none: false,
             dynamic_linker: None,
             strip: Strip::Nothing,
             // For now, we default to --gc-sections. This is different to other linkers, but other
@@ -858,6 +859,25 @@ fn setup_argument_parser() -> ArgumentParser<ElfArgs> {
             args.relro = false;
             args.should_write_linker_identity = false;
             args.merge_sections = false;
+            Ok(())
+        });
+
+    parser
+        .declare()
+        .short("q")
+        .long("emit-relocs")
+        .help("Leave relocation sections in fully linked output")
+        .execute(|args, _modifier_stack| {
+            args.emit_relocs = true;
+            Ok(())
+        });
+
+    parser
+        .declare()
+        .long("discard-none")
+        .help("Do not discard any local symbols")
+        .execute(|args, _modifier_stack| {
+            args.discard_none = true;
             Ok(())
         });
 
@@ -2059,6 +2079,14 @@ impl platform::Args for ElfArgs {
 
     fn should_output_partial_object(&self) -> bool {
         self.should_output_partial_object
+    }
+
+    fn emit_relocs(&self) -> bool {
+        self.emit_relocs
+    }
+
+    fn discard_none(&self) -> bool {
+        self.discard_none
     }
 
     fn should_write_gdb_index(&self) -> bool {

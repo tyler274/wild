@@ -96,7 +96,12 @@ impl<'data, P: Platform> Resolver<'data, P> {
     ) -> Result<Vec<ResolvedGroup<'data, P>>> {
         timing_phase!("Section resolution");
 
-        resolve_sections(&mut self.resolved_groups, symbol_db, layout_rules)?;
+        resolve_sections(
+            &mut self.resolved_groups,
+            symbol_db,
+            layout_rules,
+            output_sections,
+        )?;
 
         let mut syn = symbol_db.new_synthetic_symbols_group();
 
@@ -431,6 +436,7 @@ fn resolve_sections<'data, P: Platform>(
     groups: &mut [ResolvedGroup<'data, P>],
     symbol_db: &mut SymbolDb<'data, P>,
     layout_rules: &LayoutRules<'data>,
+    output_sections: &OutputSections<'data, P>,
 ) -> Result {
     timing_phase!("Resolve sections");
 
@@ -481,6 +487,7 @@ fn resolve_sections<'data, P: Platform>(
                                 allocator,
                                 &loaded_metrics,
                                 &layout_rules.section_rules,
+                                output_sections,
                             )?;
                             obj.sections = sections;
                             for part_id in part_ids {
@@ -1266,6 +1273,7 @@ fn resolve_sections_for_object<'data, P: Platform>(
     allocator: &bumpalo_herd::Member<'data>,
     loaded_metrics: &LoadedMetrics,
     rules: &SectionRules,
+    output_sections: &OutputSections<'data, P>,
 ) -> Result<(Vec<SectionSlot>, Vec<PartId>)> {
     // Note, we build up the collection with push rather than collect because at the time of
     // writing, object's `SectionTable::enumerate` isn't an exact-size iterator, so using collect
@@ -1286,6 +1294,7 @@ fn resolve_sections_for_object<'data, P: Platform>(
             allocator,
             loaded_metrics,
             rules,
+            output_sections,
         )?;
         sections.push(slot);
         section_part_ids.push(part_id);
@@ -1320,6 +1329,7 @@ fn resolve_section<'data, P: Platform>(
     allocator: &bumpalo_herd::Member<'data>,
     loaded_metrics: &LoadedMetrics,
     rules: &SectionRules,
+    output_sections: &OutputSections<'data, P>,
 ) -> Result<(SectionSlot, PartId)> {
     let section_name = obj
         .common
@@ -1355,10 +1365,32 @@ fn resolve_section<'data, P: Platform>(
             .map(|n| n.as_encoded_bytes())
     };
 
+    let emit_relocs_name = if args.emit_relocs()
+        && !args.should_output_partial_object()
+        && input_section.is_reloc_section()
+    {
+        emit_relocs_section_name::<P>(
+            input_section,
+            section_name,
+            obj.common.object,
+            file_name,
+            rules,
+            output_sections,
+            allocator,
+        )
+    } else {
+        None
+    };
+
     let rule_outcome = if args.should_output_partial_object() {
         P::lookup_for_partial_link(section_name, input_section, args)
     } else {
-        rules.lookup::<P>(section_name, file_name, input_section)
+        let outcome = rules.lookup::<P>(section_name, file_name, input_section);
+        if matches!(outcome, SectionRuleOutcome::Discard) && emit_relocs_name.is_some() {
+            SectionRuleOutcome::Custom
+        } else {
+            outcome
+        }
     };
 
     match rule_outcome {
@@ -1439,8 +1471,9 @@ fn resolve_section<'data, P: Platform>(
     }
 
     if part_id == PartId::CUSTOM_PLACEHOLDER {
+        let identity_name = emit_relocs_name.unwrap_or(section_name);
         let custom_section = CustomSectionDetails {
-            identity: P::section_identity(SectionName(section_name), input_section),
+            identity: P::section_identity(SectionName(identity_name), input_section),
             alignment,
             index: input_section_index,
         };
@@ -1476,6 +1509,46 @@ fn resolve_section<'data, P: Platform>(
     };
 
     Ok((slot, part_id))
+}
+
+/// GNU `--emit-relocs` names copied reloc sections after the *output* section that
+/// contains the target (`.data.rel.local` in `.data` → `.rela.data`), not the
+/// input reloc name (`.rela.data.rel.local`).
+fn emit_relocs_section_name<'data, P: Platform>(
+    input_section: &P::SectionHeader,
+    input_section_name: &'data [u8],
+    object: &P::File<'data>,
+    file_name: Option<&[u8]>,
+    rules: &SectionRules,
+    output_sections: &OutputSections<'data, P>,
+    allocator: &bumpalo_herd::Member<'data>,
+) -> Option<&'data [u8]> {
+    let prefix = input_section.reloc_output_name_prefix()?;
+    let target_idx = input_section.reloc_target_section_index()?;
+    let target_name = object.section_name(target_idx).ok()?;
+    let target_header = object.section(target_idx).ok()?;
+    let target_output_name = match rules.lookup::<P>(target_name, file_name, target_header) {
+        SectionRuleOutcome::Section(info) | SectionRuleOutcome::SortedSection(info) => {
+            let primary = output_sections.primary_output_section(info.section_id);
+            output_sections.name(primary)?.0
+        }
+        SectionRuleOutcome::Custom | SectionRuleOutcome::Debug => target_name,
+        SectionRuleOutcome::EhFrame => {
+            let id = P::EH_FRAME_SECTION_ID?;
+            output_sections.name(id)?.0
+        }
+        _ => return None,
+    };
+    if input_section_name.len() == prefix.len() + target_output_name.len()
+        && input_section_name.starts_with(prefix)
+        && &input_section_name[prefix.len()..] == target_output_name
+    {
+        return Some(input_section_name);
+    }
+    let mut name = Vec::with_capacity(prefix.len() + target_output_name.len());
+    name.extend_from_slice(prefix);
+    name.extend_from_slice(target_output_name);
+    Some(allocator.alloc_slice_copy(&name))
 }
 
 fn resolve_symbols<'data, 'scope, P: Platform>(

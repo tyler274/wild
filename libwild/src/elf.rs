@@ -75,6 +75,7 @@ use crate::program_segments::ProgramSegmentId;
 use crate::program_segments::ProgramSegments;
 use crate::program_segments::SegmentEntry;
 use crate::resolution::LoadedMetrics;
+use crate::resolution::SectionSlot;
 use crate::string_merging::MergedStringStartAddresses;
 use crate::string_merging::MergedStringsSection;
 use crate::symbol::UnversionedSymbolName;
@@ -1162,6 +1163,40 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             }
         }
 
+        Ok(())
+    }
+
+    fn load_associated_reloc_sections<'data, 'scope, A: Arch<Platform = Self>>(
+        state: &mut layout::ObjectLayoutState<'data, Self>,
+        common: &mut layout::CommonGroupState<'data, Self>,
+        queue: &mut layout::LocalWorkQueue<Self>,
+        resources: &'scope layout::GraphResources<'data, 'scope, Self>,
+        section_index: object::SectionIndex,
+        scope: &Scope<'scope>,
+    ) -> Result {
+        if !resources.symbol_db.args.emit_relocs() {
+            return Ok(());
+        }
+        let e = LittleEndian;
+        let target = u32::try_from(section_index.0).unwrap_or(u32::MAX);
+        let reloc_indices: Vec<object::SectionIndex> = state
+            .object
+            .enumerate_sections()
+            .filter(|(idx, header)| {
+                *idx != section_index
+                    && matches!(header.sh_type(e), sht::REL | sht::RELA)
+                    && header.sh_info(e) == target
+            })
+            .map(|(idx, _)| idx)
+            .collect();
+        for idx in reloc_indices {
+            if matches!(
+                state.sections.get(idx.0),
+                Some(SectionSlot::Unloaded(_) | SectionSlot::MustLoad(_))
+            ) {
+                state.handle_section_load_request::<A>(common, resources, queue, idx, scope)?;
+            }
+        }
         Ok(())
     }
 
@@ -3906,6 +3941,26 @@ impl platform::SectionHeader for object::elf::SectionHeader64<LittleEndian> {
                 | sht::GROUP
                 | sht::SYMTAB_SHNDX
         )
+    }
+
+    fn is_reloc_section(&self) -> bool {
+        matches!(self.sh_type(LittleEndian), sht::REL | sht::RELA)
+    }
+
+    fn reloc_output_name_prefix(&self) -> Option<&'static [u8]> {
+        match self.sh_type(LittleEndian) {
+            sht::RELA => Some(b".rela"),
+            sht::REL => Some(b".rel"),
+            _ => None,
+        }
+    }
+
+    fn reloc_target_section_index(&self) -> Option<object::SectionIndex> {
+        if !self.is_reloc_section() {
+            return None;
+        }
+        let info = self.sh_info(LittleEndian) as usize;
+        (info != 0).then_some(object::SectionIndex(info))
     }
 }
 

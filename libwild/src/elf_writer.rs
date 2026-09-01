@@ -58,7 +58,6 @@ use crate::output_section_id::OrderEvent;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
-use crate::output_section_id::SectionIdentity;
 use crate::output_section_id::SectionName;
 use crate::output_section_id::SectionOutputInfo;
 use crate::output_section_map::OutputSectionMap;
@@ -359,7 +358,7 @@ fn write_file_contents<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     prefill_script_fill::<C, A>(layout, &mut section_buffers);
     write_script_output_data(layout, &mut section_buffers)?;
 
-    let sym_index_map = if layout.args().should_output_partial_object() {
+    let sym_index_map = if layout.args().should_copy_input_relocs() {
         build_sym_index_map(layout)
     } else {
         Vec::new()
@@ -1970,7 +1969,11 @@ fn write_object<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
 
     if layout.args().should_output_partial_object() {
         write_symbols(object, &mut table_writer.debug_symbol_writer, layout)?;
-
+        write_rela_sections(object, buffers, layout, sym_index_map)?;
+    } else if layout.args().emit_relocs() {
+        if !layout.args().should_strip_all() {
+            write_symbols(object, &mut table_writer.debug_symbol_writer, layout)?;
+        }
         write_rela_sections(object, buffers, layout, sym_index_map)?;
     } else if !layout.args().should_strip_all() {
         write_symbols(object, &mut table_writer.debug_symbol_writer, layout)?;
@@ -2193,13 +2196,16 @@ fn write_rela_sections<'data, C: ElfClass>(
             continue;
         }
 
-        let Some(section_id) = layout
-            .output_sections
-            .custom_identity_to_id(SectionIdentity::new(SectionName(section_name), ()))
-        else {
+        let part_id = object.section_part_id(sec_idx, &layout.symbol_db.section_part_ids);
+        if part_id == crate::part_id::UNMAPPED {
             continue;
-        };
-        let part_id = section_id.part_id_with_alignment::<elf::Elf<C>>(C::RELA_ENTRY_ALIGNMENT);
+        }
+        if !matches!(
+            object.sections.get(sec_idx.0),
+            Some(SectionSlot::Loaded(_) | SectionSlot::LoadedDebugInfo(_))
+        ) {
+            continue;
+        }
 
         let target_sec_idx = object::SectionIndex(header.sh_info(e) as usize);
         let section_address = object.section_resolutions[target_sec_idx.0]
@@ -2257,7 +2263,11 @@ fn write_rela_sections<'data, C: ElfClass>(
                     object.section_resolutions[sec_idx.0].address()
                 })
                 .map_or(addend, |offset| addend + offset as i64);
-            out.set_offset(section_address + offset)?;
+            let output_offset = opt_input_to_output(
+                object.section_relax_deltas.get(target_sec_idx.0),
+                offset,
+            );
+            out.set_offset(section_address + output_offset)?;
             out.set_addend(addend)?;
             out.set_info(sym_idx, r_type)?;
             Ok::<_, error::Error>(())
@@ -2291,7 +2301,7 @@ fn write_object_section<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     trace: &TraceOutput,
 ) -> Result {
     let part_id = object.section_part_id(section_index, &layout.symbol_db.section_part_ids);
-    if layout.args().should_output_partial_object() {
+    if layout.args().should_copy_input_relocs() {
         let section_type = layout
             .output_sections
             .output_info(part_id.output_section_id::<elf::Elf<C>>())
@@ -2301,7 +2311,6 @@ fn write_object_section<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
             return Ok(());
         }
     }
-
     let skip_payload = layout.skip_incremental_payload(object.file_id);
     let out = write_section_raw::<C, A>(
         object,
@@ -5963,7 +5972,7 @@ fn write_section_headers<C: ElfClass>(out: &mut [u8], layout: &ElfLayout<C>) -> 
 
         let mut info_value = *info_values.get(section_id);
 
-        if layout.args().should_output_partial_object()
+        if layout.args().should_copy_input_relocs()
             && section_type == sht::RELA
             && section_id.is_custom::<elf::Elf<C>>()
         {
@@ -5972,9 +5981,11 @@ fn write_section_headers<C: ElfClass>(out: &mut [u8], layout: &ElfLayout<C>) -> 
             {
                 link = symtab_idx;
             }
-            if let Some(target_name) = name.bytes().strip_prefix(b".rela")
-                && let Some(target_id) = output_sections
-                    .custom_identity_to_id(SectionIdentity::new(SectionName(target_name), ()))
+            if let Some(target_name) = name
+                .bytes()
+                .strip_prefix(b".rela")
+                .or_else(|| name.bytes().strip_prefix(b".rel"))
+                && let Some(target_id) = output_sections.section_id_by_name(SectionName(target_name))
                 && let Some(target_idx) = output_sections.output_index_of_section(target_id)
             {
                 info_value = target_idx;

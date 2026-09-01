@@ -586,6 +586,19 @@ pub(crate) trait Platform:
         scope: &Scope<'scope>,
     ) -> Result;
 
+    /// When `--emit-relocs` is set, load the `SHT_REL`/`SHT_RELA` sections that apply to
+    /// `section_index` so they survive GC with their target.
+    fn load_associated_reloc_sections<'data, 'scope, A: Arch<Platform = Self>>(
+        _state: &mut layout::ObjectLayoutState<'data, Self>,
+        _common: &mut layout::CommonGroupState<'data, Self>,
+        _queue: &mut layout::LocalWorkQueue<Self>,
+        _resources: &'scope layout::GraphResources<'data, 'scope, Self>,
+        _section_index: object::SectionIndex,
+        _scope: &Scope<'scope>,
+    ) -> Result {
+        Ok(())
+    }
+
     fn create_dynamic_symbol_definition<'data>(
         symbol_db: &SymbolDb<'data, Self>,
         symbol_id: SymbolId,
@@ -1275,6 +1288,22 @@ pub(crate) trait SectionHeader: std::fmt::Debug + Send + Sync + 'static {
     fn skip_linker_script_matching(&self) -> bool {
         false
     }
+
+    /// Input `SHT_REL` / `SHT_RELA` sections copied by `-r` / `--emit-relocs`.
+    fn is_reloc_section(&self) -> bool {
+        false
+    }
+
+    /// GNU `--emit-relocs` names: `.rela` or `.rel` concatenated with the target
+    /// output section name (`.text` → `.rela.text`).
+    fn reloc_output_name_prefix(&self) -> Option<&'static [u8]> {
+        None
+    }
+
+    /// `sh_info` of an input `SHT_REL`/`SHT_RELA` section: the relocated section.
+    fn reloc_target_section_index(&self) -> Option<object::SectionIndex> {
+        None
+    }
 }
 
 pub(crate) trait SectionType:
@@ -1698,6 +1727,21 @@ pub(crate) trait Args: std::fmt::Debug + Send + Sync + 'static {
 
     fn should_output_partial_object(&self) -> bool {
         false
+    }
+
+    /// `--emit-relocs` / `-q`: copy input relocation records into the fully linked output.
+    fn emit_relocs(&self) -> bool {
+        false
+    }
+
+    /// `--discard-none`: keep local symbols that would otherwise be omitted (`.L`, mapping symbols).
+    fn discard_none(&self) -> bool {
+        false
+    }
+
+    /// Copy input `SHT_REL`/`SHT_RELA` contents into the output (`-r` or `--emit-relocs`).
+    fn should_copy_input_relocs(&self) -> bool {
+        self.should_output_partial_object() || self.emit_relocs()
     }
 
     fn architecture(&self) -> Architecture {

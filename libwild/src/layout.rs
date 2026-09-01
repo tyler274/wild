@@ -4816,6 +4816,15 @@ impl<'data, P: Platform> ObjectLayoutState<'data, P> {
             resources.keep_section(section_id);
         }
 
+        P::load_associated_reloc_sections::<A>(
+            self,
+            common,
+            queue,
+            resources,
+            section_index,
+            scope,
+        )?;
+
         Ok(())
     }
 
@@ -5243,7 +5252,9 @@ impl<'data> SymbolCopyInfo<'data> {
         // needs the name, doesn't have a go and read it again.
         let name = object.symbol_name(sym).ok()?;
         if name.is_empty()
-            || (!symbol_db.args.should_output_partial_object() && sym.is_default_strippable(name))
+            || (!symbol_db.args.should_output_partial_object()
+                && !symbol_db.args.discard_none()
+                && sym.is_default_strippable(name))
         {
             return None;
         }
