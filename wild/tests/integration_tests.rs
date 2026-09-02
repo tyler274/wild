@@ -2814,7 +2814,9 @@ impl ProgramInputs {
             // A previous incremental run may have left a -DWILD_INC object. Force a clean
             // compile so GNU ld and Wild both start from the unmarked object.
             let obj = add_to_path(
-                &config.build_dir().join(self.source_file.file_name().unwrap()),
+                &config
+                    .build_dir()
+                    .join(self.source_file.file_name().unwrap()),
                 ".o",
             );
             let _ = std::fs::remove_file(&obj);
@@ -2987,7 +2989,9 @@ impl ProgramInputs {
                 bytes.len() >= nodes_at + 8,
                 "reverse reloc index is truncated at node count"
             );
-            Ok(u64::from_le_bytes(bytes[nodes_at..nodes_at + 8].try_into()?))
+            Ok(u64::from_le_bytes(
+                bytes[nodes_at..nodes_at + 8].try_into()?,
+            ))
         }
 
         let state_dir = {
@@ -3049,9 +3053,8 @@ impl ProgramInputs {
         }
         let restore = RestoreObject {
             dest: inputs[0].path.clone(),
-            bytes: std::fs::read(&inputs[0].path).with_context(|| {
-                format!("Failed to snapshot {}", inputs[0].path.display())
-            })?,
+            bytes: std::fs::read(&inputs[0].path)
+                .with_context(|| format!("Failed to snapshot {}", inputs[0].path.display()))?,
         };
 
         self.rebuild_primary_c(config, &inputs[0].path, cross_arch, true)
@@ -3101,9 +3104,8 @@ impl ProgramInputs {
             .status()
             .with_context(|| format!("Failed to run {command:?}"))?;
         ensure!(status.success(), "Recompile failed: {command:?}");
-        std::fs::copy(&tmp, dest).with_context(|| {
-            format!("Failed to copy {} onto {}", tmp.display(), dest.display())
-        })?;
+        std::fs::copy(&tmp, dest)
+            .with_context(|| format!("Failed to copy {} onto {}", tmp.display(), dest.display()))?;
         Ok(())
     }
 

@@ -425,11 +425,8 @@ impl<F: FileSystem> Linker<F> {
                 session.record_fallback("strict-order .init/.fini");
             }
             let object_records = layout.incremental_object_records();
-            layout.incremental_skip_payloads = session.plan_in_place_update(
-                &sections,
-                &object_records,
-                &file_loader.loaded_files,
-            );
+            layout.incremental_skip_payloads =
+                session.plan_in_place_update(&sections, &object_records, &file_loader.loaded_files);
             if !layout.incremental_skip_payloads.is_empty() {
                 if let (Some(old_resolutions), Some(reverse_relocs)) = (
                     session.previous_resolutions.take(),

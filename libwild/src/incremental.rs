@@ -397,21 +397,18 @@ fn plan_skip_payloads<D: crate::InputFileData>(
     let previous_sections = load_persisted_sections(state_dir)
         .ok_or_else(|| "missing previous section layout".to_owned())?;
     if previous_sections.len() != sections.len()
-        || previous_sections
-            .iter()
-            .zip(sections)
-            .any(|(prev, cur)| {
-                prev.file_offset != cur.file_offset
-                    || prev.file_size != cur.file_size
-                    || prev.mem_size != cur.mem_size
-                    || prev.name != cur.name
-            })
+        || previous_sections.iter().zip(sections).any(|(prev, cur)| {
+            prev.file_offset != cur.file_offset
+                || prev.file_size != cur.file_size
+                || prev.mem_size != cur.mem_size
+                || prev.name != cur.name
+        })
     {
         return Err("output section layout changed".to_owned());
     }
 
-    let previous_sizes = load_object_sizes(state_dir)
-        .ok_or_else(|| "missing previous object sizes".to_owned())?;
+    let previous_sizes =
+        load_object_sizes(state_dir).ok_or_else(|| "missing previous object sizes".to_owned())?;
     for (_, path, sizes) in objects {
         match previous_sizes.get(path) {
             Some(prev) if prev == sizes => {}

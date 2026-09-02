@@ -406,16 +406,12 @@ fn tail_merge_class(
     // BFD merge_strings: reverse-sort, then absorb a string only into the
     // immediately neighboring longer host. All-pairs suffix matching over-merges
     // relative to GNU ld (kernel .rodata was 0x100 smaller).
-    let mut order: Vec<usize> = (0..pieces.len())
-        .filter(|&i| pieces[i].is_string)
-        .collect();
+    let mut order: Vec<usize> = (0..pieces.len()).filter(|&i| pieces[i].is_string).collect();
     if order.len() >= 2 {
         let align = pieces[order[0]].alignment.value();
         let entsize = pieces[order[0]].entsize.max(1) as usize;
-        let use_align = align > entsize as u64
-            && order
-                .iter()
-                .all(|&i| pieces[i].alignment.value() == align);
+        let use_align =
+            align > entsize as u64 && order.iter().all(|&i| pieces[i].alignment.value() == align);
         order.sort_by(|&i, &j| {
             gnu_strrev_cmp(pieces[i].bytes, pieces[j].bytes, align, use_align, entsize)
         });
@@ -841,11 +837,8 @@ fn process_input_section<'data, 'offsets>(
     while !remaining.is_empty() && input_offset < range.end {
         let in_sec = input_offset - input_section.start_input_offset;
         let elt_align = entity_alignment(in_sec, input_section.alignment);
-        let string = MergeString::take_string_hashed(
-            &mut remaining,
-            elt_align,
-            input_section.entsize,
-        )?;
+        let string =
+            MergeString::take_string_hashed(&mut remaining, elt_align, input_section.entsize)?;
         insert_data(string, &mut input_offset);
     }
 
@@ -1575,11 +1568,7 @@ impl<'data> MergeString<'data> {
 
 fn hash_merge_string(bytes: &[u8], is_string: bool, entsize: u32) -> u64 {
     crate::hash::hash_bytes(bytes)
-        ^ if is_string {
-            0
-        } else {
-            0x517c_c1b7_2722_0a95
-        }
+        ^ if is_string { 0 } else { 0x517c_c1b7_2722_0a95 }
         ^ 0x9e37_79b9_7f4a_7c15u64.wrapping_mul(u64::from(entsize))
 }
 
@@ -1639,11 +1628,7 @@ pub(crate) fn get_merged_string_output_address<'data, P: Platform>(
 }
 
 fn remap_tail_offset(offset: BucketOffset, section: &MergedStringsSection<'_>) -> BucketOffset {
-    section
-        .tail_remap
-        .get(&offset.0)
-        .copied()
-        .unwrap_or(offset)
+    section.tail_remap.get(&offset.0).copied().unwrap_or(offset)
 }
 
 fn find_string(

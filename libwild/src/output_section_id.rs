@@ -1131,11 +1131,7 @@ impl<'data, P: Platform> OutputSections<'data, P> {
 
     fn emitted_neighbor_id(&self, index: usize) -> Option<OutputSectionId> {
         let id = OutputSectionId::from_usize(index);
-        if id == FILE_HEADER {
-            None
-        } else {
-            Some(id)
-        }
+        if id == FILE_HEADER { None } else { Some(id) }
     }
 
     /// Returns whether we're going to emit the specified section.

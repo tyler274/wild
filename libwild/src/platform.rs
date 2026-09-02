@@ -1735,7 +1735,8 @@ pub(crate) trait Args: std::fmt::Debug + Send + Sync + 'static {
         false
     }
 
-    /// `--discard-none`: keep local symbols that would otherwise be omitted (`.L`, mapping symbols).
+    /// `--discard-none`: keep local symbols that would otherwise be omitted (`.L`, mapping
+    /// symbols).
     fn discard_none(&self) -> bool {
         false
     }

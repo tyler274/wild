@@ -235,18 +235,21 @@ impl<'data> LinkerPlugin<'data> {
         mark_lto_symbols_for_dynamic_export(symbol_db, per_symbol_flags, &resolver.resolved_groups);
 
         let plugin_path = self.path.clone();
-        let plugin_outputs = self.store.loaded(&plugin_path)?.with_callbacks(|callbacks| {
-            if let Some(cb) = callbacks.all_symbols_read {
-                let ctx = AllSymbolsReadContext {
-                    symbol_db,
-                    resolved_groups: &resolver.resolved_groups,
-                    per_symbol_flags,
-                };
+        let plugin_outputs = self
+            .store
+            .loaded(&plugin_path)?
+            .with_callbacks(|callbacks| {
+                if let Some(cb) = callbacks.all_symbols_read {
+                    let ctx = AllSymbolsReadContext {
+                        symbol_db,
+                        resolved_groups: &resolver.resolved_groups,
+                        per_symbol_flags,
+                    };
 
-                ctx.set_current_while(|| cb().to_result("all_symbols_read"))?;
-            }
-            Ok(PLUGIN_OUTPUTS.take())
-        })?;
+                    ctx.set_current_while(|| cb().to_result("all_symbols_read"))?;
+                }
+                Ok(PLUGIN_OUTPUTS.take())
+            })?;
 
         if let Ok(dir_name) = env::var(SAVE_VAR_NAME) {
             plugin_outputs.save_to(Path::new(&dir_name))?;
@@ -290,67 +293,70 @@ impl<'data> LinkerPlugin<'data> {
         fd: RawFd,
     ) -> Result<Option<Box<LtoInputInfo<'data>>>> {
         let plugin_path = self.path.clone();
-        self.store.loaded(&plugin_path)?.with_callbacks(|callbacks| {
-            let data = input_ref.data();
-            let offset = input_ref
-                .entry
-                .as_ref()
-                .map_or(0, |entry| entry.start_offset as u64);
+        self.store
+            .loaded(&plugin_path)?
+            .with_callbacks(|callbacks| {
+                let data = input_ref.data();
+                let offset = input_ref
+                    .entry
+                    .as_ref()
+                    .map_or(0, |entry| entry.start_offset as u64);
 
-            let cb = callbacks
-                .claim_file_hook
-                .context("Missing claim file hook")?;
+                let cb = callbacks
+                    .claim_file_hook
+                    .context("Missing claim file hook")?;
 
-            let mut ctx = ClaimContext {
-                symbols: Vec::new(),
-                herd: self.herd,
-                wrap_symbols: self.wrap_symbols,
-            };
+                let mut ctx = ClaimContext {
+                    symbols: Vec::new(),
+                    herd: self.herd,
+                    wrap_symbols: self.wrap_symbols,
+                };
 
-            let name = CString::new(input_ref.file.filename.as_os_str().as_encoded_bytes())?;
-            let name = CStr::from_bytes_with_nul(
-                self.herd.get().alloc_slice_copy(name.as_bytes_with_nul()),
-            )
-            .unwrap();
+                let name = CString::new(input_ref.file.filename.as_os_str().as_encoded_bytes())?;
+                let name = CStr::from_bytes_with_nul(
+                    self.herd.get().alloc_slice_copy(name.as_bytes_with_nul()),
+                )
+                .unwrap();
 
-            let handle = FileHandle {
-                data,
-                name,
-                fd,
-                offset,
-                file_id: AtomicCell::new(None),
-            };
+                let handle = FileHandle {
+                    data,
+                    name,
+                    fd,
+                    offset,
+                    file_id: AtomicCell::new(None),
+                };
 
-            let handle = self.herd.get().alloc(handle);
+                let handle = self.herd.get().alloc(handle);
 
-            let file = LdPluginInputFile {
-                name: name.as_ptr(),
-                fd,
-                offset: offset as libc::off_t,
-                file_size: data.len() as libc::off_t,
-                // Whatever we store here needs to be valid for 'data, since the plugin might pass
-                // this back to us at a later point. e.g. get_symbols does so.
-                handle: std::ptr::from_ref::<FileHandle>(handle) as *mut libc::c_void,
-            };
+                let file = LdPluginInputFile {
+                    name: name.as_ptr(),
+                    fd,
+                    offset: offset as libc::off_t,
+                    file_size: data.len() as libc::off_t,
+                    // Whatever we store here needs to be valid for 'data, since the plugin might
+                    // pass this back to us at a later point. e.g. get_symbols
+                    // does so.
+                    handle: std::ptr::from_ref::<FileHandle>(handle) as *mut libc::c_void,
+                };
 
-            let mut claimed = 0;
+                let mut claimed = 0;
 
-            ctx.set_current_while(|| {
-                unsafe { cb(&raw const file, &raw mut claimed) }.to_result("claim_file")
-            })?;
+                ctx.set_current_while(|| {
+                    unsafe { cb(&raw const file, &raw mut claimed) }.to_result("claim_file")
+                })?;
 
-            check_for_errors()?;
+                check_for_errors()?;
 
-            if claimed != 1 {
-                return Ok(None);
-            }
+                if claimed != 1 {
+                    return Ok(None);
+                }
 
-            Ok(Some(Box::new(LtoInputInfo {
-                input_ref,
-                symbols: ctx.symbols,
-                handle,
-            })))
-        })
+                Ok(Some(Box::new(LtoInputInfo {
+                    input_ref,
+                    symbols: ctx.symbols,
+                    handle,
+                })))
+            })
     }
 
     pub(crate) fn is_initialised(&self) -> bool {
