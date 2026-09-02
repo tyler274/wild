@@ -615,6 +615,7 @@ pub(crate) struct LayoutExt {
     pub(crate) riscv_attributes: RiscVAttributes,
     pub(crate) eflags: object::elf::FileFlags,
     pub(super) has_eh_frame_input: bool,
+    num_got_plt_header_entries: u64,
 }
 
 impl LayoutExt {
@@ -639,7 +640,16 @@ impl LayoutExt {
             riscv_attributes,
             eflags,
             has_eh_frame_input,
+            num_got_plt_header_entries: A::NUM_GOT_PLT_HEADER_ENTRIES,
         })
+    }
+
+    pub(super) fn num_got_plt_header_entries(&self, has_plt_relocations: bool) -> u64 {
+        if has_plt_relocations {
+            self.num_got_plt_header_entries
+        } else {
+            0
+        }
     }
 }
 

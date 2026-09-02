@@ -1119,6 +1119,10 @@ pub(crate) fn write_plt_got_entries<'data, C: ElfClass, A: Arch<Platform = elf::
     layout: &ElfLayout<'data, C>,
     table_writer: &mut TableWriter<'_, '_, C>,
 ) -> Result {
+    for _ in 0..prelude.format_specific.got_plt_header_entries {
+        *table_writer.take_next_got_entry()? = elf::Word::<C>::from_u64(0)?;
+    }
+
     // Write a pair of GOT entries for use by any TLSLD or TLSGD relocations.
     if let Some(got_address) = prelude.format_specific.tlsld_got_entry {
         let mut raw_value = 0;

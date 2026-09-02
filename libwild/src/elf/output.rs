@@ -926,6 +926,7 @@ pub(crate) struct PreludeLayoutStateExt {
 
 #[derive(Default, Debug)]
 pub(crate) struct PreludeLayoutExt {
+    pub(crate) got_plt_header_entries: u64,
     pub(crate) tlsld_got_entry: Option<NonZeroU64>,
 }
 
