@@ -219,8 +219,8 @@ fn check_elf_specific_code() -> Result {
         "input_data.rs",
         "layout",
         "parsing.rs",
-        "resolution.rs",
-        "symbol_db.rs",
+        "resolution",
+        "symbol_db",
         "thunks.rs",
     ];
 
