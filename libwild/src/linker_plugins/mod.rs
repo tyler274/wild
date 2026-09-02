@@ -66,6 +66,12 @@ use std::panic::AssertUnwindSafe;
 use std::path::Path;
 use std::path::PathBuf;
 
+mod discover;
+mod lto;
+
+#[allow(unused_imports)]
+pub(crate) use lto::*;
+
 /// Set this environment variable to a directory and we'll write output files produced by the linker
 /// plugin to it. Old outputs will be deleted, but only if the directory looks like one we produced.
 const SAVE_VAR_NAME: &str = "WILD_SAVE_PLUGIN_OUTPUTS";
@@ -174,8 +180,8 @@ impl<'data> LinkerPlugin<'data> {
 
     fn discover_plugin_path_for_kind(kind: FileKind) -> Result<PathBuf> {
         match kind {
-            FileKind::LlvmIr => discover_llvm_gold_plugin(),
-            FileKind::GccIr => discover_gcc_lto_plugin(),
+            FileKind::LlvmIr => discover::discover_llvm_gold_plugin(),
+            FileKind::GccIr => discover::discover_gcc_lto_plugin(),
             _ => crate::bail!("No linker plugin is applicable for {kind}"),
         }
     }
@@ -362,55 +368,6 @@ impl<'data> LinkerPlugin<'data> {
     pub(crate) fn is_initialised(&self) -> bool {
         matches!(self.store, Store::Loaded(_))
     }
-}
-
-fn mark_lto_symbols_for_dynamic_export<C: ElfClass>(
-    symbol_db: &SymbolDb<Elf<C>>,
-    per_symbol_flags: &mut PerSymbolFlags,
-    resolved_groups: &[ResolvedGroup<Elf<C>>],
-) {
-    use crate::grouping::Group;
-
-    for group in resolved_groups {
-        for file in &group.files {
-            if let ResolvedFile::LtoInput(lto_input) = file {
-                let Group::LtoInputs(files) = &symbol_db.groups[lto_input.file_id.group()] else {
-                    unreachable!();
-                };
-                let file = &files[lto_input.file_id.file()];
-
-                let Some(mode) = crate::layout::export_symbols_mode(symbol_db, &file.input_ref)
-                else {
-                    continue;
-                };
-
-                for (symbol_id, symbol) in file.symbols_iter() {
-                    if symbol.is_definition()
-                        && crate::layout::can_export_global_def(
-                            symbol_db,
-                            elf::convert_elf_visibility(object::elf::SymbolVisibility(
-                                symbol.visibility,
-                            )),
-                            symbol_id,
-                            per_symbol_flags.flags_for_symbol(symbol_id),
-                            mode,
-                        )
-                    {
-                        per_symbol_flags.set_flag(symbol_id, ValueFlags::EXPORT_DYNAMIC);
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn has_loaded_lto_input<P: Platform>(resolved_groups: &[ResolvedGroup<P>]) -> bool {
-    resolved_groups.iter().any(|group| {
-        group
-            .files
-            .iter()
-            .any(|file| matches!(file, ResolvedFile::LtoInput(_)))
-    })
 }
 
 impl<'data> WrapSymbols<'data> {
@@ -1406,92 +1363,6 @@ pub(crate) enum SymbolKind {
     Common = 4,
 }
 
-fn discover_llvm_gold_plugin() -> Result<PathBuf> {
-    let rustc_llvm = rustc_llvm_version();
-    let mut candidates = Vec::new();
-
-    if let Some(sysroot) = command_stdout_trim("rustc", &["--print", "sysroot"]) {
-        candidates.push(PathBuf::from(sysroot).join("lib/LLVMgold.so"));
-    }
-    if let Some(libdir) = command_stdout_trim("llvm-config", &["--libdir"]) {
-        candidates.push(PathBuf::from(libdir).join("LLVMgold.so"));
-    }
-
-    if let Ok(entries) = std::fs::read_dir("/usr/lib") {
-        let mut llvm_dirs: Vec<_> = entries
-            .flatten()
-            .map(|e| e.path())
-            .filter(|p| {
-                p.file_name()
-                    .and_then(|n| n.to_str())
-                    .is_some_and(|n| n.starts_with("llvm-"))
-            })
-            .collect();
-        llvm_dirs.sort();
-        llvm_dirs.reverse();
-        for dir in llvm_dirs {
-            candidates.push(dir.join("lib/LLVMgold.so"));
-        }
-    }
-
-    if let Some(version) = rustc_llvm
-        && let Some(matched) = candidates
-            .iter()
-            .find(|p| p.to_string_lossy().contains(&format!("llvm-{version}")) && p.is_file())
-    {
-        return Ok(matched.clone());
-    }
-
-    candidates.into_iter().find(|p| p.is_file()).ok_or_else(|| {
-        crate::error!(
-            "Input file contains LLVM-IR, but linker plugin was not supplied and LLVMgold.so could not be found"
-        )
-    })
-}
-
-fn discover_gcc_lto_plugin() -> Result<PathBuf> {
-    for compiler in ["gcc", "cc"] {
-        if let Some(path) = command_stdout_trim(compiler, &["-print-file-name=liblto_plugin.so"])
-            && Path::new(&path).is_file()
-        {
-            return Ok(PathBuf::from(path));
-        }
-    }
-    crate::bail!(
-        "Input file contains GCC-IR, but linker plugin was not supplied and liblto_plugin.so could not be found"
-    )
-}
-
-fn rustc_llvm_version() -> Option<u32> {
-    let verbose = command_stdout_trim("rustc", &["--version", "--verbose"])?;
-    for line in verbose.lines() {
-        if let Some(rest) = line.strip_prefix("LLVM version: ")
-            && let Some(major) = rest.split('.').next()
-            && let Ok(v) = major.parse()
-        {
-            return Some(v);
-        }
-    }
-    None
-}
-
-fn command_stdout_trim(program: &str, args: &[&str]) -> Option<String> {
-    let output = std::process::Command::new(program)
-        .args(args)
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let text = String::from_utf8(output.stdout).ok()?;
-    let trimmed = text.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_owned())
-    }
-}
-
 impl std::fmt::Display for LinkerPlugin<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.store {
@@ -1567,68 +1438,4 @@ fn increase_file_limit() -> Result {
     nix::sys::resource::setrlimit(RLIMIT_NOFILE, hard_limit, hard_limit)?;
 
     Ok(())
-}
-
-pub(crate) fn resolve_lto_symbols<'data, 'scope, C: ElfClass>(
-    obj: &crate::linker_plugins::LtoInput<'data>,
-    resources: &'scope ResolutionResources<'data, 'scope, Elf<C>>,
-    definitions_out: &mut [SymbolId],
-    scope: &Scope<'scope>,
-) -> Result {
-    obj.symbols
-        .iter()
-        .enumerate()
-        .zip(definitions_out)
-        .try_for_each(
-            |((local_symbol_index, local_symbol), definition)| -> Result {
-                if !local_symbol.is_definition() {
-                    let mut name_info = Elf::<C>::parse_raw_symbol_name(local_symbol.name.bytes());
-                    if let Some(version) = local_symbol.version {
-                        name_info.version_name = Some(version);
-                    }
-
-                    let symbol_attributes = SymbolAttributes {
-                        name_info,
-                        is_local: false,
-                        default_visibility: local_symbol.visibility == object::elf::STV_DEFAULT.0,
-                        is_weak: local_symbol.kind
-                            == Some(crate::linker_plugins::SymbolKind::WeakUndef),
-                    };
-
-                    crate::resolution::resolve_symbol(
-                        obj.symbol_id_range.offset_to_id(local_symbol_index),
-                        &symbol_attributes,
-                        definition,
-                        resources,
-                        false,
-                        obj.file_id,
-                        scope,
-                        true,
-                    )?;
-                }
-
-                Ok(())
-            },
-        )
-}
-
-/// Marks symbols related to --wrap as having non-IR references. This ensures that the linker
-/// plugin preserves these symbols in its output rather than internalising them.
-fn mark_wrap_symbols_as_non_ir_ref<'data, P: Platform>(
-    symbol_db: &SymbolDb<'data, P>,
-    per_symbol_flags: &mut PerSymbolFlags,
-) {
-    for name in symbol_db.args.symbol_names_to_wrap() {
-        for lookup_name in [
-            name.clone(),
-            format!("__wrap_{name}"),
-            format!("__real_{name}"),
-        ] {
-            if let Some(symbol_id) =
-                symbol_db.get_unversioned(&UnversionedSymbolName::prehashed(lookup_name.as_bytes()))
-            {
-                per_symbol_flags.set_flag(symbol_id, ValueFlags::HAS_NON_IR_REF);
-            }
-        }
-    }
 }
