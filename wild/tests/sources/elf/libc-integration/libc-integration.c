@@ -27,7 +27,7 @@
 //#LinkArgs:-static -Wl,--strip-debug -Wl,--gc-sections -Wl,-z,now
 //#Object:libc-integration-0.c
 //#Object:libc-integration-1.c
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#Cross: false
 //#DiffIgnore:rel.extra-got-plt-got
 
@@ -39,7 +39,7 @@
 //#TestUpdateInPlace:true
 //#Object:libc-integration-0.c
 //#Object:libc-integration-1.c
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#Cross: false
 
 //#Config:gcc-static:default
@@ -47,7 +47,7 @@
 //#LinkArgs:-static -Wl,--strip-debug -Wl,--gc-sections -Wl,-z,now
 //#Object:libc-integration-0.c
 //#Object:libc-integration-1.c
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 // Seems lld linked binary crashes under QEMU.
 //#SkipArch: loongarch64,riscv64,ppc64le
 //#DiffIgnore:rel.extra-got-plt-got
@@ -58,7 +58,7 @@
 //#LinkArgs:-static-pie -Wl,--strip-debug -Wl,--gc-sections -Wl,-z,now
 //#Object:libc-integration-0.c
 //#Object:libc-integration-1.c
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 // riscv64: lld-linked binary crashes with SIGSEGV under QEMU.
 // loongarch64: wild produces output that differs from both ld and lld (#1702).
 //#SkipArch: loongarch64,riscv64,ppc64le
@@ -68,7 +68,7 @@
 //#CompArgs:-g -fPIC -ftls-model=initial-exec -DDYNAMIC_DEP
 //#LinkerDriver:clang
 //#LinkArgs:-fPIC -dynamic -Wl,--strip-debug -Wl,--gc-sections -Wl,-rpath,$ORIGIN -Wl,-z,now
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#Cross: false
 //#DiffIgnore:section.relro_padding
 
@@ -78,7 +78,7 @@
 //#CompArgs:-g -fPIC -ftls-model=global-dynamic -DDYNAMIC_DEP
 //#LinkerDriver:clang
 //#LinkArgs:-fPIC -dynamic -Wl,--strip-debug -Wl,--gc-sections -Wl,-rpath,$ORIGIN -Wl,-z,now
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#Cross: false
 //#DiffIgnore:section.relro_padding
 
@@ -102,7 +102,7 @@
 // On nixos, with this configuration, GNU ld seems to only optimise TLSGD to initial-exec rather
 // than local exec. lld does however still optimise to local exec, so we enable it as an additional
 // reference point.
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#LinkArgs:-dynamic -no-pie -Wl,--strip-debug -Wl,--gc-sections -Wl,-z,now -L/does/not/exist
 // Fails under QEMU for some reason for both RISC-V and LoongArch64.
 //#SkipArch: loongarch64, riscv64,ppc64le

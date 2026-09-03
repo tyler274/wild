@@ -1,6 +1,6 @@
 //#SkipArch: ppc64le
 //#Object:runtime.c
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#Mode:dynamic
 //#CompSoArgs:-fPIC
 //#LinkArgs:-z now

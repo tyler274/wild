@@ -1,6 +1,6 @@
 //#SkipArch: ppc64le
 //#Shared:runtime.c
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#Mode:dynamic
 //#LinkArgs:-z now
 //#Shared:data-pointers-2.c

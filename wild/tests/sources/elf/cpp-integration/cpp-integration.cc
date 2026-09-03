@@ -17,14 +17,14 @@
 //#CompArgs:-fpie -fmerge-constants
 //#LinkerDriver:g++
 //#LinkArgs:-pie -Wl,-z,now
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 
 //#Config:no-pie:default
 //#SkipArch: ppc64le
 //#CompArgs:-fno-pie -fmerge-constants
 //#LinkerDriver:g++
 //#LinkArgs:-no-pie -Wl,-z,now
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 
 //#Config:static-no-relax:default
 //#CompArgs:-fmerge-constants
@@ -47,13 +47,13 @@
 //#Compiler:clang
 //#LinkerDriver:clang++
 //#LinkArgs:-pie -Wl,-z,now
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 
 //#Config:model-large:default
 //#CompArgs:-mcmodel=large
 //#LinkerDriver:g++
 //#LinkArgs:-Wl,-z,now
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 // TODO: Ubuntu: cc1plus: sorry, unimplemented: code model 'large' with '-fPIC'
 //#Arch: x86_64
 
@@ -62,7 +62,7 @@
 //#CompArgs:-mcmodel=large
 //#LinkerDriver:clang++
 //#LinkArgs:-Wl,-z,now
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#Arch: x86_64
 
 //#Config:clang-crel:default

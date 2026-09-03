@@ -11,7 +11,7 @@
 //#Object:symbol-versions-2.c
 //#ExpectSym: _start section=".text"
 //#ExpectSym: exit_syscall section=".text"
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 
 //#Config:verdef-0:verdef
 //#SkipArch: ppc64le

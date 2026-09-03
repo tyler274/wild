@@ -2077,10 +2077,16 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         builder.add_section(output_section_id::PLT_GOT);
         builder.add_section(output_section_id::INIT);
         builder.add_section(output_section_id::FINI);
-        builder.add_sections(&custom.exec);
-        // We want ThunkConfig::primary_function_part_id to be more or less last, since we only
-        // support generating thunks before the primary_function_part, not after.
-        builder.add_section(output_section_id::TEXT);
+        if custom.place_after_similar {
+            builder.add_section(output_section_id::TEXT);
+            builder.add_sections(&custom.exec);
+        } else {
+            builder.add_sections(&custom.exec);
+            // Thunk generation only supports emitting thunks before the primary
+            // function part, so unnamed exec sections stay before `.text` when
+            // there is no linker script.
+            builder.add_section(output_section_id::TEXT);
+        }
 
         builder.add_section(output_section_id::TDATA);
         builder.add_sections(&custom.tdata);
@@ -2282,6 +2288,8 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             }
         };
 
+        let mut pending = custom.clone();
+
         for (pos, section_id) in ordered_sections.iter().enumerate() {
             let section_id = *section_id;
 
@@ -2338,33 +2346,63 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
 
             builder.add_section(section_id);
 
+            let this_attr = &output_sections
+                .section_infos
+                .get(section_id)
+                .section_attributes;
+            let this_class = CustomSectionIds::class_of::<Self>(this_attr);
+            let next_class = ordered_sections.get(pos + 1).map(|next| {
+                CustomSectionIds::class_of::<Self>(
+                    &output_sections.section_infos.get(*next).section_attributes,
+                )
+            });
+            if this_class != crate::output_section_id::OrphanClass::NonAlloc
+                && next_class != Some(this_class)
+            {
+                let orphans = pending.take_class(this_class);
+                if !orphans.is_empty() {
+                    for phdr in &output_sections.section_infos.get(section_id).phdrs {
+                        if let Some(&seg_id) = segments_map.get(phdr) {
+                            update_flags(&mut builder, &orphans, seg_id);
+                        }
+                    }
+                    builder.add_sections(&orphans);
+                }
+            }
+
             for (seg_idx, segment) in ends.iter().enumerate().take(num_phdrs) {
                 if *segment == Some(pos) {
                     let seg_id = ProgramSegmentId::new(seg_idx);
                     if Some(seg_id) == first_exec.or(first_load) {
-                        update_flags(&mut builder, &custom.exec, seg_id);
-                        builder.add_sections(&custom.exec);
+                        update_flags(&mut builder, &pending.exec, seg_id);
+                        builder.add_sections(&pending.exec);
+                        pending.exec.clear();
                     }
                     if Some(seg_id) == first_rw.or(first_load) {
-                        update_flags(&mut builder, &custom.tdata, seg_id);
-                        update_flags(&mut builder, &custom.tbss, seg_id);
-                        update_flags(&mut builder, &custom.data, seg_id);
-                        update_flags(&mut builder, &custom.bss, seg_id);
-                        builder.add_sections(&custom.tdata);
-                        builder.add_sections(&custom.tbss);
-                        builder.add_sections(&custom.data);
-                        builder.add_sections(&custom.bss);
+                        update_flags(&mut builder, &pending.tdata, seg_id);
+                        update_flags(&mut builder, &pending.tbss, seg_id);
+                        update_flags(&mut builder, &pending.data, seg_id);
+                        update_flags(&mut builder, &pending.bss, seg_id);
+                        builder.add_sections(&pending.tdata);
+                        builder.add_sections(&pending.tbss);
+                        builder.add_sections(&pending.data);
+                        builder.add_sections(&pending.bss);
+                        pending.tdata.clear();
+                        pending.tbss.clear();
+                        pending.data.clear();
+                        pending.bss.clear();
                     }
                     if Some(seg_id) == first_ro.or(first_load) {
-                        update_flags(&mut builder, &custom.ro, seg_id);
-                        builder.add_sections(&custom.ro);
+                        update_flags(&mut builder, &pending.ro, seg_id);
+                        builder.add_sections(&pending.ro);
+                        pending.ro.clear();
                     }
                     builder.push_event(OrderEvent::SegmentEnd(seg_id));
                 }
             }
         }
 
-        for &id in &custom.nonalloc {
+        for &id in &pending.nonalloc {
             if id != output_section_id::RISCV_ATTRIBUTES {
                 builder.add_section(id);
             }

@@ -3,7 +3,7 @@
 // of tests makes sure we keep the alignment.
 
 //#AbstractConfig:default
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#DiffIgnore:section.relro_padding
 
 // `-no-pie` should override `-shared`, and `-pie --dynamic-linker ..` should result in dynamic PIE.

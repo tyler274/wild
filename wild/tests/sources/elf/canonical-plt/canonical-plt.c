@@ -4,7 +4,7 @@
 //#Mode:dynamic
 //#Object:runtime.c
 //#Object:canonical-plt-pic.c:-fPIC
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#Shared:canonical-plt-shared.c:-fPIC
 //#DiffIgnore:.dynamic.DT_NEEDED
 //#DiffIgnore:.dynamic.DT_RELA*

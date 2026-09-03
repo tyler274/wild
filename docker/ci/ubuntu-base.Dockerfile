@@ -24,6 +24,7 @@ RUN apt-get update \
         lld \
         llvm \
         llvm-tools \
+        mold \
         perl \
         wget \
         xz-utils \

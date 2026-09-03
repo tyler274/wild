@@ -1,7 +1,7 @@
 //#Config:default
 //#SkipArch: ppc64le
 //#Object:runtime.c
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#Mode:dynamic
 //#LinkArgs:-z now
 //#Shared:trivial-dynamic-2.c

@@ -1,5 +1,5 @@
 //#SkipArch: ppc64le
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#Object:runtime.c
 //#Relocatable:relocatable-1.c,relocatable-2.c
 //#NoSym:.text

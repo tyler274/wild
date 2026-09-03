@@ -1,7 +1,7 @@
 //#AbstractConfig:default
 //#Object:runtime.c
 //#Object:ptr_black_box.c
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#DiffMatchAny:true
 
 //#Config:no-pie:default

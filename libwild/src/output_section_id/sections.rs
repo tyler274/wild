@@ -352,6 +352,7 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             .any(|s| !s.parsed.program_headers.is_empty());
 
         let mut custom = CustomSectionIds::default();
+        custom.place_after_similar = !linker_scripts.is_empty();
 
         let mut secondary: OutputSectionMap<Vec<OutputSectionId>> = self.new_section_map();
 

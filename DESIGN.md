@@ -39,16 +39,47 @@ phases run quickly enough.
 ## Testing
 
 Most testing is done by `integration_tests.rs`. This compiles various programs that are written in
-C, C++, Rust and assembly. It then links them with our reference linkers - GNU ld and in some cases
-also LLD. It links them with Wild and compares the resulting binaries using our own custom diff
-tool, `linker-diff`. Provided that succeeds, it then executes all the linked programs and checks
-that they give the correct answer.
+C, C++, Rust and assembly. It then links them with our reference linkers — GNU ld, and for general
+ELF cases also LLD and Mold (`ReferenceLinkers:bfd,lld,mold`). It links them with Wild and compares
+the resulting binaries using our own custom diff tool, `linker-diff`. Provided that succeeds, it
+then executes all the linked programs and checks that they give the correct answer.
 
-Follow-ups (not implemented yet):
+A four-way diff (GNU ld, LLD, Mold, Wild) is the default for tests that list all three reference
+linkers. Tests that omit `ReferenceLinkers` still use GNU ld only. Set `WILD_FOUR_WAY=1` or
+`default_reference_linkers = ["bfd", "lld", "mold"]` in the test config to opt unpinned tests into
+the same four-way. Linker-script tests pin `ReferenceLinkers:bfd`; GNU ld is the script oracle.
 
-* Opt-in local `vmlinux` check: set `WILD_LINUX_TREE` to an x86_64 kernel tree that already has
-  `vmlinux.o` and GNU `vmlinux.unstripped`. Then run
-  `cargo test -p wild-linker --test integration_tests -- vmlinux`. There is no CI `vmlinux` job
-  (10-minute timeout). Follow-up: prebuilt objects in CI, plus a small userspace (for example
-  `trivial` / `libc-integration` as initramfs) linked with Wild. GNU ld remains the kernel oracle;
-  do not 4-way the kernel.
+Kernel `vmlinux` is GNU-only. Set `WILD_LINUX_TREE` to an x86_64 tree that already has `vmlinux.o`
+and GNU `vmlinux.unstripped`, then `cargo test -p wild-linker --test integration_tests -- vmlinux`.
+Pack objects with `scripts/pack-vmlinux-objects.sh`. CI job `vmlinux` runs when the repository
+variable `WILD_LINUX_OBJECTS_URL` points at that tarball (a from-scratch kernel build will not fit
+the 10-minute timeout). Follow-up: a small userspace / initramfs also linked with Wild.
+
+## Modularity (Mold and LLD)
+
+Wild stays one `libwild` crate. The notes below are about *module* boundaries, not new workspace
+crates.
+
+Mold is an ELF-first C++ linker. A `Context` holds all state. `src/passes.cc` runs named passes
+(resolve, GC, create output sections, LTO, copy). Output is a list of `Chunk` subclasses
+(`OutputEhdr`, `OutputSection`, synthetic sections) each with `copy_buf`. Architecture files
+(`arch-x86-64.cc` and similar) stay thin. Mach-O is a separate tree, not a shared abstraction.
+
+LLD splits by object format first: `lld/ELF`, `lld/COFF`, `lld/MachO`, `lld/wasm`, plus `lld/Common`.
+Each format has its own driver. ELF work lives in `Writer.cpp`, `OutputSections.cpp`,
+`InputFiles.cpp`, `Relocations.cpp`, `SyntheticSections.cpp`, and `LinkerScript.cpp` (parse,
+evaluate, and orphan insertion together). Arch code sits in `lld/ELF/Arch/`.
+
+Wild already matches the useful parts of both without a god `ctx` or extra crates:
+
+* Format modules (`elf/`, `wasm/`, `macho/`) plus a `Platform` trait (static dispatch) — LLD's
+  format split, Mold's lack of virtual `Platform`.
+* Phase modules (`args`, `input_data`, `resolution`, `layout/`, `elf_writer/`) — Mold's passes, but
+  each phase borrows the previous instead of mutating one context.
+* `linker_script/parse` is separate from `layout/script.rs` and output-order in `elf/abi.rs`. LLD
+  keeps script parse and orphan placement in one file; keep them apart here.
+* `OutputSectionId` / `PartId` plus `elf_writer` section writers play the role of Mold's `Chunk`.
+* Arch files (`elf_x86_64.rs`, …) stay thin, like both.
+
+Do not name child modules `layout`, `platform`, or `object` (they shadow parent modules). Keep
+`crate::elf::*` / `crate::wasm::*` re-exports. Further splits should stay inside those trees.

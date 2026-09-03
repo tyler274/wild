@@ -3,7 +3,7 @@
 //#CompArgs:-march=rv64gc
 //#LinkArgs:-nostdlib -pie --export-dynamic --relax -z now
 //#RunEnabled:false
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#DiffMatchAny:true
 //#ExpectDynSym:_start size=12
 */

@@ -69,6 +69,15 @@ To run tests (and have them pass) there are a number of pre-requisites to have i
 
 then use `cargo test` as usual.
 
+General ELF integration tests that list `ReferenceLinkers:bfd,lld,mold` are a four-way diff
+against GNU ld, LLD, Mold, and Wild (Mold/LLD are skipped if they are not on `PATH`). Linker-script
+tests pin GNU ld. To opt tests that omit `ReferenceLinkers` into the same four-way:
+
+```sh
+WILD_FOUR_WAY=1 cargo test -p wild-linker --test integration_tests
+# or: WILD_TEST_CONFIG=test-config-four-way.toml …
+```
+
 ## Running tests for other architectures on x86_64
 
 Wild supports testing on non-native architectures using QEMU.

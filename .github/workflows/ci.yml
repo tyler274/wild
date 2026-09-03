@@ -59,6 +59,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ runner.os }}-${{ matrix.container }}-${{ matrix.runs-on }}
+      - name: Install mold
+        if: ${{ contains(matrix.container, 'ubuntu') }}
+        run: apt-get update && apt-get install -y --no-install-recommends mold
       - run: cargo build --profile ci --workspace --no-default-features
       - run: WILD_TEST_CROSS=$WILD_TEST_CROSS cargo test --profile ci --workspace
 
@@ -80,6 +83,48 @@ jobs:
         run: WILD_TEST_CROSS=all cargo test --features external_tests external_test_suites -- --skip expect_failure
       - name: Check tests that should fail still fail
         run: WILD_TEST_CROSS=all cargo test --features external_tests expect_failure
+
+  four-way:
+    name: Four-way ELF diff (bfd, lld, mold, wild)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    container:
+      image: "ghcr.io/wild-linker/wild/ci-ubuntu-cross-amd64:sha-fc8fa6975269300dacfc3c8fff06b3ba2f96721b"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: wild-linker/action@latest
+      - uses: Swatinem/rust-cache@v2
+      - name: Install mold
+        run: apt-get update && apt-get install -y --no-install-recommends mold
+      - run: echo "WILD_TEST_CONFIG=test-config-ci.toml" >> $GITHUB_ENV
+      - run: cargo build --profile ci --workspace --no-default-features --features fork,zstd
+      - run: cargo test --profile ci -p wild-linker --no-default-features --features fork,zstd --test integration_tests -- trivial
+
+  vmlinux:
+    name: Link x86_64 vmlinux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    if: ${{ vars.WILD_LINUX_OBJECTS_URL != '' }}
+    container:
+      image: "ghcr.io/wild-linker/wild/ci-ubuntu-cross-amd64:sha-fc8fa6975269300dacfc3c8fff06b3ba2f96721b"
+    env:
+      WILD_LINUX_OBJECTS_URL: ${{ vars.WILD_LINUX_OBJECTS_URL }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: wild-linker/action@latest
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch prebuilt vmlinux objects
+        run: |
+          mkdir -p linux
+          curl -fsSL "$WILD_LINUX_OBJECTS_URL" -o vmlinux-objects.tar.zst
+          tar -C linux -xf vmlinux-objects.tar.zst
+      - run: cargo build --profile ci -p wild-linker --no-default-features --features fork,zstd
+      - name: Diff key symbols against GNU ld
+        run: WILD_LINUX_TREE="$PWD/linux" cargo test --profile ci -p wild-linker --no-default-features --features fork,zstd --test integration_tests -- vmlinux
 
   linux-cross-build:
     name: Build Linux (${{ matrix.arch }})

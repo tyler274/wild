@@ -11,7 +11,7 @@
 //#Object:old_init1.s
 //#Object:runtime.c
 //#LinkArgs:-z noexecstack
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#Arch: x86_64
 
 #include "../common/runtime.h"

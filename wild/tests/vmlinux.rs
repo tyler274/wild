@@ -2,8 +2,10 @@
 //!
 //! Set `WILD_LINUX_TREE` to a tree that already has `vmlinux.o`, the extra
 //! objects from a `vmlinux` link, `arch/x86/kernel/vmlinux.lds`, and GNU
-//! `vmlinux.unstripped`. Skipped when the variable is unset (CI cannot compile
-//! a kernel in 10 minutes).
+//! `vmlinux.unstripped`. Pack those files with `scripts/pack-vmlinux-objects.sh`.
+//! CI job `vmlinux` unpacks `vars.WILD_LINUX_OBJECTS_URL` and sets this variable.
+//! Skipped when `WILD_LINUX_TREE` is unset (a from-scratch kernel build will not
+//! fit the 10-minute CI timeout). GNU ld is the only oracle.
 
 use crate::Filter;
 use crate::build_dir;

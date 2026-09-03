@@ -1,0 +1,7 @@
+rustc_channel = "nightly"
+allow_rust_musl_target = true
+run_all_diffs = true
+llvm_tools_dir = "/usr/lib/llvm-21/bin"
+# Tests that omit ReferenceLinkers are diffed against GNU ld, LLD, and Mold.
+# Tests that pin ReferenceLinkers (linker scripts → bfd) keep that pin.
+default_reference_linkers = ["bfd", "lld", "mold"]

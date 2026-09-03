@@ -3,7 +3,7 @@
 //#Config:strip-all:default
 //#Object:runtime.c
 //#LinkArgs:--strip-all
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#DiffIgnore:file-header.entry
 
 //#Config:single-threaded:default

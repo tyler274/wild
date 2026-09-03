@@ -3,7 +3,7 @@
 //#Object:partial-link-repeated-sections-2.c
 //#LinkArgs:-r
 //#RunEnabled:false
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#DiffEnabled:false
 //#ExpectSectionBytes:foo=0x1122
 //#ExpectSectionBytes:.bar=0x3344

@@ -132,6 +132,9 @@
 //! currently skipped if the shared library is cross compiled.
 //!
 //! ReferenceLinkers:{linker-names} List of reference linkers to run this test with.
+//!   `bfd,lld,mold` is a four-way diff (GNU ld, LLD, Mold, Wild). Tests that omit
+//!   this directive use GNU ld only, unless `default_reference_linkers` is set in
+//!   the test config or `WILD_FOUR_WAY=1`.
 //!
 //! SkipLinker:{linker-name} Don't link with the specified linker. Mostly useful if testing a flag
 //! that isn't supported by GNU ld. Deprecated - use ReferenceLinkers instead.
@@ -1436,6 +1439,14 @@ struct TestConfig {
     #[serde(default)]
     ignore_external_tests: Vec<String>,
 
+    /// Default `ReferenceLinkers` for tests that omit the directive. Empty means
+    /// each third-party linker uses its `enabled_by_default` flag (GNU `ld` only).
+    /// Set to `["bfd", "lld", "mold"]` or export `WILD_FOUR_WAY=1` for a four-way
+    /// diff against GNU ld, LLD, Mold, and Wild. Tests that pin `ReferenceLinkers`
+    /// keep that pin (linker-script tests stay GNU-only).
+    #[serde(default)]
+    default_reference_linkers: Vec<String>,
+
     #[serde(default = "default_llvm_tools_dir")]
     llvm_tools_dir: PathBuf,
 }
@@ -1810,6 +1821,22 @@ impl Config {
                 return true;
             }
             return references.iter().any(|n| n == linker.gcc_name());
+        }
+        if !self.test_config.default_reference_linkers.is_empty() {
+            if linker.is_wild() {
+                return true;
+            }
+            if self.skip_linkers.contains(linker.name()) {
+                return false;
+            }
+            if self.enabled_linkers.contains(linker.name()) {
+                return true;
+            }
+            return self
+                .test_config
+                .default_reference_linkers
+                .iter()
+                .any(|n| n == linker.gcc_name());
         }
         // TODO: Get rid of skip_linkers and enabled_linkers once we're relatively sure that
         // in-flight PRs aren't using them.
@@ -7415,8 +7442,9 @@ fn available_linkers_for_linux() -> Result<LinkerCatalog> {
         });
     }
 
-    // We don't need gold and mold for our tests, they're just there for the odd occasion when we're
-    // curious and looking for extra data points as to how other linkers handle a particular case.
+    // Gold is opt-in only. LLD and Mold join GNU ld when a test lists them in
+    // `ReferenceLinkers` or when `WILD_FOUR_WAY=1` / `default_reference_linkers`
+    // is set. They stay off by default so linker-script tests keep GNU as oracle.
     if let Ok(path) = find_bin(&["gold"]) {
         available.push(Linker::ThirdParty(ThirdPartyLinker {
             name: "gold",
@@ -8045,7 +8073,15 @@ fn read_test_config() -> Result<TestConfig> {
         config.qemu_arch = qemu_arch_from_env;
     }
 
+    if four_way_enabled() && config.default_reference_linkers.is_empty() {
+        config.default_reference_linkers = vec!["bfd".into(), "lld".into(), "mold".into()];
+    }
+
     Ok(config)
+}
+
+fn four_way_enabled() -> bool {
+    std::env::var("WILD_FOUR_WAY").is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
 
 impl PlatformKind {

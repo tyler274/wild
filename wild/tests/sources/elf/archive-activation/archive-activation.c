@@ -1,7 +1,7 @@
 //#AbstractConfig:default
 //#CompArgs:-ffunction-sections
 //#DiffIgnore:section.relro_padding
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 
 //#Config:regular:default
 //#Archive:archive_activation0.c

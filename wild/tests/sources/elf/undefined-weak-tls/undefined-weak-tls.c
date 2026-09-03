@@ -2,7 +2,7 @@
 //#LinkArgs:-z now --no-gc-sections
 //#Object:runtime.c
 //#Object:ptr_black_box.c
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#SkipArch:ppc64le
 //#ExpectSym:undefined_tls_address
 

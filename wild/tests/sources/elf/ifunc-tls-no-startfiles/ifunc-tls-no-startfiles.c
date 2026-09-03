@@ -8,7 +8,7 @@
 //#LinkerDriver:gcc
 //#LinkArgs:-nostartfiles -Wl,-z,now -Wl,--no-as-needed
 //#RequiresGlibc:true
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#DiffMatchAny:true
 //#DiffIgnore:section.rodata
 //#DiffIgnore:.dynamic.DT_VERNEED

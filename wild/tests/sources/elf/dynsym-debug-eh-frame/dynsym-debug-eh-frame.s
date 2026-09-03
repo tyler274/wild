@@ -2,7 +2,7 @@
 //#Arch:x86_64
 //#LinkArgs:-shared --export-dynamic -z now
 //#RunEnabled:false
-//#ReferenceLinkers:bfd,lld
+//#ReferenceLinkers:bfd,lld,mold
 //#DiffMatchAny:true
 //#ExpectDynSym:debug_symbol section=".debug_info",size=1
 //#ExpectDynSym:frame_symbol section=".eh_frame",size=4
