@@ -124,6 +124,7 @@ pub(crate) struct UnloadedSection {
 
     pub(crate) needs_sorting: bool,
     pub(crate) sort_by_init_priority: bool,
+    pub(crate) sort_by_alignment: bool,
 }
 
 impl UnloadedSection {
@@ -133,6 +134,7 @@ impl UnloadedSection {
             start_stop_eligible: false,
             needs_sorting: false,
             sort_by_init_priority: false,
+            sort_by_alignment: false,
         }
     }
 }
@@ -155,6 +157,7 @@ pub(crate) struct ResolvedCommon<'data, P: Platform> {
 pub(crate) struct ScriptSortedSectionDetail {
     pub(crate) index: object::SectionIndex,
     pub(crate) sort_by_init_priority: bool,
+    pub(crate) sort_by_alignment: bool,
 }
 
 #[derive(Debug)]

@@ -322,6 +322,7 @@ fn test_section_mapping() {
             must_keep: true,
             sorted: false,
             sort_by_init_priority: false,
+            sort_by_alignment: false,
             input_order: false,
         })
     );

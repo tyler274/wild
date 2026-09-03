@@ -336,13 +336,14 @@ pub(crate) fn harvest_and_sort_script_sections<'data, P: Platform>(
                             .unwrap_or_default();
                         sections_out.push((
                             sorted_section.sort_by_init_priority,
+                            sorted_section.sort_by_alignment,
                             name,
                             InputSortedSection {
                                 file_id: obj.file_id,
                                 section_index: sorted_section.index,
                                 part_id,
                                 size: capacity,
-                                alignment: part_id.alignment(output_sections),
+                                alignment: sec.section.alignment,
                             },
                         ));
                     }
@@ -351,18 +352,27 @@ pub(crate) fn harvest_and_sort_script_sections<'data, P: Platform>(
         }
     }
 
-    sections_out.sort_by(|a, b| match (a.0, b.0) {
-        (true, true) => {
-            let pa = P::init_section_priority(a.1).unwrap_or(u16::MAX);
-            let pb = P::init_section_priority(b.1).unwrap_or(u16::MAX);
-            pa.cmp(&pb).then_with(|| a.1.cmp(b.1))
-        }
-        (true, false) => std::cmp::Ordering::Less,
-        (false, true) => std::cmp::Ordering::Greater,
-        (false, false) => a.1.cmp(b.1),
+    sections_out.sort_by(|a, b| {
+        a.3.part_id
+            .cmp(&b.3.part_id)
+            .then_with(|| match (a.0, b.0) {
+                (true, true) => {
+                    let pa = P::init_section_priority(a.2).unwrap_or(u16::MAX);
+                    let pb = P::init_section_priority(b.2).unwrap_or(u16::MAX);
+                    pa.cmp(&pb).then_with(|| a.2.cmp(b.2))
+                }
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                (false, false) if a.1 && b.1 => {
+                    b.3.alignment.cmp(&a.3.alignment).then_with(|| a.2.cmp(b.2))
+                }
+                (false, false) if a.1 => std::cmp::Ordering::Less,
+                (false, false) if b.1 => std::cmp::Ordering::Greater,
+                (false, false) => a.2.cmp(b.2),
+            })
     });
     sections_out
         .into_iter()
-        .map(|(_, _, harvested)| harvested)
+        .map(|(_, _, _, harvested)| harvested)
         .collect()
 }

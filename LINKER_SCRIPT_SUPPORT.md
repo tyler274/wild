@@ -59,7 +59,7 @@ matching all three.
 | `AT(addr)` load-address specifier on output sections | ✅ | |
 | Numeric address between section name and `:` (e.g. `name 0 : { ... }`) | 🧪 | Only numeric literals are currently supported |
 | `SORT(...)`, `SORT_BY_NAME(...)` | ✅ | |
-| `SORT_BY_ALIGNMENT(...)` | 🧪 | Parsed; without `SORT*`, matchers use GNU ld input order rather than alignment buckets |
+| `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then name |
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | Uses GCC `init_priority` encoded in `.init_array.N` / `.ctors.N` names |
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | Both `*(EXCLUDE_FILE(a.o) .text)` and `EXCLUDE_FILE(a.o) *(.text)` |
 | `BYTE(expr)`, `SHORT(expr)`, `LONG(expr)`, `QUAD(expr)` output data | ✅ | Written in the target endianness |
@@ -136,7 +136,7 @@ because `.data..ro_after_init` is 4KiB-aligned.
 | `>region` memory region placement | ✅ | |
 | `AT>region` load-region placement | ✅ | |
 | `SORT(...)`, `SORT_BY_NAME(...)` | ✅ | |
-| `SORT_BY_ALIGNMENT(...)` | 🧪 | Parsed; without `SORT*`, matchers use GNU ld input order rather than alignment buckets |
+| `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then name (kernel `.data..hot.*`) |
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | |
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | |
 | `BYTE` / `SHORT` / `LONG` / `QUAD` | ✅ | Used by RISC-V/EFI kernel scripts |

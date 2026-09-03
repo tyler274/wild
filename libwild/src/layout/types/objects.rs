@@ -217,6 +217,7 @@ impl<'data, P: Platform> ObjectLayoutState<'data, P> {
             self.script_sorted_sections.push(ScriptSortedSectionDetail {
                 index: section_index,
                 sort_by_init_priority: unloaded.sort_by_init_priority,
+                sort_by_alignment: unloaded.sort_by_alignment,
             });
             SectionSlot::Sorted(SortedSection {
                 // Filled in later.

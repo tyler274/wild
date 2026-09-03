@@ -277,8 +277,8 @@ pub(crate) enum SortKind {
 }
 
 impl SortKind {
-    pub(crate) fn needs_name_sort(self) -> bool {
-        matches!(self, SortKind::Name | SortKind::InitPriority)
+    pub(crate) fn needs_sort(self) -> bool {
+        !matches!(self, SortKind::None)
     }
 }
 

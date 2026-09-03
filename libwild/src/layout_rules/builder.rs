@@ -223,9 +223,11 @@ impl<'data> LayoutRulesBuilder<'data> {
                                             let output_info = SectionOutputInfo {
                                                 section_id,
                                                 must_keep: matcher.must_keep,
-                                                sorted: pattern.sort.needs_name_sort(),
+                                                sorted: pattern.sort.needs_sort(),
                                                 sort_by_init_priority: pattern.sort
                                                     == linker_script::SortKind::InitPriority,
+                                                sort_by_alignment: pattern.sort
+                                                    == linker_script::SortKind::Alignment,
                                                 input_order,
                                             };
 
@@ -450,9 +452,11 @@ impl<'data> LayoutRulesBuilder<'data> {
                                             let output_info = SectionOutputInfo {
                                                 section_id: primary_section_id,
                                                 must_keep: matcher.must_keep,
-                                                sorted: pattern.sort.needs_name_sort(),
+                                                sorted: pattern.sort.needs_sort(),
                                                 sort_by_init_priority: pattern.sort
                                                     == linker_script::SortKind::InitPriority,
+                                                sort_by_alignment: pattern.sort
+                                                    == linker_script::SortKind::Alignment,
                                                 input_order,
                                             };
                                             let outcome = SectionRuleOutcome::section_rule_from_id::<

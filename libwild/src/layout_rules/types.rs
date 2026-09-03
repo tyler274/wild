@@ -88,6 +88,7 @@ pub(crate) struct SectionOutputInfo {
     pub(crate) must_keep: bool,
     pub(crate) sorted: bool,
     pub(crate) sort_by_init_priority: bool,
+    pub(crate) sort_by_alignment: bool,
     /// GNU ld default for script matchers without `SORT*`: input order, each input
     /// aligned to its own `sh_addralign`.
     pub(crate) input_order: bool,
@@ -100,6 +101,7 @@ impl SectionOutputInfo {
             must_keep: false,
             sorted: false,
             sort_by_init_priority: false,
+            sort_by_alignment: false,
             input_order: false,
         }
     }
@@ -110,6 +112,7 @@ impl SectionOutputInfo {
             must_keep: true,
             sorted: false,
             sort_by_init_priority: false,
+            sort_by_alignment: false,
             input_order: false,
         }
     }

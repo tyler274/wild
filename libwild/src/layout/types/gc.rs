@@ -998,7 +998,7 @@ impl<P: Platform> GcLoadRequest<P> {
     }
 }
 
-/// An input section that needs to be sorted due to a SORT_BY_NAME directive or equivalent.
+/// An input section that needs to be sorted due to a `SORT*` directive or `--sort-section`.
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct InputSortedSection {
     pub(crate) file_id: FileId,

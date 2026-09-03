@@ -289,6 +289,7 @@ fn resolve_section<'data, P: Platform>(
             unloaded_section = UnloadedSection::new();
             unloaded_section.needs_sorting = output_info.sorted || args.sort_sections_by_name();
             unloaded_section.sort_by_init_priority = output_info.sort_by_init_priority;
+            unloaded_section.sort_by_alignment = output_info.sort_by_alignment;
         }
         SectionRuleOutcome::SortedSection(output_info) => {
             part_id = part_id_for_output::<P>(&output_info, alignment);
