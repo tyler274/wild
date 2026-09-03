@@ -127,7 +127,7 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
         section_group_order: SectionGroupOrder::Epilogue,
     });
 
-    let finalise_sizes_ext =
+    let mut finalise_sizes_ext =
         P::create_finalise_sizes_ext::<A>(symbol_db.args, &mut group_states, &symbol_db)?;
 
     let finalise_sizes_resources = FinaliseSizesResources {
@@ -238,6 +238,12 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
         &thunk_blocks,
         &mut section_part_sizes,
         &symbol_db,
+    );
+
+    P::share_strtab_suffixes(
+        &mut group_states,
+        &mut section_part_sizes,
+        &mut finalise_sizes_ext,
     );
 
     let mut memory_regions = HashMap::new();

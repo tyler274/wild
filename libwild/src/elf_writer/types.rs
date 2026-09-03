@@ -65,16 +65,20 @@ impl<'layout, 'out, C: ElfClass> TableWriter<'layout, 'out, C> {
         strtab_start_offset: u32,
         buffers: &mut OutputSectionPartMap<&'out mut [u8]>,
         eh_frame_start_address: u64,
-    ) -> TableWriter<'layout, 'out, C> {
+    ) -> Result<TableWriter<'layout, 'out, C>> {
         let dynsym_writer = SymbolTableWriter::<C>::new_dynamic(
             dynstr_start_offset,
             buffers,
             &layout.output_sections,
         );
-        let debug_symbol_writer =
-            SymbolTableWriter::<C>::new(strtab_start_offset, buffers, &layout.output_sections);
+        let debug_symbol_writer = SymbolTableWriter::<C>::new(
+            strtab_start_offset,
+            buffers,
+            &layout.output_sections,
+            Some(&layout.format_specific.strtab),
+        )?;
 
-        Self::new(
+        Ok(Self::new(
             layout.symbol_db.output_kind,
             layout.tls_start_address()..layout.tls_end_address(),
             buffers,
@@ -82,7 +86,7 @@ impl<'layout, 'out, C: ElfClass> TableWriter<'layout, 'out, C> {
             debug_symbol_writer,
             eh_frame_start_address,
             layout.symbol_db.args.is_relr_enabled(),
-        )
+        ))
     }
 
     pub(crate) fn new(

@@ -10,6 +10,8 @@ use super::output::*;
 use super::output_section_id;
 use super::part_id;
 #[allow(unused_imports)]
+use super::strtab::*;
+#[allow(unused_imports)]
 use super::types::*;
 use crate::FileSystem;
 use crate::alignment::Alignment;
@@ -1477,6 +1479,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                 // need to deal with the symtab entry here.
                 common.allocate(part_id::SYMTAB_GLOBAL, C::SYMTAB_ENTRY_SIZE);
                 common.allocate(part_id::STRTAB, name.len() as u64 + 1);
+                intern_strtab_name(&mut common.format_specific.strtab_names, name);
             } else if !flags.needs_canonical_plt() {
                 common.allocate(part_id::DYNSTR, name.len() as u64 + 1);
                 common.allocate(part_id::DYNSYM, C::SYMTAB_ENTRY_SIZE);
@@ -1491,10 +1494,16 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             let entry_size = C::SYMTAB_ENTRY_SIZE;
             common.allocate(part_id::SYMTAB_LOCAL, entry_size);
             common.allocate(part_id::STRTAB, name_len as u64 + 1);
+            intern_strtab_name_with_suffix(&mut common.format_specific.strtab_names, name, b"$got");
 
             if flags.needs_plt() {
                 common.allocate(part_id::SYMTAB_LOCAL, entry_size);
                 common.allocate(part_id::STRTAB, name_len as u64 + 1);
+                intern_strtab_name_with_suffix(
+                    &mut common.format_specific.strtab_names,
+                    name,
+                    b"$plt",
+                );
             }
         }
 
@@ -1608,7 +1617,9 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                 } else {
                     num_globals += 1;
                 }
-                strings_size += symtab_name_for_strtab(info.name).len() + 1;
+                let name = symtab_name_for_strtab(info.name);
+                intern_strtab_name(&mut common.format_specific.strtab_names, name);
+                strings_size += name.len() + 1;
             } else if symbol_db.args.should_output_partial_object
                 && sym.is_undefined()
                 && symbol_db.is_canonical(symbol_id)
@@ -1616,7 +1627,9 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                 && !name.is_empty()
             {
                 num_globals += 1;
-                strings_size += symtab_name_for_strtab(name).len() + 1;
+                let name = symtab_name_for_strtab(name);
+                intern_strtab_name(&mut common.format_specific.strtab_names, name);
+                strings_size += name.len() + 1;
             }
         }
         let entry_size = C::SYMTAB_ENTRY_SIZE;
@@ -1631,6 +1644,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         def_info: &InternalSymDefInfo<Elf<C>>,
         sizes: &mut OutputSectionPartMap<u64>,
         symbol_db: &SymbolDb<Self>,
+        format_specific: &mut CommonGroupStateExt,
     ) -> Result {
         // PROVIDE_HIDDEN symbols are local, others are global
         let symtab_part = if def_info.symbol.is_hidden() {
@@ -1641,6 +1655,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         sizes.increment(symtab_part, C::SYMTAB_ENTRY_SIZE);
         let symbol_name = symbol_db.symbol_name(symbol_id)?;
         let symbol_name = symtab_name_for_strtab(symbol_name.bytes());
+        intern_strtab_name(&mut format_specific.strtab_names, symbol_name);
         sizes.increment(part_id::STRTAB, symbol_name.len() as u64 + 1);
 
         Ok(())
@@ -1650,12 +1665,20 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         sizes: &mut OutputSectionPartMap<u64>,
         symbols: &[SymbolId],
         symbol_db: &SymbolDb<Self>,
+        format_specific: &mut CommonGroupStateExt,
     ) {
         let total_name_bytes: usize = symbols
             .iter()
             .map(|&sym_id| {
-                let name_len = symbol_db.symbol_name(sym_id).map_or(0, |n| n.bytes().len());
-                THUNK_SYMBOL_PREFIX.len() + name_len + 1
+                let orig = symbol_db
+                    .symbol_name(sym_id)
+                    .map_or(&b""[..], |n| n.bytes());
+                intern_strtab_name_with_suffix(
+                    &mut format_specific.strtab_names,
+                    THUNK_SYMBOL_PREFIX.as_bytes(),
+                    orig,
+                );
+                THUNK_SYMBOL_PREFIX.len() + orig.len() + 1
             })
             .sum();
         sizes.increment(
@@ -1663,6 +1686,43 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             symbols.len() as u64 * C::SYMTAB_ENTRY_SIZE,
         );
         sizes.increment(part_id::STRTAB, total_name_bytes as u64);
+    }
+
+    fn share_strtab_suffixes<'data>(
+        group_states: &mut [layout::GroupState<'data, Self>],
+        total_sizes: &mut OutputSectionPartMap<u64>,
+        format_specific: &mut LayoutExt,
+    ) {
+        crate::timing_phase!("Share .strtab suffixes");
+        let mut names = Vec::new();
+        let mut unmerged = 0;
+        for group in group_states.iter_mut() {
+            names.append(&mut group.common.format_specific.strtab_names);
+            unmerged += group.common.mem_sizes.get(part_id::STRTAB);
+        }
+        if unmerged == 0 {
+            return;
+        }
+
+        let mut strtab = finalize_strtab(names);
+        if strtab.bytes.is_empty() {
+            strtab.bytes.push(0);
+        }
+        let merged = strtab.bytes.len() as u64;
+        format_specific.strtab = strtab;
+
+        for group in group_states.iter_mut() {
+            let size = group.common.mem_sizes.get(part_id::STRTAB);
+            if size > 0 {
+                group.common.mem_sizes.decrement(part_id::STRTAB, size);
+            }
+        }
+        total_sizes.decrement(part_id::STRTAB, unmerged);
+        group_states[0]
+            .common
+            .mem_sizes
+            .increment(part_id::STRTAB, merged);
+        total_sizes.increment(part_id::STRTAB, merged);
     }
 
     fn allocate_prelude(common: &mut CommonGroupState<Self>, symbol_db: &SymbolDb<Self>) {

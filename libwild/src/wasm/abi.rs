@@ -994,6 +994,7 @@ impl platform::Platform for Wasm {
         _def_info: &crate::parsing::InternalSymDefInfo<Self>,
         _sizes: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
         _symbol_db: &crate::symbol_db::SymbolDb<Self>,
+        _format_specific: &mut Self::CommonGroupStateExt,
     ) -> crate::error::Result {
         Ok(())
     }

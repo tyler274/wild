@@ -193,6 +193,7 @@ pub(crate) struct LayoutExt {
     pub(crate) eflags: object::elf::FileFlags,
     pub(crate) has_eh_frame_input: bool,
     num_got_plt_header_entries: u64,
+    pub(crate) strtab: crate::elf::FinalizedStrtab,
 }
 
 impl LayoutExt {
@@ -218,6 +219,7 @@ impl LayoutExt {
             eflags,
             has_eh_frame_input,
             num_got_plt_header_entries: A::NUM_GOT_PLT_HEADER_ENTRIES,
+            strtab: crate::elf::FinalizedStrtab::default(),
         })
     }
 

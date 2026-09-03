@@ -221,6 +221,7 @@ impl<'data, P: Platform> PreludeLayoutState<'data, P> {
             output_sections,
             per_symbol_flags,
             resources.symbol_db,
+            common,
             &mut extra_sizes,
         )?;
 
@@ -257,6 +258,7 @@ impl<'data, P: Platform> PreludeLayoutState<'data, P> {
         output_sections: &OutputSections<P>,
         per_symbol_flags: &mut PerSymbolFlags,
         symbol_db: &SymbolDb<'data, P>,
+        common: &mut CommonGroupState<'data, P>,
         extra_sizes: &mut OutputSectionPartMap<u64>,
     ) -> Result<(), Error> {
         if symbol_db.args.should_strip_all() {
@@ -266,6 +268,7 @@ impl<'data, P: Platform> PreludeLayoutState<'data, P> {
         self.internal_symbols.allocate_symbol_table_sizes(
             extra_sizes,
             symbol_db,
+            &mut common.format_specific,
             |symbol_id, def_info| {
                 if def_info.name.is_empty() {
                     return false;
@@ -657,6 +660,7 @@ impl<'data, P: Platform> InternalSymbols<'data, P> {
         &self,
         sizes: &mut OutputSectionPartMap<u64>,
         symbol_db: &SymbolDb<'data, P>,
+        format_specific: &mut P::CommonGroupStateExt,
         mut should_keep_symbol: impl FnMut(SymbolId, &InternalSymDefInfo<P>) -> bool,
     ) -> Result {
         // Allocate space in the symbol table for the symbols that we define.
@@ -673,7 +677,7 @@ impl<'data, P: Platform> InternalSymbols<'data, P> {
                 continue;
             }
 
-            P::allocate_internal_symbol(symbol_id, def_info, sizes, symbol_db)?;
+            P::allocate_internal_symbol(symbol_id, def_info, sizes, symbol_db, format_specific)?;
         }
         Ok(())
     }
@@ -731,6 +735,7 @@ impl<'data, P: Platform> SyntheticSymbolsLayoutState<'data, P> {
             self.internal_symbols.allocate_symbol_table_sizes(
                 &mut common.mem_sizes,
                 symbol_db,
+                &mut common.format_specific,
                 |symbol_id, _| {
                     // For user-defined start/stop symbols, we only emit them if they're referenced.
                     per_symbol_flags
@@ -1055,6 +1060,7 @@ impl<'data, P: Platform> LinkerScriptLayoutState<'data, P> {
         self.internal_symbols.allocate_symbol_table_sizes(
             &mut common.mem_sizes,
             resources.symbol_db,
+            &mut common.format_specific,
             |symbol_id, _info| {
                 per_symbol_flags
                     .flags_for_symbol(symbol_id)

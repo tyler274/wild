@@ -9,6 +9,7 @@ pub(crate) mod abi;
 pub(crate) mod file;
 pub(crate) mod gnu;
 pub(crate) mod output;
+pub(crate) mod strtab;
 pub(crate) mod types;
 
 #[allow(unused_imports)]
@@ -19,6 +20,8 @@ pub(crate) use file::*;
 pub(crate) use gnu::*;
 #[allow(unused_imports)]
 pub(crate) use output::*;
+#[allow(unused_imports)]
+pub(crate) use strtab::*;
 #[allow(unused_imports)]
 pub(crate) use types::*;
 

@@ -569,6 +569,9 @@ pub(crate) struct GroupLayoutExt {
 pub(crate) struct CommonGroupStateExt {
     pub(crate) exception_frame_relocations: usize,
     pub(crate) exception_frame_count: usize,
+    /// Symbol names that will be written to `.strtab`. Collected during allocation so they can be
+    /// suffix-merged globally like GNU ld before the section size is finalised.
+    pub(crate) strtab_names: Vec<Box<[u8]>>,
 }
 
 /// Return whether all DT_NEEDED entries for this shared object correspond to input files that

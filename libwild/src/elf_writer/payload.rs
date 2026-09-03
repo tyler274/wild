@@ -54,7 +54,7 @@ pub(crate) fn write_file_contents<'data, C: ElfClass, A: Arch<Platform = elf::El
                 group.strtab_start_offset,
                 &mut buffers,
                 group.format_specific.eh_frame_start_address,
-            );
+            )?;
 
             for file in &group.files {
                 write_file::<C, A>(

@@ -14,6 +14,7 @@ use crate::input_data::FileLoader;
 use crate::layout;
 use crate::layout::CommonGroupState;
 use crate::layout::DynamicSymbolDefinition;
+use crate::layout::GroupState;
 use crate::layout::Layout;
 use crate::layout::ObjectLayoutState;
 use crate::layout::OutputRecordLayout;
@@ -635,6 +636,7 @@ pub(crate) trait Platform:
         _sizes: &mut OutputSectionPartMap<u64>,
         _symbols: &[SymbolId],
         _symbol_db: &SymbolDb<Self>,
+        _format_specific: &mut Self::CommonGroupStateExt,
     ) {
     }
 
@@ -643,7 +645,16 @@ pub(crate) trait Platform:
         def_info: &InternalSymDefInfo<Self>,
         sizes: &mut OutputSectionPartMap<u64>,
         symbol_db: &SymbolDb<Self>,
+        format_specific: &mut Self::CommonGroupStateExt,
     ) -> Result;
+
+    /// Suffix-merge `.strtab` like GNU ld and move the merged size onto the prelude group.
+    fn share_strtab_suffixes<'data>(
+        _group_states: &mut [GroupState<'data, Self>],
+        _total_sizes: &mut OutputSectionPartMap<u64>,
+        _format_specific: &mut Self::FinaliseSizesExt<'data>,
+    ) {
+    }
 
     fn allocate_prelude(common: &mut CommonGroupState<Self>, symbol_db: &SymbolDb<Self>);
 

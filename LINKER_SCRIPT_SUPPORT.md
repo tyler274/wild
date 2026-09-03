@@ -124,7 +124,7 @@ tail-merges like GNU ld. `SHF_MERGE` inputs with relocations are concatenated, n
 pools of different entsize/alignment are kept in separate classes. Merge class starts are padded
 to the absolute VMA (GNU ld), so 64-byte crypto tables land on 64-byte addresses. `__sched_class_highest`
 can still differ by a few hundred bytes of string-pool packing inside `.rodata`; later symbols match
-because `.data..ro_after_init` is 4KiB-aligned.
+because `.data..ro_after_init` is 4KiB-aligned. `.strtab` suffix-shares like GNU ld.
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -156,5 +156,4 @@ These are tracked here so they are not forgotten. They are not part of the curre
 
 ### Lower priority versus GNU
 
-* `.strtab` suffix sharing
 * `--build-id` blake3 versus SHA-1 (do not change unless asked)

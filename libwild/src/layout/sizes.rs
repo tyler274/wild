@@ -515,6 +515,7 @@ pub(crate) fn allocate_thunk_block_space<P: Platform>(
                         &mut extra_thunk_sizes,
                         &block.symbols,
                         symbol_db,
+                        &mut group_state.common.format_specific,
                     );
                 }
             }

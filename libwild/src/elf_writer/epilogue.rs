@@ -672,7 +672,7 @@ pub(crate) fn verify_resolution_allocation<C: ElfClass, A: Arch<Platform = elf::
     );
 
     let dynsym_writer = SymbolTableWriter::<C>::new_dynamic(0, &mut buffers, output_sections);
-    let debug_symbol_writer = SymbolTableWriter::<C>::new(0, &mut buffers, output_sections);
+    let debug_symbol_writer = SymbolTableWriter::<C>::new(0, &mut buffers, output_sections, None)?;
     let mut table_writer = TableWriter::<C>::new(
         output_kind,
         0..100,

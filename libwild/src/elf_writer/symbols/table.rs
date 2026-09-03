@@ -87,6 +87,7 @@ pub(crate) struct SymbolTableWriter<'layout, 'out, C: ElfClass> {
     pub(crate) is_dynamic: bool,
     pub(crate) symtab_shndx_local_entries: Option<&'out mut [u32]>,
     pub(crate) symtab_shndx_global_entries: Option<&'out mut [u32]>,
+    strtab_lookup: Option<&'layout elf::FinalizedStrtab>,
 }
 
 impl<'layout, 'out, C: ElfClass> SymbolTableWriter<'layout, 'out, C> {
@@ -94,7 +95,8 @@ impl<'layout, 'out, C: ElfClass> SymbolTableWriter<'layout, 'out, C> {
         start_string_offset: u32,
         buffers: &mut OutputSectionPartMap<&'out mut [u8]>,
         output_sections: &'layout OutputSections<'layout, elf::Elf<C>>,
-    ) -> Self {
+        strtab_lookup: Option<&'layout elf::FinalizedStrtab>,
+    ) -> Result<Self> {
         let local_entries = slice_from_all_bytes_mut(buffers.take(part_id::SYMTAB_LOCAL));
         let global_entries = slice_from_all_bytes_mut(buffers.take(part_id::SYMTAB_GLOBAL));
         let symtab_shndx_local_entries = Some(buffers.take(part_id::SYMTAB_SHNDX_LOCAL))
@@ -103,18 +105,23 @@ impl<'layout, 'out, C: ElfClass> SymbolTableWriter<'layout, 'out, C> {
             .and_then(|s| (!s.is_empty()).then(|| slice_from_all_bytes_mut(s)));
 
         let strings = buffers.take(part_id::STRTAB);
-        Self {
+        let mut strtab_writer = StrTabWriter {
+            next_offset: start_string_offset,
+            out: strings,
+        };
+        if let Some(table) = strtab_lookup {
+            strtab_writer.write_finalized(table)?;
+        }
+        Ok(Self {
             local_entries,
             global_entries,
             output_sections,
-            strtab_writer: StrTabWriter {
-                next_offset: start_string_offset,
-                out: strings,
-            },
+            strtab_writer,
             is_dynamic: false,
             symtab_shndx_local_entries,
             symtab_shndx_global_entries,
-        }
+            strtab_lookup,
+        })
     }
 
     pub(crate) fn new_dynamic(
@@ -135,6 +142,7 @@ impl<'layout, 'out, C: ElfClass> SymbolTableWriter<'layout, 'out, C> {
             is_dynamic: true,
             symtab_shndx_local_entries: None,
             symtab_shndx_global_entries: None,
+            strtab_lookup: None,
         }
     }
 
@@ -332,7 +340,11 @@ impl<'layout, 'out, C: ElfClass> SymbolTableWriter<'layout, 'out, C> {
             } else {
                 crate::elf::symtab_name_for_strtab(name)
             };
-            self.strtab_writer.write_str(name)
+            if let Some(lookup) = self.strtab_lookup {
+                lookup.offset(name)?
+            } else {
+                self.strtab_writer.write_str(name)
+            }
         } else {
             0
         };
@@ -413,6 +425,7 @@ impl<'layout, 'out, C: ElfClass> SymbolTableWriter<'layout, 'out, C> {
             is_dynamic: self.is_dynamic,
             symtab_shndx_local_entries: None,
             symtab_shndx_global_entries: None,
+            strtab_lookup: self.strtab_lookup,
         }
     }
 }
@@ -1064,6 +1077,22 @@ impl StrTabWriter<'_> {
         let offset = self.next_offset;
         self.next_offset += len_with_terminator as u32;
         offset
+    }
+
+    fn write_finalized(&mut self, table: &elf::FinalizedStrtab) -> Result {
+        if self.out.is_empty() {
+            return Ok(());
+        }
+        if self.out.len() != table.bytes.len() {
+            bail!(
+                "Allocated {} bytes for .strtab, but suffix-merged table is {} bytes",
+                self.out.len(),
+                table.bytes.len()
+            );
+        }
+        self.out.copy_from_slice(&table.bytes);
+        self.out = &mut [];
+        Ok(())
     }
 
     pub(crate) fn take_prefix(&mut self, size: usize) -> Self {
