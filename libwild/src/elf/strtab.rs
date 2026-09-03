@@ -1,10 +1,13 @@
-//! ELF `.strtab` builder with GNU ld suffix sharing.
+//! ELF `.strtab` / `.shstrtab` builder with GNU ld suffix sharing.
 //!
 //! BFD `_bfd_elf_strtab_finalize` reverse-sorts unique names and absorbs a string into the
 //! neighbouring longer host when it is a suffix, so `"bar"` can point into `"foobar"`. Offset 0
 //! is always the empty string.
 
 use crate::error::Result;
+use crate::layout_rules::SectionKind;
+use crate::output_section_id::OutputSections;
+use crate::platform::Platform;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 
@@ -103,6 +106,27 @@ pub(crate) fn finalize_strtab(names: impl IntoIterator<Item = Box<[u8]>>) -> Fin
     }
 
     FinalizedStrtab { bytes, offsets }
+}
+
+/// Emitted primary section names, suffix-merged like GNU `.shstrtab`.
+pub(crate) fn shstrtab_from_sections<'data, P: Platform>(
+    output_sections: &OutputSections<'data, P>,
+) -> FinalizedStrtab {
+    let mut names = Vec::new();
+    for (id, info) in output_sections.ids_with_info() {
+        if output_sections.output_index_of_section(id).is_none() {
+            continue;
+        }
+        let SectionKind::Primary(identity) = info.kind else {
+            continue;
+        };
+        intern_strtab_name(&mut names, identity.section_name().bytes());
+    }
+    let mut tab = finalize_strtab(names);
+    if tab.bytes.is_empty() {
+        tab.bytes.push(0);
+    }
+    tab
 }
 
 #[cfg(test)]

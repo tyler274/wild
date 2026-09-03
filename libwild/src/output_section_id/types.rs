@@ -104,10 +104,6 @@ impl<'data, P: Platform> Hash for SectionIdentity<'data, P> {
 pub(crate) struct SectionName<'data>(pub(crate) &'data [u8]);
 
 impl SectionName<'_> {
-    pub(crate) fn len(&self) -> usize {
-        self.0.len()
-    }
-
     pub(crate) fn bytes(&self) -> &[u8] {
         self.0
     }

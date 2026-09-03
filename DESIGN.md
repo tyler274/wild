@@ -46,7 +46,9 @@ that they give the correct answer.
 
 Follow-ups (not implemented yet):
 
-* There is no CI `vmlinux` job. Follow-up: x86_64 `vmlinux` versus GNU unstripped, plus a small
-  userspace (for example `trivial` / `libc-integration` as initramfs) linked with Wild. GNU ld remains
-  the kernel oracle; do not 4-way the kernel. CI jobs time out at 10 minutes, so this needs a prebuilt
-  `vmlinux.o` (or similar) rather than a from-scratch kernel compile in the existing workflow.
+* Opt-in local `vmlinux` check: set `WILD_LINUX_TREE` to an x86_64 kernel tree that already has
+  `vmlinux.o` and GNU `vmlinux.unstripped`. Then run
+  `cargo test -p wild-linker --test integration_tests -- vmlinux`. There is no CI `vmlinux` job
+  (10-minute timeout). Follow-up: prebuilt objects in CI, plus a small userspace (for example
+  `trivial` / `libc-integration` as initramfs) linked with Wild. GNU ld remains the kernel oracle;
+  do not 4-way the kernel.

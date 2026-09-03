@@ -357,6 +357,7 @@
 //! mem-size=N: Type: Integer. Asserts the mem size of the segment.
 
 mod external_tests;
+mod vmlinux;
 
 use bitflags::bitflags;
 use gimli::Reader as _;
@@ -433,6 +434,7 @@ fn main() -> Result<std::process::ExitCode> {
     let mut tests = Vec::new();
     collect_tests(&mut tests, &filter, &test_config)?;
     external_tests::collect_tests(&mut tests, &filter, &test_config)?;
+    vmlinux::collect_tests(&mut tests, &filter);
     Ok(libtest_mimic::run(&args, tests).exit_code())
 }
 

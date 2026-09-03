@@ -1,5 +1,8 @@
 ENTRY(_start)
 
+jiffies = jiffies_64;
+const_current_task = current_task;
+
 SECTIONS {
     . = 0x400000;
     .text : {
@@ -11,6 +14,7 @@ SECTIONS {
     phys_startup_64 = ABSOLUTE(startup_64 - 0x400000);
     text_size = _etext - _stext;
     .data : {
+        KEEP(*(.data.pad))
         KEEP(*(.data .data.*))
     }
     .bss : {
@@ -22,7 +26,5 @@ SECTIONS {
     }
 }
 
-jiffies = jiffies_64;
 jiffies_plus = jiffies_64 + 4;
-const_current_task = current_task;
-__ref_stack_chk_guard = __stack_chk_guard;
+PROVIDE(__ref_stack_chk_guard = __stack_chk_guard);

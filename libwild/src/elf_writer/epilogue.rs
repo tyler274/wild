@@ -181,11 +181,7 @@ pub(crate) fn write_prelude_except_gdb_index<
 
     write_section_headers(buffers.get_mut(part_id::SECTION_HEADERS), layout)?;
 
-    write_section_header_strings(
-        buffers.get_mut(part_id::SHSTRTAB),
-        &layout.output_sections,
-        &layout.output_order,
-    );
+    write_section_header_strings(buffers.get_mut(part_id::SHSTRTAB), &layout.output_sections)?;
 
     write_plt_got_entries::<C, A>(prelude, layout, table_writer)?;
 

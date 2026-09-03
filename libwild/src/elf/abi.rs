@@ -38,7 +38,6 @@ use crate::layout::OutputRecordLayout;
 use crate::layout::Resolution;
 use crate::layout::SectionGcUnit;
 use crate::layout::SymbolCopyInfo;
-use crate::layout_rules::SectionKind;
 use crate::layout_rules::SectionRule;
 use crate::layout_rules::SectionRuleOutcome;
 use crate::linker_script;
@@ -1979,17 +1978,9 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             part_id::SECTION_HEADERS,
             section_headers_size::<C>(header_info),
         );
-        prelude.format_specific.shstrtab_size = output_sections
-            .ids_with_info()
-            .filter(|(id, _info)| output_sections.output_index_of_section(*id).is_some())
-            .map(|(_id, info)| {
-                if let SectionKind::Primary(identity) = info.kind {
-                    identity.section_name().len() as u64 + 1
-                } else {
-                    0
-                }
-            })
-            .sum::<u64>();
+        prelude.format_specific.shstrtab_size = crate::elf::shstrtab_from_sections(output_sections)
+            .bytes
+            .len() as u64;
         sizes.increment(part_id::SHSTRTAB, prelude.format_specific.shstrtab_size);
     }
 

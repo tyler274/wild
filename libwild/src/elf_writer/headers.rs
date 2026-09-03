@@ -12,7 +12,6 @@ use crate::error::Context as _;
 use crate::error::Result;
 use crate::layout::HeaderInfo;
 use crate::malfunction;
-use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSections;
 use crate::output_section_id::SectionName;
 use crate::output_section_map::OutputSectionMap;
@@ -169,7 +168,7 @@ pub(crate) fn write_section_headers<C: ElfClass>(out: &mut [u8], layout: &ElfLay
     let entries: &mut [elf::SectionHeader<C>] = slice_from_all_bytes_mut(out);
     let output_sections = &layout.output_sections;
     let mut entries = entries.iter_mut();
-    let mut name_offset = 0;
+    let shstrtab = elf::shstrtab_from_sections(output_sections);
     let info_values = compute_info_values(layout);
 
     for section_id in crate::output_section_id::section_header_order(
@@ -222,6 +221,14 @@ pub(crate) fn write_section_headers<C: ElfClass>(out: &mut [u8], layout: &ElfLay
             alignment = section_layout.alignment.value();
         }
 
+        let name = layout.output_sections.name(section_id).with_context(|| {
+            format!(
+                "Missing name for section {}",
+                layout.output_sections.section_debug(section_id)
+            )
+        })?;
+        let name_offset = shstrtab.offset(name.bytes())?;
+
         let entry = entries.next().unwrap();
         entry.set_name(name_offset);
 
@@ -241,13 +248,6 @@ pub(crate) fn write_section_headers<C: ElfClass>(out: &mut [u8], layout: &ElfLay
         }
 
         entry.set_flags(flags)?;
-
-        let name = layout.output_sections.name(section_id).with_context(|| {
-            format!(
-                "Missing name for section {}",
-                layout.output_sections.section_debug(section_id)
-            )
-        })?;
 
         let mut info_value = *info_values.get(section_id);
 
@@ -283,8 +283,6 @@ pub(crate) fn write_section_headers<C: ElfClass>(out: &mut [u8], layout: &ElfLay
         entry.set_info(info_value);
         entry.set_alignment(alignment)?;
         entry.set_entry_size(entsize)?;
-
-        name_offset += name.len() as u32 + 1;
     }
     ensure!(
         entries.next().is_none(),
@@ -325,19 +323,18 @@ pub(crate) fn compute_info_values<C: ElfClass>(layout: &ElfLayout<C>) -> OutputS
 }
 
 pub(crate) fn write_section_header_strings<C: ElfClass>(
-    mut out: &mut [u8],
+    out: &mut [u8],
     sections: &OutputSections<elf::Elf<C>>,
-    output_order: &OutputOrder,
-) {
-    for section_id in crate::output_section_id::section_header_order(output_order, sections) {
-        if sections.output_index_of_section(section_id).is_some()
-            && let Some(name) = sections.name(section_id)
-        {
-            let name_out = out.split_off_mut(..=name.len()).unwrap();
-            name_out[..name.len()].copy_from_slice(name.bytes());
-            name_out[name.len()] = 0;
-        }
-    }
+) -> Result {
+    let tab = elf::shstrtab_from_sections(sections);
+    ensure!(
+        out.len() == tab.bytes.len(),
+        "Allocated {} bytes for .shstrtab, but suffix-merged table is {} bytes",
+        out.len(),
+        tab.bytes.len()
+    );
+    out.copy_from_slice(&tab.bytes);
+    Ok(())
 }
 
 pub(crate) struct ProgramHeaderWriter<'out, C: ElfClass> {

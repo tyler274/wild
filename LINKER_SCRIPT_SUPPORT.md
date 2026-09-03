@@ -33,7 +33,7 @@ matching all three.
 | `TARGET(bfdname)` | ❌ | |
 | `NOCROSSREFS(sections...)` | ❌ | |
 | `INSERT [AFTER\|BEFORE] section` | ❌ | |
-| Top-level symbol assignment (`sym = expr`) | ✅ | Constant assignments are available during layout. `st_shndx` follows GNU ld: a single relocatable residual (symbol or `.`) copies that section; `ABSOLUTE()`, differences of two section symbols, and constants are `SHN_ABS` |
+| Top-level symbol assignment (`sym = expr`) | ✅ | Constant assignments are available during layout. `st_shndx` follows GNU ld: a single relocatable residual (symbol or `.`) copies that section, including assignments before `SECTIONS` whose target is in a later matcher (kernel `jiffies = jiffies_64`); `ABSOLUTE()`, differences of two section symbols, and constants are `SHN_ABS` |
 | Compound assignment operators (`+=`, `-=`, etc.) | ✅ | |
 | `PHDRS` command for explicit program header definition | ✅ | `FILEHDR`, `PHDRS`, `FLAGS`, and `AT(expr)`. Without `FILEHDR`, ELF headers occupy file space only and do not advance the VMA. A `. = ALIGN(...)` immediately before a new `PT_LOAD` is applied before the LOAD starts, so `p_vaddr` is the script address rather than `max-page-size` plus that address |
 
@@ -59,7 +59,7 @@ matching all three.
 | `AT(addr)` load-address specifier on output sections | ✅ | |
 | Numeric address between section name and `:` (e.g. `name 0 : { ... }`) | ✅ | Expressions including `ALIGN(n)`, `ADDR`/`SIZEOF`/`LOADADDR`, and `.` (current VMA). `ALIGN(0)` is a no-op, matching GNU ld (powerpc `.text ALIGN(0) :`) |
 | `SORT(...)`, `SORT_BY_NAME(...)` | ✅ | |
-| `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then name |
+| `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then input order (GNU) |
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | Uses GCC `init_priority` encoded in `.init_array.N` / `.ctors.N` names |
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | Both `*(EXCLUDE_FILE(a.o) .text)` and `EXCLUDE_FILE(a.o) *(.text)` |
 | `BYTE(expr)`, `SHORT(expr)`, `LONG(expr)`, `QUAD(expr)` output data | ✅ | Written in the target endianness |
@@ -124,7 +124,7 @@ tail-merges like GNU ld. `SHF_MERGE` inputs with relocations are concatenated, n
 pools of different entsize/alignment are kept in separate classes. Merge class starts are padded
 to the absolute VMA (GNU ld), so 64-byte crypto tables land on 64-byte addresses. `__sched_class_highest`
 can still differ by a few hundred bytes of string-pool packing inside `.rodata`; later symbols match
-because `.data..ro_after_init` is 4KiB-aligned. `.strtab` suffix-shares like GNU ld.
+because `.data..ro_after_init` is 4KiB-aligned. `.strtab` and `.shstrtab` suffix-share like GNU ld.
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -136,7 +136,7 @@ because `.data..ro_after_init` is 4KiB-aligned. `.strtab` suffix-shares like GNU
 | `>region` memory region placement | ✅ | |
 | `AT>region` load-region placement | ✅ | |
 | `SORT(...)`, `SORT_BY_NAME(...)` | ✅ | |
-| `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then name (kernel `.data..hot.*`) |
+| `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then input order (GNU) |
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | |
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | |
 | `BYTE` / `SHORT` / `LONG` / `QUAD` | ✅ | Used by RISC-V/EFI kernel scripts |

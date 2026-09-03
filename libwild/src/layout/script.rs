@@ -393,7 +393,14 @@ pub(crate) fn harvest_and_sort_script_sections<'data, P: Platform>(
                 (true, false) => std::cmp::Ordering::Less,
                 (false, true) => std::cmp::Ordering::Greater,
                 (false, false) if a.1 && b.1 => {
-                    b.3.alignment.cmp(&a.3.alignment).then_with(|| a.2.cmp(b.2))
+                    // GNU `SORT_BY_ALIGNMENT` only: largest alignment first, then
+                    // input order (stable). Name is a secondary key only when
+                    // wrapped in `SORT()` / `SORT_BY_NAME()`.
+                    b.3.alignment.cmp(&a.3.alignment).then_with(|| {
+                        a.3.file_id
+                            .cmp(&b.3.file_id)
+                            .then_with(|| a.3.section_index.0.cmp(&b.3.section_index.0))
+                    })
                 }
                 (false, false) if a.1 => std::cmp::Ordering::Less,
                 (false, false) if b.1 => std::cmp::Ordering::Greater,

@@ -773,6 +773,13 @@ pub(crate) fn get_symbol_attributes<C: ElfClass>(
                             let output_section_id = obj
                                 .section_part_id(section_index, &layout.symbol_db.section_part_ids)
                                 .output_section_id::<elf::Elf<C>>();
+                            // Later matchers in a script output section are
+                            // secondaries and have no output index. Map to the
+                            // primary like `copy_object_symbol` (kernel
+                            // `jiffies = jiffies_64` before `SECTIONS`).
+                            let output_section_id = layout
+                                .output_sections
+                                .primary_output_section(output_section_id);
                             layout
                                 .output_sections
                                 .output_index_of_section(output_section_id)
