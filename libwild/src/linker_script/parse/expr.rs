@@ -410,6 +410,52 @@ pub(crate) fn parse_identifier_or_function<'a>(
                 ')'.parse_next(input)?;
                 Ok(Expression::Absolute(Box::new(inner)))
             }
+            b"CONSTANT" => {
+                let name = parse_function_arg.parse_next(input)?;
+                match name {
+                    b"MAXPAGESIZE" => Ok(Expression::ConstantMaxPageSize),
+                    b"COMMONPAGESIZE" => Ok(Expression::ConstantCommonPageSize),
+                    _ => Err(ContextError::default()),
+                }
+            }
+            b"DATA_SEGMENT_ALIGN" => {
+                '('.parse_next(input)?;
+                skip_comments_and_whitespace(input)?;
+                let max = parse_expression.parse_next(input)?;
+                skip_comments_and_whitespace(input)?;
+                ','.parse_next(input)?;
+                skip_comments_and_whitespace(input)?;
+                let common = parse_expression.parse_next(input)?;
+                skip_comments_and_whitespace(input)?;
+                ')'.parse_next(input)?;
+                Ok(Expression::DataSegmentAlign(
+                    Box::new(max),
+                    Box::new(common),
+                ))
+            }
+            b"DATA_SEGMENT_RELRO_END" => {
+                '('.parse_next(input)?;
+                skip_comments_and_whitespace(input)?;
+                let offset = parse_expression.parse_next(input)?;
+                skip_comments_and_whitespace(input)?;
+                ','.parse_next(input)?;
+                skip_comments_and_whitespace(input)?;
+                let exp = parse_expression.parse_next(input)?;
+                skip_comments_and_whitespace(input)?;
+                ')'.parse_next(input)?;
+                Ok(Expression::DataSegmentRelroEnd(
+                    Box::new(offset),
+                    Box::new(exp),
+                ))
+            }
+            b"DATA_SEGMENT_END" => {
+                '('.parse_next(input)?;
+                skip_comments_and_whitespace(input)?;
+                let inner = parse_expression.parse_next(input)?;
+                skip_comments_and_whitespace(input)?;
+                ')'.parse_next(input)?;
+                Ok(Expression::DataSegmentEnd(Box::new(inner)))
+            }
             b"ASSERT" => {
                 let assert = parse_assert.parse_next(input)?;
                 Ok(Expression::Assert(assert))

@@ -167,6 +167,11 @@ pub(crate) fn add_search_and_output_flags(parser: &mut ArgumentParser<ElfArgs>) 
             Ok(())
         })
         .sub_option(
+            "start-stop-gc",
+            "Allow GC of sections only referenced by __start_/__stop_ symbols",
+            |_, _| Ok(()),
+        )
+        .sub_option(
             "execstack",
             "Mark object as requiring an executable stack",
             |args, _| {
@@ -279,6 +284,21 @@ pub(crate) fn add_search_and_output_flags(parser: &mut ArgumentParser<ElfArgs>) 
                     bail!("Invalid alignment {size:#x}");
                 }
                 args.max_page_size = Some(Alignment {
+                    exponent: size.trailing_zeros() as u8,
+                });
+
+                Ok(())
+            },
+        )
+        .sub_option_with_value(
+            "common-page-size=",
+            "Set common page size for DATA_SEGMENT_ALIGN / CONSTANT(COMMONPAGESIZE)",
+            |args, _, value| {
+                let size: u64 = parse_number(value)?;
+                if !size.is_power_of_two() {
+                    bail!("Invalid alignment {size:#x}");
+                }
+                args.common_page_size = Some(Alignment {
                     exponent: size.trailing_zeros() as u8,
                 });
 

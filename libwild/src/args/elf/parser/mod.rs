@@ -34,6 +34,11 @@ pub(super) const SILENTLY_IGNORED_FLAGS: &[&str] = &[
     // Kernel vmlinux.lds / Makefile flags that we do not implement yet.
     "no-warn-rwx-segments",
     "warn-rwx-segments",
+    // GCC 15 / glibc pass these once they detect a GNU ld --version line.
+    "no-error-execstack",
+    "error-execstack",
+    "warn-execstack",
+    "no-warn-execstack",
 ];
 const SILENTLY_IGNORED_SHORT_FLAGS: &[&str] = &[
     "(",

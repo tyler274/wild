@@ -185,6 +185,16 @@ pub(crate) trait Args: std::fmt::Debug + Send + Sync + 'static {
 
     fn loadable_segment_alignment(&self) -> Alignment;
 
+    /// `CONSTANT(COMMONPAGESIZE)` / `-z common-page-size`. Not larger than the max page size.
+    fn common_page_size(&self) -> u64 {
+        0x1000.min(self.loadable_segment_alignment().value())
+    }
+
+    /// `-z relro` (default on). Controls `DATA_SEGMENT_RELRO_END` padding.
+    fn relro(&self) -> bool {
+        true
+    }
+
     fn should_merge_sections(&self) -> bool;
 
     fn dependency_file(&self) -> Option<&Path> {

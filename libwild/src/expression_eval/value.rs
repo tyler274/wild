@@ -250,6 +250,17 @@ pub(crate) fn evaluate_expression<'data, P: Platform>(
     Ok(value + offset)
 }
 
+/// GNU `DATA_SEGMENT_ALIGN(maxpagesize, _)` first pass: next `maxpagesize` boundary plus the
+/// current in-page offset, so the data segment does not share a page with the text segment.
+pub(crate) fn data_segment_align(dot: u64, maxpagesize: u64) -> u64 {
+    if maxpagesize <= 1 {
+        return dot;
+    }
+    let aligned = dot.next_multiple_of(maxpagesize);
+    let offset = dot & (maxpagesize - 1);
+    aligned.wrapping_add(offset)
+}
+
 fn evaluate_expression_value<'data, P: Platform>(
     expr: &Expression<'data>,
     expr_loc: &SymbolLoc,
@@ -459,6 +470,43 @@ fn evaluate_expression_value<'data, P: Platform>(
             }
         }
         Expression::SizeofHeaders => Ok(sizeof_headers),
+        Expression::ConstantMaxPageSize => {
+            value_kind.contains_absolute = true;
+            Ok(symbol_db.args.loadable_segment_alignment().value())
+        }
+        Expression::ConstantCommonPageSize => {
+            value_kind.contains_absolute = true;
+            Ok(symbol_db.args.common_page_size())
+        }
+        Expression::DataSegmentAlign(max_expr, common_expr) => {
+            let max = eval!(max_expr)?;
+            let _common = eval!(common_expr)?;
+            value_kind.contains_absolute = true;
+            let dot = absolute_location_counter(
+                expr_loc,
+                section_layouts,
+                output_sections,
+                resolved_location_counters,
+            )?;
+            Ok(data_segment_align(dot, max))
+        }
+        Expression::DataSegmentRelroEnd(offset_expr, exp) => {
+            let offset = eval!(offset_expr)?;
+            let exp = eval_abs!(exp)?;
+            value_kind.contains_absolute = true;
+            if !symbol_db.args.relro() {
+                return Ok(exp);
+            }
+            let page = symbol_db.args.loadable_segment_alignment().value();
+            let relro_end = exp.wrapping_add(offset);
+            let aligned_end = if page <= 1 {
+                relro_end
+            } else {
+                relro_end.next_multiple_of(page)
+            };
+            Ok(aligned_end.wrapping_sub(offset))
+        }
+        Expression::DataSegmentEnd(exp) => eval!(exp),
         Expression::Ternary(cond, if_true, if_false) => {
             let cond = eval!(cond)?;
             if cond != 0 {

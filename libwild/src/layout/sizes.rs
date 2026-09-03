@@ -66,10 +66,16 @@ pub(crate) fn update_redirect_resolutions<'data, P: Platform>(
             }
             Group::LinkerScripts(scripts) => {
                 for script in scripts {
-                    for def_info in &script.parsed.symbol_defs {
+                    for (offset, def_info) in script.parsed.symbol_defs.iter().enumerate() {
                         let SymbolPlacement::Redirect(redirect) = &def_info.placement else {
                             continue;
                         };
+                        let symbol_id = script.symbol_id_range.offset_to_id(offset);
+                        // GNU PROVIDE does not override an existing definition (prelude
+                        // `__etext` / `_end` and similar).
+                        if def_info.is_provide && !symbol_db.is_canonical(symbol_id) {
+                            continue;
+                        }
                         let section_layouts = if matches!(
                             redirect.loc,
                             SymbolLoc::SectionStartRelative(_)
@@ -174,14 +180,22 @@ pub(crate) fn update_defsym_symbol_resolution<'data, P: Platform>(
             return Ok(());
         }
 
-        let canonical_symbol_id = symbol_db
+        let Some(canonical_symbol_id) = symbol_db
             .get_unversioned(&UnversionedSymbolName::prehashed(def_info.name))
             .map(|id| symbol_db.definition(id))
-            .ok_or_else(|| redirect.missing_target(def_info.name))?;
+        else {
+            if def_info.is_provide {
+                return Ok(());
+            }
+            return Err(redirect.missing_target(def_info.name));
+        };
 
-        let resolution = resolutions[canonical_symbol_id.as_usize()]
-            .as_mut()
-            .ok_or_else(|| redirect.missing_resolution(def_info.name))?;
+        let Some(resolution) = resolutions[canonical_symbol_id.as_usize()].as_mut() else {
+            if def_info.is_provide {
+                return Ok(());
+            }
+            return Err(redirect.missing_resolution(def_info.name));
+        };
 
         resolution.raw_value = value;
     }

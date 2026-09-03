@@ -1,6 +1,9 @@
 {
   pkgs ? import <nixpkgs> { },
 }:
+let
+  glibcTests = pkgs.callPackage ../nix/glibc-tests.nix { };
+in
 pkgs.mkShell {
   nativeBuildInputs = [
     (pkgs.writeShellApplication {
@@ -31,7 +34,10 @@ pkgs.mkShell {
     pkgs.glibc.out
     pkgs.glibc.static
     pkgs.rustup
-  ];
+  ]
+  ++ glibcTests.packages;
 
   LD_LIBRARY_PATH = "${pkgs.stdenv.cc.cc.lib}/lib";
+
+  inherit (glibcTests) shellHook;
 }

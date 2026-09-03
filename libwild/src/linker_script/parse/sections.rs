@@ -89,13 +89,18 @@ pub(crate) fn parse_section_command<'input>(
 
     let mut alignment = None;
     let mut at_address = None;
+    let mut only_if = None;
 
     while !input.starts_with(b"{") {
         skip_comments_and_whitespace(input)?;
         if input.starts_with(b"AT>") {
             break;
         }
-        if opt("AT").parse_next(input)?.is_some() {
+        if opt("ONLY_IF_RO").parse_next(input)?.is_some() {
+            only_if = Some(OnlyIf::Ro);
+        } else if opt("ONLY_IF_RW").parse_next(input)?.is_some() {
+            only_if = Some(OnlyIf::Rw);
+        } else if opt("AT").parse_next(input)?.is_some() {
             at_address = Some(parse_at_address.parse_next(input)?);
         } else {
             alignment = Some(parse_alignment.parse_next(input)?);
@@ -147,6 +152,7 @@ pub(crate) fn parse_section_command<'input>(
         at_region,
         fill,
         attributes: section_type,
+        only_if,
     }))
 }
 
@@ -348,9 +354,9 @@ pub(crate) fn parse_contents_command<'input>(
         parse_contents_assert,
         parse_contents_fill,
         parse_output_data,
+        parse_constructors,
         parse_matcher,
         parse_assignment,
-        parse_constructors,
     ))
     .parse_next(input)
 }
@@ -431,7 +437,18 @@ pub(crate) fn parse_assignment<'input>(
 pub(crate) fn parse_constructors<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<ContentsCommand<'input>> {
-    "CONSTRUCTORS".parse_next(input)?;
+    if opt("SORT").parse_next(input)?.is_some() {
+        skip_comments_and_whitespace(input)?;
+        '('.parse_next(input)?;
+        skip_comments_and_whitespace(input)?;
+        "CONSTRUCTORS".parse_next(input)?;
+        skip_comments_and_whitespace(input)?;
+        ')'.parse_next(input)?;
+    } else {
+        alt(("CONSTRUCTORS", "LINKER_VERSION")).parse_next(input)?;
+    }
+    skip_comments_and_whitespace(input)?;
+    opt(';').parse_next(input)?;
     skip_comments_and_whitespace(input)?;
     Ok(ContentsCommand::Constructors)
 }
@@ -487,11 +504,16 @@ pub(crate) fn parse_matcher_pattern<'input>(
     '('.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
 
-    if input.starts_with(b"EXCLUDE_FILE") {
-        exclude_file_patterns.extend(parse_exclude_file_list(input)?);
+    let mut patterns = Vec::new();
+    while !input.starts_with(b")") {
+        if input.starts_with(b"EXCLUDE_FILE") {
+            exclude_file_patterns.extend(parse_exclude_file_list(input)?);
+        } else {
+            patterns.push(parse_pattern(input)?);
+        }
+        skip_comments_and_whitespace(input)?;
     }
-
-    let (patterns, _) = repeat_till(0.., parse_pattern, ')').parse_next(input)?;
+    ')'.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
 
     // A bare `*` means "match all files", represented as None.
@@ -514,6 +536,7 @@ pub(crate) fn parse_sort(input: &mut &BStr) -> winnow::Result<SortKind> {
         "SORT_BY_INIT_PRIORITY".map(|_| SortKind::InitPriority),
         "SORT_BY_NAME".map(|_| SortKind::Name),
         "SORT_BY_ALIGNMENT".map(|_| SortKind::Alignment),
+        "SORT_NONE".map(|_| SortKind::None),
         "SORT".map(|_| SortKind::Name),
     ))
     .parse_next(input)
@@ -522,9 +545,10 @@ pub(crate) fn parse_sort(input: &mut &BStr) -> winnow::Result<SortKind> {
 pub(crate) fn parse_pattern<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<SectionPattern<'input>> {
-    let sort = opt(parse_sort).parse_next(input)?.unwrap_or(SortKind::None);
+    let wrapped = opt(parse_sort).parse_next(input)?;
+    let sort = wrapped.unwrap_or(SortKind::None);
 
-    if sort != SortKind::None {
+    if wrapped.is_some() {
         skip_comments_and_whitespace(input)?;
         '('.parse_next(input)?;
         winnow::combinator::not(parse_sort)
@@ -538,7 +562,7 @@ pub(crate) fn parse_pattern<'input>(
     let name = take_while(1.., |b: u8| b != b')' && !b.is_ascii_whitespace()).parse_next(input)?;
     skip_comments_and_whitespace(input)?;
 
-    if sort != SortKind::None {
+    if wrapped.is_some() {
         ')'.parse_next(input)?;
         skip_comments_and_whitespace(input)?;
     }

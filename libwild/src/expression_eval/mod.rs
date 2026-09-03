@@ -339,6 +339,14 @@ mod tests {
     }
 
     #[test]
+    fn test_data_segment_align_formula() {
+        // 0x401234, 4KiB page → 0x402234 (next page, same in-page offset)
+        assert_eq!(data_segment_align(0x401234, 0x1000), 0x402234);
+        assert_eq!(data_segment_align(0x402000, 0x1000), 0x402000);
+        assert_eq!(data_segment_align(0x10, 1), 0x10);
+    }
+
+    #[test]
     fn test_align() {
         // ALIGN(8) with location counter 0 → 0
         assert_eq!(

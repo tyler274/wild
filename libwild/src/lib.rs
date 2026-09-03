@@ -237,16 +237,16 @@ impl<F: FileSystem> Linker<F> {
         &'layout_inputs self,
         args: &'layout_inputs Args,
     ) -> error::Result<LinkerOutput<'layout_inputs>> {
-        let identity = args.common().linker_identity();
+        let version = args.common().version_message();
         match args.common().version_mode {
             args::VersionMode::ExitAfterPrint => {
                 let mut stdout = std::io::stdout().lock();
-                writeln!(stdout, "{identity}")?;
+                writeln!(stdout, "{version}")?;
                 return Ok(LinkerOutput { layout: None });
             }
             args::VersionMode::Verbose => {
                 let mut stdout = std::io::stdout().lock();
-                writeln!(stdout, "{identity}")?;
+                writeln!(stdout, "{version}")?;
                 // Continue linking if object files are specified
                 if args.common().inputs.is_empty() {
                     return Ok(LinkerOutput { layout: None });
@@ -254,7 +254,7 @@ impl<F: FileSystem> Linker<F> {
             }
             args::VersionMode::VerboseWithEmulations => {
                 let mut stdout = std::io::stdout().lock();
-                writeln!(stdout, "{identity}")?;
+                writeln!(stdout, "{version}")?;
                 args.print_emulation_info(&mut stdout)?;
                 // Continue linking if object files are specified
                 if args.common().inputs.is_empty() {

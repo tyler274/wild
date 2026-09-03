@@ -102,6 +102,7 @@ impl<'data> LayoutRulesBuilder<'data> {
             } else if let linker_script::Command::Sections(sections) = cmd {
                 let mut section_start_lc_idx = last_lc_idx;
                 let mut prev_phdrs = Vec::new();
+                let mut script_section_names: Vec<&[u8]> = Vec::new();
                 for sec_cmd in &sections.commands {
                     match sec_cmd {
                         SectionCommand::Section(sec) => {
@@ -129,6 +130,15 @@ impl<'data> LayoutRulesBuilder<'data> {
                                 }
                                 continue;
                             }
+                            // GNU default shared scripts list `.eh_frame : ONLY_IF_RO` then
+                            // `.eh_frame : ONLY_IF_RW`. Duplicate names collapse to one output
+                            // section in Wild, so keep the first and skip later ONLY_IF copies.
+                            if sec.only_if.is_some()
+                                && script_section_names.contains(&sec.output_section_name)
+                            {
+                                continue;
+                            }
+                            script_section_names.push(sec.output_section_name);
                             let min_alignment =
                                 sec.alignment.unwrap_or(alignment::MIN).max(alignment::MIN);
 

@@ -217,10 +217,26 @@ impl CommonArgs {
         })
     }
 
+    /// Binutils feature level advertised in `--version`. Glibc `configure`, the
+    /// kernel's `scripts/ld-version.sh`, and GCC all require a `GNU ld` line with
+    /// a dotted version; 2.39 is glibc's minimum.
+    pub(crate) const GNU_LD_COMPAT_VERSION: &str = "2.44";
+
     /// Returns a string that identifies this linker. This is written into the .comment
     /// section which usually also contains the versions of compilers that were used.
     pub(crate) fn linker_identity(&self) -> String {
         format!("Wild {} (compatible with GNU linkers)", self.version)
+    }
+
+    /// `--version` / `-v` / `-V` text. First line matches GNU ld so glibc and the
+    /// kernel accept Wild. The parenthetical must not contain a `x.y` version or
+    /// glibc's `sed` captures that instead of `GNU_LD_COMPAT_VERSION`.
+    pub(crate) fn version_message(&self) -> String {
+        format!(
+            "GNU ld (Wild) {}\n{}",
+            Self::GNU_LD_COMPAT_VERSION,
+            self.linker_identity()
+        )
     }
 
     /// Adds a linker script to our outputs. Note, this is only called for scripts specified via

@@ -4,6 +4,7 @@
 let
   inherit (pkgs.callPackage ./wrappers.nix { }) gccWrapper gppWrapper clangWrapper;
   inherit (pkgs.llvmPackages) clang-tools lld;
+  glibcTests = pkgs.callPackage ./glibc-tests.nix { };
 in
 pkgs.mkShell {
   packages = [
@@ -20,7 +21,12 @@ pkgs.mkShell {
     pkgs.rustup
     gccWrapper
     gppWrapper
-  ];
+  ]
+  ++ glibcTests.packages;
 
   env.LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ];
+
+  # Unpack nixpkgs glibc, point WILD_GLIBC_* at it, and provide wild-build-glibc.
+  # Override WILD_GLIBC_TREE / WILD_GLIBC_BUILD before `nix develop` to use another tree.
+  inherit (glibcTests) shellHook;
 }

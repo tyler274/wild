@@ -84,6 +84,16 @@ pub(crate) enum SectionAttributes {
     ReadonlyType(u32),
 }
 
+/// GNU `ONLY_IF_RO` / `ONLY_IF_RW` on an output section. The default shared
+/// script (glibc `shlib.lds`) lists a RO copy then a RW copy of `.eh_frame`
+/// and similar; Wild keeps the first and skips later duplicates of the same
+/// name so PIC links put unwind info in the RO region.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub(crate) enum OnlyIf {
+    Ro,
+    Rw,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Section<'a> {
     pub(crate) output_section_name: &'a [u8],
@@ -96,6 +106,7 @@ pub(crate) struct Section<'a> {
     pub(crate) at_region: Option<&'a [u8]>,
     pub(crate) fill: Option<Fill<'a>>,
     pub(crate) attributes: Option<SectionAttributes>,
+    pub(crate) only_if: Option<OnlyIf>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
@@ -196,7 +207,7 @@ pub(crate) struct OutputFormat<'a> {
 /// - Logical: &&, ||
 /// - Unary: -, !, ~
 /// - Functions: SIZEOF, ALIGNOF, LENGTH, ORIGIN, ADDR, LOADADDR, ALIGN, MIN, MAX, SEGMENT_START,
-///   DEFINED, ABSOLUTE
+///   DEFINED, ABSOLUTE, CONSTANT, DATA_SEGMENT_ALIGN, DATA_SEGMENT_RELRO_END, DATA_SEGMENT_END
 /// - Numbers (hex/decimal), symbols, location counter (.)
 /// - Parentheses for grouping
 /// - Ternary operator (? :)
@@ -236,6 +247,18 @@ pub(crate) enum Expression<'a> {
     /// named segment if one was provided, otherwise returns `default`.
     /// Unknown segment names always return `default` (matching GNU ld behavior).
     SegmentStart(crate::parsing::SegmentName, Box<Expression<'a>>),
+    /// `CONSTANT(MAXPAGESIZE)` — `-z max-page-size` / architecture default.
+    ConstantMaxPageSize,
+    /// `CONSTANT(COMMONPAGESIZE)` — `-z common-page-size`, capped at max page size.
+    ConstantCommonPageSize,
+    /// `DATA_SEGMENT_ALIGN(maxpagesize, commonpagesize)` — GNU: next max-page with the same
+    /// in-page offset, so the data segment does not share a page with the text segment.
+    DataSegmentAlign(Box<Expression<'a>>, Box<Expression<'a>>),
+    /// `DATA_SEGMENT_RELRO_END(offset, exp)` — pad so `exp + offset` is page-aligned when RELRO
+    /// is on. Returns the new location counter (typically assigned to `.`).
+    DataSegmentRelroEnd(Box<Expression<'a>>, Box<Expression<'a>>),
+    /// `DATA_SEGMENT_END(exp)` — marks the end of the data segment; returns `exp`.
+    DataSegmentEnd(Box<Expression<'a>>),
     /// Bitwise AND, OR and XOR
     BitwiseAnd(Box<Expression<'a>>, Box<Expression<'a>>),
     BitwiseOr(Box<Expression<'a>>, Box<Expression<'a>>),
@@ -321,7 +344,9 @@ impl<'a> Expression<'a> {
             | Expression::Loadaddr(_)
             | Expression::Symbol(_)
             | Expression::SizeofHeaders
-            | Expression::Defined(_) => {}
+            | Expression::Defined(_)
+            | Expression::ConstantMaxPageSize
+            | Expression::ConstantCommonPageSize => {}
             Expression::Add(l, r)
             | Expression::Subtract(l, r)
             | Expression::Multiply(l, r)
@@ -353,6 +378,11 @@ impl<'a> Expression<'a> {
             | Expression::Absolute(e)
             | Expression::Assert(AssertCommand { expression: e, .. }) => e.visit_expressions(cb),
             Expression::SegmentStart(_, default_expr) => default_expr.visit_expressions(cb),
+            Expression::DataSegmentAlign(l, r) | Expression::DataSegmentRelroEnd(l, r) => {
+                l.visit_expressions(cb);
+                r.visit_expressions(cb);
+            }
+            Expression::DataSegmentEnd(e) => e.visit_expressions(cb),
             Expression::Ternary(expression, expression1, expression2) => {
                 expression.visit_expressions(cb);
                 expression1.visit_expressions(cb);
@@ -375,7 +405,9 @@ impl<'a> Expression<'a> {
             | Expression::Loadaddr(_)
             | Expression::SizeofHeaders
             | Expression::Defined(_)
-            | Expression::SegmentStart(..) => None,
+            | Expression::SegmentStart(..)
+            | Expression::ConstantMaxPageSize
+            | Expression::ConstantCommonPageSize => None,
             Expression::Add(l, r) => {
                 add_dot_residual(l.relocatable_anchor(), r.relocatable_anchor())
             }
@@ -384,6 +416,10 @@ impl<'a> Expression<'a> {
             }
             Expression::Align(_, Some(value)) => value.relocatable_anchor(),
             Expression::Align(_, None) => Some(RelocatableAnchor::LocationCounter),
+            Expression::DataSegmentAlign(_, _) => Some(RelocatableAnchor::LocationCounter),
+            Expression::DataSegmentRelroEnd(_, exp) | Expression::DataSegmentEnd(exp) => {
+                exp.relocatable_anchor()
+            }
             Expression::Min(l, r) | Expression::Max(l, r) => {
                 let left = l.relocatable_anchor();
                 let right = r.relocatable_anchor();

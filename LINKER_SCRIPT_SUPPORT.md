@@ -64,7 +64,7 @@ matching all three.
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | Both `*(EXCLUDE_FILE(a.o) .text)` and `EXCLUDE_FILE(a.o) *(.text)` |
 | `BYTE(expr)`, `SHORT(expr)`, `LONG(expr)`, `QUAD(expr)` output data | ✅ | Written in the target endianness |
 | `SUBALIGN(n)` forced input alignment | ❌ | |
-| `ONLY_IF_RO` / `ONLY_IF_RW` output section constraints | ❌ | |
+| `ONLY_IF_RO` / `ONLY_IF_RW` output section constraints | 🧪 | Parsed. Duplicate names (GNU default `.eh_frame : ONLY_IF_RO` then `ONLY_IF_RW`) keep the first copy so PIC / glibc `shlib.lds` links put unwind info in the RO region |
 | `:phdr` output section phdrs | ✅ | |
 
 ## Expressions and Functions
@@ -94,6 +94,10 @@ matching all three.
 | `ABSOLUTE(expr)` | ✅ | Evaluates `expr` as a VMA and forces `SHN_ABS` (kernel `phys_startup_64`) |
 | `SIZEOF_HEADERS` | ✅ | |
 | `SEGMENT_START(segment, default)` | ✅ | Supports `"text"`, `"data"`, `"bss"`, `"rodata"`; returns `-Ttext`/`-Tdata`/`-Tbss` override if provided, otherwise `default`; unknown segment names always return `default` |
+| `CONSTANT(MAXPAGESIZE)` / `CONSTANT(COMMONPAGESIZE)` | ✅ | Max page from `-z max-page-size` / arch default; common page from `-z common-page-size` (default 4KiB, capped at max). Used by glibc's generated `shlib.lds` |
+| `DATA_SEGMENT_ALIGN(max, common)` | ✅ | GNU first pass: next `max` page plus the current in-page offset so data does not share a page with text. `common` is parsed for GNU compatibility |
+| `DATA_SEGMENT_RELRO_END(offset, exp)` | ✅ | With `-z relro`, pads so `exp + offset` is max-page aligned and returns the new `.`. With `-z norelro`, returns `exp` |
+| `DATA_SEGMENT_END(exp)` | ✅ | Returns `exp` (end marker for GNU's optional second-pass RELRO adjust) |
 
 ## MEMORY Command
 
@@ -150,6 +154,24 @@ because `.data..ro_after_init` is 4KiB-aligned. `.strtab` and `.shstrtab` suffix
 | `--build-id` into `*(.note.*)` | ✅ | Merged into the matching output section (kernel `.notes`); not a leftover `PT_LOAD` |
 | `--orphan-handling` (`place`, `warn`, `error`, `discard`) | ✅ | Default `place` creates a same-named custom output section after the last output section with the same flags (GNU). `error` matches kernel `vmlinux` links |
 
+## Glibc (`libc.so` / `ld.so`)
+
+Current glibc links `libc.so` / `ld.so` with `gcc -shared` and a version script, not a generated
+`shlib.lds`. Wild's default ELF layout is what that link uses. GNU ld's default shared script
+(`DATA_SEGMENT_*`, `CONSTANT`, `ONLY_IF_*`, `SORT_NONE`, `LINKER_VERSION` as an ELF nop,
+`SORT(CONSTRUCTORS)`, mid-list `EXCLUDE_FILE`) is still parsed and linked
+(`linker-script-gnu-default`). `PROVIDE` does not override an existing definition (prelude
+`__etext` / `_end`). Duplicate `ONLY_IF_*` names keep the first copy (RO, correct for PIC).
+`ALIGNOF(NEXT_SECTION)` is a no-op.
+
+Glibc `configure` only accepted GNU ld / gold / LLD `--version` strings; Wild now prints a GNU ld
+compatible first line (`GNU ld (Wild) 2.44`) so configure and `scripts/ld-version.sh` accept it.
+The GNU oracle is still linked with GNU ld so the relink tests have a BFD binary to diff against.
+`nix develop` sets `WILD_GLIBC_TREE` to nixpkgs' glibc source and `WILD_GLIBC_BUILD` to
+`target/glibc-gnu`; run `wild-build-glibc` then
+`cargo test -p wild-linker --test integration_tests -- glibc`. Override those variables to use
+another tree. A full `make check` is follow-up.
+
 ## Known gaps / follow-ups
 
 These are tracked here so they are not forgotten. They are not part of the current layout /
@@ -158,3 +180,6 @@ These are tracked here so they are not forgotten. They are not part of the curre
 ### Lower priority versus GNU
 
 * `--build-id` blake3 versus SHA-1 (do not change unless asked)
+* `ALIGNOF(NEXT_SECTION)` (GNU default script aligns `.bss` to the next section; currently a no-op)
+* `LINKER_VERSION` is parsed and ignored; a script-defined `.comment` can leave Wild's identity in a second `.comment` section
+* `ONLY_IF_RO` / `ONLY_IF_RW` keep the first duplicate name rather than picking by input `SHF_WRITE`

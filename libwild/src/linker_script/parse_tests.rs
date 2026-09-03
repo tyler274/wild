@@ -175,6 +175,7 @@ fn test_section_command() {
             at_region: None,
             fill: None,
             attributes: None,
+            only_if: None,
         }),
     );
 }
@@ -202,6 +203,7 @@ fn test_section_command_with_start_address_expression() {
             at_region: None,
             fill: None,
             attributes: None,
+            only_if: None,
         }),
     );
 }
@@ -232,6 +234,7 @@ fn test_section_command_with_align_start_address() {
             at_region: None,
             fill: None,
             attributes: None,
+            only_if: None,
         }),
     );
 }
@@ -254,6 +257,7 @@ fn test_section_command_with_type_attribute() {
             at_region: None,
             fill: None,
             attributes: Some(SectionAttributes::Type(object::elf::SHT_NOTE.0)),
+            only_if: None,
         }),
     );
     check_section_command(
@@ -272,6 +276,7 @@ fn test_section_command_with_type_attribute() {
             at_region: None,
             fill: None,
             attributes: Some(SectionAttributes::Type(7)),
+            only_if: None,
         }),
     );
     check_section_command(
@@ -290,6 +295,7 @@ fn test_section_command_with_type_attribute() {
             at_region: None,
             fill: None,
             attributes: Some(SectionAttributes::ReadonlyType(object::elf::SHT_NOTE.0)),
+            only_if: None,
         }),
     );
     check_section_command(
@@ -313,6 +319,7 @@ fn test_section_command_with_type_attribute() {
             at_region: None,
             fill: None,
             attributes: Some(SectionAttributes::Type(object::elf::SHT_NOBITS.0)),
+            only_if: None,
         }),
     );
 }
@@ -394,6 +401,7 @@ fn test_basic_linker_script() {
                             at_region: None,
                             fill: None,
                             attributes: None,
+                            only_if: None,
                         }),
                     ],
                 }),
@@ -550,6 +558,7 @@ fn test_section_command_with_filename() {
             at_region: None,
             fill: None,
             attributes: None,
+            only_if: None,
         }),
     );
 }
@@ -577,6 +586,7 @@ fn test_section_command_with_glob_filename() {
             at_region: None,
             fill: None,
             attributes: None,
+            only_if: None,
         }),
     );
 }
@@ -604,6 +614,7 @@ fn test_keep_with_filename() {
             at_region: None,
             fill: None,
             attributes: None,
+            only_if: None,
         }),
     );
 }
@@ -639,6 +650,7 @@ fn test_assert_command() {
                         at_region: None,
                         fill: None,
                         attributes: None,
+                        only_if: None,
                     })],
                 }),
                 Command::Assert(AssertCommand {
@@ -685,6 +697,7 @@ fn test_assert_in_sections() {
                         at_region: None,
                         fill: None,
                         attributes: None,
+                        only_if: None,
                     }),
                     SectionCommand::Assert(AssertCommand {
                         expression: Box::new(Expression::LessThan(
@@ -1137,4 +1150,128 @@ fn test_relocatable_anchor() {
     let mut bstr = winnow::BStr::new(b"0xabcd");
     let expr = parse_expression.parse_next(&mut bstr).unwrap();
     assert_eq!(expr.relocatable_anchor(), None);
+}
+
+#[test]
+fn test_data_segment_and_constant() {
+    let mut bstr = winnow::BStr::new(b"CONSTANT(MAXPAGESIZE)");
+    assert_eq!(
+        parse_expression.parse_next(&mut bstr).unwrap(),
+        Expression::ConstantMaxPageSize
+    );
+
+    let mut bstr = winnow::BStr::new(b"CONSTANT(COMMONPAGESIZE)");
+    assert_eq!(
+        parse_expression.parse_next(&mut bstr).unwrap(),
+        Expression::ConstantCommonPageSize
+    );
+
+    let mut bstr =
+        winnow::BStr::new(b"DATA_SEGMENT_ALIGN(CONSTANT(MAXPAGESIZE), CONSTANT(COMMONPAGESIZE))");
+    let expr = parse_expression.parse_next(&mut bstr).unwrap();
+    assert_matches!(expr, Expression::DataSegmentAlign(_, _));
+    assert_eq!(
+        expr.relocatable_anchor(),
+        Some(RelocatableAnchor::LocationCounter)
+    );
+
+    let mut bstr = winnow::BStr::new(b"DATA_SEGMENT_RELRO_END(0, .)");
+    let expr = parse_expression.parse_next(&mut bstr).unwrap();
+    assert_matches!(expr, Expression::DataSegmentRelroEnd(_, _));
+
+    let mut bstr = winnow::BStr::new(b"DATA_SEGMENT_END(.)");
+    let expr = parse_expression.parse_next(&mut bstr).unwrap();
+    assert_matches!(expr, Expression::DataSegmentEnd(_));
+}
+
+#[test]
+fn test_only_if_and_sort_none() {
+    check_section_command(
+        ".eh_frame : ONLY_IF_RO { KEEP (*(.eh_frame)) }",
+        &SectionCommand::Section(Section {
+            output_section_name: b".eh_frame",
+            commands: vec![ContentsCommand::Matcher(Matcher {
+                must_keep: true,
+                input_file_pattern: None,
+                exclude_file_patterns: vec![],
+                input_section_name_patterns: vec![SectionPattern {
+                    name: b".eh_frame",
+                    sort: SortKind::None,
+                }],
+            })],
+            alignment: None,
+            start_address_expression: None,
+            phdrs: vec![],
+            at_address: None,
+            region: None,
+            at_region: None,
+            fill: None,
+            attributes: None,
+            only_if: Some(OnlyIf::Ro),
+        }),
+    );
+    check_section_command(
+        ".init : { KEEP (*(SORT_NONE(.init))) }",
+        &SectionCommand::Section(Section {
+            output_section_name: b".init",
+            commands: vec![ContentsCommand::Matcher(Matcher {
+                must_keep: true,
+                input_file_pattern: None,
+                exclude_file_patterns: vec![],
+                input_section_name_patterns: vec![SectionPattern {
+                    name: b".init",
+                    sort: SortKind::None,
+                }],
+            })],
+            alignment: None,
+            start_address_expression: None,
+            phdrs: vec![],
+            at_address: None,
+            region: None,
+            at_region: None,
+            fill: None,
+            attributes: None,
+            only_if: None,
+        }),
+    );
+}
+
+#[test]
+fn test_exclude_file_between_patterns() {
+    check_section_command(
+        ".init_array : { KEEP (*(.init_array EXCLUDE_FILE (*crtbegin.o *crtend.o) .ctors)) }",
+        &SectionCommand::Section(Section {
+            output_section_name: b".init_array",
+            commands: vec![ContentsCommand::Matcher(Matcher {
+                must_keep: true,
+                input_file_pattern: None,
+                exclude_file_patterns: vec![b"*crtbegin.o", b"*crtend.o"],
+                input_section_name_patterns: vec![
+                    SectionPattern {
+                        name: b".init_array",
+                        sort: SortKind::None,
+                    },
+                    SectionPattern {
+                        name: b".ctors",
+                        sort: SortKind::None,
+                    },
+                ],
+            })],
+            alignment: None,
+            start_address_expression: None,
+            phdrs: vec![],
+            at_address: None,
+            region: None,
+            at_region: None,
+            fill: None,
+            attributes: None,
+            only_if: None,
+        }),
+    );
+}
+
+#[test]
+fn test_gnu_default_shared_script_parses() {
+    let script = include_str!("test_data/gnu-default-shared.ld");
+    parse_script(script).unwrap();
 }

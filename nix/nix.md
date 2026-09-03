@@ -111,3 +111,22 @@ in
 # Then create whatever cool package you are building
 callPackage ./package.nix { rustPlatform = wildRustPlatform; }
 ```
+
+## Glibc relink tests
+
+`nix develop` (or `nix-shell nix/shell.nix`) puts glibc's build tools on `PATH` (`python3`, `bison`,
+`gawk`, …), unpacks the nixpkgs glibc source, and sets:
+
+* `WILD_GLIBC_TREE` — that source (override to use another checkout)
+* `WILD_GLIBC_BUILD` — `$PWD/target/glibc-gnu`
+* `WILD_GLIBC_HEADERS` — nixpkgs `linuxHeaders`
+
+Glibc `configure` rejects Wild, so the GNU oracle is built first:
+
+```sh
+wild-build-glibc
+cargo test -p wild-linker --no-default-features --features fork,zstd --test integration_tests -- glibc
+```
+
+`wild-build-glibc` uses unwrapped GCC 15 (the Nix gcc wrapper injects `_FORTIFY_SOURCE=3`) and GNU
+ld. Pass `--force` to reconfigure. A from-scratch glibc build is not part of `nix flake check`.

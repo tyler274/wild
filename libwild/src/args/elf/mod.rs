@@ -106,6 +106,7 @@ pub struct ElfArgs {
     pub(crate) z_stack_size: Option<NonZeroU64>,
     pub(crate) z_pack_relative_relocs: bool,
     pub(crate) max_page_size: Option<Alignment>,
+    pub(crate) common_page_size: Option<Alignment>,
     pub(crate) trace: bool,
     pub(crate) pack_dyn_relocs: PackDynRelocs,
     pub(crate) use_android_relr_tags: bool,
@@ -278,6 +279,7 @@ impl Default for ElfArgs {
             z_isa: None,
             z_pack_relative_relocs: false,
             max_page_size: None,
+            common_page_size: None,
             auxiliary: Vec::new(),
             rpath_set: Default::default(),
             plugin_path: None,
@@ -595,6 +597,19 @@ impl platform::Args for ElfArgs {
             Architecture::Ppc64 => Alignment { exponent: 16 },
             Architecture::Unsupported => unreachable!(),
         }
+    }
+
+    fn common_page_size(&self) -> u64 {
+        let max = self.loadable_segment_alignment().value();
+        let common = self
+            .common_page_size
+            .map(Alignment::value)
+            .unwrap_or(0x1000);
+        common.min(max)
+    }
+
+    fn relro(&self) -> bool {
+        self.relro
     }
 
     fn dependency_file(&self) -> Option<&Path> {
@@ -1052,5 +1067,41 @@ mod tests {
             args.start_address_for_section(SectionName(b".text")),
             Some(0x600000)
         );
+    }
+
+    #[test]
+    fn test_version_message_matches_gnu_ld_probes() {
+        use crate::args::CommonArgs;
+        let args = ElfArgs::new().unwrap();
+        let msg = args.common.version_message();
+        let mut lines = msg.lines();
+        let first = lines.next().expect("GNU ld line");
+        let identity = lines.next().expect("Wild identity line");
+        assert_eq!(
+            first,
+            format!("GNU ld (Wild) {}", CommonArgs::GNU_LD_COMPAT_VERSION)
+        );
+        assert!(
+            identity.starts_with("Wild "),
+            "identity line should name Wild: {identity}"
+        );
+        assert!(identity.contains("compatible with GNU linkers"));
+        // Glibc's sed matches `GNU ld` on a line; the identity line must not.
+        assert!(
+            !identity.contains("GNU ld"),
+            "identity line must not contain `GNU ld` or glibc configure captures the Wild version"
+        );
+    }
+
+    #[test]
+    fn test_gcc15_gnu_ld_flags_parse() {
+        parse_args([
+            "--no-error-execstack",
+            "--warn-execstack",
+            "-z",
+            "start-stop-gc",
+            "-z",
+            "pack-relative-relocs",
+        ]);
     }
 }

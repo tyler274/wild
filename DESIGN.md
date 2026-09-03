@@ -64,6 +64,15 @@ Pack objects with `scripts/pack-vmlinux-objects.sh`. CI job `vmlinux` runs when 
 variable `WILD_LINUX_OBJECTS_URL` points at that tarball (a from-scratch kernel build will not fit
 the 10-minute timeout). Follow-up: a small userspace / initramfs also linked with Wild.
 
+Glibc's `libc.so` link uses GNU ld's default shared script (`DATA_SEGMENT_*`, `CONSTANT`,
+`ONLY_IF_*`). Wild can parse and link that script (see `linker-script-gnu-default`). `nix develop`
+unpacks nixpkgs glibc, sets `WILD_GLIBC_TREE` / `WILD_GLIBC_BUILD` / `WILD_GLIBC_HEADERS`, and
+provides `wild-build-glibc` (GNU ld + GCC 15). Wild's `--version` first line is GNU ld compatible
+so glibc `configure` and the kernel's `scripts/ld-version.sh` accept it; the GNU oracle is still
+linked with GNU ld so the relink tests have something to diff. Then
+`cargo test -p wild-linker --test integration_tests -- glibc`. Override the env vars to use another
+tree. A full `make check` is still follow-up work.
+
 ## Modularity (Mold and LLD)
 
 Wild stays one `libwild` crate. The notes below are about *module* boundaries, not new workspace
