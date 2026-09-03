@@ -933,3 +933,71 @@ fn test_nested_sort_is_unsupported() {
     );
     assert!(script.is_err());
 }
+
+#[test]
+fn test_absolute_parsing() {
+    let mut bstr = winnow::BStr::new(b"ABSOLUTE(startup_64 - 0x400000)");
+    let expr = parse_expression.parse_next(&mut bstr).unwrap();
+    assert_eq!(
+        expr,
+        Expression::Absolute(Box::new(Expression::Subtract(
+            Box::new(Expression::Symbol(b"startup_64")),
+            Box::new(Expression::Number(0x400000)),
+        )))
+    );
+}
+
+#[test]
+fn test_relocatable_anchor() {
+    let mut bstr = winnow::BStr::new(b"jiffies_64");
+    let expr = parse_expression.parse_next(&mut bstr).unwrap();
+    assert_eq!(
+        expr.relocatable_anchor(),
+        Some(RelocatableAnchor::Symbol(b"jiffies_64"))
+    );
+
+    let mut bstr = winnow::BStr::new(b"jiffies_64 + 4");
+    let expr = parse_expression.parse_next(&mut bstr).unwrap();
+    assert_eq!(expr.relocatable_anchor(), None);
+
+    let mut bstr = winnow::BStr::new(b"4 + jiffies_64");
+    let expr = parse_expression.parse_next(&mut bstr).unwrap();
+    assert_eq!(expr.relocatable_anchor(), None);
+
+    let mut bstr = winnow::BStr::new(b"_etext + 4");
+    let expr = parse_expression.parse_next(&mut bstr).unwrap();
+    assert_eq!(expr.relocatable_anchor(), None);
+
+    let mut bstr = winnow::BStr::new(b"_etext - _stext");
+    let expr = parse_expression.parse_next(&mut bstr).unwrap();
+    assert_eq!(expr.relocatable_anchor(), None);
+
+    let mut bstr = winnow::BStr::new(b"ABSOLUTE(startup_64 - 0x400000)");
+    let expr = parse_expression.parse_next(&mut bstr).unwrap();
+    assert_eq!(expr.relocatable_anchor(), None);
+
+    let mut bstr = winnow::BStr::new(b".");
+    let expr = parse_expression.parse_next(&mut bstr).unwrap();
+    assert_eq!(
+        expr.relocatable_anchor(),
+        Some(RelocatableAnchor::LocationCounter)
+    );
+
+    let mut bstr = winnow::BStr::new(b"ALIGN(8)");
+    let expr = parse_expression.parse_next(&mut bstr).unwrap();
+    assert_eq!(
+        expr.relocatable_anchor(),
+        Some(RelocatableAnchor::LocationCounter)
+    );
+
+    let mut bstr = winnow::BStr::new(b". + 8");
+    let expr = parse_expression.parse_next(&mut bstr).unwrap();
+    assert_eq!(
+        expr.relocatable_anchor(),
+        Some(RelocatableAnchor::LocationCounter)
+    );
+
+    let mut bstr = winnow::BStr::new(b"0xabcd");
+    let expr = parse_expression.parse_next(&mut bstr).unwrap();
+    assert_eq!(expr.relocatable_anchor(), None);
+}

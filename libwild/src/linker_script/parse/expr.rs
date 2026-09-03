@@ -408,7 +408,7 @@ pub(crate) fn parse_identifier_or_function<'a>(
                 let inner = parse_expression.parse_next(input)?;
                 skip_comments_and_whitespace(input)?;
                 ')'.parse_next(input)?;
-                Ok(inner)
+                Ok(Expression::Absolute(Box::new(inner)))
             }
             b"ASSERT" => {
                 let assert = parse_assert.parse_next(input)?;

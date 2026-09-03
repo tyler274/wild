@@ -264,8 +264,8 @@ fn evaluate_expression_value<'data, P: Platform>(
     laid_out_mem_offsets: &OutputSectionPartMap<Option<u64>>,
     symbol_resolution_callback: &mut dyn FnMut(&[u8]) -> Result<SymbolValue>,
 ) -> Result<u64> {
-    macro_rules! eval {
-        ($e:expr) => {
+    macro_rules! eval_with {
+        ($e:expr, $kind:expr) => {
             evaluate_expression_value(
                 $e,
                 expr_loc,
@@ -276,10 +276,16 @@ fn evaluate_expression_value<'data, P: Platform>(
                 symbol_db,
                 sizeof_headers,
                 resolved_location_counters,
-                value_kind,
+                $kind,
                 laid_out_mem_offsets,
                 symbol_resolution_callback,
             )
+        };
+    }
+
+    macro_rules! eval {
+        ($e:expr) => {
+            eval_with!($e, value_kind)
         };
     }
 
@@ -331,8 +337,28 @@ fn evaluate_expression_value<'data, P: Platform>(
             )
         }
 
+        Expression::Absolute(inner) => {
+            value_kind.contains_absolute = true;
+            eval_abs!(inner)
+        }
+
         Expression::Add(l, r) => Ok(eval!(l)?.wrapping_add(eval!(r)?)),
-        Expression::Subtract(l, r) => Ok(eval!(l)?.wrapping_sub(eval!(r)?)),
+        Expression::Subtract(l, r) => {
+            // GNU ld: two relocatable terms cancel, so `_etext - _stext` is absolute.
+            let mut left_kind = ExpressionValueKind::default();
+            let mut right_kind = ExpressionValueKind::default();
+            let left = eval_with!(l, &mut left_kind)?;
+            let right = eval_with!(r, &mut right_kind)?;
+            if left_kind.contains_section_relative && right_kind.contains_section_relative {
+                value_kind.contains_absolute = true;
+            } else {
+                value_kind.contains_section_relative |=
+                    left_kind.contains_section_relative || right_kind.contains_section_relative;
+                value_kind.contains_absolute |=
+                    left_kind.contains_absolute || right_kind.contains_absolute;
+            }
+            Ok(left.wrapping_sub(right))
+        }
         Expression::Multiply(l, r) => Ok(eval!(l)?.wrapping_mul(eval!(r)?)),
         Expression::Divide(l, r) => {
             let divisor = eval!(r)?;

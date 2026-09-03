@@ -302,7 +302,7 @@
 //! Example: `//#ExpectDynSym:start_aaa section="bar",offset-in-section=8`
 //!
 //! section="section-name": Type: string. Asserts the name of the section in which the symbol is
-//! located.
+//! located. Use `ABS` for a symbol with `SHN_ABS`.
 //!
 //! segment="segment-name": Type: string. Asserts the name of the segment containing the symbol's
 //! section. Requires that section is also specified.
@@ -6577,6 +6577,7 @@ where
 
         if let Some(exp_name) = exp.assertions.section_name.as_ref() {
             match sym.section() {
+                object::SymbolSection::Absolute if exp_name == "ABS" => {}
                 object::SymbolSection::Section(index) => {
                     let section = obj.section_by_index(index)?;
                     let section_name = section.name()?;

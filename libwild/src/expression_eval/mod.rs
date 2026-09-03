@@ -79,6 +79,15 @@ mod tests {
     }
 
     #[test]
+    fn test_absolute() {
+        let expr = Expression::Absolute(Box::new(Expression::Subtract(
+            Box::new(Expression::Number(0x400010)),
+            Box::new(Expression::Number(0x400000)),
+        )));
+        assert_eq!(eval_const(&expr).unwrap(), 0x10);
+    }
+
+    #[test]
     fn test_arithmetic() {
         let add = Expression::Add(
             Box::new(Expression::Number(2)),

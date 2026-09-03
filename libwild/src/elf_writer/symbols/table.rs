@@ -16,6 +16,7 @@ use crate::layout::PreludeLayout;
 use crate::layout::Resolution;
 use crate::layout::SymbolCopyInfo;
 use crate::linker_script::Expression;
+use crate::linker_script::RelocatableAnchor;
 use crate::output_section_id::OrderEvent;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
@@ -752,7 +753,10 @@ pub(crate) fn get_symbol_attributes<C: ElfClass>(
                     match slot {
                         SectionSlot::Loaded(_)
                         | SectionSlot::MergeStrings(_)
-                        | SectionSlot::Sorted(_) => {
+                        | SectionSlot::Sorted(_)
+                        | SectionSlot::Unloaded(_)
+                        | SectionSlot::MustLoad(_)
+                        | SectionSlot::LoadedDebugInfo(_) => {
                             let output_section_id = obj
                                 .section_part_id(section_index, &layout.symbol_db.section_part_ids)
                                 .output_section_id::<elf::Elf<C>>();
@@ -804,53 +808,59 @@ pub(crate) fn get_defsym_attributes<C: ElfClass>(
     let crate::parsing::SymbolPlacement::Redirect(redirect) = &def_info.placement else {
         unreachable!()
     };
-    if let Expression::Symbol(target_name) = redirect.expression {
-        let target_symbol_id =
-            layout
-                .symbol_db
-                .get_unversioned(&crate::symbol::UnversionedSymbolName::prehashed(
-                    target_name,
-                ));
+    match redirect.expression.relocatable_anchor() {
+        Some(RelocatableAnchor::Symbol(target_name)) => {
+            let target_symbol_id =
+                layout
+                    .symbol_db
+                    .get_unversioned(&crate::symbol::UnversionedSymbolName::prehashed(
+                        target_name,
+                    ));
 
-        if let Some(target_id) = target_symbol_id {
-            let canonical_id = layout.symbol_db.definition(target_id);
-            get_symbol_attributes(layout, canonical_id)
-        } else if def_info.is_provide {
-            Ok((object::elf::SHN_ABS.into(), object::elf::STT_NOTYPE))
-        } else {
-            Err(redirect.missing_target(target_name))
+            if let Some(target_id) = target_symbol_id {
+                let canonical_id = layout.symbol_db.definition(target_id);
+                get_symbol_attributes(layout, canonical_id)
+            } else if def_info.is_provide {
+                Ok((object::elf::SHN_ABS.into(), object::elf::STT_NOTYPE))
+            } else {
+                Err(redirect.missing_target(target_name))
+            }
         }
-    } else {
-        let shndx = match redirect.loc {
-            SymbolLoc::SectionEnd(os) => {
-                let os = layout.output_sections.primary_output_section(os);
-                layout.output_sections.output_index_of_nearest_section(os)
-            }
-            SymbolLoc::SectionStartRelative(os) | SymbolLoc::SectionEndRelative(os) => {
-                let os = layout.output_sections.primary_output_section(os);
-                layout
-                    .output_sections
-                    .output_index_of_section(os)
-                    .or_else(|| output_index_of_nearby_section(layout, os, addr))
-            }
-            SymbolLoc::FirstSection => Some(1),
-            SymbolLoc::LocationCounter(_, Some(os)) => {
-                let os = layout.output_sections.primary_output_section(os);
-                layout
-                    .output_sections
-                    .output_index_of_section(os)
-                    .or_else(|| layout.output_sections.output_index_of_nearest_section(os))
-            }
-            SymbolLoc::LocationCounter(_, None) => Some(1),
-            SymbolLoc::None => return Ok((object::elf::SHN_ABS.into(), object::elf::STT_NOTYPE)),
-        };
-        Ok((
-            shndx.map_or(
-                SymbolSection::Raw(object::elf::SHN_ABS),
-                SymbolSection::Index,
-            ),
-            object::elf::STT_NOTYPE,
-        ))
+        Some(RelocatableAnchor::LocationCounter) => {
+            let shndx = match redirect.loc {
+                SymbolLoc::SectionEnd(os) => {
+                    let os = layout.output_sections.primary_output_section(os);
+                    layout.output_sections.output_index_of_nearest_section(os)
+                }
+                SymbolLoc::SectionStartRelative(os) | SymbolLoc::SectionEndRelative(os) => {
+                    let os = layout.output_sections.primary_output_section(os);
+                    layout
+                        .output_sections
+                        .output_index_of_section(os)
+                        .or_else(|| output_index_of_nearby_section(layout, os, addr))
+                }
+                SymbolLoc::FirstSection => Some(1),
+                SymbolLoc::LocationCounter(_, Some(os)) => {
+                    let os = layout.output_sections.primary_output_section(os);
+                    layout
+                        .output_sections
+                        .output_index_of_section(os)
+                        .or_else(|| layout.output_sections.output_index_of_nearest_section(os))
+                }
+                SymbolLoc::LocationCounter(_, None) => Some(1),
+                SymbolLoc::None => {
+                    return Ok((object::elf::SHN_ABS.into(), object::elf::STT_NOTYPE));
+                }
+            };
+            Ok((
+                shndx.map_or(
+                    SymbolSection::Raw(object::elf::SHN_ABS),
+                    SymbolSection::Index,
+                ),
+                object::elf::STT_NOTYPE,
+            ))
+        }
+        None => Ok((object::elf::SHN_ABS.into(), object::elf::STT_NOTYPE)),
     }
 }
 

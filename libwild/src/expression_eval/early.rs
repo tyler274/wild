@@ -78,6 +78,7 @@ pub(crate) fn evaluate_const<'data>(expr: &Expression<'data>) -> Result<u64> {
                 evaluate_const(if_false)
             }
         }
+        Expression::Absolute(expression) => evaluate_const(expression),
 
         _ => bail!("Expected constant expression"),
     }

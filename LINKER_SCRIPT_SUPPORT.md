@@ -33,7 +33,7 @@ matching all three.
 | `TARGET(bfdname)` | ❌ | |
 | `NOCROSSREFS(sections...)` | ❌ | |
 | `INSERT [AFTER\|BEFORE] section` | ❌ | |
-| Top-level symbol assignment (`sym = expr`) | ✅ | Constant assignments are available during layout |
+| Top-level symbol assignment (`sym = expr`) | ✅ | Constant assignments are available during layout. `st_shndx` follows GNU ld: a single relocatable residual (symbol or `.`) copies that section; `ABSOLUTE()`, differences of two section symbols, and constants are `SHN_ABS` |
 | Compound assignment operators (`+=`, `-=`, etc.) | ✅ | |
 | `PHDRS` command for explicit program header definition | ✅ | `FILEHDR`, `PHDRS`, `FLAGS`, and `AT(expr)`. Without `FILEHDR`, ELF headers occupy file space only and do not advance the VMA. A `. = ALIGN(...)` immediately before a new `PT_LOAD` is applied before the LOAD starts, so `p_vaddr` is the script address rather than `max-page-size` plus that address |
 
@@ -47,7 +47,7 @@ matching all three.
 | `KEEP(...)` to prevent garbage collection | ✅ | |
 | `PROVIDE(sym = expr)` inside sections | ✅ | |
 | `PROVIDE_HIDDEN(sym = expr)` inside sections | ✅ | |
-| Symbol assignment inside sections (`sym = .`) | ✅ | Script assignments override prelude section-boundary symbols of the same name in the symbol table (kernel `_etext` is in `.text`, not `SHN_ABS`). An assignment after `. = ALIGN(...)` between sections stays on the previous output section (kernel `_end` in `.brk`) |
+| Symbol assignment inside sections (`sym = .`) | ✅ | Script assignments override prelude section-boundary symbols of the same name in the symbol table (kernel `_etext` is in `.text`, not `SHN_ABS`). An assignment after `. = ALIGN(...)` between sections stays on the previous output section (kernel `_end` in `.brk`). Bare aliases copy the target's `st_shndx` (`jiffies = jiffies_64`); `ABSOLUTE()`, `_etext - _stext`, and `symbol + const` are `SHN_ABS` |
 | Location counter assignment (`. = expr`) | 🧪 | Constants, script-defined constants, script assignments (`_etext = .`), and object symbols in already-laid-out sections are supported. Script assignments override prelude section-boundary symbols of the same name. Object symbols are GNU ld absolute addresses, so `. = symbol \| mask` (x86 `srso_alias_untrain_ret`) applies the mask to the VMA. The object-symbol address is the start of that output section/secondary plus the symbol's input offset. Forward references are not supported |
 | `ALIGN(n)` on the location counter (`. = ALIGN(n)`) | ✅ | Aligns the absolute VMA, matching GNU ld |
 | Per-section `ALIGN(n)` specifier | ✅ | |
@@ -91,6 +91,7 @@ matching all three.
 | `MAX(a, b)` | ✅ | |
 | Ternary operator (`condition ? a : b`) | ✅ | |
 | `DEFINED(sym)` | ✅ | |
+| `ABSOLUTE(expr)` | ✅ | Evaluates `expr` as a VMA and forces `SHN_ABS` (kernel `phys_startup_64`) |
 | `SIZEOF_HEADERS` | ✅ | |
 | `SEGMENT_START(segment, default)` | ✅ | Supports `"text"`, `"data"`, `"bss"`, `"rodata"`; returns `-Ttext`/`-Tdata`/`-Tbss` override if provided, otherwise `default`; unknown segment names always return `default` |
 
@@ -152,16 +153,6 @@ because `.data..ro_after_init` is 4KiB-aligned.
 
 These are tracked here so they are not forgotten. They are not part of the current layout /
 `elf_writer` module split.
-
-### GNU symbol `st_shndx` (aliases / `ABSOLUTE()`)
-
-Empty omitted-section symbols already use a nearby section, like GNU ld (`__init_end` in
-`.data_nosave`). Remaining mismatches:
-
-* Wild still `A`: `jiffies`, `const_current_task`, `const_cpu_current_top_of_stack`,
-  `__ref_stack_chk_guard` (script aliases should copy the target's section).
-* GNU still `A`, Wild section-relative: `phys_startup_64`, `text_size` (`ABSOLUTE()` / difference of
-  two section symbols).
 
 ### Lower priority versus GNU
 

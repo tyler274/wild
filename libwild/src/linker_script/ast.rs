@@ -190,7 +190,7 @@ pub(crate) struct OutputFormat<'a> {
 /// - Logical: &&, ||
 /// - Unary: -, !, ~
 /// - Functions: SIZEOF, ALIGNOF, LENGTH, ORIGIN, ADDR, LOADADDR, ALIGN, MIN, MAX, SEGMENT_START,
-///   DEFINED
+///   DEFINED, ABSOLUTE
 /// - Numbers (hex/decimal), symbols, location counter (.)
 /// - Parentheses for grouping
 /// - Ternary operator (? :)
@@ -252,6 +252,19 @@ pub(crate) enum Expression<'a> {
     ),
     Defined(&'a [u8]),
     Assert(AssertCommand<'a>),
+    /// `ABSOLUTE(expr)` — evaluate `expr` as a VMA and force `SHN_ABS`.
+    Absolute(Box<Expression<'a>>),
+}
+
+/// The relocatable term that should determine `st_shndx` for a symbol assignment.
+///
+/// GNU ld puts an assignment in a section when the expression has exactly one relocatable
+/// residual (a symbol or `.`). `ABSOLUTE()`, a difference of two section symbols, and pure
+/// constants have no residual and become `SHN_ABS`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RelocatableAnchor<'a> {
+    LocationCounter,
+    Symbol(&'a [u8]),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
@@ -331,6 +344,7 @@ impl<'a> Expression<'a> {
             | Expression::LogicalNot(e)
             | Expression::BitwiseNot(e)
             | Expression::Negate(e)
+            | Expression::Absolute(e)
             | Expression::Assert(AssertCommand { expression: e, .. }) => e.visit_expressions(cb),
             Expression::SegmentStart(_, default_expr) => default_expr.visit_expressions(cb),
             Expression::Ternary(expression, expression1, expression2) => {
@@ -339,5 +353,87 @@ impl<'a> Expression<'a> {
                 expression2.visit_expressions(cb);
             }
         }
+    }
+
+    pub(crate) fn relocatable_anchor(&self) -> Option<RelocatableAnchor<'_>> {
+        match self {
+            Expression::Absolute(_) => None,
+            Expression::LocationCounter => Some(RelocatableAnchor::LocationCounter),
+            Expression::Symbol(name) => Some(RelocatableAnchor::Symbol(name)),
+            Expression::Number(_)
+            | Expression::Sizeof(_)
+            | Expression::Alignof(_)
+            | Expression::Origin(_)
+            | Expression::Length(_)
+            | Expression::Addr(_)
+            | Expression::Loadaddr(_)
+            | Expression::SizeofHeaders
+            | Expression::Defined(_)
+            | Expression::SegmentStart(..) => None,
+            Expression::Add(l, r) => {
+                add_dot_residual(l.relocatable_anchor(), r.relocatable_anchor())
+            }
+            Expression::Subtract(l, r) => {
+                sub_dot_residual(l.relocatable_anchor(), r.relocatable_anchor())
+            }
+            Expression::Align(_, Some(value)) => value.relocatable_anchor(),
+            Expression::Align(_, None) => Some(RelocatableAnchor::LocationCounter),
+            Expression::Min(l, r) | Expression::Max(l, r) => {
+                let left = l.relocatable_anchor();
+                let right = r.relocatable_anchor();
+                if left == right { left } else { None }
+            }
+            Expression::Ternary(_, if_true, if_false) => {
+                let if_true = if_true.relocatable_anchor();
+                let if_false = if_false.relocatable_anchor();
+                if if_true == if_false { if_true } else { None }
+            }
+            Expression::LogicalNot(_)
+            | Expression::BitwiseNot(_)
+            | Expression::Negate(_)
+            | Expression::Multiply(_, _)
+            | Expression::Divide(_, _)
+            | Expression::Modulo(_, _)
+            | Expression::LessThan(_, _)
+            | Expression::GreaterThan(_, _)
+            | Expression::LessEqual(_, _)
+            | Expression::GreaterEqual(_, _)
+            | Expression::Equal(_, _)
+            | Expression::NotEqual(_, _)
+            | Expression::BitwiseAnd(_, _)
+            | Expression::BitwiseOr(_, _)
+            | Expression::BitwiseXor(_, _)
+            | Expression::LeftShift(_, _)
+            | Expression::RightShift(_, _)
+            | Expression::LogicalAnd(_, _)
+            | Expression::LogicalOr(_, _) => None,
+            Expression::Assert(AssertCommand { expression, .. }) => expression.relocatable_anchor(),
+        }
+    }
+}
+
+/// GNU ld keeps `. ± const` section-relative, but `symbol ± const` is `SHN_ABS`.
+fn add_dot_residual<'a>(
+    left: Option<RelocatableAnchor<'a>>,
+    right: Option<RelocatableAnchor<'a>>,
+) -> Option<RelocatableAnchor<'a>> {
+    match (left, right) {
+        (None, Some(RelocatableAnchor::LocationCounter))
+        | (Some(RelocatableAnchor::LocationCounter), None) => {
+            Some(RelocatableAnchor::LocationCounter)
+        }
+        _ => None,
+    }
+}
+
+fn sub_dot_residual<'a>(
+    left: Option<RelocatableAnchor<'a>>,
+    right: Option<RelocatableAnchor<'a>>,
+) -> Option<RelocatableAnchor<'a>> {
+    match (left, right) {
+        (Some(RelocatableAnchor::LocationCounter), None) => {
+            Some(RelocatableAnchor::LocationCounter)
+        }
+        _ => None,
     }
 }
