@@ -455,13 +455,12 @@ impl<'data, P: Platform> PreludeLayoutState<'data, P> {
             ) = true;
         }
 
-        // Compute output indexes of each section.
+        // Compute output indexes of each section. GNU `--emit-relocs` puts each
+        // copied RELA/REL header immediately after its target.
         let mut next_output_index = 0;
         let mut output_section_indexes = vec![None; output_sections.num_sections()];
-        for event in output_order {
-            if let OrderEvent::Section(id) = event
-                && *keep_sections.get(id)
-            {
+        for id in output_section_id::section_header_order(output_order, output_sections) {
+            if *keep_sections.get(id) {
                 debug_assert!(
                     output_sections.merge_target(id).is_none(),
                     "Tried to allocate section header for secondary section {}",

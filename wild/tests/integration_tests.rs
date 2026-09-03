@@ -94,6 +94,7 @@
 //!   or 1 if sh_entsize is 0).
 //!   flags=WAX: Asserts the section has the specified section flags.
 //!   type=int: Asserts the section has the specified section type.
+//!   after=".name": Asserts the previous section header has this name.
 //!
 //! RelrCount:N Checks that .relr.dyn encodes at least N total relocations (counting both address
 //! entries and bitmap-encoded relocations).
@@ -1968,6 +1969,9 @@ struct SectionAssertions {
 
     #[serde(rename = "type")]
     stype: Option<u32>,
+
+    /// Previous section-header name. GNU `--emit-relocs` places `.rela.foo` after `.foo`.
+    after: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -5338,6 +5342,22 @@ impl Assertions {
                     expected.section_name,
                     expected_type,
                     ptype
+                );
+            }
+
+            if let Some(after) = expected.assertions.after.as_deref() {
+                let index = section.index();
+                ensure!(
+                    index.0 > 0,
+                    "Section `{}` is first; cannot come after `{after}`",
+                    expected.section_name
+                );
+                let prev = obj.section_by_index(object::SectionIndex(index.0 - 1))?;
+                let prev_name = prev.name()?;
+                ensure!(
+                    prev_name == after,
+                    "Section `{}` should follow `{after}`, but follows `{prev_name}`",
+                    expected.section_name
                 );
             }
         }

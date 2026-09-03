@@ -10,9 +10,12 @@ use crate::parsing::SymbolLoc;
 use crate::platform::Platform;
 use crate::platform::ProgramSegmentDef;
 use crate::platform::SectionAttributes as _;
+use crate::platform::SectionType as _;
 use crate::program_segments::ProgramSegmentId;
 use crate::program_segments::ProgramSegments;
 use core::slice;
+use hashbrown::HashMap;
+use hashbrown::HashSet;
 use itertools::multizip;
 use std::fmt::Display;
 
@@ -405,6 +408,66 @@ impl<'data> OutputOrder<'data> {
             program_segments,
         }
     }
+}
+
+/// Section-header order matching GNU ld `--emit-relocs`: each copied `SHT_REL` /
+/// `SHT_RELA` header sits immediately after its target. File layout is unchanged
+/// (reloc contents stay with the other non-ALLOC sections).
+pub(crate) fn section_header_order<'data, P: Platform>(
+    output_order: &OutputOrder<'data>,
+    output_sections: &OutputSections<'data, P>,
+) -> Vec<OutputSectionId> {
+    let mut sections = Vec::new();
+    for event in output_order {
+        if let OrderEvent::Section(id) = event {
+            sections.push(id);
+        }
+    }
+
+    let present: HashSet<OutputSectionId> = sections.iter().copied().collect();
+    let mut relocs_for_target: HashMap<OutputSectionId, Vec<OutputSectionId>> = HashMap::new();
+    let mut reloc_ids: HashSet<OutputSectionId> = HashSet::new();
+    for &id in &sections {
+        let Some(target) = copied_reloc_target(id, output_sections) else {
+            continue;
+        };
+        if !present.contains(&target) {
+            continue;
+        }
+        relocs_for_target.entry(target).or_default().push(id);
+        reloc_ids.insert(id);
+    }
+
+    let mut out = Vec::with_capacity(sections.len());
+    for id in sections {
+        if reloc_ids.contains(&id) {
+            continue;
+        }
+        out.push(id);
+        if let Some(relocs) = relocs_for_target.get(&id) {
+            out.extend(relocs.iter().copied());
+        }
+    }
+    out
+}
+
+fn copied_reloc_target<'data, P: Platform>(
+    id: OutputSectionId,
+    output_sections: &OutputSections<'data, P>,
+) -> Option<OutputSectionId> {
+    let info = output_sections.output_info(id);
+    if info.section_attributes.is_alloc() {
+        return None;
+    }
+    let ty = info.section_attributes.ty();
+    if !ty.is_rela() && !ty.is_rel() {
+        return None;
+    }
+    let name = output_sections.name(id)?.0;
+    let target_name = name
+        .strip_prefix(b".rela")
+        .or_else(|| name.strip_prefix(b".rel"))?;
+    output_sections.section_id_by_name(SectionName(target_name))
 }
 
 impl<'data, P: Platform> Display for OutputOrderDisplay<'_, 'data, P> {

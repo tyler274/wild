@@ -2,7 +2,6 @@ use super::link_ids;
 use super::types::*;
 use crate::OutputKind;
 use crate::alignment;
-use crate::debug_assert_bail;
 use crate::elf;
 use crate::elf::ElfClass;
 use crate::elf::output_section_id;
@@ -13,7 +12,6 @@ use crate::error::Context as _;
 use crate::error::Result;
 use crate::layout::HeaderInfo;
 use crate::malfunction;
-use crate::output_section_id::OrderEvent;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSections;
 use crate::output_section_id::SectionName;
@@ -174,13 +172,10 @@ pub(crate) fn write_section_headers<C: ElfClass>(out: &mut [u8], layout: &ElfLay
     let mut name_offset = 0;
     let info_values = compute_info_values(layout);
 
-    let mut order = layout.output_order.into_iter().peekable();
-
-    while let Some(event) = order.next() {
-        let OrderEvent::Section(section_id) = event else {
-            continue;
-        };
-
+    for section_id in crate::output_section_id::section_header_order(
+        &layout.output_order,
+        &layout.output_sections,
+    ) {
         let output_info = output_sections.output_info(section_id);
         let section_type = output_info.section_attributes.ty;
         let section_layout = layout.merged_section_layouts.get(section_id);
@@ -225,18 +220,6 @@ pub(crate) fn write_section_headers<C: ElfClass>(out: &mut [u8], layout: &ElfLay
         } else {
             size = section_layout.mem_size;
             alignment = section_layout.alignment.value();
-
-            while let Some(OrderEvent::Section(next_section_id)) = order.peek()
-                && let Some(primary_id) = output_sections.merge_target(*next_section_id)
-            {
-                debug_assert_bail!(
-                    primary_id == section_id,
-                    "Section order mismatch {} != {}",
-                    output_sections.section_debug(primary_id),
-                    output_sections.section_debug(section_id),
-                );
-                order.next();
-            }
         }
 
         let entry = entries.next().unwrap();
@@ -346,10 +329,9 @@ pub(crate) fn write_section_header_strings<C: ElfClass>(
     sections: &OutputSections<elf::Elf<C>>,
     output_order: &OutputOrder,
 ) {
-    for event in output_order {
-        if let OrderEvent::Section(id) = event
-            && sections.output_index_of_section(id).is_some()
-            && let Some(name) = sections.name(id)
+    for section_id in crate::output_section_id::section_header_order(output_order, sections) {
+        if sections.output_index_of_section(section_id).is_some()
+            && let Some(name) = sections.name(section_id)
         {
             let name_out = out.split_off_mut(..=name.len()).unwrap();
             name_out[..name.len()].copy_from_slice(name.bytes());

@@ -156,6 +156,5 @@ These are tracked here so they are not forgotten. They are not part of the curre
 
 ### Lower priority versus GNU
 
-* RELA header interleaving after `--emit-relocs` targets
 * `.strtab` suffix sharing
 * `--build-id` blake3 versus SHA-1 (do not change unless asked)

@@ -2,7 +2,8 @@
 //#RunEnabled:false
 //#ReferenceLinkers:bfd
 //#LinkArgs:--emit-relocs --no-gc-sections
-//#ExpectSection:.rela.data
+//#ExpectSection:.rela.text after=".text"
+//#ExpectSection:.rela.data after=".data"
 //#DiffIgnore:section.got
 //#DiffIgnore:segment.LOAD.RX.alignment
 //#DiffIgnore:segment.LOAD.RWX.alignment
@@ -11,7 +12,6 @@
 
 //#Config:script:default
 //#LinkerScript:emit-relocs.ld
-//#ExpectSection:.rela.text
 //#NoSection:.rela.discard
 
 int payload = 1;
