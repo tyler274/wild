@@ -46,10 +46,7 @@ that they give the correct answer.
 
 Follow-ups (not implemented yet):
 
-* Incremental coverage is only `incremental` and `incremental-reloc`, both with `DiffEnabled:false`.
-  There is no `-O2` / `-O3` / `-flto` matrix.
-* Ccache is untested. A follow-up is one integration config with `CC=ccache gcc` (or equivalent) so
-  object hashing and incremental inputs still work.
 * There is no CI `vmlinux` job. Follow-up: x86_64 `vmlinux` versus GNU unstripped, plus a small
   userspace (for example `trivial` / `libc-integration` as initramfs) linked with Wild. GNU ld remains
-  the kernel oracle; do not 4-way the kernel.
+  the kernel oracle; do not 4-way the kernel. CI jobs time out at 10 minutes, so this needs a prebuilt
+  `vmlinux.o` (or similar) rather than a from-scratch kernel compile in the existing workflow.

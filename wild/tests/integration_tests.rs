@@ -163,6 +163,9 @@
 //!
 //! Compiler:gcc|g++|clang|clang++ Specifies what compiler should be used to compile C/C++ code.
 //!
+//! CompilerWrapper:{command} Prefixes the C/C++ compiler invocation (for example `ccache`). Skips
+//! the test if the wrapper is not on PATH.
+//!
 //! Arch:{arch1}[,{arch2}...] Specifies which architectures this test should be run with. Defaults
 //! to all supported architectures.
 //!
@@ -216,10 +219,15 @@
 //!
 //! TestIncremental:{bool} After the first Wild link with `--incremental`, relink at the same path
 //! and check that `{output}.incr/log` records an incremental-update. Recompiles C sources with
-//! `-DWILD_INC=1` for the second link when the primary source is C/C++.
+//! `-DWILD_INC=1` for the second link when the primary source is C/C++. The recompile uses this
+//! config's Compiler, CompilerWrapper, and CompArgs.
 //!
 //! IncrementalExpect:{exit-code} Exit status expected after the `-DWILD_INC=1` incremental update.
 //! Defaults to 43.
+//!
+//! IncrementalAllowFallback:{bool} Defaults to false. When true, an incremental relink may record
+//! a fallback (for example LTO/plugin) instead of an in-place update. The updated binary is still
+//! executed.
 //!
 //! AssertOutputFileMatches:{filename}:{regex} Verifies that a file in the output directory contains
 //! at least one line matching the specified regex. Such output files are generally written by
@@ -1389,6 +1397,8 @@ struct Config {
     test_relink_after_run: bool,
     test_incremental: bool,
     incremental_expect_exit: i32,
+    incremental_allow_fallback: bool,
+    compiler_wrapper: Option<String>,
     test_config: TestConfig,
     tracked_files: Vec<PathBuf>,
     so_single_linker: Option<Linker>,
@@ -2181,6 +2191,8 @@ impl Config {
             test_relink_after_run: false,
             test_incremental: false,
             incremental_expect_exit: 43,
+            incremental_allow_fallback: false,
+            compiler_wrapper: None,
             test_config: test_config.clone(),
             tracked_files: Default::default(),
             available_linkers: linker_catalog.available.clone(),
@@ -2792,6 +2804,12 @@ fn process_directive(
         "IncrementalExpect" => {
             config.incremental_expect_exit = arg.parse()?;
         }
+        "IncrementalAllowFallback" => {
+            config.incremental_allow_fallback = arg.parse()?;
+        }
+        "CompilerWrapper" => {
+            config.compiler_wrapper = Some(arg.to_owned());
+        }
         "DriverMode" => {
             config.driver_mode = Some(DriverMode::from_str(arg).map_err(|_| {
                 error!(
@@ -3044,7 +3062,9 @@ impl ProgramInputs {
             )
         })?;
         ensure!(
-            log.contains("incremental-update") || log.contains("initial-incremental"),
+            log.contains("incremental-update")
+                || log.contains("initial-incremental")
+                || (config.incremental_allow_fallback && log.contains("fallback")),
             "Expected incremental log to record an update, got:\n{log}"
         );
         ensure!(
@@ -3077,10 +3097,17 @@ impl ProgramInputs {
             )
         })?;
         let last_line = log.lines().next_back().unwrap_or("");
-        ensure!(
-            last_line.contains("incremental-update") && !last_line.contains("fallback"),
-            "Expected in-place incremental-update after a same-size edit, got:\n{log}"
-        );
+        if config.incremental_allow_fallback {
+            ensure!(
+                last_line.contains("incremental-update") || last_line.contains("fallback"),
+                "Expected incremental-update or fallback after a same-size edit, got:\n{log}"
+            );
+        } else {
+            ensure!(
+                last_line.contains("incremental-update") && !last_line.contains("fallback"),
+                "Expected in-place incremental-update after a same-size edit, got:\n{log}"
+            );
+        }
         updated
             .run_expecting(cross_arch, config.incremental_expect_exit)
             .with_context(|| {
@@ -3102,11 +3129,28 @@ impl ProgramInputs {
         cross_arch: Option<Architecture>,
         wild_inc: bool,
     ) -> Result {
-        let compiler = get_c_compiler("gcc", CLanguage::C, cross_arch)?;
+        let (compiler, compiler_kind) = compiler_for_file(&self.source_file, cross_arch, config)?
+            .with_context(|| {
+            format!(
+                "Primary source {} does not need compiling",
+                self.source_file.display()
+            )
+        })?;
+        ensure!(
+            compiler_kind == CompilerKind::C,
+            "TestIncremental recompile is only implemented for C/C++/assembly sources"
+        );
         let tmp = dest.with_extension("inc.o");
-        let mut command = Command::new(&compiler);
+        let mut command = compiler_invocation(&compiler, config, compiler_kind);
         command.current_dir(config.build_dir());
         command.arg("-c").arg("-o").arg(&tmp).arg(&self.source_file);
+        add_cross_args(
+            &mut command,
+            &config.compiler_args.args,
+            cross_arch,
+            config.platform,
+        );
+        command.args(&config.compiler_args.args);
         if wild_inc {
             command.arg("-DWILD_INC=1");
         }
@@ -3683,7 +3727,7 @@ fn make_macho_fat_file<A: FatArch>(output_path: &Path, contents_path: &Path) -> 
         .with_context(|| format!("Failed to write {}", output_path.display()))
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum CompilerKind {
     C,
     Rust,
@@ -3777,7 +3821,7 @@ fn build_obj(
         CompilerKind::Rust => ".d",
     };
 
-    let mut command = Command::new(&compiler);
+    let mut command = compiler_invocation(&compiler, &config, compiler_kind);
 
     // We may be building multiple things with the same name in parallel from different test
     // processes, so we change to the build directory for the current test, so that if the compiler
@@ -4021,6 +4065,27 @@ fn verify_path_unique_for_args(output_path: &Path, command: &Command) -> Result 
     Ok(())
 }
 
+fn compiler_invocation(compiler: &str, config: &Config, kind: CompilerKind) -> Command {
+    if kind == CompilerKind::C {
+        if let Some(wrapper) = &config.compiler_wrapper {
+            let mut command = Command::new(wrapper);
+            command.arg(compiler);
+            return command;
+        }
+    }
+    Command::new(compiler)
+}
+
+fn compiler_is_clang(command: &Command) -> bool {
+    command
+        .get_program()
+        .as_encoded_bytes()
+        .starts_with(b"clang")
+        || command
+            .get_args()
+            .any(|arg| arg.as_encoded_bytes().starts_with(b"clang"))
+}
+
 /// Adds arguments required for cross-compiling/linking.
 fn add_cross_args(
     command: &mut Command,
@@ -4029,11 +4094,7 @@ fn add_cross_args(
     platform: PlatformKind,
 ) {
     // We currently only support cross compiling with clang.
-    if !command
-        .get_program()
-        .as_encoded_bytes()
-        .starts_with(b"clang")
-    {
+    if !compiler_is_clang(command) {
         return;
     }
 
@@ -7758,6 +7819,11 @@ fn verify_platform_requirements(
     cross_arch: Option<Architecture>,
     src_path: &Path,
 ) -> Result {
+    if let Some(wrapper) = &config.compiler_wrapper {
+        which::which(wrapper)
+            .with_context(|| format!("CompilerWrapper `{wrapper}` is not on PATH"))?;
+    }
+
     if config.requires_linker_plugin {
         verify_linker_plugin_requirements(config, cross_arch, src_path)?;
     }
