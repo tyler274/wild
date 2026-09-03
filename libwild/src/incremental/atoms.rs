@@ -6,6 +6,7 @@
 
 use crate::error::Result;
 use hashbrown::HashMap;
+use hashbrown::HashSet;
 use std::fs;
 use std::io::Write as _;
 use std::path::Path;
@@ -352,6 +353,57 @@ impl ReverseRelocIndex {
         while let Some(node) = self.nodes.get(id) {
             visit(node);
             id = node.next;
+        }
+    }
+
+    /// Drop sites owned by rewritten atoms, then append sites recorded this run.
+    ///
+    /// A skip update only rewrites changed objects, so `fresh` is incomplete. Sites in skipped
+    /// objects stay; sites in rewritten objects are replaced.
+    pub(crate) fn merge_rewritten(
+        &mut self,
+        fresh: &ReverseRelocIndex,
+        rewritten: &HashSet<AtomId>,
+    ) {
+        let mut keep = Vec::new();
+        self.for_each_all(|defined, local, node| {
+            if !rewritten.contains(&node.owner) {
+                keep.push((defined, local, *node));
+            }
+        });
+        fresh.for_each_all(|defined, local, node| {
+            keep.push((defined, local, *node));
+        });
+        *self = ReverseRelocIndex::new();
+        for (defined, local, node) in keep {
+            self.push(
+                defined,
+                local,
+                node.file_offset,
+                node.place,
+                node.addend,
+                node.r_type,
+                node.owner,
+            );
+        }
+    }
+
+    fn for_each_all(&self, mut visit: impl FnMut(AtomId, usize, &ReverseRelocNode)) {
+        for (index, atom) in self.atoms.iter().enumerate() {
+            if atom.generation == 0 {
+                continue;
+            }
+            let defined = AtomId {
+                index: index as u32,
+                generation: atom.generation,
+            };
+            for (local, &head) in atom.heads.iter().enumerate() {
+                let mut id = head;
+                while let Some(node) = self.nodes.get(id) {
+                    visit(defined, local, node);
+                    id = node.next;
+                }
+            }
         }
     }
 
@@ -784,5 +836,31 @@ mod tests {
                 })
                 .is_none()
         );
+    }
+
+    #[test]
+    fn merge_rewritten_replaces_sites_in_rewritten_owners() {
+        let def = AtomId {
+            index: 0,
+            generation: 1,
+        };
+        let skipped = AtomId {
+            index: 1,
+            generation: 1,
+        };
+        let rewritten = AtomId {
+            index: 2,
+            generation: 1,
+        };
+        let mut prev = ReverseRelocIndex::new();
+        prev.push(def, 0, 0x10, 0x1000, 0, 1, skipped);
+        prev.push(def, 0, 0x20, 0x2000, 0, 1, rewritten);
+        let mut fresh = ReverseRelocIndex::new();
+        fresh.push(def, 0, 0x30, 0x3000, 4, 1, rewritten);
+        prev.merge_rewritten(&fresh, &HashSet::from_iter([rewritten]));
+        let mut sites = Vec::new();
+        prev.for_each_site(def, 0, |n| sites.push((n.file_offset, n.owner)));
+        sites.sort_by_key(|(off, _)| *off);
+        assert_eq!(sites, vec![(0x10, skipped), (0x30, rewritten)]);
     }
 }

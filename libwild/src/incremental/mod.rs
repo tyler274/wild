@@ -73,7 +73,7 @@ pub(crate) struct IncrementalSession {
     pub(crate) mode: IncrementalMode,
     pub(crate) state_dir: PathBuf,
     pub(crate) fallback_reason: Option<String>,
-    skip_payload_count: usize,
+    skip_payloads: HashSet<FileId>,
     pub(crate) atoms: AtomTable,
     /// FileIds whose atom was reused from the previous run (same key and symbol count).
     reused_files: HashSet<FileId>,
@@ -109,7 +109,7 @@ impl IncrementalSession {
             mode,
             state_dir,
             fallback_reason: None,
-            skip_payload_count: 0,
+            skip_payloads: HashSet::new(),
             atoms,
             reused_files: HashSet::new(),
             previous_resolutions,
@@ -203,7 +203,7 @@ impl IncrementalSession {
                     self.record_fallback("missing incremental graph");
                     return HashSet::new();
                 }
-                self.skip_payload_count = skip.len();
+                self.skip_payloads = skip.clone();
                 skip
             }
             Err(reason) => {
@@ -253,7 +253,7 @@ impl IncrementalSession {
         writeln!(
             log,
             "wild incremental: {kind} plugin={plugin_active} strict_order={has_strict_order_sections} skip_payloads={}",
-            self.skip_payload_count
+            self.skip_payloads.len()
         )?;
 
         let mut inputs = fs::File::create(self.state_dir.join("inputs.txt"))?;
@@ -286,10 +286,15 @@ impl IncrementalSession {
         self.atoms.write(&self.state_dir.join("atoms.txt"))?;
         resolutions.write(&self.state_dir.join("resolutions.bin"))?;
 
-        // A skip update only rewrites changed objects, so the in-memory index is incomplete.
-        // Layout is unchanged, so previously recorded sites remain valid under atom keys.
-        if self.skip_payload_count == 0 || !self.state_dir.join("reverse_relocs.bin").is_file() {
-            write_reverse_relocs(&self.state_dir.join("reverse_relocs.bin"), reverse_relocs)?;
+        let reloc_path = self.state_dir.join("reverse_relocs.bin");
+        if self.skip_payloads.is_empty() || !reloc_path.is_file() {
+            write_reverse_relocs(&reloc_path, reverse_relocs)?;
+        } else if let Some(mut prev) = read_reverse_relocs(&reloc_path) {
+            let rewritten = rewritten_atoms(records, &self.skip_payloads, &self.atoms);
+            prev.merge_rewritten(reverse_relocs, &rewritten);
+            write_reverse_relocs(&reloc_path, &prev)?;
+        } else {
+            write_reverse_relocs(&reloc_path, reverse_relocs)?;
         }
 
         let mut sizes_file = fs::File::create(self.state_dir.join("object_sizes.txt"))?;
@@ -380,16 +385,7 @@ fn plan_skip_payloads<D: crate::InputFileData>(
 
     let previous_sizes =
         load_object_sizes(state_dir).ok_or_else(|| "missing previous object sizes".to_owned())?;
-    for rec in records {
-        if !rec.skippable {
-            continue;
-        }
-        match previous_sizes.get(&rec.key) {
-            Some(prev) if prev == &rec.sizes => {}
-            Some(_) => return Err("input section size changed".to_owned()),
-            None => return Err("new input object".to_owned()),
-        }
-    }
+    check_object_sizes(&previous_sizes, records)?;
 
     let diff = diff_input_paths(state_dir, loaded_files);
     let mut skip = HashSet::new();
@@ -402,6 +398,35 @@ fn plan_skip_payloads<D: crate::InputFileData>(
         }
     }
     Ok(skip)
+}
+
+fn check_object_sizes(
+    previous: &HashMap<String, Vec<u64>>,
+    records: &[IncrementalFileRecord],
+) -> std::result::Result<(), String> {
+    for rec in records {
+        if !rec.skippable {
+            continue;
+        }
+        match previous.get(&rec.key) {
+            Some(prev) if prev == &rec.sizes => {}
+            Some(_) => return Err("input section size changed".to_owned()),
+            None => {}
+        }
+    }
+    Ok(())
+}
+
+fn rewritten_atoms(
+    records: &[IncrementalFileRecord],
+    skip: &HashSet<FileId>,
+    atoms: &AtomTable,
+) -> HashSet<AtomId> {
+    records
+        .iter()
+        .filter(|rec| rec.skippable && !skip.contains(&rec.file_id))
+        .filter_map(|rec| atoms.get_by_key(&rec.key))
+        .collect()
 }
 
 struct InputDiff {
@@ -520,7 +545,7 @@ mod tests {
             mode: IncrementalMode::Initial,
             state_dir: PathBuf::from("/tmp"),
             fallback_reason: None,
-            skip_payload_count: 0,
+            skip_payloads: HashSet::new(),
             atoms: AtomTable::default(),
             reused_files: HashSet::new(),
             previous_resolutions: None,
@@ -566,7 +591,7 @@ mod tests {
             mode: IncrementalMode::Initial,
             state_dir: PathBuf::from("/tmp"),
             fallback_reason: None,
-            skip_payload_count: 0,
+            skip_payloads: HashSet::new(),
             atoms: AtomTable::default(),
             reused_files: HashSet::new(),
             previous_resolutions: None,
@@ -608,5 +633,38 @@ mod tests {
         let c = input_copy_path(dir, Path::new("/work/b.o"));
         assert_eq!(a, b);
         assert_ne!(a, c);
+    }
+
+    fn rec(file: u32, key: &str, sizes: Vec<u64>) -> IncrementalFileRecord {
+        IncrementalFileRecord {
+            file_id: FileId::new(1, file),
+            key: key.into(),
+            source_path: PathBuf::from(key),
+            sizes,
+            num_symbols: 1,
+            skippable: true,
+        }
+    }
+
+    #[test]
+    fn object_sizes_allow_new_keys_when_existing_match() {
+        let previous = HashMap::from([("a.o".into(), vec![4u64])]);
+        assert!(
+            check_object_sizes(&previous, &[rec(0, "a.o", vec![4]), rec(1, "b.o", vec![8])])
+                .is_ok()
+        );
+        assert!(check_object_sizes(&previous, &[rec(0, "a.o", vec![5])]).is_err());
+    }
+
+    #[test]
+    fn rewritten_atoms_excludes_skipped_files() {
+        let mut atoms = AtomTable::default();
+        let a = atoms.alloc("a.o".into(), 1);
+        let b = atoms.alloc("b.o".into(), 1);
+        let records = [rec(0, "a.o", vec![4]), rec(1, "b.o", vec![8])];
+        let skip = HashSet::from_iter([FileId::new(1, 0)]);
+        let rewritten = rewritten_atoms(&records, &skip, &atoms);
+        assert!(!rewritten.contains(&a));
+        assert!(rewritten.contains(&b));
     }
 }
