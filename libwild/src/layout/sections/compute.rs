@@ -197,15 +197,26 @@ pub(crate) fn compute_layout_sections<'data, P: Platform>(
                 };
             }
             OrderEvent::SetSectionAddress(expr) => {
-                let value = expression_eval(
+                // GNU: `.data ALIGN(0x2000) :` is ALIGN of the current VMA.
+                // `.` is a pending `. = expr` if one is in flight
+                // (`. = 0x400004; .text ALIGN(0) :`), otherwise the VMA after
+                // the previous section.
+                let current_vma = pending_location.unwrap_or(mem_offset);
+                resolved_lc.push(ResolvedLocationCounter {
+                    value: current_vma,
+                    section_offset: None,
+                });
+                let loc = SymbolLoc::LocationCounter(resolved_lc.len() - 1, None);
+                let result = expression_eval(
                     &expr,
-                    &SymbolLoc::None,
+                    &loc,
                     memory_regions,
                     &section_layouts,
                     &resolved_lc,
                     &laid_out_mem_offsets,
-                )?;
-                pending_location = Some(value);
+                );
+                resolved_lc.pop();
+                pending_location = Some(result?);
             }
             OrderEvent::SegmentStart(segment_id) => {
                 if program_segments.is_load_segment(segment_id) {

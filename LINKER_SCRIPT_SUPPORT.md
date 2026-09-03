@@ -57,7 +57,7 @@ matching all three.
 | `FILL(value)` | ✅ | Sets the fill pattern for subsequent gaps in the output section |
 | `=fillexp` | ✅ | |
 | `AT(addr)` load-address specifier on output sections | ✅ | |
-| Numeric address between section name and `:` (e.g. `name 0 : { ... }`) | 🧪 | Only numeric literals are currently supported |
+| Numeric address between section name and `:` (e.g. `name 0 : { ... }`) | ✅ | Expressions including `ALIGN(n)`, `ADDR`/`SIZEOF`/`LOADADDR`, and `.` (current VMA). `ALIGN(0)` is a no-op, matching GNU ld (powerpc `.text ALIGN(0) :`) |
 | `SORT(...)`, `SORT_BY_NAME(...)` | ✅ | |
 | `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then name |
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | Uses GCC `init_priority` encoded in `.init_array.N` / `.ctors.N` names |
@@ -84,7 +84,7 @@ matching all three.
 | `ALIGNOF(section)` | ✅ | |
 | `ADDR(section)` | ✅ | |
 | `LOADADDR(section)` | ✅ | Returns the section LMA |
-| `ALIGN(expr)` | ✅ | One-arg form aligns the absolute location-counter VMA |
+| `ALIGN(expr)` | ✅ | One-arg form aligns the absolute location-counter VMA; `ALIGN(0)` / `ALIGN(1)` are no-ops |
 | `LENGTH(region)` | ✅ | |
 | `ORIGIN(region)` | ✅ | |
 | `MIN(a, b)` | ✅ | |

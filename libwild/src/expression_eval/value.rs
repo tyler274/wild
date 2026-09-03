@@ -397,22 +397,24 @@ fn evaluate_expression_value<'data, P: Platform>(
 
         Expression::Align(exponent, expr) => {
             let align = eval!(exponent)?;
-            if align == 0 {
-                bail!("ALIGN(0) is invalid");
-            }
-            if let Some(e) = expr.as_ref() {
+            let value = if let Some(e) = expr.as_ref() {
                 // Two-arg ALIGN(value, align) - used by ASSERT(ALIGN(0x38, 16) == 0x40).
-                Ok(eval!(e)?.next_multiple_of(align))
+                eval!(e)?
             } else {
                 // One-arg ALIGN(n) aligns the location counter's absolute VMA, matching GNU ld.
                 value_kind.contains_absolute = true;
-                Ok(absolute_location_counter(
+                absolute_location_counter(
                     expr_loc,
                     section_layouts,
                     output_sections,
                     resolved_location_counters,
                 )?
-                .next_multiple_of(align))
+            };
+            // GNU ld's align_n treats align <= 1 as a no-op (powerpc `.text ALIGN(0) :`).
+            if align <= 1 {
+                Ok(value)
+            } else {
+                Ok(value.next_multiple_of(align))
             }
         }
 

@@ -353,8 +353,20 @@ mod tests {
     }
 
     #[test]
-    fn test_align_zero_is_error() {
-        assert!(eval_const(&Expression::Align(Box::new(Expression::Number(0)), None)).is_err());
+    fn test_align_zero_is_noop() {
+        // GNU ld: ALIGN(0) and ALIGN(value, 0) leave the value unchanged.
+        assert_eq!(
+            eval_const(&Expression::Align(Box::new(Expression::Number(0)), None)).unwrap(),
+            0
+        );
+        assert_eq!(
+            eval_const(&Expression::Align(
+                Box::new(Expression::Number(0)),
+                Some(Box::new(Expression::Number(0x400004))),
+            ))
+            .unwrap(),
+            0x400004
+        );
     }
 
     #[test]

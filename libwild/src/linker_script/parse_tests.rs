@@ -206,6 +206,36 @@ fn test_section_command_with_start_address_expression() {
     );
 }
 
+#[test]
+fn test_section_command_with_align_start_address() {
+    check_section_command(
+        ".data ALIGN(0x2000) : { *(.data) }",
+        &SectionCommand::Section(Section {
+            output_section_name: b".data",
+            commands: vec![ContentsCommand::Matcher(Matcher {
+                must_keep: false,
+                input_file_pattern: None,
+                exclude_file_patterns: vec![],
+                input_section_name_patterns: vec![SectionPattern {
+                    name: b".data",
+                    sort: SortKind::None,
+                }],
+            })],
+            alignment: None,
+            start_address_expression: Some(Expression::Align(
+                Box::new(Expression::Number(0x2000)),
+                None,
+            )),
+            phdrs: vec![],
+            at_address: None,
+            region: None,
+            at_region: None,
+            fill: None,
+            attributes: None,
+        }),
+    );
+}
+
 #[track_caller]
 fn check_linker_script(input: &str, expected: &LinkerScript) {
     let actual = parse_script(input).unwrap();
