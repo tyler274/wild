@@ -25,6 +25,14 @@ level phases are:
 
 For a more detailed look at the phases of the linker, run with the `--time` flag.
 
+## Incremental linking
+
+`--incremental` keeps dense `SymbolId` / `FileId` indexes for the GC graph (those are rebuilt every
+link). Cross-run identity is a generational atom table in `incremental/`: unchanged inputs reuse a
+handle, a replaced path reuses a slot with a new generation, and reverse-reloc lists plus
+resolutions are keyed by `(atom, local symbol)` so a neighboring file cannot reshuffle IDs. GC and
+LTO still fall back to a full padded link.
+
 ## Threading
 
 The linker makes extensive use of multiple threads. The thread pool is owned by the rayon library.

@@ -471,11 +471,7 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
 
     let format_specific = P::create_layout_ext(finalise_sizes_ext, &symbol_resolutions)?;
 
-    let incremental_reverse_relocs = Mutex::new(if symbol_db.args.common().incremental {
-        crate::incremental::ReverseRelocIndex::new(symbol_resolutions.resolutions.len())
-    } else {
-        crate::incremental::ReverseRelocIndex::new(0)
-    });
+    let incremental_reverse_relocs = Mutex::new(crate::incremental::ReverseRelocIndex::new());
 
     let mut layout = Layout {
         symbol_db,
@@ -504,6 +500,7 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
         script_sorted_sections,
         resolved_location_counters,
         incremental_skip_payloads: HashSet::new(),
+        incremental_atoms: HashMap::new(),
         incremental_reverse_relocs,
         incremental_patch: None,
     };

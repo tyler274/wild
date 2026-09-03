@@ -91,31 +91,44 @@ pub(crate) fn apply_incremental_reloc_patches<C: ElfClass, A: Arch<Platform = el
     }
 
     let new_res: Vec<u64> = layout.symbol_resolutions.raw_values().collect();
+    let atom_to_file: hashbrown::HashMap<crate::incremental::AtomId, crate::input_data::FileId> =
+        layout
+            .incremental_atoms
+            .iter()
+            .map(|(file_id, atom)| (*atom, *file_id))
+            .collect();
     let out = &mut sized_output.out;
-    let n = job
-        .old_resolutions
-        .len()
-        .min(new_res.len())
-        .min(job.reverse_relocs.heads.len());
     let mut patched = 0u64;
-    for sym_id in 0..n {
-        let old = job.old_resolutions[sym_id];
-        let new = new_res[sym_id];
-        if old == new {
+    let mut patch_error = None;
+    for (file_id, atom) in &layout.incremental_atoms {
+        let Some(old_vals) = job.old_resolutions.get(*atom) else {
             continue;
-        }
-        let mut idx = job.reverse_relocs.heads[sym_id];
-        while idx != u32::MAX {
-            let node = &job.reverse_relocs.nodes[idx as usize];
-            idx = node.next;
-            if !layout
-                .incremental_skip_payloads
-                .contains(&crate::input_data::FileId::from_encoded(node.file_id))
-            {
+        };
+        let range = layout.symbol_db.file(*file_id).symbol_id_range();
+        for (local, symbol_id) in range.into_iter().enumerate() {
+            let new = new_res.get(symbol_id.as_usize()).copied().unwrap_or(0);
+            let old = old_vals.get(local).copied().unwrap_or(0);
+            if old == new {
                 continue;
             }
-            patch_skipped_reloc_site::<C, A>(out, node, new)?;
-            patched += 1;
+            job.reverse_relocs.for_each_site(*atom, local, |node| {
+                if patch_error.is_some() {
+                    return;
+                }
+                let Some(owner_file) = atom_to_file.get(&node.owner) else {
+                    return;
+                };
+                if !layout.incremental_skip_payloads.contains(owner_file) {
+                    return;
+                }
+                match patch_skipped_reloc_site::<C, A>(out, node, new) {
+                    Ok(()) => patched += 1,
+                    Err(error) => patch_error = Some(error),
+                }
+            });
+            if let Some(error) = patch_error.take() {
+                return Err(error);
+            }
         }
     }
     if patched > 0 {

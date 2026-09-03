@@ -424,9 +424,10 @@ impl<F: FileSystem> Linker<F> {
             if has_strict_order_sections {
                 session.record_fallback("strict-order .init/.fini");
             }
-            let object_records = layout.incremental_object_records();
+            let records = layout.incremental_file_records();
+            layout.incremental_atoms = session.bind_files(&records);
             layout.incremental_skip_payloads =
-                session.plan_in_place_update(&sections, &object_records, &file_loader.loaded_files);
+                session.plan_in_place_update(&sections, &records, &file_loader.loaded_files);
             if !layout.incremental_skip_payloads.is_empty() {
                 if let (Some(old_resolutions), Some(reverse_relocs)) = (
                     session.previous_resolutions.take(),
@@ -445,8 +446,8 @@ impl<F: FileSystem> Linker<F> {
 
         if let Some(session) = incremental_session {
             let (sections, has_strict_order_sections) = incremental_section_snapshot(&layout);
-            let object_records = layout.incremental_object_records();
-            let resolutions: Vec<u64> = layout.symbol_resolutions.raw_values().collect();
+            let records = layout.incremental_file_records();
+            let resolutions = layout.incremental_resolutions();
             let reverse_relocs = layout.take_reverse_relocs();
             session.finish(
                 &file_loader.loaded_files,
@@ -455,7 +456,7 @@ impl<F: FileSystem> Linker<F> {
                 &sections,
                 &resolutions,
                 &reverse_relocs,
-                &object_records,
+                &records,
             )?;
         }
 

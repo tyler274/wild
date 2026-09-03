@@ -115,7 +115,10 @@ pub struct Layout<'data, P: Platform> {
     /// Object FileIds whose allocatable section payloads can be left in the existing output during
     /// an incremental update. Empty unless `--incremental` is doing an in-place rewrite.
     pub(crate) incremental_skip_payloads: HashSet<FileId>,
-    /// Sites that applied a relocation, keyed by defined symbol. Empty when not incremental.
+    /// This-run `FileId` → generational atom. Empty unless `--incremental`.
+    pub(crate) incremental_atoms: HashMap<FileId, crate::incremental::AtomId>,
+    /// Sites that applied a relocation, keyed by defined atom + local symbol. Empty when not
+    /// incremental.
     pub(crate) incremental_reverse_relocs: Mutex<crate::incremental::ReverseRelocIndex>,
     /// Loaded previous reverse-reloc index + resolutions for patching skipped objects.
     pub(crate) incremental_patch: Option<crate::incremental::IncrementalPatchJob>,
@@ -604,26 +607,98 @@ impl<'data, P: Platform> Layout<'data, P> {
         self.symbol_db.args
     }
 
-    /// Loaded allocatable section sizes per input object, for incremental layout matching.
-    pub(crate) fn incremental_object_records(&self) -> Vec<(FileId, PathBuf, Vec<u64>)> {
+    /// Symbol-bearing inputs for incremental atom binding and skip planning.
+    pub(crate) fn incremental_file_records(
+        &self,
+    ) -> Vec<crate::incremental::IncrementalFileRecord> {
         let mut records = Vec::new();
         for group in &self.group_layouts {
             for file in &group.files {
-                let FileLayout::Object(obj) = file else {
-                    continue;
-                };
-                let sizes = obj
-                    .sections
-                    .iter()
-                    .filter_map(|slot| match slot {
-                        SectionSlot::Loaded(sec) => Some(sec.size),
-                        _ => None,
-                    })
-                    .collect();
-                records.push((obj.file_id, obj.input.file.filename.to_path_buf(), sizes));
+                match file {
+                    FileLayout::Prelude(prelude) => {
+                        records.push(crate::incremental::IncrementalFileRecord {
+                            file_id: crate::input_data::PRELUDE_FILE_ID,
+                            key: "<prelude>".into(),
+                            source_path: PathBuf::new(),
+                            sizes: Vec::new(),
+                            num_symbols: prelude.internal_symbols.symbol_definitions.len(),
+                            skippable: false,
+                        });
+                    }
+                    FileLayout::Object(obj) => {
+                        let sizes = obj
+                            .sections
+                            .iter()
+                            .filter_map(|slot| match slot {
+                                SectionSlot::Loaded(sec) => Some(sec.size),
+                                _ => None,
+                            })
+                            .collect();
+                        records.push(crate::incremental::IncrementalFileRecord {
+                            file_id: obj.file_id,
+                            key: obj.input.to_string(),
+                            source_path: obj.input.file.filename.to_path_buf(),
+                            sizes,
+                            num_symbols: obj.symbol_id_range.len(),
+                            skippable: true,
+                        });
+                    }
+                    FileLayout::Dynamic(dyn_obj) => {
+                        records.push(crate::incremental::IncrementalFileRecord {
+                            file_id: dyn_obj.file_id,
+                            key: dyn_obj.input.to_string(),
+                            source_path: dyn_obj.input.file.filename.to_path_buf(),
+                            sizes: Vec::new(),
+                            num_symbols: dyn_obj.symbol_id_range.len(),
+                            skippable: false,
+                        });
+                    }
+                    FileLayout::LinkerScript(script) => {
+                        records.push(crate::incremental::IncrementalFileRecord {
+                            file_id: script.file_id,
+                            key: script.input.to_string(),
+                            source_path: script.input.file.filename.to_path_buf(),
+                            sizes: Vec::new(),
+                            num_symbols: script.symbol_id_range.len(),
+                            skippable: false,
+                        });
+                    }
+                    FileLayout::SyntheticSymbols(syn) => {
+                        if syn.internal_symbols.symbol_definitions.is_empty() {
+                            continue;
+                        }
+                        records.push(crate::incremental::IncrementalFileRecord {
+                            file_id: self
+                                .symbol_db
+                                .file_id_for_symbol(syn.internal_symbols.start_symbol_id),
+                            key: "<synthetic>".into(),
+                            source_path: PathBuf::new(),
+                            sizes: Vec::new(),
+                            num_symbols: syn.internal_symbols.symbol_definitions.len(),
+                            skippable: false,
+                        });
+                    }
+                    FileLayout::Epilogue(_)
+                    | FileLayout::StubLibrary(_)
+                    | FileLayout::NotLoaded => {}
+                }
             }
         }
         records
+    }
+
+    pub(crate) fn incremental_resolutions(&self) -> crate::incremental::AtomResolutions {
+        let raw: Vec<u64> = self.symbol_resolutions.raw_values().collect();
+        let mut out = crate::incremental::AtomResolutions::default();
+        for (file_id, atom) in &self.incremental_atoms {
+            let range = self.symbol_db.file(*file_id).symbol_id_range();
+            let mut values = Vec::with_capacity(range.len());
+            for id in range {
+                values.push(raw.get(id.as_usize()).copied().unwrap_or(0));
+            }
+            out.set(*atom, values);
+        }
+        out
     }
 
     pub(crate) fn skip_incremental_payload(&self, file_id: FileId) -> bool {
@@ -642,21 +717,34 @@ impl<'data, P: Platform> Layout<'data, P> {
         if !self.args().common().incremental {
             return;
         }
+        let Some(&owner) = self.incremental_atoms.get(&file_id) else {
+            return;
+        };
         let defined = self.symbol_db.definition(symbol_id);
+        let def_file = self.symbol_db.file_id_for_symbol(defined);
+        let Some(&def_atom) = self.incremental_atoms.get(&def_file) else {
+            return;
+        };
+        let local = self
+            .symbol_db
+            .file(def_file)
+            .symbol_id_range()
+            .id_to_offset(defined);
         self.incremental_reverse_relocs.lock().unwrap().push(
-            defined.as_usize(),
+            def_atom,
+            local,
             file_offset,
             place,
             addend,
             r_type,
-            file_id.as_u32(),
+            owner,
         );
     }
 
     pub(crate) fn take_reverse_relocs(&self) -> crate::incremental::ReverseRelocIndex {
         replace(
             &mut *self.incremental_reverse_relocs.lock().unwrap(),
-            crate::incremental::ReverseRelocIndex::new(0),
+            crate::incremental::ReverseRelocIndex::new(),
         )
     }
 

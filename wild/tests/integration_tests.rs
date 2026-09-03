@@ -3033,22 +3033,31 @@ impl ProgramInputs {
                 "reverse reloc index missing WREV magic"
             );
             let version = u32::from_le_bytes(bytes[4..8].try_into()?);
-            ensure!(version == 1, "unsupported reverse reloc version {version}");
-            let heads_len = u64::from_le_bytes(bytes[8..16].try_into()?);
-            let heads_bytes = usize::try_from(heads_len)
-                .ok()
-                .and_then(|n| n.checked_mul(4))
-                .context("reverse reloc head count overflow")?;
-            let nodes_at = 16usize
-                .checked_add(heads_bytes)
-                .context("reverse reloc index overflow")?;
-            ensure!(
-                bytes.len() >= nodes_at + 8,
-                "reverse reloc index is truncated at node count"
-            );
-            Ok(u64::from_le_bytes(
-                bytes[nodes_at..nodes_at + 8].try_into()?,
-            ))
+            ensure!(version == 2, "unsupported reverse reloc version {version}");
+            let mut rest = &bytes[8..];
+            let take_u64 = |rest: &mut &[u8]| -> Result<u64> {
+                let (head, tail) = rest
+                    .split_at_checked(8)
+                    .context("reverse reloc index truncated")?;
+                *rest = tail;
+                Ok(u64::from_le_bytes(head.try_into()?))
+            };
+            let take_u32 = |rest: &mut &[u8]| -> Result<u32> {
+                let (head, tail) = rest
+                    .split_at_checked(4)
+                    .context("reverse reloc index truncated")?;
+                *rest = tail;
+                Ok(u32::from_le_bytes(head.try_into()?))
+            };
+            let atom_count = take_u64(&mut rest)?;
+            for _ in 0..atom_count {
+                let _generation = take_u32(&mut rest)?;
+                let n_heads = take_u32(&mut rest)?;
+                for _ in 0..n_heads {
+                    let _head = take_u32(&mut rest)?;
+                }
+            }
+            take_u64(&mut rest)
         }
 
         let state_dir = {
