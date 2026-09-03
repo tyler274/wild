@@ -101,6 +101,13 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
     let mut dynamic_symbol_definitions =
         merge_dynamic_symbol_definitions(&group_states, &symbol_db)?;
 
+    create_canonical_plt_entries(
+        &group_states,
+        &symbol_db,
+        &atomic_per_symbol_flags,
+        &mut dynamic_symbol_definitions,
+    )?;
+
     let mut script_sorted_sections = harvest_and_sort_script_sections(
         &mut group_states,
         &output_sections,

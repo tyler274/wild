@@ -82,7 +82,7 @@ impl<'data, P: Platform<GcUnit = SectionGcUnit>> ObjectLayoutState<'data, P> {
                         scope,
                     );
                 }
-                SectionSlot::Unloaded(sec) => {
+                SectionSlot::Unloaded(_) => {
                     if no_gc {
                         queue.send_gc_unit_request::<A>(
                             self.file_id,
@@ -90,18 +90,6 @@ impl<'data, P: Platform<GcUnit = SectionGcUnit>> ObjectLayoutState<'data, P> {
                             resources,
                             scope,
                         );
-                    } else if sec.start_stop_eligible {
-                        let part_id = self.section_part_id(
-                            object::SectionIndex(i),
-                            &resources.symbol_db.section_part_ids,
-                        );
-                        resources
-                            .start_stop_sections
-                            .get(part_id.output_section_id::<P>())
-                            .push(GcLoadRequest::new(
-                                self.file_id,
-                                SectionGcUnit::new(object::SectionIndex(i)),
-                            ));
                     }
                 }
                 SectionSlot::FrameData(index) => {

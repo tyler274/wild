@@ -231,7 +231,7 @@ pub(crate) fn materialize_relocation_requirements<
         } else if flags.is_function() {
             // Create a PLT entry for the function and refer to that instead.
             flags_to_add.remove(ValueFlags::DIRECT);
-            *flags_to_add |= ValueFlags::PLT | ValueFlags::GOT;
+            *flags_to_add |= ValueFlags::PLT | ValueFlags::GOT | ValueFlags::CANONICAL_PLT;
         } else if !flags.is_absolute() {
             match args.copy_relocations_enabled() {
                 crate::args::CopyRelocations::Allowed => {
@@ -287,6 +287,11 @@ pub(crate) fn materialize_relocation_requirements<
     // that all references to the ifunc return the same address.
 
     let relocation_needs_got = flags_to_add.needs_got();
+    let relocation_needs_got_for_address = relocation_needs_got && !flags_to_add.needs_plt();
+
+    if flags.is_function() && relocation_needs_got_for_address {
+        *flags_to_add |= ValueFlags::GOT_FOR_PLT_ENTRY;
+    }
 
     if flags.is_ifunc() && !symbol_db.output_kind.is_static_executable() {
         *flags_to_add |= ValueFlags::GOT | ValueFlags::PLT;

@@ -716,6 +716,7 @@ impl<'data, P: Platform> SyntheticSymbolsLayoutState<'data, P> {
                 symbol_definitions: input_state.symbol_definitions,
                 start_symbol_id: input_state.start_symbol_id,
             },
+            start_stop_sections: input_state.start_stop_sections,
         }
     }
 

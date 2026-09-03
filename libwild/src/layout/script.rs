@@ -2,12 +2,13 @@ use super::types::*;
 use crate::bail;
 use crate::error::Result;
 use crate::expression_eval::ResolvedLocationCounter;
-use crate::expression_eval::ResolvedSymbolValue;
+use crate::expression_eval::SymbolValue;
 use crate::expression_eval::evaluate_const;
 use crate::grouping::Group;
 use crate::grouping::SequencedInput;
 use crate::output_section_id::OutputSections;
 use crate::output_section_map::OutputSectionMap;
+use crate::output_section_part_map::OutputSectionPartMap;
 use crate::parsing::InternalSymDefInfo;
 use crate::parsing::SymbolLoc;
 use crate::parsing::SymbolPlacement;
@@ -215,8 +216,9 @@ pub(crate) fn script_def_layout_value<'data, P: Platform>(
             symbol_db,
             sizeof_headers,
             resolved_lc,
-            &|nested| {
-                Ok(ResolvedSymbolValue::Absolute(layout_time_symbol_value(
+            &OutputSectionPartMap::default(),
+            &mut |nested| {
+                Ok(SymbolValue::Absolute(layout_time_symbol_value(
                     nested,
                     symbol_db,
                     section_layouts,

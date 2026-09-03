@@ -174,7 +174,10 @@ impl<'layout, 'out, C: ElfClass> TableWriter<'layout, 'out, C> {
         } else {
             self.take_next_got_entry()?
         };
-        if res.flags.is_dynamic()
+        if res.flags.needs_canonical_plt() {
+            *got_entry = elf::Word::<C>::from_u64(0)?;
+            self.write_jump_slot_relocation::<A>(got_address, res.dynamic_symbol_index()?)?;
+        } else if res.flags.is_dynamic()
             || (flags.needs_export_dynamic() && res.flags.is_interposable())
                 && !res.flags.is_ifunc()
         {
@@ -226,6 +229,18 @@ impl<'layout, 'out, C: ElfClass> TableWriter<'layout, 'out, C> {
                 plt_address
             };
             *got_entry = elf::Word::<C>::from_u64(value)?;
+        }
+
+        if res.flags.needs_canonical_plt_got_for_address() {
+            let address_got_address = got_address + C::GOT_ENTRY_SIZE;
+            *self.take_next_got_entry()? = elf::Word::<C>::from_u64(0)?;
+
+            self.write_dynamic_symbol_relocation::<A>(
+                address_got_address,
+                0,
+                res.dynamic_symbol_index()?,
+                DynamicRelocationKind::GotEntry,
+            )?;
         }
 
         Ok(())
@@ -499,6 +514,27 @@ impl<'layout, 'out, C: ElfClass> TableWriter<'layout, 'out, C> {
             0,
             A::get_dynamic_relocation_type(DynamicRelocationKind::Irelative),
         )?;
+        Ok(())
+    }
+
+    fn write_jump_slot_relocation<A: Arch<Platform = elf::Elf<C>>>(
+        &mut self,
+        got_address: u64,
+        dynamic_symbol_index: u32,
+    ) -> Result {
+        let out = self
+            .rela_plt
+            .split_off_first_mut()
+            .ok_or_else(|| insufficient_allocation(".rela.plt"))?;
+
+        out.set_addend(0)?;
+        out.set_offset(got_address)?;
+
+        out.set_info(
+            dynamic_symbol_index,
+            A::get_dynamic_relocation_type(DynamicRelocationKind::JumpSlot),
+        )?;
+
         Ok(())
     }
 

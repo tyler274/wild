@@ -437,3 +437,66 @@ fn emit_relocs_section_name<'data, P: Platform>(
     name.extend_from_slice(target_output_name);
     Some(allocator.alloc_slice_copy(&name))
 }
+
+pub(super) fn populate_start_stop_sections<'data, P: Platform>(
+    resolved: &[ResolvedGroup<'data, P>],
+    section_part_ids: &[PartId],
+    output_sections: &OutputSections<'data, P>,
+    args: &P::Args,
+    syn: &mut ResolvedSyntheticSymbols<'data, P>,
+) {
+    if !P::NEEDS_START_STOP_SECTION_GC || !args.should_gc_sections() {
+        return;
+    }
+
+    let mut referenced_sections = output_sections.new_section_map::<bool>();
+    let mut has_referenced_sections = false;
+
+    for definition in &syn.symbol_definitions {
+        if let Some(section_id) = definition.section_id() {
+            *referenced_sections.get_mut(section_id) = true;
+            has_referenced_sections = true;
+        }
+    }
+
+    if !has_referenced_sections {
+        return;
+    }
+
+    let start_stop_sections = syn.start_stop_sections.as_mut().unwrap();
+    for group in resolved {
+        for file in &group.files {
+            let ResolvedFile::Object(s) = file else {
+                continue;
+            };
+
+            let obj_part_ids = &section_part_ids[s.section_id_range.as_usize()];
+
+            for custom_section in &s.custom_sections {
+                let section_index = custom_section.index;
+
+                let SectionSlot::Unloaded(unloaded) = s.sections[section_index.0] else {
+                    continue;
+                };
+
+                if !unloaded.start_stop_eligible {
+                    continue;
+                }
+
+                let section_id = obj_part_ids[section_index.0].output_section_id::<P>();
+                if !*referenced_sections.get(section_id) {
+                    continue;
+                }
+
+                let gc_unit = P::gc_unit_for_section(section_index);
+
+                start_stop_sections
+                    .get_mut(section_id)
+                    .push(StartStopCandidate {
+                        file_id: s.common.file_id,
+                        gc_unit,
+                    });
+            }
+        }
+    }
+}

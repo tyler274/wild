@@ -688,13 +688,18 @@ pub(crate) fn write_dynamic_file<'data, C: ElfClass, A: Arch<Platform = elf::Elf
                     res.value(),
                     ValueFlags::empty(),
                 )?;
-            } else {
+            } else if !res.flags.needs_canonical_plt() {
                 let entry = table_writer.dynsym_writer.undefined_symbol(false, name)?;
 
-                // Note, we copy st_info, but not st_other since we don't want to copy the
-                // visibility. We want to emit the symbol with default visibility, otherwise the
-                // runtime loader may ignore dynamic relocations that reference the symbol.
-                entry.set_info(symbol.st_info());
+                let symbol_type = if symbol.st_type() == object::elf::STT_GNU_IFUNC {
+                    // An undefined reference to an IFUNC needs to be emitted as type FUNC.
+                    object::elf::STT_FUNC
+                } else {
+                    symbol.st_type()
+                };
+
+                // Note, for undefined symbols, we always use default visibility.
+                entry.set_binding_and_type(symbol.st_bind(), symbol_type);
 
                 if let Some(versym) = table_writer.version_writer.versym.as_mut() {
                     copy_symbol_version(

@@ -221,28 +221,19 @@ pub(crate) fn compute_section_and_symbol_addresses<'data, P: Platform>(
 }
 
 pub(crate) fn resolve_early_object_symbol<'data, P: Platform>(
-    symbol_id: SymbolId,
-    group_states: &[GroupState<'data, P>],
+    canonical_id: SymbolId,
+    obj: &ObjectLayoutState<'data, P>,
     section_positions: &InputSectionPositions,
     symbol_db: &SymbolDb<'data, P>,
-) -> Result<EarlyObjectSymbolValue> {
-    let canonical_id = symbol_db.definition(symbol_id);
+) -> Result<crate::expression_eval::SymbolValue> {
     let file_id = symbol_db.file_id_for_symbol(canonical_id);
-    let Some(FileLayoutState::Object(obj)) = group_states
-        .get(file_id.group())
-        .and_then(|group| group.files.get(file_id.file()))
-    else {
-        bail!(
-            "symbol '{}' is not defined by an input object",
-            symbol_db.symbol_name_for_display(canonical_id)
-        );
-    };
-
     let local_index = canonical_id.to_input(obj.symbol_id_range);
     let symbol = obj.object.symbol(local_index)?;
     let Some(section_index) = obj.object.symbol_section(symbol, local_index)? else {
         if symbol.is_absolute() {
-            return Ok(EarlyObjectSymbolValue::Absolute(symbol.value()));
+            return Ok(crate::expression_eval::SymbolValue::Absolute(
+                symbol.value(),
+            ));
         }
         bail!(
             "cannot resolve address of symbol '{}'",
@@ -276,7 +267,7 @@ pub(crate) fn resolve_early_object_symbol<'data, P: Platform>(
     let input_offset = obj.object.symbol_offset_in_section(symbol, section_index)?;
     let output_offset =
         opt_input_to_output(obj.section_relax_deltas.get(section_index.0), input_offset);
-    Ok(EarlyObjectSymbolValue::PartRelative {
+    Ok(crate::expression_eval::SymbolValue::PartRelative {
         part_id: section_position.part_id,
         offset: section_position.address + output_offset,
     })

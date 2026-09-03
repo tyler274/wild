@@ -23,6 +23,7 @@ pub(crate) mod symbols;
 pub(crate) mod types;
 
 use sections::assign_section_ids;
+use sections::populate_start_stop_sections;
 use sections::resolve_sections;
 #[allow(unused_imports)]
 pub(crate) use sections::*;
@@ -75,7 +76,9 @@ impl<'data, P: Platform> Resolver<'data, P> {
             output_sections,
         )?;
 
-        let mut syn = symbol_db.new_synthetic_symbols_group();
+        let start_stop_sections =
+            P::NEEDS_START_STOP_SECTION_GC.then(|| output_sections.new_section_map());
+        let mut syn = symbol_db.new_synthetic_symbols_group(start_stop_sections);
 
         assign_section_ids(
             &mut self.resolved_groups,
@@ -93,6 +96,14 @@ impl<'data, P: Platform> Resolver<'data, P> {
             &self.resolved_groups,
             symbol_db,
             per_symbol_flags,
+            &mut syn,
+        );
+
+        populate_start_stop_sections(
+            &self.resolved_groups,
+            &symbol_db.section_part_ids,
+            output_sections,
+            symbol_db.args,
             &mut syn,
         );
 
@@ -356,6 +367,7 @@ fn resolve_group<'data, 'definitions, P: Platform>(
                     file_id: syn.file_id,
                     start_symbol_id: syn.symbol_id_range.start(),
                     symbol_definitions: Vec::new(),
+                    start_stop_sections: None,
                 })],
             }
         }

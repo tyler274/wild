@@ -29,7 +29,6 @@ use crate::value_flags::AtomicPerSymbolFlags;
 use crate::value_flags::FlagsForSymbol as _;
 use crate::value_flags::ValueFlags;
 use crate::verbose_timing_phase;
-use crossbeam_queue::ArrayQueue;
 use linker_utils::elf::RelocationKind;
 use linker_utils::relaxation::RelaxDeltaMap;
 use rayon::Scope;
@@ -37,7 +36,6 @@ use std::mem::take;
 use std::sync::Mutex;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
-use std::sync::atomic::AtomicUsize;
 
 pub(crate) fn export_dynamic<'data, P: Platform>(
     common: &mut CommonGroupState<'data, P>,
@@ -84,9 +82,6 @@ pub(crate) fn traverse_reference_graph<'data, A: Arch>(
         has_static_tls: AtomicBool::new(false),
         has_variant_pcs: AtomicBool::new(false),
         thunk_layout_builder,
-        start_stop_sections: output_sections.new_section_map(),
-        activations_remaining: AtomicUsize::new(num_groups),
-        delay_processing: ArrayQueue::new(1),
         layout_resources_ext,
     };
     let resources_ref = &resources;

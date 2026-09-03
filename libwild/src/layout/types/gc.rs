@@ -31,6 +31,7 @@ use rayon::Scope;
 use std::fmt::Display;
 use std::mem::size_of;
 use std::mem::swap;
+use std::mem::take;
 use std::sync::atomic;
 
 pub(crate) trait HandlerData {
@@ -260,11 +261,13 @@ impl<'data, P: Platform> SymbolRequestHandler<'data, P> for SyntheticSymbolsLayo
         let def_info =
             &self.internal_symbols.symbol_definitions[self.symbol_id_range.id_to_offset(symbol_id)];
 
-        if let Some(output_section_id) = def_info.section_id() {
-            // We've gotten a request to load a __start_ / __stop_ symbol, sent requests to load all
+        if let Some(output_section_id) = def_info.section_id()
+            && let Some(start_stop_sections) = &mut self.start_stop_sections
+        {
+            // We've gotten a request to load a __start_ / __stop_ symbol, send requests to load all
             // sections that would go into that section.
-            let sections = resources.start_stop_sections.get(output_section_id);
-            while let Some(request) = sections.pop() {
+            for candidate in take(start_stop_sections.get_mut(output_section_id)) {
+                let request = GcLoadRequest::new(candidate.file_id, candidate.gc_unit);
                 resources.send_work::<A>(
                     request.file_id,
                     WorkItem::LoadGcUnit(request),
@@ -376,38 +379,16 @@ impl<'data, P: Platform> GroupActivationInputs<'data, P> {
         };
         group.section_group_order = section_group_order(&group.files);
 
-        let mut should_delay_processing = false;
-
         for file in &mut group.files {
             let r = activate::<A>(&mut group.common, file, &mut group.queue, resources, scope)
                 .with_context(|| format!("Failed to activate {file}"));
-
-            // SyntheticSymbols can't be processed until all groups have completed activation, since
-            // it can read from `start_stop_sections` which gets populated by other objects during
-            // activation.
-            should_delay_processing |= matches!(file, FileLayoutState::SyntheticSymbols(_));
 
             if let Err(error) = r {
                 resources.errors.lock().unwrap().push(error);
             }
         }
 
-        if should_delay_processing {
-            resources.delay_processing.push(group).unwrap();
-        } else {
-            group.do_pending_work::<A>(resources, scope);
-        }
-
-        let remaining = resources
-            .activations_remaining
-            .fetch_sub(1, atomic::Ordering::Relaxed)
-            - 1;
-
-        if remaining == 0 {
-            while let Some(group) = resources.delay_processing.pop() {
-                group.do_pending_work::<A>(resources, scope);
-            }
-        }
+        group.do_pending_work::<A>(resources, scope);
     }
 }
 

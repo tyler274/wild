@@ -23,7 +23,9 @@ use crate::input_data::FileId;
 use crate::input_data::LoadedInputs;
 use crate::input_data::PRELUDE_FILE_ID;
 use crate::layout_rules::LayoutRulesBuilder;
+use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
+use crate::output_section_map::OutputSectionMap;
 use crate::parsing;
 use crate::parsing::InternalSymDefInfo;
 use crate::parsing::SyntheticSymbols;
@@ -698,6 +700,31 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         }
     }
 
+    pub(crate) fn output_section_id(&self, symbol_id: SymbolId) -> Option<OutputSectionId> {
+        let file_id = self.file_id_for_symbol(symbol_id);
+        match self.file(file_id) {
+            SequencedInput::Object(obj) => {
+                let local_index = symbol_id.to_input(obj.symbol_id_range);
+                let sym = obj.parsed.object.symbol(local_index).ok()?;
+                let sec_idx = obj.parsed.object.symbol_section(sym, local_index).ok()??;
+                let part_id = self
+                    .section_part_ids
+                    .get(obj.section_id_range.start().as_usize() + sec_idx.0)?;
+                Some(part_id.output_section_id::<P>())
+            }
+            SequencedInput::LinkerScript(script) => {
+                let local_index = symbol_id.to_input(script.symbol_id_range);
+                let def_info = script.parsed.symbol_defs.get(local_index.0)?;
+                if let crate::parsing::SymbolPlacement::Redirect(redirect) = &def_info.placement {
+                    redirect.loc.relative_section_id()
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
     pub(crate) fn is_mapping_symbol(&self, symbol_id: SymbolId) -> bool {
         let Ok(name) = self.symbol_name(symbol_id) else {
             // We don't want to bother the caller with an error here. If there's a problem getting
@@ -838,7 +865,12 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         })
     }
 
-    pub(crate) fn new_synthetic_symbols_group(&mut self) -> ResolvedSyntheticSymbols<'data, P> {
+    pub(crate) fn new_synthetic_symbols_group(
+        &mut self,
+        start_stop_sections: Option<
+            OutputSectionMap<Vec<crate::resolution::StartStopCandidate<P>>>,
+        >,
+    ) -> ResolvedSyntheticSymbols<'data, P> {
         let file_id = FileId::new(self.groups.len() as u32, 0);
         let start_symbol_id = self.next_symbol_id();
 
@@ -851,6 +883,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
             file_id,
             start_symbol_id,
             symbol_definitions: Vec::new(),
+            start_stop_sections,
         }
     }
 
@@ -1093,6 +1126,7 @@ impl<'a, 'data, P: Platform> std::fmt::Display for SymbolDebug<'a, 'data, P> {
         Ok(())
     }
 }
+
 impl<'data> PendingSymbol<'data> {
     pub(super) fn new(symbol_id: SymbolId, name: &'data [u8]) -> PendingSymbol<'data> {
         Self::from_prehashed(symbol_id, UnversionedSymbolName::prehashed(name))

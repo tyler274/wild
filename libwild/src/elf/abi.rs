@@ -483,12 +483,15 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             let address;
             let dynamic_symbol_index;
 
-            if flags.needs_copy_relocation() {
-                let input_address = local_symbol.value();
-
-                address = *copy_relocation_addresses
-                    .get(&input_address)
-                    .context("Internal error: Missing copy relocation address")?;
+            if flags.needs_copy_relocation() || flags.needs_canonical_plt() {
+                address = if flags.needs_copy_relocation() {
+                    let input_address = local_symbol.value();
+                    *copy_relocation_addresses
+                        .get(&input_address)
+                        .context("Internal error: Missing copy relocation address")?
+                } else {
+                    0
+                };
 
                 // Since this is a definition, the dynamic symbol index will be determined by the
                 // epilogue and set by `update_dynamic_symbol_resolutions`.
@@ -550,6 +553,12 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         Ok(object
             .symbol_section(symbol, symbol_index)?
             .map(SectionGcUnit::new))
+    }
+
+    const NEEDS_START_STOP_SECTION_GC: bool = true;
+
+    fn gc_unit_for_section(section_index: object::SectionIndex) -> Self::GcUnit {
+        SectionGcUnit::new(section_index)
     }
 
     fn activate_object_gc<'data, 'scope, A: Arch<Platform = Self>>(
@@ -1468,7 +1477,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                 // need to deal with the symtab entry here.
                 common.allocate(part_id::SYMTAB_GLOBAL, C::SYMTAB_ENTRY_SIZE);
                 common.allocate(part_id::STRTAB, name.len() as u64 + 1);
-            } else {
+            } else if !flags.needs_canonical_plt() {
                 common.allocate(part_id::DYNSTR, name.len() as u64 + 1);
                 common.allocate(part_id::DYNSYM, C::SYMTAB_ENTRY_SIZE);
             }
@@ -1511,7 +1520,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             if flags.needs_plt() {
                 mem_sizes.increment(part_id::PLT_GOT, PLT_ENTRY_SIZE);
             }
-            if flags.is_ifunc() {
+            if flags.is_ifunc() || flags.needs_canonical_plt() {
                 mem_sizes.increment(part_id::RELA_PLT, C::RELA_ENTRY_SIZE);
             } else if has_dynamic_symbol {
                 mem_sizes.increment(part_id::RELA_DYN_GENERAL, C::RELA_ENTRY_SIZE);
@@ -1523,6 +1532,11 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                     mem_sizes.increment(part_id::RELA_DYN_RELATIVE, C::RELA_ENTRY_SIZE);
                 }
                 // is_got_relr=true: RELR entries counted by post_compute_sizes
+            }
+
+            if flags.needs_canonical_plt_got_for_address() {
+                mem_sizes.increment(part_id::GOT, C::GOT_ENTRY_SIZE);
+                mem_sizes.increment(part_id::RELA_DYN_GENERAL, C::RELA_ENTRY_SIZE);
             }
         }
 
@@ -1723,10 +1737,12 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             if flags.is_dynamic() {
                 resolution.raw_value = plt_address.get();
             }
-            // For ifunc with address equality needs, allocate 2 GOT entries
+            // For functions with address equality needs, allocate 2 GOT entries
             // - First entry: Used by PLT
             // - Second entry: Used by GOT-relative references
-            let num_got_entries = if flags.needs_ifunc_got_for_address() {
+            let num_got_entries = if flags.needs_ifunc_got_for_address()
+                || flags.needs_canonical_plt_got_for_address()
+            {
                 2
             } else {
                 1

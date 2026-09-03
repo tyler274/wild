@@ -560,7 +560,9 @@ impl<C: ElfClass> Resolution<Elf<C>> {
 
     pub(crate) fn got_address_for_relocation(&self) -> Result<u64> {
         let mut got_address = self.got_address()?;
-        if self.flags.needs_ifunc_got_for_address() {
+        if self.flags.needs_ifunc_got_for_address()
+            || self.flags.needs_canonical_plt_got_for_address()
+        {
             got_address += C::GOT_ENTRY_SIZE;
         }
         Ok(got_address)

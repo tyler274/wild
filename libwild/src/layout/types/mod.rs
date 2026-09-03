@@ -48,8 +48,6 @@ use crate::value_flags::AtomicPerSymbolFlags;
 use crate::value_flags::FlagsForSymbol as _;
 use crate::value_flags::PerSymbolFlags;
 use crate::value_flags::ValueFlags;
-use crossbeam_queue::ArrayQueue;
-use crossbeam_queue::SegQueue;
 #[allow(unused_imports)]
 pub(crate) use gc::*;
 use hashbrown::HashMap;
@@ -66,7 +64,6 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicU64;
-use std::sync::atomic::AtomicUsize;
 #[allow(unused_imports)]
 pub(crate) use units::*;
 
@@ -240,6 +237,8 @@ pub(crate) struct SyntheticSymbolsLayoutState<'data, P: Platform> {
     pub(crate) file_id: FileId,
     pub(crate) symbol_id_range: SymbolIdRange,
     pub(crate) internal_symbols: InternalSymbols<'data, P>,
+    pub(crate) start_stop_sections:
+        Option<OutputSectionMap<Vec<resolution::StartStopCandidate<P>>>>,
 }
 
 pub(crate) struct EpilogueLayoutState<P: Platform> {
@@ -519,17 +518,6 @@ pub(crate) struct GraphResources<'data, 'scope, P: Platform> {
     pub(crate) has_variant_pcs: AtomicBool,
 
     pub(crate) thunk_layout_builder: Option<crate::thunks::ThunkLayoutBuilder>,
-
-    /// For each OutputSectionId, this tracks a list of sections that should be loaded if that
-    /// section gets referenced. The sections here will only be those that are eligible for having
-    /// __start_ / __stop_ symbols. i.e. sections that don't start their names with a ".".
-    pub(crate) start_stop_sections: OutputSectionMap<SegQueue<GcLoadRequest<P>>>,
-
-    /// The number of groups that haven't yet completed activation.
-    pub(crate) activations_remaining: AtomicUsize,
-
-    /// Groups that cannot be processed until all groups have completed activation.
-    pub(crate) delay_processing: ArrayQueue<GroupState<'data, P>>,
 
     pub(crate) layout_resources_ext: P::LayoutResourcesExt<'data>,
 }
@@ -994,11 +982,6 @@ impl SymbolOutputInfos {
                 .is_interposable(),
         })
     }
-}
-
-pub(crate) enum EarlyObjectSymbolValue {
-    Absolute(u64),
-    PartRelative { part_id: PartId, offset: u64 },
 }
 
 /// Per-file list of section indices to rescan on subsequent relaxation iterations. Indexed as

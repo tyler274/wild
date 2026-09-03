@@ -10,18 +10,21 @@ use crate::layout::Section;
 use crate::macho::GOT_ENTRY_SIZE;
 use crate::macho::MachO;
 use crate::macho::PLT_ENTRY_SIZE;
+use crate::macho::SectionFlags;
 use crate::macho::output_section_id;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::output_trace::HexU64;
 use crate::platform::Arch;
 use crate::platform::Args;
-use crate::platform::ObjectFile;
+use crate::platform::ObjectFile as _;
+use crate::platform::Relaxation as _;
 use crate::resolution::SectionSlot;
 use crate::symbol_db::SymbolId;
 use crate::value_flags::ValueFlags;
 use crate::verbose_timing_phase;
 use linker_utils::elf::RelocationKind;
 use object::SymbolIndex;
+use object::macho::ARM64_RELOC_TLVP_LOAD_PAGEOFF12;
 use object::macho::RelocationInfo;
 use std::ops::BitAnd;
 use tracing::debug_span;
@@ -123,8 +126,17 @@ pub(crate) fn write_object_section<'data, A: Arch<Platform = MachO>>(
         .address()
         .context("Attempted to apply relocations to a section that we didn't load")?;
 
+    let section_flags = object_layout.object.section(section_index)?.flags.get(LE);
+
     for rel in object_layout.relocations(section_index)?.relocations {
-        apply_relocation::<A>(object_layout, section_address, rel.info(LE), layout, out)?;
+        apply_relocation::<A>(
+            object_layout,
+            section_address,
+            section_flags,
+            rel.info(LE),
+            layout,
+            out,
+        )?;
     }
 
     Ok(())
@@ -134,11 +146,12 @@ pub(crate) fn write_object_section<'data, A: Arch<Platform = MachO>>(
 pub(crate) fn apply_relocation<'data, A: Arch<Platform = MachO>>(
     object_layout: &ObjectLayout<'data, MachO>,
     section_address: u64,
+    section_flags: SectionFlags,
     rel: RelocationInfo,
     layout: &MachOLayout<'data>,
     out: &mut [u8],
 ) -> Result {
-    let offset_in_section = u64::from(rel.r_address);
+    let mut offset_in_section = u64::from(rel.r_address);
     let place = section_address + offset_in_section;
 
     let _span = tracing::trace_span!(
@@ -148,9 +161,38 @@ pub(crate) fn apply_relocation<'data, A: Arch<Platform = MachO>>(
     )
     .entered();
 
-    let rel_info = A::relocation_from_raw(rel)?;
     let (resolution, _symbol_index, local_symbol_id) = get_resolution(rel, object_layout, layout)?;
     let flags = layout.flags_for_symbol(local_symbol_id);
+    let output_kind = layout.symbol_db.output_kind;
+
+    // TODO: We don't support addends, relaxation deltas, or previous relocations yet.
+    let relaxation = A::new_relaxation(
+        rel,
+        out,
+        offset_in_section,
+        flags,
+        output_kind,
+        section_flags,
+        None,
+        resolution.raw_value,
+        section_address,
+        0,
+        None,
+    );
+
+    let rel_info = match relaxation.as_ref() {
+        Some(relaxation) => {
+            relaxation.apply(out, &mut offset_in_section, &mut 0);
+            relaxation.rel_info()
+        }
+        None if rel.r_type == ARM64_RELOC_TLVP_LOAD_PAGEOFF12 => {
+            bail!(
+                "TLV relocations are currently only supported for locally-defined, strong, and \
+                non-interposable symbols in executables"
+            )
+        }
+        None => A::relocation_from_raw(rel)?,
+    };
 
     let mask = get_page_mask(rel_info.mask);
     let value = match rel_info.kind {

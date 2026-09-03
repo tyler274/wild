@@ -208,6 +208,14 @@ pub(crate) struct ResolvedSyntheticSymbols<'data, P: Platform> {
     pub(crate) file_id: FileId,
     pub(crate) start_symbol_id: SymbolId,
     pub(crate) symbol_definitions: Vec<InternalSymDefInfo<'data, P>>,
+    pub(crate) start_stop_sections:
+        Option<crate::output_section_map::OutputSectionMap<Vec<StartStopCandidate<P>>>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct StartStopCandidate<P: Platform> {
+    pub(crate) file_id: FileId,
+    pub(crate) gc_unit: P::GcUnit,
 }
 
 #[cfg(all(feature = "plugins", unix))]

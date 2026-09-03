@@ -4,7 +4,7 @@ use crate::alignment;
 use crate::error::Context;
 use crate::error::Result;
 use crate::expression_eval::ResolvedLocationCounter;
-use crate::expression_eval::ResolvedSymbolValue;
+use crate::expression_eval::SymbolValue;
 use crate::grouping::Group;
 use crate::input_data::InputRef;
 use crate::output_section_id::GnuBuildIdPlacement;
@@ -134,21 +134,6 @@ pub(crate) fn update_defsym_symbol_resolution<'data, P: Platform>(
             }
         }
 
-        let current_section_base = match redirect.loc {
-            SymbolLoc::SectionStartRelative(id) | SymbolLoc::SectionEndRelative(id) => {
-                let primary_id = output_sections.primary_output_section(id);
-                Some(section_layouts.get(primary_id).mem_offset)
-            }
-            SymbolLoc::LocationCounter(idx, Some(id)) => resolved_location_counters
-                .get(idx)
-                .and_then(|entry| entry.section_offset)
-                .map(|_| {
-                    let primary_id = output_sections.primary_output_section(id);
-                    section_layouts.get(primary_id).mem_offset
-                }),
-            _ => None,
-        };
-
         let value = crate::expression_eval::evaluate_expression(
             &redirect.expression,
             &redirect.loc,
@@ -159,7 +144,9 @@ pub(crate) fn update_defsym_symbol_resolution<'data, P: Platform>(
             symbol_db,
             sizeof_headers,
             resolved_location_counters,
-            &|name| {
+            // During late evaluation of linker scripts, we don't have any part relative symbols.
+            &OutputSectionPartMap::default(),
+            &mut |name| {
                 let Some(target_symbol_id) =
                     symbol_db.get_unversioned(&UnversionedSymbolName::prehashed(name))
                 else {
@@ -172,15 +159,14 @@ pub(crate) fn update_defsym_symbol_resolution<'data, P: Platform>(
                     .as_ref()
                     .ok_or_else(|| redirect.missing_resolution(name))?;
 
-                if let Some(section_base) = current_section_base
-                    && resolution.raw_value >= section_base
-                {
-                    return Ok(ResolvedSymbolValue::SectionRelative(
-                        resolution.raw_value - section_base,
-                    ));
-                }
-
-                Ok(ResolvedSymbolValue::Absolute(resolution.raw_value))
+                let symbol_value = match symbol_db.output_section_id(canonical_target_id) {
+                    Some(section_id) => SymbolValue::SectionRelative {
+                        section_id,
+                        address: resolution.raw_value,
+                    },
+                    None => SymbolValue::Absolute(resolution.raw_value),
+                };
+                Ok(symbol_value)
             },
         )?;
 
@@ -259,6 +245,37 @@ pub(crate) fn merge_dynamic_symbol_definitions<'data, P: Platform>(
     )?;
 
     Ok(dynamic_symbol_definitions)
+}
+
+pub(crate) fn create_canonical_plt_entries<'data, P: Platform>(
+    group_states: &[GroupState<'data, P>],
+    symbol_db: &SymbolDb<'data, P>,
+    per_symbol_flags: &AtomicPerSymbolFlags<'_>,
+    dynamic_symbol_definitions: &mut Vec<DynamicSymbolDefinition<'data, P>>,
+) -> Result {
+    timing_phase!("Create canonical PLT entries");
+
+    for group in group_states {
+        for file in &group.files {
+            let FileLayoutState::Dynamic(dynamic) = file else {
+                continue;
+            };
+
+            for symbol_id in dynamic.symbol_id_range {
+                if symbol_db.is_canonical(symbol_id)
+                    && per_symbol_flags
+                        .get_atomic(symbol_id)
+                        .get()
+                        .needs_canonical_plt()
+                {
+                    dynamic_symbol_definitions
+                        .push(P::create_dynamic_symbol_definition(symbol_db, symbol_id)?);
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub(crate) fn append_prelude_defsym_dynamic_symbols<'data, P: Platform>(

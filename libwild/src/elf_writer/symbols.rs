@@ -975,12 +975,24 @@ pub(crate) fn write_dynamic_symbol_definitions<C: ElfClass>(
                         }
                     }
                     FileLayout::Dynamic(object) => {
-                        write_copy_relocation_dynamic_symbol_definition(
-                            sym_def,
-                            object,
-                            layout,
-                            &mut table_writer.dynsym_writer,
-                        )?;
+                        if layout
+                            .flags_for_symbol(sym_def.symbol_id)
+                            .needs_canonical_plt()
+                        {
+                            write_canonical_plt_dynamic_symbol_definition(
+                                sym_def,
+                                object,
+                                layout,
+                                &mut table_writer.dynsym_writer,
+                            )?;
+                        } else {
+                            write_copy_relocation_dynamic_symbol_definition(
+                                sym_def,
+                                object,
+                                layout,
+                                &mut table_writer.dynsym_writer,
+                            )?;
+                        }
 
                         if let Some(versym) = table_writer.versym.as_mut() {
                             copy_symbol_version(
@@ -1346,6 +1358,26 @@ pub(crate) fn write_copy_relocation_dynamic_symbol_definition<'data, C: ElfClass
                 layout.symbol_debug(sym_def.symbol_id)
             )
         })?;
+    Ok(())
+}
+
+pub(crate) fn write_canonical_plt_dynamic_symbol_definition<'data, C: ElfClass>(
+    sym_def: &crate::layout::DynamicSymbolDefinition<elf::Elf<C>>,
+    object: &DynamicLayout<'data, elf::Elf<C>>,
+    layout: &ElfLayout<C>,
+    dynamic_symbol_writer: &mut SymbolTableWriter<'_, '_, C>,
+) -> Result {
+    let sym_index = sym_def.symbol_id.to_input(object.symbol_id_range);
+    let sym = object.object.symbol(sym_index)?;
+
+    let resolution = layout
+        .local_symbol_resolution(sym_def.symbol_id)
+        .context("Canonical PLT symbol has no resolution")?;
+
+    let entry = dynamic_symbol_writer.undefined_symbol(false, sym_def.name)?;
+    entry.set_value(resolution.plt_address()?)?;
+    entry.set_binding_and_type(sym.st_bind(), object::elf::STT_FUNC);
+
     Ok(())
 }
 

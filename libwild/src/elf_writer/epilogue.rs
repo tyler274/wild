@@ -760,7 +760,8 @@ pub(crate) fn write_script_output_data<C: ElfClass>(
             &layout.symbol_db,
             sizeof_headers,
             &layout.resolved_location_counters,
-            &|name| {
+            &OutputSectionPartMap::default(),
+            &mut |name| {
                 let Some(symbol_id) = layout
                     .symbol_db
                     .get_unversioned(&crate::symbol::UnversionedSymbolName::prehashed(name))
@@ -774,7 +775,7 @@ pub(crate) fn write_script_output_data<C: ElfClass>(
                 layout
                     .symbol_resolutions
                     .get(canonical)
-                    .map(|r| crate::expression_eval::ResolvedSymbolValue::Absolute(r.raw_value))
+                    .map(|r| crate::expression_eval::SymbolValue::Absolute(r.raw_value))
                     .with_context(|| {
                         format!(
                             "unresolved symbol `{}` in linker script BYTE/SHORT/LONG/QUAD",

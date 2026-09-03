@@ -5,8 +5,7 @@ use crate::error;
 use crate::error::Context;
 use crate::error::Result;
 use crate::expression_eval::ResolvedLocationCounter;
-use crate::expression_eval::ResolvedSymbolValue;
-use crate::layout::addresses::*;
+use crate::expression_eval::evaluate_early_expression;
 use crate::layout::script::*;
 use crate::layout::types::*;
 use crate::linker_script::Expression;
@@ -23,10 +22,10 @@ use crate::platform::Platform;
 use crate::platform::SectionAttributes as _;
 use crate::platform::SectionFlags as _;
 use crate::program_segments::ProgramSegments;
-use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
 use crate::timing_phase;
 use hashbrown::HashMap;
+use hashbrown::HashSet;
 use std::cell::OnceCell;
 
 pub(crate) fn compute_layout_sections<'data, P: Platform>(
@@ -83,109 +82,22 @@ pub(crate) fn compute_layout_sections<'data, P: Platform>(
          section_layouts: &OutputSectionMap<OutputRecordLayout>,
          resolved_lc: &[ResolvedLocationCounter],
          laid_out_mem_offsets: &OutputSectionPartMap<Option<u64>>| {
-            crate::expression_eval::evaluate_expression(
+            let mut visited_nodes = HashSet::new();
+            evaluate_early_expression(
                 expr,
                 loc,
-                None,
-                section_layouts,
-                output_sections,
                 memory_regions,
+                section_layouts,
+                resolved_lc,
+                laid_out_mem_offsets,
+                group_states,
+                sizes,
+                output_sections,
                 symbol_db,
                 sizeof_headers,
-                resolved_lc,
-                &|name| {
-                    if let Some(value) = const_script_symbols.get(name) {
-                        return Ok(ResolvedSymbolValue::Absolute(*value));
-                    }
-                    let Some(symbol_id) =
-                        symbol_db.get_unversioned(&UnversionedSymbolName::prehashed(name))
-                    else {
-                        bail!(
-                            "undefined symbol '{}' in linker script expression",
-                            String::from_utf8_lossy(name)
-                        );
-                    };
-
-                    let canonical_id = symbol_db.definition(symbol_id);
-                    let file_id = symbol_db.file_id_for_symbol(canonical_id);
-                    let is_object = matches!(
-                        group_states
-                            .get(file_id.group())
-                            .and_then(|group| group.files.get(file_id.file())),
-                        Some(FileLayoutState::Object(_))
-                    );
-                    if !is_object {
-                        return Ok(ResolvedSymbolValue::Absolute(layout_time_symbol_value(
-                            name,
-                            symbol_db,
-                            section_layouts,
-                            output_sections,
-                            memory_regions,
-                            loc,
-                            sizeof_headers,
-                            resolved_lc,
-                            &const_script_symbols,
-                            0,
-                        )?));
-                    }
-
-                    let symbol_value = match resolve_early_object_symbol(
-                        symbol_id,
-                        group_states,
-                        section_positions.get_or_init(|| {
-                            compute_input_section_positions(
-                                group_states,
-                                sizes.new_empty_like(),
-                                symbol_db,
-                                output_sections,
-                            )
-                        }),
-                        symbol_db,
-                    )? {
-                        EarlyObjectSymbolValue::Absolute(value) => {
-                            ResolvedSymbolValue::Absolute(value)
-                        }
-                        EarlyObjectSymbolValue::PartRelative { part_id, offset } => {
-                            let Some(part_address) = laid_out_mem_offsets.get(part_id) else {
-                                bail!(
-                                    "cannot resolve address of symbol '{}' because its output section part has not been laid out yet",
-                                    String::from_utf8_lossy(name)
-                                );
-                            };
-                            let address = part_address + offset;
-                            let symbol_section = output_sections
-                                .primary_output_section(part_id.output_section_id::<P>());
-                            let current_section = match loc {
-                                SymbolLoc::SectionStartRelative(id)
-                                | SymbolLoc::SectionEndRelative(id) => {
-                                    Some(output_sections.primary_output_section(*id))
-                                }
-                                SymbolLoc::LocationCounter(idx, Some(id))
-                                    if resolved_lc
-                                        .get(*idx)
-                                        .is_some_and(|entry| entry.section_offset.is_some()) =>
-                                {
-                                    Some(output_sections.primary_output_section(*id))
-                                }
-                                _ => None,
-                            };
-                            if current_section == Some(symbol_section) {
-                                let section_base = section_layouts.get(symbol_section).mem_offset;
-                                ResolvedSymbolValue::SectionRelative(
-                                    address.checked_sub(section_base).with_context(|| {
-                                        format!(
-                                            "address of symbol '{}' is before its output section",
-                                            String::from_utf8_lossy(name)
-                                        )
-                                    })?,
-                                )
-                            } else {
-                                ResolvedSymbolValue::Absolute(address)
-                            }
-                        }
-                    };
-                    Ok(symbol_value)
-                },
+                &section_positions,
+                &mut visited_nodes,
+                &const_script_symbols,
             )
         };
 
