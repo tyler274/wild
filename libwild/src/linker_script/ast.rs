@@ -11,7 +11,6 @@ pub(crate) enum Command<'a> {
     Arg(&'a [u8]),
     Group(Vec<Command<'a>>),
     AsNeeded(Vec<Command<'a>>),
-    Ignored,
     Sections(Sections<'a>),
     #[debug("{}", String::from_utf8_lossy(_0))]
     Entry(&'a [u8]),
@@ -27,6 +26,8 @@ pub(crate) enum Command<'a> {
     Memory(Vec<MemoryRegion<'a>>),
     Phdrs(Vec<Phdr<'a>>),
     OutputFormat(OutputFormat<'a>),
+    #[debug("{}", String::from_utf8_lossy(_0))]
+    OutputArch(&'a [u8]),
     Include(&'a [u8]),
 }
 

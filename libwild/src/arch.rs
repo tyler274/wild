@@ -61,9 +61,58 @@ impl Architecture {
             _ => Self::Unsupported,
         }
     }
+
+    /// BFD `OUTPUT_ARCH` names used by kernel `vmlinux.lds` and GNU ld.
+    pub(crate) fn parse_output_arch(arch: &[u8]) -> Self {
+        match arch {
+            b"i386:x86-64" | b"x86-64" => Self::X86_64,
+            b"aarch64" => Self::AArch64,
+            b"riscv" => Self::RiscV64,
+            b"loongarch" => Self::LoongArch64,
+            b"powerpc:common64" => Self::Ppc64,
+            _ => Self::Unsupported,
+        }
+    }
 }
 
 pub(crate) const SUPPORTED_TARGETS: &str =
     "elf64-x86-64 elf64-littleaarch64 elf64-littleriscv elf64-loongarch elf64-powerpcle";
 pub(crate) const SUPPORTED_EMULATIONS: &str =
     "elf_x86_64 aarch64elf elf64lriscv elf64loongarch elf64lppc";
+
+#[cfg(test)]
+mod tests {
+    use super::Architecture;
+
+    #[test]
+    fn output_arch_kernel_names() {
+        assert_eq!(
+            Architecture::parse_output_arch(b"i386:x86-64"),
+            Architecture::X86_64
+        );
+        assert_eq!(
+            Architecture::parse_output_arch(b"aarch64"),
+            Architecture::AArch64
+        );
+        assert_eq!(
+            Architecture::parse_output_arch(b"riscv"),
+            Architecture::RiscV64
+        );
+        assert_eq!(
+            Architecture::parse_output_arch(b"loongarch"),
+            Architecture::LoongArch64
+        );
+        assert_eq!(
+            Architecture::parse_output_arch(b"powerpc:common64"),
+            Architecture::Ppc64
+        );
+        assert_eq!(
+            Architecture::parse_output_arch(b"i386"),
+            Architecture::Unsupported
+        );
+        assert_eq!(
+            Architecture::parse_output_arch(b"powerpc:common"),
+            Architecture::Unsupported
+        );
+    }
+}

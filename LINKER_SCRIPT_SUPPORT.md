@@ -17,8 +17,8 @@ matching all three.
 | `INPUT(files...)` | ✅ | |
 | `AS_NEEDED(files...)` | ✅ | |
 | `INCLUDE(file)` | ✅ | Recursively expanded with cycle detection; searched relative to the including script, then `-L` / sysroot |
-| `OUTPUT_FORMAT(...)` | 🧪 | Emits error if the format does not match the target |
-| `OUTPUT_ARCH(arch)` | 🧪 | Parsed and ignored |
+| `OUTPUT_FORMAT(...)` | ✅ | Accepted when it matches the link target (`-EL`/`-EB` select the three-arg form). Does not switch architecture; mismatch or unsupported BFD names error |
+| `OUTPUT_ARCH(arch)` | ✅ | Accepted when it matches the link target (kernel `i386:x86-64`, `aarch64`, `riscv`, `loongarch`, `powerpc:common64`). Does not switch architecture |
 | `OUTPUT(filename)` | ❌ | |
 | `SECTIONS { ... }` | ✅ | |
 | `ENTRY(symbol)` | ✅ | |

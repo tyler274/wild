@@ -24,4 +24,14 @@
 //#LinkerScript:linker-script-output-format-invalid.ld
 //#ExpectError:Setting the output format using OUTPUT_FORMAT is currently unsupported
 
+//#Config:arch-mismatch:default
+//#ReferenceLinkers:
+//#LinkerScript:linker-script-output-arch-mismatch.ld
+//#ExpectError:Setting the output architecture using OUTPUT_ARCH is currently unsupported
+
+//#Config:arch-unsupported:default
+//#ReferenceLinkers:
+//#LinkerScript:linker-script-output-arch-unsupported.ld
+//#ExpectError:i386 is not yet supported
+
 void _start() {}

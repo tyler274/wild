@@ -555,6 +555,16 @@ impl<'data> LayoutRulesBuilder<'data> {
                         "Setting the output format using OUTPUT_FORMAT is currently unsupported"
                     );
                 }
+            } else if let linker_script::Command::OutputArch(arch) = cmd {
+                let target_arch = Architecture::parse_output_arch(arch);
+                if target_arch == Architecture::Unsupported {
+                    crate::bail!("{} is not yet supported", String::from_utf8_lossy(arch));
+                }
+                if args.architecture() != target_arch {
+                    crate::bail!(
+                        "Setting the output architecture using OUTPUT_ARCH is currently unsupported"
+                    );
+                }
             }
         }
 

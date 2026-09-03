@@ -115,10 +115,7 @@ pub(crate) fn parse_command<'input>(input: &mut &'input BStr) -> winnow::Result<
     let command = match command_str {
         b"GROUP" | b"INPUT" => Command::Group(parse_paren_group(input)?),
         b"OUTPUT_FORMAT" => Command::OutputFormat(parse_output_format(input)?),
-        b"OUTPUT_ARCH" => {
-            parse_paren_group(input)?;
-            Command::Ignored
-        }
+        b"OUTPUT_ARCH" => Command::OutputArch(parse_output_arch(input)?),
         b"AS_NEEDED" => Command::AsNeeded(parse_paren_group(input)?),
         b"SECTIONS" => Command::Sections(parse_sections(input)?),
         b"ENTRY" => Command::Entry(parse_entry(input)?),
@@ -411,6 +408,16 @@ pub(crate) fn parse_output_format<'input>(
     })
 }
 
+pub(crate) fn parse_output_arch<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
+    skip_comments_and_whitespace(input)?;
+    '('.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    let arch = parse_token(input)?;
+    skip_comments_and_whitespace(input)?;
+    ')'.parse_next(input)?;
+    Ok(arch)
+}
+
 /// Parse an expression - entry point for expression parsing
 
 pub(crate) fn parse_commands<'input>(
@@ -520,7 +527,6 @@ pub(crate) fn section_commands_from_top_level<'data>(
                 }));
             }
             Command::Include(path) => out.push(SectionCommand::Include(path)),
-            Command::Ignored => {}
             Command::Arg(name) => {
                 crate::bail!(
                     "INCLUDE inside SECTIONS cannot contain `{}`",

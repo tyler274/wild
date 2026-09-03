@@ -1041,6 +1041,23 @@ fn test_output_format_parsing() {
 }
 
 #[test]
+fn test_output_arch_parsing() {
+    let script = parse_script(
+        r#"OUTPUT_ARCH(i386:x86-64)
+            OUTPUT_ARCH("aarch64")
+            "#,
+    )
+    .unwrap();
+    assert_eq!(
+        script.commands,
+        vec![
+            Command::OutputArch(b"i386:x86-64"),
+            Command::OutputArch(b"aarch64"),
+        ]
+    );
+}
+
+#[test]
 fn test_nested_sort_is_unsupported() {
     let script = parse_script(
         r"
