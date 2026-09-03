@@ -216,7 +216,7 @@ fn check_elf_specific_code() -> Result {
 
     // Files and directories where we don't allow ELF-specific code.
     const DISALLOWED: &[&str] = &[
-        "input_data.rs",
+        "input_data",
         "layout",
         "parsing.rs",
         "resolution",
