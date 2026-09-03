@@ -70,6 +70,7 @@ pub(crate) fn report_disallowed_unresolved_imports<'data>(
             if !seen.insert((file_display.clone(), name.to_owned())) {
                 continue;
             }
+            let name = demangle_symbol_name(name, symbol_db.args.common.demangle);
             errors.push(format!("{file_display}: undefined symbol: {name}"));
         }
     }

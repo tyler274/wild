@@ -549,7 +549,8 @@ pub(crate) fn scan_layout_relocations(
         needs_table |= scan.needs_table;
         for key in scan.undefined_data_errors {
             if seen_undefined_data.insert(key.clone()) {
-                undefined_data_errors.push(format!("{}: undefined symbol: {}", key.0, key.1));
+                let name = demangle_symbol_name(&key.1, symbol_db.args.common.demangle);
+                undefined_data_errors.push(format!("{}: undefined symbol: {name}", key.0));
             }
         }
         table_index_symbol_indices[obj_idx] = scan.table_syms;
@@ -724,6 +725,7 @@ pub(crate) fn got_func_debug_name(
     layout_inputs: &[WasmObjectLayoutInput<'_>],
     entry: &GotFuncEntry,
     index: usize,
+    demangle: bool,
 ) -> String {
     let sym_name = layout_inputs.get(entry.object_index).and_then(|input| {
         input
@@ -732,7 +734,7 @@ pub(crate) fn got_func_debug_name(
             .and_then(|sym| wasm_symbol_name_str(input.data, sym))
     });
     match sym_name {
-        Some(name) => format!("GOT.func.internal.{name}"),
+        Some(name) => format!("GOT.func.internal.{}", demangle_symbol_name(name, demangle)),
         None => format!("GOT.func.internal.{index}"),
     }
 }

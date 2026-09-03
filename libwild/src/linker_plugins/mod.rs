@@ -137,6 +137,7 @@ pub(crate) struct WrapSymbols<'data>(pub(crate) &'data [*const libc::c_char]);
 unsafe impl Send for WrapSymbols<'_> {}
 unsafe impl Sync for WrapSymbols<'_> {}
 
+// The API version got introduced in GCC 14.
 pub(crate) const API_VERSION: u32 = 1;
 
 #[derive(Debug)]

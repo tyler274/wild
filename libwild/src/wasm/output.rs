@@ -122,12 +122,21 @@ pub(crate) fn encode_wasm_section(section: &impl wasm_encoder::Section) -> Vec<u
     bytes
 }
 
+pub(crate) fn demangle_symbol_name(name: &str, demangle: bool) -> Cow<'_, str> {
+    if demangle {
+        symbolic_demangle::demangle(name)
+    } else {
+        Cow::Borrowed(name)
+    }
+}
+
 pub(crate) fn build_name_section<'data>(
     layout: &WasmLayout<'data>,
     layout_inputs: &[WasmObjectLayoutInput<'data>],
     indices: &LinkerDefinedIndices,
     got_mem: &GotMem,
     got_func: &GotFunc,
+    demangle: bool,
 ) -> Option<wasm_encoder::NameSection> {
     let (n_func_imports, n_global_imports) = count_output_imports(layout);
     let n_funcs = n_func_imports + layout.function_type_indices.len();
@@ -186,7 +195,7 @@ pub(crate) fn build_name_section<'data>(
                     })
                     .map_or_else(
                         || format!("GOT.data.internal.{i}"),
-                        |sym| format!("GOT.data.internal.{sym}"),
+                        |sym| format!("GOT.data.internal.{}", demangle_symbol_name(sym, demangle)),
                     ),
                 GotMemDef::LinkerDefined(known) => {
                     let sym = std::str::from_utf8(known.name()).unwrap_or("?");
@@ -202,7 +211,7 @@ pub(crate) fn build_name_section<'data>(
     if let Some(got_base) = indices.got_func_global_base {
         got_func_names.reserve(got_func.entries.len());
         for (i, entry) in got_func.entries.iter().enumerate() {
-            got_func_names.push(got_func_debug_name(layout_inputs, entry, i));
+            got_func_names.push(got_func_debug_name(layout_inputs, entry, i, demangle));
         }
         for (i, name) in got_func_names.iter().enumerate() {
             set_name_first_wins(&mut global_names, got_base + i as u32, name.as_str());
@@ -264,8 +273,8 @@ pub(crate) fn build_name_section<'data>(
         }
     }
 
-    let function_map = name_map_from_dense(&function_names);
-    let global_map = name_map_from_dense(&global_names);
+    let function_map = name_map_from_dense(&function_names, demangle);
+    let global_map = name_map_from_dense(&global_names, demangle);
     if function_map.is_none() && global_map.is_none() {
         return None;
     }
@@ -302,14 +311,15 @@ pub(crate) fn set_name_first_wins<'a>(names: &mut Vec<Option<&'a str>>, index: u
     }
 }
 
-pub(crate) fn name_map_from_dense(names: &[Option<&str>]) -> Option<NameMap> {
+pub(crate) fn name_map_from_dense(names: &[Option<&str>], demangle: bool) -> Option<NameMap> {
     if names.iter().all(Option::is_none) {
         return None;
     }
     let mut map = NameMap::new();
     for (idx, name) in names.iter().enumerate() {
         if let Some(name) = name {
-            map.append(idx as u32, name);
+            let name = demangle_symbol_name(name, demangle);
+            map.append(idx as u32, &name);
         }
     }
     Some(map)
@@ -457,6 +467,7 @@ impl<'data> WasmLayout<'data> {
         symbol_db: &SymbolDb<'data, Wasm>,
     ) -> Result {
         timing_phase!("Encode Wasm metadata sections");
+        let demangle = symbol_db.args.common.demangle;
 
         {
             timing_phase!("Encode Wasm type section");
@@ -523,7 +534,7 @@ impl<'data> WasmLayout<'data> {
         {
             timing_phase!("Encode Wasm name section");
             if let Some(name_section) =
-                build_name_section(self, layout_inputs, indices, got_mem, got_func)
+                build_name_section(self, layout_inputs, indices, got_mem, got_func, demangle)
             {
                 self.encoded_sections.name = Some(encode_wasm_section(&name_section));
             }

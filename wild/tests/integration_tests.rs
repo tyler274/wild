@@ -6075,18 +6075,21 @@ fn gdb_index_section_data(obj: &object::File, directive: &str) -> Result<Vec<u8>
 }
 
 fn verify_no_overlapping_sections(obj: &object::File) -> Result {
-    let mut previous_range = None;
+    let mut ranges = Vec::new();
     for section in obj.sections() {
-        if let Some((_, prev_end)) = previous_range
-            && let Some((start, _)) = section.file_range()
-            && start < prev_end
+        if let Some((start, size)) = section.file_range()
+            && size != 0
         {
-            bail!("Section {} overlaps with previous section", section.name()?);
+            ranges.push((start, start + size, section.name()?.to_owned()));
         }
-
-        previous_range = section.file_range();
-
         section.data()?;
+    }
+
+    ranges.sort_unstable_by_key(|range| range.0);
+    for ((_, previous_end, previous_name), (start, _, name)) in ranges.iter().tuple_windows() {
+        if start < previous_end {
+            bail!("Section {name} overlaps with section {previous_name}");
+        }
     }
 
     Ok(())
@@ -7929,6 +7932,31 @@ fn verify_linker_plugin_requirements(
 
             verify_command_success(&mut command)
                 .context("Can't use compiler with linker-plugin")?;
+
+            // Our linker plugin implementation requires at least GCC 14 (where the LAPI_V1 version
+            // got added).
+            let output = Command::new(&linker_driver_string)
+                .arg("--version")
+                .output()
+                .context("Can't execute compiler with --version")?;
+            let compiler_version = String::from_utf8_lossy(&output.stdout);
+            if compiler_version.contains("gcc") || compiler_version.contains("g++") {
+                let mut command = Command::new(&linker_driver_string);
+                let output = command
+                    .arg("-dumpfullversion")
+                    .output()
+                    .context("Can't execute compiler with -dumpversion")?;
+                let compiler_version = String::from_utf8_lossy(&output.stdout)
+                    .split_once(".")
+                    .and_then(|version| version.0.parse::<u64>().ok())
+                    .context("Can't parse compiler version")?;
+
+                const MINIMAL_GCC_VERSION: u64 = 14;
+                ensure!(
+                    compiler_version >= MINIMAL_GCC_VERSION,
+                    "Expected GCC LTO plug-in version {MINIMAL_GCC_VERSION}, got: {compiler_version}"
+                );
+            }
         }
     }
 
