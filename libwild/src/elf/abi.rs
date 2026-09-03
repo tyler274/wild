@@ -2532,8 +2532,27 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             | linker_script::SectionAttributes::Overlay => {
                 output_attributes.overrides.avoid_progpogation = shf::ALLOC;
             }
+            linker_script::SectionAttributes::Type(ty) => {
+                apply_script_type(&mut output_attributes, *ty);
+            }
+            linker_script::SectionAttributes::ReadonlyType(ty) => {
+                apply_script_type(&mut output_attributes, *ty);
+                output_attributes.overrides.avoid_progpogation = shf::WRITE;
+            }
         }
         output_attributes
+    }
+}
+
+fn apply_script_type<C: ElfClass>(output_attributes: &mut SectionAttributes<C>, ty: u32) {
+    output_attributes.ty = SectionType(ty);
+    output_attributes.overrides.has_script_type = true;
+    output_attributes.set_alloc();
+    if output_attributes.ty == sht::INIT_ARRAY
+        || output_attributes.ty == sht::FINI_ARRAY
+        || output_attributes.ty == sht::PREINIT_ARRAY
+    {
+        output_attributes.entsize = C::ADDRESS_SIZE;
     }
 }
 

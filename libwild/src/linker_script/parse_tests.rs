@@ -236,6 +236,96 @@ fn test_section_command_with_align_start_address() {
     );
 }
 
+#[test]
+fn test_section_command_with_type_attribute() {
+    check_section_command(
+        ".note (TYPE = SHT_NOTE) : { BYTE(1) }",
+        &SectionCommand::Section(Section {
+            output_section_name: b".note",
+            commands: vec![ContentsCommand::OutputData(OutputData {
+                width: OutputDataWidth::Byte,
+                value: Expression::Number(1),
+            })],
+            alignment: None,
+            start_address_expression: None,
+            phdrs: vec![],
+            at_address: None,
+            region: None,
+            at_region: None,
+            fill: None,
+            attributes: Some(SectionAttributes::Type(object::elf::SHT_NOTE.0)),
+        }),
+    );
+    check_section_command(
+        ".note (TYPE=7) : { BYTE(1) }",
+        &SectionCommand::Section(Section {
+            output_section_name: b".note",
+            commands: vec![ContentsCommand::OutputData(OutputData {
+                width: OutputDataWidth::Byte,
+                value: Expression::Number(1),
+            })],
+            alignment: None,
+            start_address_expression: None,
+            phdrs: vec![],
+            at_address: None,
+            region: None,
+            at_region: None,
+            fill: None,
+            attributes: Some(SectionAttributes::Type(7)),
+        }),
+    );
+    check_section_command(
+        ".ro (READONLY (TYPE = SHT_NOTE)) : { BYTE(1) }",
+        &SectionCommand::Section(Section {
+            output_section_name: b".ro",
+            commands: vec![ContentsCommand::OutputData(OutputData {
+                width: OutputDataWidth::Byte,
+                value: Expression::Number(1),
+            })],
+            alignment: None,
+            start_address_expression: None,
+            phdrs: vec![],
+            at_address: None,
+            region: None,
+            at_region: None,
+            fill: None,
+            attributes: Some(SectionAttributes::ReadonlyType(object::elf::SHT_NOTE.0)),
+        }),
+    );
+    check_section_command(
+        ".bss (TYPE = SHT_NOBITS) : { *(.bss) }",
+        &SectionCommand::Section(Section {
+            output_section_name: b".bss",
+            commands: vec![ContentsCommand::Matcher(Matcher {
+                must_keep: false,
+                input_file_pattern: None,
+                exclude_file_patterns: vec![],
+                input_section_name_patterns: vec![SectionPattern {
+                    name: b".bss",
+                    sort: SortKind::None,
+                }],
+            })],
+            alignment: None,
+            start_address_expression: None,
+            phdrs: vec![],
+            at_address: None,
+            region: None,
+            at_region: None,
+            fill: None,
+            attributes: Some(SectionAttributes::Type(object::elf::SHT_NOBITS.0)),
+        }),
+    );
+}
+
+#[test]
+fn test_section_command_rejects_unknown_type_name() {
+    assert!(
+        parse_section_command
+            .parse(BStr::new(".foo (TYPE = SHT_FOO) : { BYTE(1) }"))
+            .is_err()
+    );
+}
+
 #[track_caller]
 fn check_linker_script(input: &str, expected: &LinkerScript) {
     let actual = parse_script(input).unwrap();

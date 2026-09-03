@@ -53,7 +53,7 @@ matching all three.
 | Per-section `ALIGN(n)` specifier | ✅ | |
 | `ASSERT(expr, "msg")` inside `SECTIONS` | ✅ | |
 | `OVERLAY { ... }` | ✅ | Shared VMA, consecutive LMAs, `__load_start_*` / `__load_stop_*` |
-| Output section type specifiers (`(NOLOAD)`, `(COPY)`, etc.) | 🧪 | Setting the section type using the `TYPE` attribute is not yet supported |
+| Output section type specifiers (`(NOLOAD)`, `(COPY)`, etc.) | ✅ | `(TYPE = SHT_* \| integer)` and `(READONLY (TYPE = ...))`. `TYPE=` is the default `sh_type` when the section has no input-driven type (GNU ld: `BYTE`/`LONG`/etc.); input sections replace it |
 | `FILL(value)` | ✅ | Sets the fill pattern for subsequent gaps in the output section |
 | `=fillexp` | ✅ | |
 | `AT(addr)` load-address specifier on output sections | ✅ | |

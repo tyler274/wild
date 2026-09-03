@@ -231,12 +231,32 @@ pub(crate) fn parse_overlay<'input>(
 pub(crate) fn parse_section_attribute(input: &mut &BStr) -> winnow::Result<SectionAttributes> {
     '('.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
+
+    if opt("READONLY").parse_next(input)?.is_some() {
+        skip_comments_and_whitespace(input)?;
+        if input.starts_with(b"(") {
+            let ty = parse_nested_type_equals(input)?;
+            skip_comments_and_whitespace(input)?;
+            ')'.parse_next(input)?;
+            return Ok(SectionAttributes::ReadonlyType(ty));
+        }
+        ')'.parse_next(input)?;
+        return Ok(SectionAttributes::Readonly);
+    }
+
+    if opt("TYPE").parse_next(input)?.is_some() {
+        skip_comments_and_whitespace(input)?;
+        let ty = parse_type_equals_value(input)?;
+        skip_comments_and_whitespace(input)?;
+        ')'.parse_next(input)?;
+        return Ok(SectionAttributes::Type(ty));
+    }
+
     let section_type = parse_token.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
 
     let section_type = match section_type {
         b"NOLOAD" => SectionAttributes::Noload,
-        b"READONLY" => SectionAttributes::Readonly,
         b"DSECT" => SectionAttributes::Dsect,
         b"COPY" => SectionAttributes::Copy,
         b"INFO" => SectionAttributes::Info,
@@ -248,6 +268,42 @@ pub(crate) fn parse_section_attribute(input: &mut &BStr) -> winnow::Result<Secti
     ')'.parse_next(input)?;
 
     Ok(section_type)
+}
+
+fn parse_nested_type_equals(input: &mut &BStr) -> winnow::Result<u32> {
+    '('.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    "TYPE".parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    let ty = parse_type_equals_value(input)?;
+    skip_comments_and_whitespace(input)?;
+    ')'.parse_next(input)?;
+    Ok(ty)
+}
+
+fn parse_type_equals_value(input: &mut &BStr) -> winnow::Result<u32> {
+    '='.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    let expr = parse_expression.parse_next(input)?;
+    resolve_output_section_type(&expr).map_err(|_| {
+        ContextError::from_external_error(input, LinkerScriptError::InvalidSectionType)
+    })
+}
+
+fn resolve_output_section_type(expr: &Expression<'_>) -> Result<u32, ()> {
+    match expr {
+        Expression::Symbol(b"SHT_PROGBITS") => Ok(object::elf::SHT_PROGBITS.0),
+        Expression::Symbol(b"SHT_STRTAB") => Ok(object::elf::SHT_STRTAB.0),
+        Expression::Symbol(b"SHT_NOTE") => Ok(object::elf::SHT_NOTE.0),
+        Expression::Symbol(b"SHT_NOBITS") => Ok(object::elf::SHT_NOBITS.0),
+        Expression::Symbol(b"SHT_INIT_ARRAY") => Ok(object::elf::SHT_INIT_ARRAY.0),
+        Expression::Symbol(b"SHT_FINI_ARRAY") => Ok(object::elf::SHT_FINI_ARRAY.0),
+        Expression::Symbol(b"SHT_PREINIT_ARRAY") => Ok(object::elf::SHT_PREINIT_ARRAY.0),
+        Expression::Symbol(_) => Err(()),
+        other => crate::expression_eval::evaluate_const(other)
+            .map(|v| v as u32)
+            .map_err(|_| ()),
+    }
 }
 
 pub(crate) fn parse_fill<'input>(input: &mut &'input BStr) -> winnow::Result<Fill<'input>> {

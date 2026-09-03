@@ -419,6 +419,9 @@ pub(crate) struct SectionAttributes<C: ElfClass> {
 pub(crate) struct LinkerScriptOverrides {
     pub(crate) avoid_progpogation: SectionFlags,
     pub(crate) has_fixed_type: bool,
+    /// `ty` came from script `TYPE=` and no input section has contributed a type
+    /// yet. The first input replaces it (GNU ld: `TYPE=` is only a default).
+    pub(crate) has_script_type: bool,
 }
 
 /// Section flags that should not be propagated from input sections to the output
@@ -485,7 +488,12 @@ impl<C: ElfClass> platform::SectionAttributes for SectionAttributes<C> {
         }
 
         if !info.section_attributes.overrides.has_fixed_type {
-            info.section_attributes.ty = info.section_attributes.ty.max(self.ty);
+            if info.section_attributes.overrides.has_script_type {
+                info.section_attributes.ty = self.ty;
+                info.section_attributes.overrides.has_script_type = false;
+            } else {
+                info.section_attributes.ty = info.section_attributes.ty.max(self.ty);
+            }
         }
 
         if let SectionKind::Secondary(primary_id) = info.kind

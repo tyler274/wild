@@ -76,6 +76,11 @@ pub(crate) enum SectionAttributes {
     Copy,
     Info,
     Overlay,
+    /// `(TYPE = SHT_NOTE)` / `(TYPE = 7)` — ELF `sh_type` used when the section
+    /// has no input-driven type (GNU ld: BYTE/LONG/etc.).
+    Type(u32),
+    /// `(READONLY (TYPE = ...))` — READONLY plus `TYPE=`.
+    ReadonlyType(u32),
 }
 
 #[derive(Debug, PartialEq, Eq)]

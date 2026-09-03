@@ -629,6 +629,7 @@ pub(crate) enum LinkerScriptError {
     InvalidAlignment,
     UnclosedComment,
     UnsupportedNestedSort,
+    InvalidSectionType,
 }
 
 impl std::error::Error for LinkerScriptError {}
@@ -642,6 +643,9 @@ impl std::fmt::Display for LinkerScriptError {
                 f,
                 "Nested sorting commands in linker scripts is not supported"
             ),
+            LinkerScriptError::InvalidSectionType => {
+                write!(f, "invalid TYPE for output section")
+            }
         }
     }
 }
