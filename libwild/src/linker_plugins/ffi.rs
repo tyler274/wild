@@ -10,7 +10,6 @@ use crate::error::Result;
 use crate::input_data::FileId;
 use crate::input_data::InputRef;
 use crate::platform::Platform;
-use crate::platform::RawSymbolName as _;
 use crate::resolution::ResolvedGroup;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
@@ -220,11 +219,11 @@ pub(crate) enum OutputFileType {
 
 #[repr(C)]
 pub(crate) struct LdPluginInputFile {
-    name: *const libc::c_char,
-    fd: libc::c_int,
-    offset: libc::off_t,
-    file_size: libc::off_t,
-    handle: *mut libc::c_void,
+    pub(crate) name: *const libc::c_char,
+    pub(crate) fd: libc::c_int,
+    pub(crate) offset: libc::off_t,
+    pub(crate) file_size: libc::off_t,
+    pub(crate) handle: *mut libc::c_void,
 }
 
 #[allow(dead_code)]
@@ -659,7 +658,7 @@ impl<'scope, 'data, P: Platform> AllSymbolsReadContext<'scope, 'data, P> {
 }
 
 impl Drop for LoadedPlugin {
-    pub(crate) fn drop(&mut self) {
+    fn drop(&mut self) {
         let _ = self.with_callbacks(|callbacks| {
             if let Some(hook) = callbacks.cleanup_hook {
                 hook();
@@ -704,7 +703,7 @@ impl PluginSymbol<'_> {
 }
 
 impl std::fmt::Display for MessageLevel {
-    pub(crate) fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let message = match self {
             MessageLevel::Info => "message",
             MessageLevel::Warning => "warning",
@@ -735,7 +734,7 @@ pub(crate) enum SymbolKind {
 }
 
 impl std::fmt::Display for VersionInfo {
-    pub(crate) fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{} version {}",
