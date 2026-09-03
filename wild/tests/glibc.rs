@@ -21,6 +21,7 @@ use libwild::error::Result;
 use object::Object as _;
 use object::ObjectSymbol as _;
 use std::collections::HashSet;
+use std::ffi::OsString;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
@@ -104,6 +105,8 @@ fn run_ldso_test() -> Result<libtest_mimic::Completion> {
         "now",
         "-z",
         "pack-relative-relocs",
+        "-z",
+        "nomark-plt",
         "--hash-style=both",
         "-soname",
         LDSO_SONAME,
@@ -124,6 +127,7 @@ fn run_ldso_test() -> Result<libtest_mimic::Completion> {
     check_no_undefined_dynsyms(&out)?;
     check_soname(&out, LDSO_SONAME)?;
     compare_dynsym_names(&gnu, &out)?;
+    smoke_run_pwd(&out, &glibc_library_path(&build, None), &build)?;
     Ok(libtest_mimic::Completion::Completed)
 }
 
@@ -160,6 +164,8 @@ fn run_libc_test() -> Result<libtest_mimic::Completion> {
         .with_context(|| format!("Failed to create {}", out_dir.display()))?;
     let out = out_dir.join("libc.so.wild");
 
+    let libgcc = libgcc_archive()?;
+
     let mut cmd = Command::new(wild_path());
     cmd.args([
         "-shared",
@@ -171,6 +177,8 @@ fn run_libc_test() -> Result<libtest_mimic::Completion> {
         "now",
         "-z",
         "pack-relative-relocs",
+        "-z",
+        "nomark-plt",
         "--hash-style=both",
         "-e",
         "__libc_main",
@@ -182,7 +190,8 @@ fn run_libc_test() -> Result<libtest_mimic::Completion> {
     if let Some(map) = map {
         cmd.arg(format!("--version-script={}", map.display()));
     }
-    for input in [abi_note, Some(pic), sofini, interp, ldso]
+    // GNU `build-shlib` order: abi-note, pic, interp, ld.so, libgcc, sofini last.
+    for input in [abi_note, Some(pic), interp, ldso, Some(libgcc), sofini]
         .into_iter()
         .flatten()
     {
@@ -197,11 +206,53 @@ fn run_libc_test() -> Result<libtest_mimic::Completion> {
 
     check_soname(&out, LIBC_SONAME)?;
     check_named_dynsyms(&out, LIBC_DYNSYMS)?;
+    compare_dynsym_names(&gnu, &out)?;
+
+    let libdir = out_dir.join("lib");
+    std::fs::create_dir_all(&libdir)
+        .with_context(|| format!("Failed to create {}", libdir.display()))?;
+    let staged_libc = libdir.join("libc.so.6");
+    std::fs::copy(&out, &staged_libc).with_context(|| {
+        format!(
+            "Failed to stage {} as {}",
+            out.display(),
+            staged_libc.display()
+        )
+    })?;
+    let gnu_ldso = build.join("elf/ld.so");
+    smoke_run_pwd(
+        &gnu_ldso,
+        &glibc_library_path(&build, Some(&libdir)),
+        &build,
+    )?;
     Ok(libtest_mimic::Completion::Completed)
 }
 
 fn first_existing(dir: &Path, names: &[&str]) -> Option<PathBuf> {
     names.iter().map(|n| dir.join(n)).find(|p| p.is_file())
+}
+
+fn libgcc_archive() -> Result<PathBuf> {
+    let cc = std::env::var("CC").unwrap_or_else(|_| "gcc".to_owned());
+    let output = Command::new(&cc)
+        .arg("-print-libgcc-file-name")
+        .output()
+        .with_context(|| format!("Failed to run `{cc} -print-libgcc-file-name`"))?;
+    if !output.status.success() {
+        bail!("`{cc} -print-libgcc-file-name` failed ({})", output.status);
+    }
+    let path = String::from_utf8(output.stdout)
+        .context("libgcc path is not UTF-8")?
+        .trim()
+        .to_owned();
+    if path.is_empty() {
+        bail!("`{cc} -print-libgcc-file-name` printed nothing");
+    }
+    let path = PathBuf::from(path);
+    if !path.is_file() {
+        bail!("libgcc archive `{}` is not a file", path.display());
+    }
+    Ok(path)
 }
 
 fn check_soname(path: &Path, expected: &str) -> Result {
@@ -298,13 +349,15 @@ fn compare_dynsym_names(gnu: &Path, wild: &Path) -> Result {
     if missing.len() > 20 {
         missing.truncate(20);
         bail!(
-            "Wild ld.so missing GNU dynamic symbols (first 20): {}",
+            "Wild {} missing GNU dynamic symbols (first 20): {}",
+            wild.display(),
             missing.join(", ")
         );
     }
     if !missing.is_empty() {
         bail!(
-            "Wild ld.so missing GNU dynamic symbols: {}",
+            "Wild {} missing GNU dynamic symbols: {}",
+            wild.display(),
             missing.join(", ")
         );
     }
@@ -321,4 +374,43 @@ fn dynsym_names(path: &Path) -> Result<HashSet<String>> {
         .filter_map(|s| s.name().ok().map(str::to_owned))
         .filter(|n| !n.is_empty())
         .collect())
+}
+
+const GLIBC_LIB_SUBDIRS: &[&str] = &[
+    "math", "elf", "dlfcn", "nss", "nis", "rt", "resolv", "mathvec", "support", "misc", "debug",
+    "nptl",
+];
+
+fn glibc_library_path(build: &Path, prepend: Option<&Path>) -> OsString {
+    let mut dirs = Vec::new();
+    if let Some(path) = prepend {
+        dirs.push(path.to_path_buf());
+    }
+    dirs.push(build.to_path_buf());
+    dirs.extend(GLIBC_LIB_SUBDIRS.iter().map(|sub| build.join(sub)));
+    std::env::join_paths(dirs).expect("glibc library path contains interior NULs")
+}
+
+fn smoke_run_pwd(ldso: &Path, library_path: &OsString, build: &Path) -> Result {
+    let pwd = build.join("io/pwd");
+    if !pwd.is_file() {
+        return Ok(());
+    }
+    let output = Command::new(ldso)
+        .arg("--library-path")
+        .arg(library_path)
+        .arg(&pwd)
+        .env("LC_ALL", "C")
+        .output()
+        .with_context(|| format!("Failed to spawn {}", ldso.display()))?;
+    if !output.status.success() {
+        bail!(
+            "{} failed to run {} ({}): {}",
+            ldso.display(),
+            pwd.display(),
+            output.status,
+            String::from_utf8_lossy(&output.stderr),
+        );
+    }
+    Ok(())
 }

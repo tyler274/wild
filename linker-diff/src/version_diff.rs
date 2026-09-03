@@ -128,7 +128,9 @@ fn read_gnu_version(bin: &crate::Binary) -> Result<FieldValues> {
             versions.version(version_index)?.unwrap().name()
         };
 
-        // GNU ld creates an empty symbol for each version, Wild doesn't, so we skip it.
+        // GNU ld creates an empty STT_OBJECT/SHN_ABS symbol for each named version.
+        // Wild emits those too; skip them because they are version nodes, not ABI
+        // functions, and comparing them as ordinary versym mappings is noisy.
         if dynsym.elf_symbol().st_type() == elf::STT_OBJECT
             && dynsym.elf_symbol().is_absolute(e)
             && sym_name == version_name

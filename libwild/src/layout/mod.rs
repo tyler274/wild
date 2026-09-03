@@ -108,6 +108,8 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
         &mut dynamic_symbol_definitions,
     )?;
 
+    P::append_version_node_dynamic_symbols(&mut dynamic_symbol_definitions, &symbol_db);
+
     let mut script_sorted_sections = harvest_and_sort_script_sections(
         &mut group_states,
         &output_sections,

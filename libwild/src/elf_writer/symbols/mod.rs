@@ -47,6 +47,14 @@ pub(crate) fn write_dynamic_symbol_definitions<C: ElfClass>(
         .par_bridge()
         .try_for_each(|(defs, mut table_writer)| {
             for sym_def in defs {
+                if sym_def.format_specific.is_version_node {
+                    write_gnu_version_node_dynsym(&mut table_writer.dynsym_writer, sym_def.name)?;
+                    if let Some(versym) = table_writer.versym.as_mut() {
+                        write_symbol_version(versym, sym_def.format_specific.version)?;
+                    }
+                    continue;
+                }
+
                 let file_id = layout.symbol_db.file_id_for_symbol(sym_def.symbol_id);
                 let file_layout = &layout.file_layout(file_id);
                 match file_layout {
@@ -126,6 +134,18 @@ pub(crate) fn write_dynamic_symbol_definitions<C: ElfClass>(
 
             Ok(())
         })
+}
+
+/// GNU ld emits an empty `STT_OBJECT` / `SHN_ABS` dynamic symbol for each named
+/// version. These are not backed by an input `SymbolId`.
+fn write_gnu_version_node_dynsym<C: ElfClass>(
+    dynsym_writer: &mut SymbolTableWriter<'_, '_, C>,
+    name: &[u8],
+) -> Result {
+    let entry =
+        dynsym_writer.define_symbol(false, object::elf::SHN_ABS.into(), 0, 0, Some(name))?;
+    entry.set_binding_and_type(object::elf::STB_GLOBAL, object::elf::STT_OBJECT);
+    Ok(())
 }
 
 /// Writes a symbol that was produced by a linker script.

@@ -693,8 +693,39 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             format_specific: DynamicSymbolDefinitionExt {
                 hash: object::elf::gnu_hash(name),
                 version,
+                is_version_node: false,
             },
         })
+    }
+
+    fn append_version_node_dynamic_symbols<'data>(
+        dynamic_symbol_definitions: &mut Vec<DynamicSymbolDefinition<'data, Self>>,
+        symbol_db: &SymbolDb<'data, Self>,
+    ) {
+        if !symbol_db.output_kind.needs_dynsym()
+            || !symbol_db.output_kind.should_output_symbol_versions()
+        {
+            return;
+        }
+        let VersionScript::Regular(script) = &symbol_db.version_script else {
+            return;
+        };
+        for (i, version) in script.version_iter().enumerate() {
+            // Index 0 is the implicit BASE / soname version; GNU ld does not
+            // emit a dynsym for it.
+            if i == 0 || version.name.is_empty() {
+                continue;
+            }
+            dynamic_symbol_definitions.push(DynamicSymbolDefinition {
+                symbol_id: SymbolId::undefined(),
+                name: version.name,
+                format_specific: DynamicSymbolDefinitionExt {
+                    hash: object::elf::gnu_hash(version.name),
+                    version: (object::elf::VER_NDX_GLOBAL + i as u16).into(),
+                    is_version_node: true,
+                },
+            });
+        }
     }
 
     fn validate_section<'data>(

@@ -386,6 +386,15 @@ pub(crate) trait Platform:
         symbol_id: SymbolId,
     ) -> Result<layout::DynamicSymbolDefinition<'data, Self>>;
 
+    /// GNU ld emits an empty `STT_OBJECT`/`SHN_ABS` dynamic symbol named after each
+    /// named version in `--version-script` (except the BASE/soname version). Glibc
+    /// and other consumers look these up in `.dynsym`.
+    fn append_version_node_dynamic_symbols<'data>(
+        _dynamic_symbol_definitions: &mut Vec<layout::DynamicSymbolDefinition<'data, Self>>,
+        _symbol_db: &SymbolDb<'data, Self>,
+    ) {
+    }
+
     fn validate_section<'data>(
         _section_info: &crate::output_section_id::SectionOutputInfo<Self>,
         _section_flags: Self::SectionFlags,

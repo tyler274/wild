@@ -1101,6 +1101,8 @@ mod tests {
             "-z",
             "start-stop-gc",
             "-z",
+            "nomark-plt",
+            "-z",
             "pack-relative-relocs",
         ]);
     }

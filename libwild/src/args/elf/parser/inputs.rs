@@ -172,6 +172,16 @@ pub(crate) fn add_search_and_output_flags(parser: &mut ArgumentParser<ElfArgs>) 
             |_, _| Ok(()),
         )
         .sub_option(
+            "nomark-plt",
+            "Do not mark PLT entries with DT_X86_64_PLT (GNU ld compatibility)",
+            |_, _| Ok(()),
+        )
+        .sub_option(
+            "mark-plt",
+            "Mark PLT entries with DT_X86_64_PLT (GNU ld compatibility)",
+            |_, _| Ok(()),
+        )
+        .sub_option(
             "execstack",
             "Mark object as requiring an executable stack",
             |args, _| {

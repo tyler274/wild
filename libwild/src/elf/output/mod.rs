@@ -424,6 +424,10 @@ impl<C: ElfClass> platform::BuiltInSectionDetails for BuiltInSectionDetails<C> {
 pub(crate) struct DynamicSymbolDefinitionExt {
     pub(crate) hash: u32,
     pub(crate) version: object::elf::VersymIndex,
+    /// GNU ld emits an empty `STT_OBJECT` / `SHN_ABS` dynamic symbol named after
+    /// each named version in a version script (except BASE). These are not backed
+    /// by a `SymbolId`.
+    pub(crate) is_version_node: bool,
 }
 
 pub(super) fn load_section_relocations<
