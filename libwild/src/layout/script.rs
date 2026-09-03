@@ -4,8 +4,10 @@ use crate::error::Result;
 use crate::expression_eval::ResolvedLocationCounter;
 use crate::expression_eval::SymbolValue;
 use crate::expression_eval::evaluate_const;
+use crate::expression_eval::evaluate_const_with_symbols;
 use crate::grouping::Group;
 use crate::grouping::SequencedInput;
+use crate::linker_script::Expression;
 use crate::output_section_id::OutputSections;
 use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
@@ -267,26 +269,26 @@ pub(crate) fn script_assignment_def<'data, 's, P: Platform>(
 pub(crate) fn collect_const_script_symbols<'data, P: Platform>(
     symbol_db: &SymbolDb<'data, P>,
 ) -> HashMap<&'data [u8], u64> {
-    let mut map = HashMap::new();
+    let mut candidates = Vec::new();
     for group in &symbol_db.groups {
-        let defs = match group {
-            Group::Prelude(prelude) => prelude.symbol_definitions.as_slice(),
+        match group {
+            Group::Prelude(prelude) => {
+                collect_const_candidates(&prelude.symbol_definitions, &mut candidates);
+            }
             Group::LinkerScripts(scripts) => {
                 for script in scripts {
-                    collect_const_defs(&script.parsed.symbol_defs, &mut map);
+                    collect_const_candidates(&script.parsed.symbol_defs, &mut candidates);
                 }
-                continue;
             }
-            _ => continue,
-        };
-        collect_const_defs(defs, &mut map);
+            _ => {}
+        }
     }
-    map
+    resolve_const_candidates(&candidates)
 }
 
-pub(crate) fn collect_const_defs<'data, P: Platform>(
-    defs: &[InternalSymDefInfo<'data, P>],
-    map: &mut HashMap<&'data [u8], u64>,
+fn collect_const_candidates<'a, 'data, P: Platform>(
+    defs: &'a [InternalSymDefInfo<'data, P>],
+    candidates: &mut Vec<(&'data [u8], &'a Expression<'data>)>,
 ) {
     for def in defs {
         if def.name.is_empty() {
@@ -295,10 +297,37 @@ pub(crate) fn collect_const_defs<'data, P: Platform>(
         let SymbolPlacement::Redirect(redirect) = &def.placement else {
             continue;
         };
-        if let Ok(value) = evaluate_const(&redirect.expression) {
-            map.insert(def.name, value);
+        candidates.push((def.name, &redirect.expression));
+    }
+}
+
+/// Fold constant assignments, including chains and later definitions
+/// (`later_sum = BASE + OFFSET` after `. = later_sum`). Later assignments of
+/// the same name win. Location-dependent RHSs (`.`, `ADDR`, …) stay unresolved.
+fn resolve_const_candidates<'data>(
+    candidates: &[(&'data [u8], &Expression<'data>)],
+) -> HashMap<&'data [u8], u64> {
+    let mut map = HashMap::new();
+    let mut owner: HashMap<&[u8], usize> = HashMap::new();
+    // One new name per pass in the worst case (a chain of forward refs).
+    for _ in 0..=candidates.len() {
+        let mut progress = false;
+        for (i, &(name, expr)) in candidates.iter().enumerate() {
+            if owner.get(name).is_some_and(|&j| j >= i) {
+                continue;
+            }
+            let Ok(value) = evaluate_const_with_symbols(expr, &map) else {
+                continue;
+            };
+            map.insert(name, value);
+            owner.insert(name, i);
+            progress = true;
+        }
+        if !progress {
+            break;
         }
     }
+    map
 }
 
 pub(crate) fn harvest_and_sort_script_sections<'data, P: Platform>(

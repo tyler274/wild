@@ -48,7 +48,7 @@ matching all three.
 | `PROVIDE(sym = expr)` inside sections | ✅ | |
 | `PROVIDE_HIDDEN(sym = expr)` inside sections | ✅ | |
 | Symbol assignment inside sections (`sym = .`) | ✅ | Script assignments override prelude section-boundary symbols of the same name in the symbol table (kernel `_etext` is in `.text`, not `SHN_ABS`). An assignment after `. = ALIGN(...)` between sections stays on the previous output section (kernel `_end` in `.brk`). Bare aliases copy the target's `st_shndx` (`jiffies = jiffies_64`); `ABSOLUTE()`, `_etext - _stext`, and `symbol + const` are `SHN_ABS` |
-| Location counter assignment (`. = expr`) | 🧪 | Constants, script-defined constants, script assignments (`_etext = .`), and object symbols in already-laid-out sections are supported. Script assignments override prelude section-boundary symbols of the same name. Object symbols are GNU ld absolute addresses, so `. = symbol \| mask` (x86 `srso_alias_untrain_ret`) applies the mask to the VMA. The object-symbol address is the start of that output section/secondary plus the symbol's input offset. Forward references are not supported |
+| Location counter assignment (`. = expr`) | ✅ | Constants, including those assigned later in the script and chains (`later = BASE + OFFSET`), script assignments (`_etext = .`), and object symbols in already-laid-out sections are supported. Script assignments override prelude section-boundary symbols of the same name. Object symbols are GNU ld absolute addresses, so `. = symbol \| mask` (x86 `srso_alias_untrain_ret`) applies the mask to the VMA. The object-symbol address is the start of that output section/secondary plus the symbol's input offset. A later-defined `PROVIDE` constant is resolved. Object symbols in sections not yet laid out are rejected |
 | `ALIGN(n)` on the location counter (`. = ALIGN(n)`) | ✅ | Aligns the absolute VMA, matching GNU ld |
 | Per-section `ALIGN(n)` specifier | ✅ | |
 | `ASSERT(expr, "msg")` inside `SECTIONS` | ✅ | |
@@ -78,7 +78,7 @@ matching all three.
 | Unary operators: `-`, `!`, `~` | ✅ | |
 | Numeric literals: decimal and hexadecimal | ✅ | |
 | Numeric literal K/M suffixes (e.g. `64K`, `2M`) | ✅ | |
-| Symbol references and location counter (`.`) | ✅ | Constant script symbols and object symbols in already-laid-out sections are resolved during layout |
+| Symbol references and location counter (`.`) | ✅ | Constant script symbols, including later-defined chains, and object symbols in already-laid-out sections are resolved during layout |
 | Parenthesised sub-expressions | ✅ | |
 | `SIZEOF(section)` | ✅ | |
 | `ALIGNOF(section)` | ✅ | |
