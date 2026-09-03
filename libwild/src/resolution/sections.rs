@@ -1,6 +1,7 @@
 use super::types::*;
 use crate::LayoutRules;
 use crate::alignment::Alignment;
+use crate::bail;
 use crate::error::Result;
 use crate::layout_rules::SectionOutputInfo;
 use crate::layout_rules::SectionRuleOutcome;
@@ -13,6 +14,7 @@ use crate::part_id;
 use crate::part_id::PartId;
 use crate::platform::Args as _;
 use crate::platform::ObjectFile;
+use crate::platform::OrphanHandling;
 use crate::platform::Platform;
 use crate::platform::SectionHeader as _;
 use crate::string_merging::StringMergeSectionExtra;
@@ -24,6 +26,7 @@ use object::SectionIndex;
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
+use std::borrow::Cow;
 
 pub(super) fn resolve_sections<'data, P: Platform>(
     groups: &mut [ResolvedGroup<'data, P>],
@@ -274,9 +277,11 @@ fn resolve_section<'data, P: Platform>(
     } else {
         let outcome = rules.lookup::<P>(section_name, file_name, input_section);
         if matches!(outcome, SectionRuleOutcome::Discard) && emit_relocs_name.is_some() {
+            // Copied `--emit-relocs` contents are not script orphans. GNU still
+            // emits them when `--orphan-handling=error`.
             SectionRuleOutcome::Custom
         } else {
-            outcome
+            apply_orphan_handling::<P>(args, outcome, section_name, file_name)?
         }
     };
 
@@ -397,6 +402,33 @@ fn resolve_section<'data, P: Platform>(
     };
 
     Ok((slot, part_id))
+}
+
+fn apply_orphan_handling<P: Platform>(
+    args: &P::Args,
+    outcome: SectionRuleOutcome,
+    section_name: &[u8],
+    file_name: Option<&[u8]>,
+) -> Result<SectionRuleOutcome> {
+    if outcome != SectionRuleOutcome::Custom {
+        return Ok(outcome);
+    }
+
+    let name = String::from_utf8_lossy(section_name);
+    let file = file_name.map_or(Cow::Borrowed("<unknown>"), String::from_utf8_lossy);
+    match args.orphan_handling() {
+        OrphanHandling::Place => Ok(outcome),
+        OrphanHandling::Warn => {
+            args.warning(format!(
+                "orphan section `{name}` from `{file}` is being placed in section `{name}`"
+            ));
+            Ok(outcome)
+        }
+        OrphanHandling::Error => {
+            bail!("orphan section `{name}` from `{file}`")
+        }
+        OrphanHandling::Discard => Ok(SectionRuleOutcome::Discard),
+    }
 }
 
 /// GNU `--emit-relocs` names copied reloc sections after the *output* section that

@@ -127,6 +127,7 @@ pub struct ElfArgs {
     pub(crate) debug_compression_kind: Option<CompressionKind>,
     pub(crate) sort_section: Option<SortSectionMode>,
     pub(crate) output_format_endian: Option<Endianness>,
+    pub(crate) orphan_handling: crate::platform::OrphanHandling,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -287,6 +288,7 @@ impl Default for ElfArgs {
             sort_section: None,
             gdb_index: false,
             output_format_endian: None,
+            orphan_handling: crate::platform::OrphanHandling::Place,
         }
     }
 }
@@ -453,6 +455,10 @@ impl platform::Args for ElfArgs {
 
     fn should_gc_sections(&self) -> bool {
         self.gc_sections && !self.common.incremental
+    }
+
+    fn orphan_handling(&self) -> crate::platform::OrphanHandling {
+        self.orphan_handling
     }
 
     fn should_merge_sections(&self) -> bool {
@@ -762,6 +768,7 @@ mod tests {
         "--discard-all",
         "--dependency-file=deps.d",
         "--sort-section=alignment",
+        "--orphan-handling=error",
     ];
 
     const FILE_OPTIONS: &[&str] = &["-pie"];

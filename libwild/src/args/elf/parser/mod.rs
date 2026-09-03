@@ -180,6 +180,23 @@ pub(super) fn setup_argument_parser() -> ArgumentParser<ElfArgs> {
 
     parser
         .declare_with_param()
+        .long("orphan-handling")
+        .help("Control how input sections not mentioned in a linker script are handled")
+        .execute(|args, _modifier_stack, value| {
+            args.orphan_handling = match value {
+                "place" => crate::platform::OrphanHandling::Place,
+                "discard" => crate::platform::OrphanHandling::Discard,
+                "warn" => crate::platform::OrphanHandling::Warn,
+                "error" => crate::platform::OrphanHandling::Error,
+                other => bail!(
+                    "Invalid --orphan-handling `{other}`, expected place, discard, warn, or error"
+                ),
+            };
+            Ok(())
+        });
+
+    parser
+        .declare_with_param()
         .long("sysroot")
         .help("Set system root")
         .execute(|args, _modifier_stack, value| {

@@ -148,6 +148,7 @@ because `.data..ro_after_init` is 4KiB-aligned. `.strtab` suffix-shares like GNU
 | `SIZEOF_HEADERS` built-in symbol | ✅ | |
 | `/DISCARD/` command | ✅ | |
 | `--build-id` into `*(.note.*)` | ✅ | Merged into the matching output section (kernel `.notes`); not a leftover `PT_LOAD` |
+| `--orphan-handling` (`place`, `warn`, `error`, `discard`) | ✅ | Default `place` creates a same-named custom output section. `error` matches kernel `vmlinux` links. GNU's insertion heuristic (place orphans next to similar sections) is still a TODO |
 
 ## Known gaps / follow-ups
 
@@ -157,3 +158,4 @@ These are tracked here so they are not forgotten. They are not part of the curre
 ### Lower priority versus GNU
 
 * `--build-id` blake3 versus SHA-1 (do not change unless asked)
+* GNU orphan-section *insertion* (place next to similar output sections / minimise PT_LOAD count). `--orphan-handling` modes are implemented; only the placement heuristic remains

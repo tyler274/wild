@@ -18,6 +18,23 @@ pub(crate) enum EntryPoint<'a> {
     Address(u64),
 }
 
+/// GNU `--orphan-handling`. An orphan is an input section not mentioned in the
+/// linker script (or built-in rules). Placement among neighbouring output
+/// sections still follows Wild's custom-section path, not GNU's insertion
+/// heuristic.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) enum OrphanHandling {
+    /// Place the section in a same-named output section (default).
+    #[default]
+    Place,
+    /// Place the section and emit a warning.
+    Warn,
+    /// Fail the link if any orphan is found.
+    Error,
+    /// Drop the section, as if it were matched by `/DISCARD/`.
+    Discard,
+}
+
 pub(crate) trait Args: std::fmt::Debug + Send + Sync + 'static {
     fn parse<S, I>(&mut self, input: I) -> Result
     where
@@ -85,6 +102,10 @@ pub(crate) trait Args: std::fmt::Debug + Send + Sync + 'static {
 
     fn should_gc_sections(&self) -> bool {
         true
+    }
+
+    fn orphan_handling(&self) -> OrphanHandling {
+        OrphanHandling::Place
     }
 
     fn should_relax(&self) -> bool {
