@@ -8,8 +8,8 @@
 //#LinkerScript:gnu-default-shared.ld
 //#LinkArgs:-shared -z now
 //#RunEnabled:false
-// Layout still differs from GNU (ONLY_IF_RO keeps the first .eh_frame copy;
-// ALIGNOF(NEXT_SECTION) is a no-op). Linking is the glibc gate.
+// Layout still differs from GNU (ONLY_IF_RO keeps the first .eh_frame copy).
+// Linking is the glibc gate.
 //#DiffEnabled:false
 //#ReferenceLinkers:bfd
 //#ExpectDynSym:foo

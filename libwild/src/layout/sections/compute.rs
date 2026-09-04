@@ -75,31 +75,47 @@ pub(crate) fn compute_layout_sections<'data, P: Platform>(
             .or_insert(max_align);
     }
 
-    let expression_eval =
-        |expr: &Expression<'data>,
-         loc: &SymbolLoc,
-         memory_regions: &HashMap<&[u8], MemoryRegion>,
-         section_layouts: &OutputSectionMap<OutputRecordLayout>,
-         resolved_lc: &[ResolvedLocationCounter],
-         laid_out_mem_offsets: &OutputSectionPartMap<Option<u64>>| {
-            let mut visited_nodes = HashSet::new();
-            evaluate_early_expression(
-                expr,
-                loc,
-                memory_regions,
-                section_layouts,
-                resolved_lc,
-                laid_out_mem_offsets,
-                group_states,
+    let events: Vec<OrderEvent<'data>> = output_order.into_iter().collect();
+
+    let expression_eval = |expr: &Expression<'data>,
+                           loc: &SymbolLoc,
+                           memory_regions: &HashMap<&[u8], MemoryRegion>,
+                           section_layouts: &OutputSectionMap<OutputRecordLayout>,
+                           resolved_lc: &[ResolvedLocationCounter],
+                           laid_out_mem_offsets: &OutputSectionPartMap<Option<u64>>,
+                           rest: &[OrderEvent<'data>]| {
+        let bound;
+        let expr = if expr.contains_next_section() {
+            let (align, size) = next_allocated_section_metrics::<P>(
+                rest,
                 sizes,
                 output_sections,
-                symbol_db,
-                sizeof_headers,
-                &section_positions,
-                &mut visited_nodes,
-                &const_script_symbols,
-            )
+                output_order.script_section_order(),
+                &input_order_max_align,
+            );
+            bound = expr.rewrite_next_section(align, size);
+            &bound
+        } else {
+            expr
         };
+        let mut visited_nodes = HashSet::new();
+        evaluate_early_expression(
+            expr,
+            loc,
+            memory_regions,
+            section_layouts,
+            resolved_lc,
+            laid_out_mem_offsets,
+            group_states,
+            sizes,
+            output_sections,
+            symbol_db,
+            sizeof_headers,
+            &section_positions,
+            &mut visited_nodes,
+            &const_script_symbols,
+        )
+    };
 
     // Memory offsets of the output-section parts that have been laid out so far. Used to resolve
     // object symbols referenced from location-counter expressions.
@@ -112,6 +128,7 @@ pub(crate) fn compute_layout_sections<'data, P: Platform>(
         &section_layouts,
         &[],
         &laid_out_mem_offsets,
+        &events,
     )?;
     let mut lma_offset = mem_offset;
     let mut nonalloc_mem_offsets: OutputSectionMap<u64> =
@@ -145,7 +162,7 @@ pub(crate) fn compute_layout_sections<'data, P: Platform>(
     let mut pad_file_at_next_load = false;
     let mut load_origins: Vec<(u64, u64, usize)> = Vec::new();
 
-    for event in output_order {
+    for (i, event) in events.iter().cloned().enumerate() {
         match event {
             OrderEvent::SetLocation(expr, mut loc, idx) => {
                 if matches!(loc, SymbolLoc::SectionEnd(_)) {
@@ -162,6 +179,7 @@ pub(crate) fn compute_layout_sections<'data, P: Platform>(
                     &section_layouts,
                     &resolved_lc,
                     &laid_out_mem_offsets,
+                    &events[i + 1..],
                 )?;
                 pending_location = Some(value);
                 resolved_lc[idx] = ResolvedLocationCounter {
@@ -179,6 +197,7 @@ pub(crate) fn compute_layout_sections<'data, P: Platform>(
                     &section_layouts,
                     &resolved_lc,
                     &laid_out_mem_offsets,
+                    &events[i + 1..],
                 )?;
                 // `. += N` is `. = . + N`. Inside a section, `.` is a section offset, so
                 // `evaluate_expression` returns `section_base + N` when the RHS is relative.
@@ -214,6 +233,7 @@ pub(crate) fn compute_layout_sections<'data, P: Platform>(
                     &section_layouts,
                     &resolved_lc,
                     &laid_out_mem_offsets,
+                    &events[i + 1..],
                 );
                 resolved_lc.pop();
                 pending_location = Some(result?);
@@ -589,6 +609,7 @@ pub(crate) fn compute_layout_sections<'data, P: Platform>(
                             &section_layouts,
                             &resolved_lc,
                             &laid_out_mem_offsets,
+                            &events[i + 1..],
                         )?;
                         part_layout.lma_offset = lma_offset;
                         let section_layout = section_layouts.get_mut(section_id);
@@ -683,6 +704,56 @@ pub(crate) fn memory_flags_match(
         return false;
     }
     true
+}
+
+/// GNU `ALIGNOF(NEXT_SECTION)` / `SIZEOF(NEXT_SECTION)`: the next output section in script
+/// order that has a non-zero allocation, or (0, 0) if there is none.
+fn next_allocated_section_metrics<'data, P: Platform>(
+    rest: &[OrderEvent<'data>],
+    sizes: &OutputSectionPartMap<u64>,
+    output_sections: &OutputSections<'data, P>,
+    script_section_order: &[OutputSectionId],
+    input_order_max_align: &HashMap<OutputSectionId, Alignment>,
+) -> (u64, u64) {
+    let rest_ids;
+    let scan = if script_section_order.is_empty() {
+        rest_ids = rest
+            .iter()
+            .filter_map(|event| match event {
+                OrderEvent::Section(section_id) => Some(*section_id),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        rest_ids.as_slice()
+    } else {
+        let start_pos = rest
+            .iter()
+            .find_map(|event| match event {
+                OrderEvent::Section(section_id) => Some(*section_id),
+                _ => None,
+            })
+            .and_then(|id| {
+                script_section_order
+                    .iter()
+                    .position(|&section_id| section_id == id)
+            })
+            .unwrap_or(script_section_order.len());
+        &script_section_order[start_pos..]
+    };
+    for &section_id in scan {
+        let section_id = output_sections.primary_output_section(section_id);
+        let range = section_id.part_id_range::<P>();
+        let size: u64 = sizes.values_in_range(range.clone()).copied().sum();
+        if size == 0 {
+            continue;
+        }
+        let mut align = sizes.max_alignment(range, output_sections);
+        if let Some(&max_input_align) = input_order_max_align.get(&section_id) {
+            align = align.max(max_input_align);
+        }
+        return (align.value(), size);
+    }
+    (0, 0)
 }
 
 /// Checks if we've allocated space to any sections which aren't listed in our output ordering.

@@ -391,6 +391,168 @@ impl<'a> Expression<'a> {
         }
     }
 
+    pub(crate) fn contains_next_section(&self) -> bool {
+        let mut found = false;
+        self.visit_expressions(&mut |expr| {
+            if matches!(
+                expr,
+                Expression::Alignof(b"NEXT_SECTION") | Expression::Sizeof(b"NEXT_SECTION")
+            ) {
+                found = true;
+                false
+            } else {
+                true
+            }
+        });
+        found
+    }
+
+    /// GNU `ALIGNOF(NEXT_SECTION)` / `SIZEOF(NEXT_SECTION)`: the next allocated output
+    /// section in the script, or 0 if there is none.
+    pub(crate) fn rewrite_next_section(&self, align: u64, size: u64) -> Self {
+        match self {
+            Expression::Alignof(b"NEXT_SECTION") => Expression::Number(align),
+            Expression::Sizeof(b"NEXT_SECTION") => Expression::Number(size),
+            Expression::Number(_)
+            | Expression::LocationCounter
+            | Expression::Sizeof(_)
+            | Expression::Alignof(_)
+            | Expression::Origin(_)
+            | Expression::Length(_)
+            | Expression::Addr(_)
+            | Expression::Loadaddr(_)
+            | Expression::Symbol(_)
+            | Expression::SizeofHeaders
+            | Expression::Defined(_)
+            | Expression::ConstantMaxPageSize
+            | Expression::ConstantCommonPageSize => self.clone(),
+            Expression::Add(l, r) => Expression::Add(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::Subtract(l, r) => Expression::Subtract(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::Multiply(l, r) => Expression::Multiply(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::Divide(l, r) => Expression::Divide(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::Modulo(l, r) => Expression::Modulo(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::LessThan(l, r) => Expression::LessThan(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::GreaterThan(l, r) => Expression::GreaterThan(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::LessEqual(l, r) => Expression::LessEqual(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::GreaterEqual(l, r) => Expression::GreaterEqual(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::Equal(l, r) => Expression::Equal(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::NotEqual(l, r) => Expression::NotEqual(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::Min(l, r) => Expression::Min(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::Max(l, r) => Expression::Max(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::BitwiseAnd(l, r) => Expression::BitwiseAnd(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::BitwiseOr(l, r) => Expression::BitwiseOr(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::BitwiseXor(l, r) => Expression::BitwiseXor(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::LeftShift(l, r) => Expression::LeftShift(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::RightShift(l, r) => Expression::RightShift(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::LogicalAnd(l, r) => Expression::LogicalAnd(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::LogicalOr(l, r) => Expression::LogicalOr(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::Align(l, Some(r)) => Expression::Align(
+                Box::new(l.rewrite_next_section(align, size)),
+                Some(Box::new(r.rewrite_next_section(align, size))),
+            ),
+            Expression::Align(e, None) => {
+                Expression::Align(Box::new(e.rewrite_next_section(align, size)), None)
+            }
+            Expression::LogicalNot(e) => {
+                Expression::LogicalNot(Box::new(e.rewrite_next_section(align, size)))
+            }
+            Expression::BitwiseNot(e) => {
+                Expression::BitwiseNot(Box::new(e.rewrite_next_section(align, size)))
+            }
+            Expression::Negate(e) => {
+                Expression::Negate(Box::new(e.rewrite_next_section(align, size)))
+            }
+            Expression::Absolute(e) => {
+                Expression::Absolute(Box::new(e.rewrite_next_section(align, size)))
+            }
+            Expression::Assert(assert_command) => Expression::Assert(AssertCommand {
+                expression: Box::new(assert_command.expression.rewrite_next_section(align, size)),
+                message: assert_command.message,
+                remainder: assert_command.remainder,
+            }),
+            Expression::SegmentStart(name, default_expr) => Expression::SegmentStart(
+                *name,
+                Box::new(default_expr.rewrite_next_section(align, size)),
+            ),
+            Expression::DataSegmentAlign(l, r) => Expression::DataSegmentAlign(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::DataSegmentRelroEnd(l, r) => Expression::DataSegmentRelroEnd(
+                Box::new(l.rewrite_next_section(align, size)),
+                Box::new(r.rewrite_next_section(align, size)),
+            ),
+            Expression::DataSegmentEnd(e) => {
+                Expression::DataSegmentEnd(Box::new(e.rewrite_next_section(align, size)))
+            }
+            Expression::Ternary(c, t, f) => Expression::Ternary(
+                Box::new(c.rewrite_next_section(align, size)),
+                Box::new(t.rewrite_next_section(align, size)),
+                Box::new(f.rewrite_next_section(align, size)),
+            ),
+        }
+    }
+
     pub(crate) fn relocatable_anchor(&self) -> Option<RelocatableAnchor<'_>> {
         match self {
             Expression::Absolute(_) => None,

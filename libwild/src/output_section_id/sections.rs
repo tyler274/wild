@@ -405,7 +405,12 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             }
         });
 
-        if has_custom_phdrs {
+        let script_section_order: Vec<OutputSectionId> = linker_scripts
+            .iter()
+            .flat_map(|script| script.parsed.ordered_sections.iter().copied())
+            .collect();
+
+        let (mut output_order, program_segments) = if has_custom_phdrs {
             P::build_custom_output_order_and_program_segments(
                 &custom,
                 output_kind,
@@ -413,16 +418,18 @@ impl<'data, P: Platform> OutputSections<'data, P> {
                 &secondary,
                 linker_scripts,
                 location_counters,
-            )
+            )?
         } else {
-            Ok(P::build_output_order_and_program_segments(
+            P::build_output_order_and_program_segments(
                 &custom,
                 output_kind,
                 self,
                 &secondary,
                 location_counters,
-            ))
-        }
+            )
+        };
+        output_order.set_script_section_order(script_section_order);
+        Ok((output_order, program_segments))
     }
 
     #[must_use]

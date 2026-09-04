@@ -80,8 +80,8 @@ matching all three.
 | Numeric literal K/M suffixes (e.g. `64K`, `2M`) | ✅ | |
 | Symbol references and location counter (`.`) | ✅ | Constant script symbols, including later-defined chains, and object symbols in already-laid-out sections are resolved during layout |
 | Parenthesised sub-expressions | ✅ | |
-| `SIZEOF(section)` | ✅ | |
-| `ALIGNOF(section)` | ✅ | |
+| `SIZEOF(section)` | ✅ | `SIZEOF(NEXT_SECTION)` is the size of the next allocated output section in script order, or 0 |
+| `ALIGNOF(section)` | ✅ | `ALIGNOF(NEXT_SECTION)` is the alignment of the next allocated output section in script order, or 0 |
 | `ADDR(section)` | ✅ | |
 | `LOADADDR(section)` | ✅ | Returns the section LMA |
 | `ALIGN(expr)` | ✅ | One-arg form aligns the absolute location-counter VMA; `ALIGN(0)` / `ALIGN(1)` are no-ops |
@@ -169,7 +169,8 @@ those links use. GNU ld's default shared script
 `SORT(CONSTRUCTORS)`, mid-list `EXCLUDE_FILE`) is still parsed and linked
 (`linker-script-gnu-default`). `PROVIDE` does not override an existing definition (prelude
 `__etext` / `_end`). Duplicate `ONLY_IF_*` names keep the first copy (RO, correct for PIC).
-`ALIGNOF(NEXT_SECTION)` is a no-op.
+`ALIGNOF(NEXT_SECTION)` / `SIZEOF(NEXT_SECTION)` use the next output section in
+script order that has a non-zero allocation.
 
 Glibc `configure` only accepted GNU ld / gold / LLD `--version` strings; Wild now prints a GNU ld
 compatible first line (`GNU ld (Wild) 2.44`) so configure and `scripts/ld-version.sh` accept it.
@@ -189,6 +190,5 @@ These are tracked here so they are not forgotten. They are not part of the curre
 
 ### Lower priority versus GNU
 
-* `ALIGNOF(NEXT_SECTION)` (GNU default script aligns `.bss` to the next section; currently a no-op)
 * `LINKER_VERSION` is parsed and ignored; a script-defined `.comment` can leave Wild's identity in a second `.comment` section
 * `ONLY_IF_RO` / `ONLY_IF_RW` keep the first duplicate name rather than picking by input `SHF_WRITE`

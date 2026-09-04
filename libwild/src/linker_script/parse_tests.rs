@@ -957,6 +957,52 @@ fn test_alignof_parsing() {
 }
 
 #[test]
+fn test_alignof_next_section_parsing() {
+    let script = parse_script(r#"ASSERT(ALIGNOF(NEXT_SECTION) == 32, "next");"#).unwrap();
+    match &script.commands[0] {
+        Command::Assert(assert_cmd) => {
+            assert_eq!(
+                *assert_cmd.expression,
+                Expression::Equal(
+                    Box::new(Expression::Alignof(b"NEXT_SECTION")),
+                    Box::new(Expression::Number(32)),
+                )
+            );
+        }
+        _ => panic!("Expected Assert command"),
+    }
+}
+
+#[test]
+fn test_sizeof_next_section_parsing() {
+    let script = parse_script(r#"ASSERT(SIZEOF(NEXT_SECTION) == 16, "next");"#).unwrap();
+    match &script.commands[0] {
+        Command::Assert(assert_cmd) => {
+            assert_eq!(
+                *assert_cmd.expression,
+                Expression::Equal(
+                    Box::new(Expression::Sizeof(b"NEXT_SECTION")),
+                    Box::new(Expression::Number(16)),
+                )
+            );
+        }
+        _ => panic!("Expected Assert command"),
+    }
+}
+
+#[test]
+fn test_rewrite_next_section() {
+    let expr = Expression::Align(Box::new(Expression::Alignof(b"NEXT_SECTION")), None);
+    assert!(expr.contains_next_section());
+    assert_eq!(
+        expr.rewrite_next_section(32, 8),
+        Expression::Align(Box::new(Expression::Number(32)), None)
+    );
+    let size_expr = Expression::Sizeof(b"NEXT_SECTION");
+    assert_eq!(size_expr.rewrite_next_section(32, 8), Expression::Number(8));
+}
+
+#[test]
 fn test_loadaddr_parsing() {
     let script = parse_script(r#"ASSERT(LOADADDR(.text) == 8, "loadaddr test");"#).unwrap();
     match &script.commands[0] {

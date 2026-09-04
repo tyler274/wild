@@ -26,6 +26,10 @@ pub(crate) struct OutputOrder<'data> {
     events: Vec<OrderEvent<'data>>,
     num_location_counters: usize,
     has_custom_phdrs: bool,
+    /// Output sections in linker-script `SECTIONS` order. Used for `ALIGNOF(NEXT_SECTION)` /
+    /// `SIZEOF(NEXT_SECTION)`, which GNU ld resolves against the script, not internal layout
+    /// order.
+    script_section_order: Vec<OutputSectionId>,
 }
 
 pub(crate) struct OutputOrderDisplay<'a, 'data, P: Platform> {
@@ -355,6 +359,7 @@ impl<'scope, 'data, P: Platform> OutputOrderBuilder<'scope, 'data, P> {
                 events: self.events,
                 num_location_counters: self.location_counters.len(),
                 has_custom_phdrs: self.has_custom_phdrs,
+                script_section_order: Vec::new(),
             },
             self.program_segments,
         )
@@ -395,6 +400,14 @@ impl<'data> OutputOrder<'data> {
 
     pub(crate) fn has_custom_phdrs(&self) -> bool {
         self.has_custom_phdrs
+    }
+
+    pub(crate) fn script_section_order(&self) -> &[OutputSectionId] {
+        &self.script_section_order
+    }
+
+    pub(crate) fn set_script_section_order(&mut self, order: Vec<OutputSectionId>) {
+        self.script_section_order = order;
     }
 
     pub(crate) fn display<'a, P: Platform>(
