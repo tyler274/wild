@@ -1,8 +1,8 @@
 //! Opt-in x86_64 glibc DSO relink against a GNU-built tree (`ld.so`, `libc.so`,
 //! then GNU `lib%.so` PIC archives: `libm`, `libresolv`, `libmvec`, `libnsl`,
 //! `libthread_db`, `libc_malloc_debug`, `libnss_{compat,db,hesiod}`,
-//! `libBrokenLocale`, the `libpthread` / `libdl` / `librt` / `libutil` /
-//! `libanl` stubs).
+//! `libBrokenLocale`, `libmemusage`, `libpcprofile`, and the
+//! `libpthread` / `libdl` / `librt` / `libutil` / `libanl` stubs).
 //!
 //! Glibc's `configure` accepts GNU ld, gold, or LLD version strings. Wild's
 //! `--version` first line is GNU ld compatible, but the GNU oracle is still
@@ -249,6 +249,30 @@ const PIC_SHLIBS: &[PicShlib] = &[
         map: "libanl.map",
         soname: "libanl.so.1",
         named_dynsyms: &["__libanl_version_placeholder"],
+        extra_needed: &[],
+        smoke: None,
+        no_z_defs: false,
+        libc_for_link: None,
+    },
+    PicShlib {
+        test_name: "elf/x86_64/glibc-libmemusage",
+        gnu: "malloc/libmemusage.so",
+        pic: "malloc/libmemusage_pic.a",
+        map: "libmemusage.map",
+        soname: "libmemusage.so",
+        named_dynsyms: &["malloc", "free", "calloc", "realloc"],
+        extra_needed: &[],
+        smoke: None,
+        no_z_defs: false,
+        libc_for_link: None,
+    },
+    PicShlib {
+        test_name: "elf/x86_64/glibc-libpcprofile",
+        gnu: "debug/libpcprofile.so",
+        pic: "debug/libpcprofile_pic.a",
+        map: "libpcprofile.map",
+        soname: "libpcprofile.so",
+        named_dynsyms: &["__cyg_profile_func_enter", "__cyg_profile_func_exit"],
         extra_needed: &[],
         smoke: None,
         no_z_defs: false,

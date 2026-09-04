@@ -158,9 +158,12 @@ because `.data..ro_after_init` is 4KiB-aligned. `.strtab` and `.shstrtab` suffix
 
 Current glibc links `libc.so` / `ld.so` with `gcc -shared` and a version script, not a generated
 `shlib.lds`. Other DSOs (`libm`, `libresolv`, `libmvec`, `libnsl`, `libthread_db`,
-`libc_malloc_debug`, `libnss_compat`, and the `libpthread` / `libdl` / `librt` stubs)
-use GNU's `lib%.so` pattern (`*_pic.a`, crtbeginS/crtendS, linked against `libc.so`). Wild's
-default ELF layout is what those links use. GNU ld's default shared script
+`libc_malloc_debug`, `libnss_{compat,db,hesiod}`, `libBrokenLocale`, `libmemusage`,
+`libpcprofile`, and the `libpthread` / `libdl` / `librt` / `libutil` / `libanl` stubs)
+use GNU's `lib%.so` pattern (`*_pic.a`, crtbeginS/crtendS, linked against `libc.so`).
+libnsl and NSS DSOs that still call deprecated RPC APIs are linked against
+`linkobj/libc.so`, matching GNU `libc-for-link`. Wild's default ELF layout is what
+those links use. GNU ld's default shared script
 (`DATA_SEGMENT_*`, `CONSTANT`, `ONLY_IF_*`, `SORT_NONE`, `LINKER_VERSION` as an ELF nop,
 `SORT(CONSTRUCTORS)`, mid-list `EXCLUDE_FILE`) is still parsed and linked
 (`linker-script-gnu-default`). `PROVIDE` does not override an existing definition (prelude

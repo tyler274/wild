@@ -279,6 +279,34 @@ let
         stdio-common/tst-unbputc
         posix/tst-fnmatch
         time/tst-mktime
+        elf/ifuncmain2
+        elf/ifuncmain4
+        elf/ifuncmain7
+        math/test-misc
+        nptl/tst-mutex2
+        nptl/tst-cond2
+        nptl/tst-join2
+        nptl/tst-sem2
+        nptl/tst-rwlock2
+        nptl/tst-once2
+        nptl/tst-basic2
+        nptl/tst-exit2
+        string/test-memset
+        string/test-memmove
+        string/test-strchr
+        malloc/tst-calloc
+        posix/bug-getopt2
+        stdlib/tst-strtoll
+        nss/testgrp
+        nss/tst-nss-hash
+        time/tst-strftime
+        time/tst-ctime
+        time/tst-gmtime
+        signal/tst-sigaction
+        stdio-common/bug1
+        io/test-lfs
+        dirent/tst-seekdir
+        wctype/test_wctype
       )
 
       restore() {
@@ -300,9 +328,12 @@ let
           "$build/hesiod/libnss_hesiod.so" \
           "$build/locale/libBrokenLocale.so" \
           "$build/login/libutil.so" \
-          "$build/resolv/libanl.so"
+          "$build/resolv/libanl.so" \
+          "$build/malloc/libmemusage.so" \
+          "$build/debug/libpcprofile.so"
         do
-          if [ -f "$dest.gnu-oracle" ]; then
+          if [ -e "$dest.gnu-oracle" ]; then
+            rm -f "$dest"
             cp -a "$dest.gnu-oracle" "$dest"
           fi
         done
@@ -314,11 +345,17 @@ let
         if [ ! -f "$wild" ]; then
           return 0
         fi
-        if [ ! -f "$dest.gnu-oracle" ]; then
+        if [ ! -e "$dest.gnu-oracle" ]; then
           cp -a "$dest" "$dest.gnu-oracle"
         fi
         cp -a "$wild" "$dest"
-        ln -sfn "$(basename "$dest")" "$(dirname "$dest")/$soname"
+        # Unversioned sonames (libmemusage.so) match the dest basename; a
+        # self-symlink would loop.
+        local dest_base
+        dest_base=$(basename "$dest")
+        if [ "$dest_base" != "$soname" ]; then
+          ln -sfn "$dest_base" "$(dirname "$dest")/$soname"
+        fi
       }
 
       swap_dso "$libc_wild" "$build/libc.so" libc.so.6
@@ -338,6 +375,8 @@ let
       swap_dso "$artifacts/glibc-libBrokenLocale/libBrokenLocale.so.wild" "$build/locale/libBrokenLocale.so" libBrokenLocale.so.1
       swap_dso "$artifacts/glibc-libutil/libutil.so.wild" "$build/login/libutil.so" libutil.so.1
       swap_dso "$artifacts/glibc-libanl/libanl.so.wild" "$build/resolv/libanl.so" libanl.so.1
+      swap_dso "$artifacts/glibc-libmemusage/libmemusage.so.wild" "$build/malloc/libmemusage.so" libmemusage.so
+      swap_dso "$artifacts/glibc-libpcprofile/libpcprofile.so.wild" "$build/debug/libpcprofile.so" libpcprofile.so
 
       export LIBRARY_PATH="${libgccLib}''${LIBRARY_PATH:+:$LIBRARY_PATH}"
       export NIX_HARDENING_ENABLE=""
