@@ -22,6 +22,7 @@ use crate::input_data::AuxiliaryFiles;
 use crate::input_data::FileId;
 use crate::input_data::LoadedInputs;
 use crate::input_data::PRELUDE_FILE_ID;
+use crate::layout::EnginePlatform;
 use crate::layout_rules::LayoutRulesBuilder;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
@@ -236,7 +237,10 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         output_sections: &mut OutputSections<'data, P>,
         layout_rules_builder: &mut LayoutRulesBuilder<'data>,
         loaded: LoadedInputs<'data, P>,
-    ) -> Result {
+    ) -> Result
+    where
+        P: EnginePlatform,
+    {
         timing_phase!("Load inputs into symbol DB");
 
         let parsed_objects = loaded.objects.into_iter().try_collect()?;

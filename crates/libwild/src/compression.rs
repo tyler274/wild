@@ -8,13 +8,13 @@ use crate::elf::ElfClass;
 use crate::elf_writer;
 use crate::elf_writer::apply_debug_relocations;
 use crate::error::Result;
+use crate::layout::EnginePlatform;
 use crate::layout::FileLayout;
 use crate::layout::Layout;
 use crate::output_section_id::OrderEvent;
 use crate::output_section_id::OutputSectionId;
 use crate::platform::Arch;
 use crate::platform::ObjectFile as _;
-use crate::platform::Platform;
 use crate::platform::SectionFlags as _;
 use crate::resolution::SectionSlot;
 use crate::timing_phase;
@@ -430,7 +430,7 @@ fn build_regular_debug_section<C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
         })
 }
 
-fn update_allocation_sizes<P: Platform>(layout: &mut Layout<P>) {
+fn update_allocation_sizes<P: EnginePlatform>(layout: &mut Layout<P>) {
     timing_phase!("Update sizes post-compression");
 
     for (section_id, compressed_data_opt) in layout.compressed_debug_sections.iter() {
@@ -472,7 +472,7 @@ fn update_allocation_sizes<P: Platform>(layout: &mut Layout<P>) {
     }
 }
 
-fn update_file_offset<P: Platform>(layout: &mut Layout<P>) -> Result {
+fn update_file_offset<P: EnginePlatform>(layout: &mut Layout<P>) -> Result {
     timing_phase!("Update file offsets post-compression");
 
     // Recalculate file offsets since we changed file_sizes

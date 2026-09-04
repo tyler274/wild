@@ -1,51 +1,51 @@
-use crate::bail;
-use crate::error::Result;
 use std::fmt::Debug;
 use std::fmt::Display;
+use wild_error::bail;
+use wild_error::error::Result;
 
 /// An alignment. Always a power of two.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, PartialOrd, Ord)]
-pub(crate) struct Alignment {
-    pub(crate) exponent: u8,
+pub struct Alignment {
+    pub exponent: u8,
 }
 
 /// The maximum supported alignment exponent.
 const MAX_ALIGNMENT_EXPONENT: u8 = 21;
 
-pub(crate) const NUM_ALIGNMENTS: usize = MAX_ALIGNMENT_EXPONENT as usize + 1;
+pub const NUM_ALIGNMENTS: usize = MAX_ALIGNMENT_EXPONENT as usize + 1;
 
 /// The minimum alignment that we support.
-pub(crate) const MIN: Alignment = Alignment { exponent: 0 };
+pub const MIN: Alignment = Alignment { exponent: 0 };
 
 /// The maximum alignment that we support.
-pub(crate) const MAX: Alignment = Alignment {
+pub const MAX: Alignment = Alignment {
     exponent: MAX_ALIGNMENT_EXPONENT,
 };
 
 /// Alignment for entries in the .symtab.shndx section.
-pub(crate) const SYMTAB_SHNDX_ENTRY: Alignment = Alignment { exponent: 2 };
+pub const SYMTAB_SHNDX_ENTRY: Alignment = Alignment { exponent: 2 };
 
 /// Alignment of the .hash section.
-pub(crate) const SYSV_HASH: Alignment = Alignment { exponent: 2 };
+pub const SYSV_HASH: Alignment = Alignment { exponent: 2 };
 
 /// The minimum alignment of a PLT entry.
-pub(crate) const PLT: Alignment = Alignment { exponent: 4 };
+pub const PLT: Alignment = Alignment { exponent: 4 };
 
-pub(crate) const VERSYM: Alignment = Alignment { exponent: 1 };
+pub const VERSYM: Alignment = Alignment { exponent: 1 };
 
-pub(crate) const USIZE: Alignment = Alignment { exponent: 3 };
+pub const USIZE: Alignment = Alignment { exponent: 3 };
 
-pub(crate) const EH_FRAME_HDR: Alignment = Alignment { exponent: 2 };
-pub(crate) const NOTE_GNU_BUILD_ID: Alignment = Alignment { exponent: 2 };
+pub const EH_FRAME_HDR: Alignment = Alignment { exponent: 2 };
+pub const NOTE_GNU_BUILD_ID: Alignment = Alignment { exponent: 2 };
 
 // GNU_STACK.alignment and Wasm stack alignment
-pub(crate) const STACK_ALIGNMENT: Alignment = Alignment { exponent: 4 };
+pub const STACK_ALIGNMENT: Alignment = Alignment { exponent: 4 };
 
 // Mach-O specific
-pub(crate) const MACHO_PAGE_ALIGNMENT: Alignment = Alignment { exponent: 14 };
+pub const MACHO_PAGE_ALIGNMENT: Alignment = Alignment { exponent: 14 };
 
 impl Alignment {
-    pub(crate) fn new(raw: u64) -> Result<Self> {
+    pub fn new(raw: u64) -> Result<Self> {
         if !raw.is_power_of_two() {
             bail!("Invalid alignment 0x{raw:x}");
         }
@@ -58,7 +58,7 @@ impl Alignment {
         })
     }
 
-    pub(crate) fn from_exponent(exponent: u32) -> Result<Self> {
+    pub fn from_exponent(exponent: u32) -> Result<Self> {
         if exponent > u32::from(MAX.exponent) {
             bail!("Unsupported alignment 2^{exponent}");
         }
@@ -68,29 +68,29 @@ impl Alignment {
         })
     }
 
-    pub(crate) const fn value(self) -> u64 {
+    pub const fn value(self) -> u64 {
         1 << self.exponent
     }
 
-    pub(crate) fn mask(self) -> u64 {
+    pub fn mask(self) -> u64 {
         self.value() - 1
     }
 
-    pub(crate) const fn align_up(self, value: u64) -> u64 {
+    pub const fn align_up(self, value: u64) -> u64 {
         value.next_multiple_of(self.value())
     }
 
-    pub(crate) fn align_up_usize(self, value: usize) -> usize {
+    pub fn align_up_usize(self, value: usize) -> usize {
         value.next_multiple_of(self.value() as usize)
     }
 
-    pub(crate) fn align_down(self, value: u64) -> u64 {
+    pub fn align_down(self, value: u64) -> u64 {
         value & !self.mask()
     }
 
     /// Returns `offset`, possibly adjusted up so that it is >= `align_up(offset)` and has the same
     /// modulo as `ref_offset`
-    pub(crate) fn align_modulo(self, ref_offset: u64, mut offset: u64) -> u64 {
+    pub fn align_modulo(self, ref_offset: u64, mut offset: u64) -> u64 {
         let mask = self.mask();
         offset = self.align_up(offset);
         if offset & mask == ref_offset & mask {

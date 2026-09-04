@@ -1,0 +1,23 @@
+[package]
+name = "wild-fs"
+description = "Filesystem and archive I/O for the Wild linker"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+
+[dependencies]
+libc.workspace = true
+memmap2.workspace = true
+object.workspace = true
+wild-error = { path = "../wild-error", version = "0.10.0" }
+
+[target.'cfg(unix)'.dependencies]
+nix.workspace = true
+
+[dev-dependencies]
+ar.workspace = true
+
+[lints]
+workspace = true

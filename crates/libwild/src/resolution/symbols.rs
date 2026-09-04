@@ -8,6 +8,7 @@ use crate::hash::PassThroughHashMap;
 use crate::hash::PreHashed;
 use crate::input_data::FileId;
 use crate::input_data::PRELUDE_FILE_ID;
+use crate::layout::EnginePlatform;
 use crate::linker_script::Expression;
 use crate::output_section_id::OutputSections;
 use crate::output_section_id::SectionName;
@@ -39,7 +40,7 @@ pub(crate) struct ResolutionResources<'data, 'scope, P: Platform> {
     pub(super) per_symbol_flags: &'scope AtomicPerSymbolFlags<'scope>,
 }
 
-impl<'scope, 'data, P: Platform> ResolutionResources<'data, 'scope, P> {
+impl<'scope, 'data, P: EnginePlatform> ResolutionResources<'data, 'scope, P> {
     /// Request loading of `file_id` if it hasn't already been requested.
     #[inline(always)]
     pub(super) fn try_request_file_id(&'scope self, file_id: FileId, scope: &Scope<'scope>) {
@@ -84,7 +85,7 @@ impl<'scope, 'data, P: Platform> ResolutionResources<'data, 'scope, P> {
     }
 }
 
-pub(super) fn work_items_do<'definitions, 'data, P: Platform>(
+pub(super) fn work_items_do<'definitions, 'data, P: EnginePlatform>(
     file_id: FileId,
     mut definitions_out: &'definitions mut [SymbolId],
     symbol_db: &SymbolDb<'data, P>,
@@ -151,7 +152,7 @@ pub(super) fn work_items_do<'definitions, 'data, P: Platform>(
         }
     }
 }
-pub(super) fn process_object<'scope, 'data: 'scope, 'definitions, P: Platform>(
+pub(super) fn process_object<'scope, 'data: 'scope, 'definitions, P: EnginePlatform>(
     work_item: LoadObjectSymbolsRequest<'definitions>,
     resources: &'scope ResolutionResources<'data, 'scope, P>,
     scope: &Scope<'scope>,
@@ -196,13 +197,18 @@ pub(super) fn process_object<'scope, 'data: 'scope, 'definitions, P: Platform>(
         Group::LtoInputs(objects) => {
             let obj = &objects[file_id.file()];
             resources.handle_result(
-                P::resolve_lto_symbols(obj, resources, definitions_out, scope)
-                    .with_context(|| format!("Failed to resolve symbols in {obj}")),
+                P::resolve_lto_symbols(
+                    obj,
+                    crate::layout::platform_resolution(resources),
+                    definitions_out,
+                    scope,
+                )
+                .with_context(|| format!("Failed to resolve symbols in {obj}")),
             );
         }
     }
 }
-fn load_prelude<'scope, 'data, P: Platform>(
+fn load_prelude<'scope, 'data, P: EnginePlatform>(
     prelude: &crate::parsing::Prelude<P>,
     definitions_out: &mut [SymbolId],
     resources: &'scope ResolutionResources<'data, 'scope, P>,
@@ -238,7 +244,7 @@ fn load_prelude<'scope, 'data, P: Platform>(
     }
 }
 
-fn load_symbols_in_redirect<'data, 'scope, P: Platform>(
+fn load_symbols_in_redirect<'data, 'scope, P: EnginePlatform>(
     resources: &'scope ResolutionResources<'data, 'scope, P>,
     scope: &Scope<'scope>,
     redirect: &crate::parsing::Redirect<'_>,
@@ -265,7 +271,7 @@ fn load_symbols_in_redirect<'data, 'scope, P: Platform>(
     });
 }
 
-fn load_symbol_named<'scope, 'data, P: Platform>(
+fn load_symbol_named<'scope, 'data, P: EnginePlatform>(
     resources: &'scope ResolutionResources<'data, 'scope, P>,
     definition_out: &mut SymbolId,
     name: &[u8],
@@ -289,7 +295,7 @@ fn load_symbol_named<'scope, 'data, P: Platform>(
 /// as the canonical one to which we'll refer. Where undefined symbols can be resolved to
 /// __start/__stop symbols that refer to the start or stop of a custom section, collect that
 /// information up and put it into `custom_start_stop_defs`.
-pub(super) fn canonicalise_undefined_symbols<'data, P: Platform>(
+pub(super) fn canonicalise_undefined_symbols<'data, P: EnginePlatform>(
     mut undefined_symbols: Vec<UndefinedSymbol<'data>>,
     output_sections: &OutputSections<P>,
     groups: &[ResolvedGroup<'data, P>],
@@ -415,7 +421,7 @@ pub(super) fn canonicalise_undefined_symbols<'data, P: Platform>(
     }
 }
 
-fn allocate_start_stop_symbol_id<'data, P: Platform>(
+fn allocate_start_stop_symbol_id<'data, P: EnginePlatform>(
     name: PreHashed<UnversionedSymbolName<'data>>,
     symbol_db: &mut SymbolDb<'data, P>,
     per_symbol_flags: &mut PerSymbolFlags,
@@ -446,7 +452,7 @@ fn allocate_start_stop_symbol_id<'data, P: Platform>(
 
     Some(symbol_id)
 }
-fn resolve_symbols<'data, 'scope, P: Platform>(
+fn resolve_symbols<'data, 'scope, P: EnginePlatform>(
     obj: &SequencedInputObject<'data, P>,
     resources: &'scope ResolutionResources<'data, 'scope, P>,
     start_symbol_offset: usize,
@@ -505,7 +511,7 @@ fn resolve_symbols<'data, 'scope, P: Platform>(
 }
 
 #[inline(always)]
-pub(crate) fn resolve_symbol<'data, 'scope, P: Platform>(
+pub(crate) fn resolve_symbol<'data, 'scope, P: EnginePlatform>(
     local_symbol_id: SymbolId,
     local_symbol_attributes: &SymbolAttributes<'data, P>,
     definition_out: &mut SymbolId,
@@ -521,7 +527,7 @@ pub(crate) fn resolve_symbol<'data, 'scope, P: Platform>(
         local_symbol_attributes.name_info,
     );
 
-    let prehashed_name = PreHashedSymbolName::from_raw(&local_symbol_attributes.name_info);
+    let prehashed_name = crate::symbol::symbol_name_from_raw(&local_symbol_attributes.name_info);
 
     // Only default-visibility symbols can reference symbols from shared objects.
     let allow_dynamic = local_symbol_attributes.default_visibility;

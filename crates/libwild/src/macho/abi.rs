@@ -132,6 +132,56 @@ impl platform::Platform for MachO {
     type VerneedTable<'data> = VerneedTable<'data>;
     type ResolvedObjectExt<'data> = ();
     type GcUnit = crate::layout::SectionGcUnit;
+    type Layout<'data> = crate::layout::Layout<'data, Self>;
+    type SymbolDb<'data> = crate::symbol_db::SymbolDb<'data, Self>;
+    type Resolver<'data> = crate::resolution::Resolver<'data, Self>;
+    type ResolutionResources<'data, 'scope>
+        = crate::resolution::ResolutionResources<'data, 'scope, Self>
+    where
+        'data: 'scope;
+    type ObjectLayoutState<'data> = crate::layout::ObjectLayoutState<'data, Self>;
+    type CommonGroupState<'data> = crate::layout::CommonGroupState<'data, Self>;
+    type GroupState<'data> = crate::layout::GroupState<'data, Self>;
+    type DynamicLayoutState<'data> = crate::layout::DynamicLayoutState<'data, Self>;
+    type PreludeLayoutState<'data> = crate::layout::PreludeLayoutState<'data, Self>;
+    type StubLibraryLayoutState<'data> = crate::layout::StubLibraryLayoutState<'data, Self>;
+    type GraphResources<'data, 'scope>
+        = crate::layout::GraphResources<'data, 'scope, Self>
+    where
+        'data: 'scope;
+    type LocalWorkQueue = crate::layout::LocalWorkQueue<Self>;
+    type FinaliseLayoutResources<'scope, 'data>
+        = crate::layout::FinaliseLayoutResources<'scope, 'data, Self>
+    where
+        'data: 'scope;
+    type FinaliseSizesResources<'data, 'scope>
+        = crate::layout::FinaliseSizesResources<'data, 'scope, Self>
+    where
+        'data: 'scope;
+    type ResolutionWriter<'writer, 'out>
+        = crate::layout::ResolutionWriter<'writer, 'out, Self>
+    where
+        'out: 'writer;
+    type DynamicSymbolDefinition<'data> = crate::layout::DynamicSymbolDefinition<'data, Self>;
+    type OutputRecordLayout = crate::layout::OutputRecordLayout;
+    type SymbolResolutions = crate::layout::SymbolResolutions<Self>;
+    type LayoutSection = crate::layout::Section;
+    type HeaderInfo = crate::layout::HeaderInfo;
+    type Resolution = crate::layout::Resolution<Self>;
+    type UnloadedSection = crate::resolution::UnloadedSection;
+    type LoadedMetrics = crate::resolution::LoadedMetrics;
+    type ResolvedObject<'data> = crate::resolution::ResolvedObject<'data, Self>;
+    type ResolvedDynamic<'data> = crate::resolution::ResolvedDynamic<'data, Self>;
+    type ResolvedStubLibrary<'data> = crate::resolution::ResolvedStubLibrary<'data>;
+    type LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>;
+    type LoadedPlugin = crate::linker_plugins::LoadedPlugin;
+    type LtoInput<'data> = crate::linker_plugins::LtoInput<'data>;
+    type Group<'data> = crate::grouping::Group<'data, Self>;
+    type SequencedLinkerScript<'data> = crate::grouping::SequencedLinkerScript<'data, Self>;
+    type FileLoader<'data, F: crate::fs::FileSystem> = crate::input_data::FileLoader<'data, F>;
+    type LayoutRulesBuilder<'data> = crate::layout_rules::LayoutRulesBuilder<'data>;
+    type InternalSymbolsBuilder<'data> = crate::parsing::InternalSymbolsBuilder<'data, Self>;
+    type InternalSymDefInfo<'data> = crate::parsing::InternalSymDefInfo<'data, Self>;
 
     /// Mach-O sections are associated with a SegmentName, while synthetic regions (FILE_HEADER,
     /// LOAD_COMMANDS, etc.) are not.
@@ -213,10 +263,10 @@ impl platform::Platform for MachO {
     }
 
     fn finalise_layout_dynamic<'data>(
-        state: &mut crate::layout::DynamicLayoutState<'data, Self>,
+        state: &mut Self::DynamicLayoutState<'data>,
         memory_offsets: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
-        resources: &crate::layout::FinaliseLayoutResources<'_, 'data, Self>,
-        resolutions_out: &mut crate::layout::ResolutionWriter<Self>,
+        resources: &Self::FinaliseLayoutResources<'_, 'data>,
+        resolutions_out: &mut Self::ResolutionWriter<'_, '_>,
     ) -> Result<Option<Self::DynamicLayoutExt<'data>>> {
         layout::default_create_resolutions(
             memory_offsets,
@@ -261,7 +311,7 @@ impl platform::Platform for MachO {
     }
 
     fn layout_resources_ext<'data>(
-        _groups: &[crate::grouping::Group<'data, Self>],
+        _groups: &[Self::Group<'data>],
     ) -> Self::LayoutResourcesExt<'data> {
     }
 
@@ -319,9 +369,9 @@ impl platform::Platform for MachO {
     }
 
     fn create_dynamic_symbol_definition<'data>(
-        symbol_db: &crate::symbol_db::SymbolDb<'data, Self>,
+        symbol_db: &Self::SymbolDb<'data>,
         symbol_id: crate::symbol_db::SymbolId,
-    ) -> Result<crate::layout::DynamicSymbolDefinition<'data, Self>> {
+    ) -> Result<Self::DynamicSymbolDefinition<'data>> {
         Ok(crate::layout::DynamicSymbolDefinition {
             symbol_id,
             name: symbol_db.symbol_name(symbol_id)?.bytes(),
@@ -684,7 +734,7 @@ impl platform::Platform for MachO {
     }
 
     fn new_dynamic_layout_state_ext<'data>(
-        _file: &resolution::ResolvedDynamic<'data, Self>,
+        _file: &Self::ResolvedDynamic<'data>,
         args: &Self::Args,
     ) -> Self::DynamicLayoutStateExt<'data> {
         DynamicLayoutStateExt::new(args)

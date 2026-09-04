@@ -24,6 +24,7 @@
 
 use crate::input_data::FileId;
 use crate::layout;
+use crate::layout::EnginePlatform;
 use crate::layout::FileLayoutState;
 use crate::output_section_id::OutputSections;
 use crate::output_section_part_map::OutputSectionPartMap;
@@ -67,7 +68,7 @@ struct ThunkBlockBuilder<'data, 'state, P: Platform> {
     symbols: Vec<SymbolId>,
 }
 
-impl<'data, 'state, P: Platform> Default for ThunkBlockBuilder<'data, 'state, P> {
+impl<'data, 'state, P: EnginePlatform> Default for ThunkBlockBuilder<'data, 'state, P> {
     fn default() -> Self {
         Self {
             objects: Vec::new(),
@@ -103,7 +104,10 @@ impl ThunkLayoutBuilder {
     /// needed.
     pub(crate) fn new<A: Arch>(
         groups: &[resolution::ResolvedGroup<A::Platform>],
-    ) -> Option<ThunkLayoutBuilder> {
+    ) -> Option<ThunkLayoutBuilder>
+    where
+        A::Platform: EnginePlatform,
+    {
         let config = A::thunk_config()?;
 
         timing_phase!("Create thunk layout builder");
@@ -133,7 +137,7 @@ impl ThunkLayoutBuilder {
     }
 
     /// Assigns thunk blocks to objects and builds the final `Vec<ThunkBlock>`.
-    pub(crate) fn build<'data, P: Platform>(
+    pub(crate) fn build<'data, P: EnginePlatform>(
         mut self,
         group_states: &mut [layout::GroupState<'data, P>],
         symbol_db: &crate::symbol_db::SymbolDb<'data, P>,
@@ -170,7 +174,7 @@ impl ThunkLayoutBuilder {
         blocks
     }
 
-    fn compute_non_primary_text_size<P: Platform>(
+    fn compute_non_primary_text_size<P: EnginePlatform>(
         &self,
         output_sections: &OutputSections<P>,
         section_part_sizes: &OutputSectionPartMap<u64>,
@@ -190,7 +194,7 @@ impl ThunkLayoutBuilder {
         non_primary_text_bytes
     }
 
-    fn process_non_primary_part_refs<P: Platform>(
+    fn process_non_primary_part_refs<P: EnginePlatform>(
         &mut self,
         block_builders: &mut [ThunkBlockBuilder<'_, '_, P>],
     ) {
@@ -201,7 +205,7 @@ impl ThunkLayoutBuilder {
             .extend(core::mem::take(&mut self.non_primary_referenced_symbols));
     }
 
-    fn process_primary_part_refs<'data, P: Platform>(
+    fn process_primary_part_refs<'data, P: EnginePlatform>(
         &self,
         primary_ranges: &[Vec<Option<(u64, u64)>>],
         symbol_db: &crate::symbol_db::SymbolDb<'data, P>,
@@ -288,7 +292,7 @@ impl ThunkLayoutBuilder {
     }
 }
 
-fn collect_primary_ranges<P: Platform>(
+fn collect_primary_ranges<P: EnginePlatform>(
     group_states: &[layout::GroupState<P>],
     initial_offset: u64,
 ) -> Vec<Vec<Option<(u64, u64)>>> {
@@ -322,7 +326,9 @@ pub(crate) fn handle_thunk_extensions_for_relocation<A: Arch>(
     local_symbol_id: SymbolId,
     symbol_id: SymbolId,
     rel: <A::Platform as Platform>::RelocationInfo,
-) {
+) where
+    A::Platform: EnginePlatform,
+{
     if resources.thunk_layout_builder.is_some()
         && let Some(config) = A::thunk_config()
         && let Some(rel_info) = A::relocation_from_raw(rel).ok()
@@ -349,7 +355,7 @@ pub(crate) fn handle_thunk_extensions_for_relocation<A: Arch>(
     }
 }
 
-fn assign_thunk_blocks_to_groups<'data, 'state, P: Platform>(
+fn assign_thunk_blocks_to_groups<'data, 'state, P: EnginePlatform>(
     group_states: &'state mut [layout::GroupState<'data, P>],
     primary_ranges: &[Vec<Option<(u64, u64)>>],
     max_branch_range: u64,
@@ -466,7 +472,7 @@ fn assign_thunk_blocks(
     num_blocks
 }
 
-impl<'data, 'state, P: Platform> ThunkBlockBuilder<'data, 'state, P> {
+impl<'data, 'state, P: EnginePlatform> ThunkBlockBuilder<'data, 'state, P> {
     fn build(mut self) -> ThunkBlock {
         verbose_timing_phase!("Build thunk block");
         // Sorting is needed for deterministic output, since the symbols came here in hashset

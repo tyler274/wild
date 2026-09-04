@@ -259,7 +259,7 @@ impl platform::SectionAttributes for SectionAttributes {
 pub(crate) struct NonAddressableIndexes {}
 
 impl platform::NonAddressableIndexes for NonAddressableIndexes {
-    fn new<P: platform::Platform>(_symbol_db: &crate::symbol_db::SymbolDb<P>) -> Self {
+    fn new<P: platform::Platform>(_symbol_db: &P::SymbolDb<'_>) -> Self {
         Self {}
     }
 }
@@ -537,6 +537,56 @@ impl platform::Platform for Wasm {
     type ResolvedObjectExt<'data> = WasmObjectLayout<'data>;
     type SectionIdentityExt = ();
     type GcUnit = WasmGcUnit;
+    type Layout<'data> = crate::layout::Layout<'data, Self>;
+    type SymbolDb<'data> = crate::symbol_db::SymbolDb<'data, Self>;
+    type Resolver<'data> = crate::resolution::Resolver<'data, Self>;
+    type ResolutionResources<'data, 'scope>
+        = crate::resolution::ResolutionResources<'data, 'scope, Self>
+    where
+        'data: 'scope;
+    type ObjectLayoutState<'data> = crate::layout::ObjectLayoutState<'data, Self>;
+    type CommonGroupState<'data> = crate::layout::CommonGroupState<'data, Self>;
+    type GroupState<'data> = crate::layout::GroupState<'data, Self>;
+    type DynamicLayoutState<'data> = crate::layout::DynamicLayoutState<'data, Self>;
+    type PreludeLayoutState<'data> = crate::layout::PreludeLayoutState<'data, Self>;
+    type StubLibraryLayoutState<'data> = crate::layout::StubLibraryLayoutState<'data, Self>;
+    type GraphResources<'data, 'scope>
+        = crate::layout::GraphResources<'data, 'scope, Self>
+    where
+        'data: 'scope;
+    type LocalWorkQueue = crate::layout::LocalWorkQueue<Self>;
+    type FinaliseLayoutResources<'scope, 'data>
+        = crate::layout::FinaliseLayoutResources<'scope, 'data, Self>
+    where
+        'data: 'scope;
+    type FinaliseSizesResources<'data, 'scope>
+        = crate::layout::FinaliseSizesResources<'data, 'scope, Self>
+    where
+        'data: 'scope;
+    type ResolutionWriter<'writer, 'out>
+        = crate::layout::ResolutionWriter<'writer, 'out, Self>
+    where
+        'out: 'writer;
+    type DynamicSymbolDefinition<'data> = crate::layout::DynamicSymbolDefinition<'data, Self>;
+    type OutputRecordLayout = crate::layout::OutputRecordLayout;
+    type SymbolResolutions = crate::layout::SymbolResolutions<Self>;
+    type LayoutSection = crate::layout::Section;
+    type HeaderInfo = crate::layout::HeaderInfo;
+    type Resolution = crate::layout::Resolution<Self>;
+    type UnloadedSection = crate::resolution::UnloadedSection;
+    type LoadedMetrics = crate::resolution::LoadedMetrics;
+    type ResolvedObject<'data> = crate::resolution::ResolvedObject<'data, Self>;
+    type ResolvedDynamic<'data> = crate::resolution::ResolvedDynamic<'data, Self>;
+    type ResolvedStubLibrary<'data> = crate::resolution::ResolvedStubLibrary<'data>;
+    type LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>;
+    type LoadedPlugin = crate::linker_plugins::LoadedPlugin;
+    type LtoInput<'data> = crate::linker_plugins::LtoInput<'data>;
+    type Group<'data> = crate::grouping::Group<'data, Self>;
+    type SequencedLinkerScript<'data> = crate::grouping::SequencedLinkerScript<'data, Self>;
+    type FileLoader<'data, F: crate::fs::FileSystem> = crate::input_data::FileLoader<'data, F>;
+    type LayoutRulesBuilder<'data> = crate::layout_rules::LayoutRulesBuilder<'data>;
+    type InternalSymbolsBuilder<'data> = crate::parsing::InternalSymbolsBuilder<'data, Self>;
+    type InternalSymDefInfo<'data> = crate::parsing::InternalSymDefInfo<'data, Self>;
 
     fn write_output_file<'data, A: platform::Arch<Platform = Self>, F: FileSystem>(
         output: &crate::file_writer::Output<F>,
@@ -625,10 +675,10 @@ impl platform::Platform for Wasm {
     }
 
     fn finalise_layout_dynamic<'data>(
-        _state: &mut crate::layout::DynamicLayoutState<'data, Self>,
+        _state: &mut Self::DynamicLayoutState<'data>,
         _memory_offsets: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
-        _resources: &crate::layout::FinaliseLayoutResources<'_, 'data, Self>,
-        _resolutions_out: &mut crate::layout::ResolutionWriter<Self>,
+        _resources: &Self::FinaliseLayoutResources<'_, 'data>,
+        _resolutions_out: &mut Self::ResolutionWriter<'_, '_>,
     ) -> crate::error::Result<Option<Self::DynamicLayoutExt<'data>>> {
         Ok(None)
     }
@@ -649,7 +699,7 @@ impl platform::Platform for Wasm {
     }
 
     fn layout_resources_ext<'data>(
-        _groups: &[crate::grouping::Group<'data, Self>],
+        _groups: &[Self::Group<'data>],
     ) -> Self::LayoutResourcesExt<'data> {
     }
 
@@ -717,9 +767,9 @@ impl platform::Platform for Wasm {
     }
 
     fn create_dynamic_symbol_definition<'data>(
-        _symbol_db: &crate::symbol_db::SymbolDb<'data, Self>,
+        _symbol_db: &Self::SymbolDb<'data>,
         _symbol_id: crate::symbol_db::SymbolId,
-    ) -> crate::error::Result<crate::layout::DynamicSymbolDefinition<'data, Self>> {
+    ) -> crate::error::Result<Self::DynamicSymbolDefinition<'data>> {
         crate::bail!("Wasm dynamic symbol definitions are not emitted")
     }
 

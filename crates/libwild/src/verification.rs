@@ -3,12 +3,12 @@
 
 use crate::bail;
 use crate::error::Result;
+use crate::layout::EnginePlatform;
 use crate::layout::FileLayout;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSections;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
-use crate::platform::Platform;
 use itertools::Itertools;
 
 pub(crate) struct OffsetVerifier {
@@ -17,7 +17,7 @@ pub(crate) struct OffsetVerifier {
 }
 
 impl OffsetVerifier {
-    pub(crate) fn new<P: Platform>(
+    pub(crate) fn new<P: EnginePlatform>(
         starting_offsets: &OutputSectionPartMap<u64>,
         sizes: &OutputSectionPartMap<u64>,
     ) -> Self {
@@ -30,7 +30,7 @@ impl OffsetVerifier {
         }
     }
 
-    pub(crate) fn verify<'data, P: Platform>(
+    pub(crate) fn verify<'data, P: EnginePlatform>(
         &self,
         memory_offsets: &OutputSectionPartMap<u64>,
         output_sections: &OutputSections<P>,
@@ -76,7 +76,7 @@ impl OffsetVerifier {
         );
     }
 
-    fn alignments_ok<P: Platform>(&self, output_sections: &OutputSections<P>) -> bool {
+    fn alignments_ok<P: EnginePlatform>(&self, output_sections: &OutputSections<P>) -> bool {
         self.sizes.iter().all(|(part_id, size)| {
             size.is_multiple_of(part_id.alignment(output_sections).value())
                 || should_ignore_alignment::<P>(part_id)
@@ -84,14 +84,14 @@ impl OffsetVerifier {
     }
 }
 
-fn should_ignore_alignment<P: Platform>(part_id: PartId) -> bool {
+fn should_ignore_alignment<P: EnginePlatform>(part_id: PartId) -> bool {
     let section_id = part_id.output_section_id::<P>();
     part_id.should_pack::<P>() || P::VERIFY_IGNORE_ALIGNMENT_SECTION_IDS.contains(&section_id)
 }
 
 /// Clear offsets for sections where we never take the address of a section offset during
 /// `finalise_layout`.
-pub(crate) fn clear_ignored<P: Platform>(expected: &mut OutputSectionPartMap<u64>) {
+pub(crate) fn clear_ignored<P: EnginePlatform>(expected: &mut OutputSectionPartMap<u64>) {
     /// A distinctive value that should definitely make things fail if we actually do make use of
     /// one of these offsets during `finalise_layout`.
     const IGNORED_OFFSET: u64 = 0x98760000;
@@ -103,7 +103,7 @@ pub(crate) fn clear_ignored<P: Platform>(expected: &mut OutputSectionPartMap<u64
     }
 }
 
-fn offsets_by_key<P: Platform>(
+fn offsets_by_key<P: EnginePlatform>(
     memory_offsets: &OutputSectionPartMap<u64>,
     output_order: &OutputOrder,
     output_sections: &OutputSections<P>,

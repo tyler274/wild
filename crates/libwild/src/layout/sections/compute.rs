@@ -6,6 +6,7 @@ use crate::error::Context;
 use crate::error::Result;
 use crate::expression_eval::ResolvedLocationCounter;
 use crate::expression_eval::evaluate_early_expression;
+use crate::layout::EnginePlatform;
 use crate::layout::script::*;
 use crate::layout::types::*;
 use crate::linker_script::Expression;
@@ -18,7 +19,6 @@ use crate::output_section_part_map::OutputSectionPartMap;
 use crate::parsing::SymbolLoc;
 use crate::part_id::PartId;
 use crate::platform::Args as _;
-use crate::platform::Platform;
 use crate::platform::SectionAttributes as _;
 use crate::platform::SectionFlags as _;
 use crate::program_segments::ProgramSegments;
@@ -28,7 +28,7 @@ use hashbrown::HashMap;
 use hashbrown::HashSet;
 use std::cell::OnceCell;
 
-pub(crate) fn compute_layout_sections<'data, P: Platform>(
+pub(crate) fn compute_layout_sections<'data, P: EnginePlatform>(
     group_states: &[GroupState<'data, P>],
     sizes: &OutputSectionPartMap<u64>,
     output_sections: &OutputSections<'data, P>,
@@ -708,7 +708,7 @@ pub(crate) fn memory_flags_match(
 
 /// GNU `ALIGNOF(NEXT_SECTION)` / `SIZEOF(NEXT_SECTION)`: the next output section in script
 /// order that has a non-zero allocation, or (0, 0) if there is none.
-fn next_allocated_section_metrics<'data, P: Platform>(
+fn next_allocated_section_metrics<'data, P: EnginePlatform>(
     rest: &[OrderEvent<'data>],
     sizes: &OutputSectionPartMap<u64>,
     output_sections: &OutputSections<'data, P>,
@@ -759,7 +759,7 @@ fn next_allocated_section_metrics<'data, P: Platform>(
 /// Checks if we've allocated space to any sections which aren't listed in our output ordering.
 /// Without this check, we'll fail in the write phase, but the failure message there is less
 /// helpful. No-op if debug assertions are off.
-pub(crate) fn validate_all_non_empty_sections_emitted<P: Platform>(
+pub(crate) fn validate_all_non_empty_sections_emitted<P: EnginePlatform>(
     sizes: &OutputSectionPartMap<u64>,
     output_sections: &OutputSections<P>,
     output_order: &OutputOrder,

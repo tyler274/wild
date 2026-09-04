@@ -1,6 +1,7 @@
 use super::ids::*;
 use super::sections::OutputSections;
 use super::types::*;
+use crate::layout::EnginePlatform;
 use crate::layout_rules::LocationCounter;
 use crate::layout_rules::SectionKind;
 use crate::linker_script;
@@ -60,7 +61,7 @@ pub(crate) struct OutputOrderBuilder<'scope, 'data, P: Platform> {
     pending_segment_starts: Vec<ProgramSegmentId>,
 }
 
-impl<'scope, 'data, P: Platform> OutputOrderBuilder<'scope, 'data, P> {
+impl<'scope, 'data, P: EnginePlatform> OutputOrderBuilder<'scope, 'data, P> {
     pub(crate) fn new(
         segment_defs: Vec<P::ProgramSegmentDef>,
         output_kind: OutputKind,
@@ -410,7 +411,7 @@ impl<'data> OutputOrder<'data> {
         self.script_section_order = order;
     }
 
-    pub(crate) fn display<'a, P: Platform>(
+    pub(crate) fn display<'a, P: EnginePlatform>(
         &'a self,
         sections: &'a OutputSections<'data, P>,
         program_segments: &'a ProgramSegments<P::ProgramSegmentDef>,
@@ -426,7 +427,7 @@ impl<'data> OutputOrder<'data> {
 /// Section-header order matching GNU ld `--emit-relocs`: each copied `SHT_REL` /
 /// `SHT_RELA` header sits immediately after its target. File layout is unchanged
 /// (reloc contents stay with the other non-ALLOC sections).
-pub(crate) fn section_header_order<'data, P: Platform>(
+pub(crate) fn section_header_order<'data, P: EnginePlatform>(
     output_order: &OutputOrder<'data>,
     output_sections: &OutputSections<'data, P>,
 ) -> Vec<OutputSectionId> {
@@ -464,7 +465,7 @@ pub(crate) fn section_header_order<'data, P: Platform>(
     out
 }
 
-fn copied_reloc_target<'data, P: Platform>(
+fn copied_reloc_target<'data, P: EnginePlatform>(
     id: OutputSectionId,
     output_sections: &OutputSections<'data, P>,
 ) -> Option<OutputSectionId> {
@@ -483,7 +484,7 @@ fn copied_reloc_target<'data, P: Platform>(
     output_sections.section_id_by_name(SectionName(target_name))
 }
 
-impl<'data, P: Platform> Display for OutputOrderDisplay<'_, 'data, P> {
+impl<'data, P: EnginePlatform> Display for OutputOrderDisplay<'_, 'data, P> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for event in &self.order.events {
             match event {

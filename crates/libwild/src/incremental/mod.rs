@@ -13,8 +13,8 @@ use crate::error::Result;
 use crate::hash::hash_bytes;
 use crate::input_data::FileId;
 use crate::input_data::InputFile;
+use crate::layout::EnginePlatform;
 use crate::platform::Args as _;
-use crate::platform::Platform;
 pub(crate) use atoms::AtomId;
 pub(crate) use atoms::AtomResolutions;
 pub(crate) use atoms::AtomTable;
@@ -504,7 +504,7 @@ fn file_inode(meta: &fs::Metadata) -> u64 {
     }
 }
 
-pub(crate) fn fallback_for_plugin_or_gc<P: Platform>(
+pub(crate) fn fallback_for_plugin_or_gc<P: EnginePlatform>(
     args: &P::Args,
     plugin_active: bool,
 ) -> Option<&'static str> {

@@ -103,8 +103,7 @@ fn run_lit_for_arch(
     test_config: &TestConfig,
     lit_binary: &PathBuf,
 ) -> Result {
-    let repo_root = crate::base_dir().join("..");
-    let cfg_src = repo_root.join("wild/tests/external_tests/wild-lit.site.cfg.py");
+    let cfg_src = crate::base_dir().join("tests/external_tests/wild-lit.site.cfg.py");
     let lit_tmp = tempfile::tempdir()?;
     std::os::unix::fs::symlink(&cfg_src, lit_tmp.path().join("wild-lit.site.cfg.py"))?;
     std::os::unix::fs::symlink(test_dir.join("ELF"), lit_tmp.path().join("ELF"))?;

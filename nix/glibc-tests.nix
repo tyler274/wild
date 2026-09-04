@@ -169,7 +169,7 @@ let
       set -euo pipefail
       build=''${WILD_GLIBC_BUILD:?WILD_GLIBC_BUILD is not set}
       repo=''${WILD_REPO:-$PWD}
-      artifacts=$repo/wild/tests/build/elf/x86_64
+      artifacts=$repo/crates/wild/tests/build/elf/x86_64
       libc_wild=$artifacts/glibc-libc/libc.so.wild
       ldso_wild=$artifacts/glibc-ldso/ld.so.wild
 

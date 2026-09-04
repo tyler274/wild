@@ -25,7 +25,6 @@ use rayon::ThreadPoolBuilder;
 use std::fmt::Display;
 use std::num::NonZeroUsize;
 use std::path::Path;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicI64;
 
@@ -388,58 +387,9 @@ impl Display for CopyRelocationsDisabledReason {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
-pub struct Modifiers {
-    /// Whether shared objects should only be linked if they're referenced.
-    pub(crate) as_needed: bool,
-
-    /// Whether we're currently allowed to link against shared libraries.
-    pub(crate) allow_shared: bool,
-
-    /// Whether object files in archives should be linked even if they do not contain symbols that
-    /// are referenced.
-    pub(crate) whole_archive: bool,
-
-    /// Whether archive semantics should be applied even for regular objects.
-    pub(crate) archive_semantics: bool,
-
-    /// Whether the file is known to be a temporary file that will be deleted when the linker
-    /// exits, e.g. an output file from a linker plugin. This doesn't affect linking, but is
-    /// stored in the layout file if written so that linker-diff knows not to error if the file
-    /// is missing.
-    pub(crate) temporary: bool,
-}
-
-impl Default for Modifiers {
-    fn default() -> Self {
-        Self {
-            as_needed: false,
-            allow_shared: true,
-            whole_archive: false,
-            archive_semantics: false,
-            temporary: false,
-        }
-    }
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub(crate) struct Input {
-    pub(crate) spec: InputSpec,
-    /// A directory to search first. Only present when the input came from a linker script, in
-    /// which case this is the directory containing the linker script.
-    pub(crate) search_first: Option<PathBuf>,
-    pub(crate) modifiers: Modifiers,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub(crate) enum InputSpec {
-    /// Path (possibly just a filename) to the file.
-    File(Box<Path>),
-    /// Name of the library, without prefix and suffix.
-    Lib(Box<str>),
-    /// Name of the library, including prefix and suffix.
-    Search(Box<str>),
-}
+pub(crate) use wild_scripts::Input;
+pub(crate) use wild_scripts::InputSpec;
+pub use wild_scripts::Modifiers;
 
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) enum BSymbolicKind {

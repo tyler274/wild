@@ -14,6 +14,7 @@ use crate::grouping::SequencedInputObject;
 use crate::input_data::FileId;
 use crate::input_data::InputRef;
 use crate::input_section_id::SectionIdRange;
+use crate::layout::EnginePlatform;
 use crate::output_section_id::OrderEvent;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSectionId;
@@ -143,7 +144,7 @@ pub(crate) struct SymbolResolutions<P: Platform> {
     pub(crate) resolutions: Vec<Option<Resolution<P>>>,
 }
 
-impl<P: Platform> SymbolResolutions<P> {
+impl<P: EnginePlatform> SymbolResolutions<P> {
     pub(crate) fn get(&self, symbol_id: SymbolId) -> Option<&Resolution<P>> {
         self.resolutions[symbol_id.as_usize()].as_ref()
     }
@@ -202,7 +203,7 @@ impl SectionResolution {
     }
 
     /// Converts to a resolution compatible with what's used for symbols.
-    pub(crate) fn full_resolution<P: Platform>(self) -> Option<Resolution<P>> {
+    pub(crate) fn full_resolution<P: EnginePlatform>(self) -> Option<Resolution<P>> {
         let address = self.address()?;
         Some(Resolution {
             raw_value: address,
@@ -436,7 +437,9 @@ pub(crate) enum SectionGroupOrder {
     Epilogue,
 }
 
-pub(crate) fn section_group_order<P: Platform>(files: &[FileLayoutState<P>]) -> SectionGroupOrder {
+pub(crate) fn section_group_order<P: EnginePlatform>(
+    files: &[FileLayoutState<P>],
+) -> SectionGroupOrder {
     let mut saw_object: Option<u32> = None;
     for file in files {
         match file {
@@ -574,7 +577,7 @@ pub(crate) struct GcLoadRequest<P: Platform> {
     pub(crate) gc_unit: P::GcUnit,
 }
 
-impl<P: Platform> WorkItem<P> {
+impl<P: EnginePlatform> WorkItem<P> {
     pub(crate) fn file_id(self, symbol_db: &SymbolDb<P>) -> FileId {
         match self {
             WorkItem::LoadGlobalSymbol(s) | WorkItem::CopyRelocateSymbol(s) => {
@@ -594,7 +597,7 @@ pub(crate) struct MemoryRegion {
     pub(crate) flags: Option<crate::linker_script::MemoryFlags>,
 }
 
-impl<'data, P: Platform> Layout<'data, P> {
+impl<'data, P: EnginePlatform> Layout<'data, P> {
     pub(crate) fn prelude(&self) -> &PreludeLayout<'data, P> {
         let Some(FileLayout::Prelude(i)) = self.group_layouts.first().and_then(|g| g.files.first())
         else {
@@ -963,14 +966,14 @@ pub(crate) struct ResolutionWriter<'writer, 'out, P: Platform> {
     pub(crate) resolutions_out: &'writer mut sharded_vec_writer::Shard<'out, Option<Resolution<P>>>,
 }
 
-impl<P: Platform> ResolutionWriter<'_, '_, P> {
+impl<P: EnginePlatform> ResolutionWriter<'_, '_, P> {
     pub(crate) fn write(&mut self, res: Option<Resolution<P>>) -> Result {
         self.resolutions_out.try_push(res)?;
         Ok(())
     }
 }
 
-impl<'data, P: Platform> resolution::ResolvedFile<'data, P> {
+impl<'data, P: EnginePlatform> resolution::ResolvedFile<'data, P> {
     pub(crate) fn create_layout_state(self, args: &P::Args) -> FileLayoutState<'data, P> {
         match self {
             resolution::ResolvedFile::Object(s) => new_object_layout_state(s),
@@ -997,7 +1000,7 @@ impl<'data, P: Platform> resolution::ResolvedFile<'data, P> {
     }
 }
 
-impl<P: Platform> Resolution<P> {
+impl<P: EnginePlatform> Resolution<P> {
     pub(crate) fn flags(self) -> ValueFlags {
         self.flags
     }
@@ -1089,7 +1092,7 @@ pub(crate) struct InputOrderItem {
     pub(crate) size: u64,
 }
 
-pub(crate) fn object_symbol_address_in_layout<'data, P: Platform>(
+pub(crate) fn object_symbol_address_in_layout<'data, P: EnginePlatform>(
     name: &[u8],
     obj: &SequencedInputObject<'data, P>,
     definition: SymbolId,
@@ -1132,7 +1135,7 @@ pub(crate) fn object_symbol_address_in_layout<'data, P: Platform>(
 
 /// Computes the maximum alignment for each LOAD segment by examining the alignments of all sections
 /// that will be placed in that segment.
-pub(crate) fn compute_segment_alignments<'data, P: Platform>(
+pub(crate) fn compute_segment_alignments<'data, P: EnginePlatform>(
     sizes: &OutputSectionPartMap<u64>,
     program_segments: &ProgramSegments<P::ProgramSegmentDef>,
     output_order: &OutputOrder<'data>,
@@ -1178,13 +1181,13 @@ pub(crate) fn compute_segment_alignments<'data, P: Platform>(
     segment_alignments
 }
 
-impl<'data, P: Platform> Layout<'data, P> {
+impl<'data, P: EnginePlatform> Layout<'data, P> {
     pub(crate) fn mem_address_of_built_in(&self, section_id: OutputSectionId) -> u64 {
         self.section_layouts.get(section_id).mem_offset
     }
 }
 
-impl<'scope, 'data, P: Platform> FinaliseLayoutResources<'scope, 'data, P> {
+impl<'scope, 'data, P: EnginePlatform> FinaliseLayoutResources<'scope, 'data, P> {
     pub(crate) fn symbol_debug<'a>(&'a self, symbol_id: SymbolId) -> SymbolDebug<'a, 'data, P> {
         self.symbol_db
             .symbol_debug(self.per_symbol_flags, symbol_id)

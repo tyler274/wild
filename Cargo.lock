@@ -876,6 +876,10 @@ dependencies = [
  "uuid",
  "wasm-encoder 0.258.0",
  "wasmparser 0.258.0",
+ "wild-error",
+ "wild-fs",
+ "wild-scripts",
+ "wild-util",
  "winnow",
  "zerocopy",
  "zlib-rs",
@@ -2146,6 +2150,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "wild-error"
+version = "0.10.0"
+dependencies = [
+ "anyhow",
+ "colored",
+]
+
+[[package]]
+name = "wild-fs"
+version = "0.10.0"
+dependencies = [
+ "ar",
+ "libc",
+ "memmap2",
+ "nix",
+ "object 0.40.0",
+ "wild-error",
+]
+
+[[package]]
 name = "wild-linker"
 version = "0.10.0"
 dependencies = [
@@ -2176,6 +2200,37 @@ dependencies = [
  "wait-timeout",
  "wasmparser 0.258.0",
  "which",
+]
+
+[[package]]
+name = "wild-scripts"
+version = "0.10.0"
+dependencies = [
+ "derive_more",
+ "glob",
+ "hashbrown 0.17.1",
+ "itertools 0.15.0",
+ "object 0.40.0",
+ "symbolic-common",
+ "symbolic-demangle",
+ "tracing",
+ "wild-error",
+ "wild-util",
+ "winnow",
+]
+
+[[package]]
+name = "wild-util"
+version = "0.10.0"
+dependencies = [
+ "derive_more",
+ "foldhash 0.2.0",
+ "glob",
+ "hashbrown 0.17.1",
+ "leb128",
+ "memchr",
+ "object 0.40.0",
+ "wild-error",
 ]
 
 [[package]]

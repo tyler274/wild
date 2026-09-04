@@ -6,6 +6,7 @@ use crate::args::Experiment;
 use crate::bail;
 use crate::error::Result;
 use crate::input_section_id::SectionIdRange;
+use crate::layout::EnginePlatform;
 use crate::output_section_id::OutputSections;
 use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
@@ -13,7 +14,6 @@ use crate::part_id::PartId;
 use crate::platform;
 use crate::platform::Args as _;
 use crate::platform::ObjectFile;
-use crate::platform::Platform;
 use crate::platform::Symbol as _;
 use crate::resolution::ResolvedFile;
 use crate::resolution::ResolvedGroup;
@@ -309,7 +309,7 @@ fn tail_merge_class(
 /// A string from a string-merge section. Includes the null terminator.
 /// Equality is by content only; alignment is upgraded to the max of all
 /// occurrences (bfd 2.46 `sec_merge_hash_lookup`).
-pub(crate) fn merge_strings<'data, P: Platform>(
+pub(crate) fn merge_strings<'data, P: EnginePlatform>(
     inputs: &StringMergeInputs<'data>,
     output_sections: &OutputSections<P>,
     args: &P::Args,
@@ -373,7 +373,7 @@ pub(crate) fn merge_strings<'data, P: Platform>(
 }
 
 impl<'data> StringMergeInputs<'data> {
-    pub(crate) fn new<P: Platform>(
+    pub(crate) fn new<P: EnginePlatform>(
         resolved: &mut [ResolvedGroup<'data, P>],
         section_part_ids: &[crate::part_id::PartId],
         output_sections: &OutputSections<P>,
@@ -391,7 +391,7 @@ impl<'data> StringMergeInputs<'data> {
 // Gather up all the string-merge sections, grouping them by their output section ID. We return a
 // reference to the `MergeStringsFileSection` rather than copying it because it appears to be
 // faster.
-fn group_merge_string_sections_by_output<'data, P: Platform>(
+fn group_merge_string_sections_by_output<'data, P: EnginePlatform>(
     resolved: &mut [ResolvedGroup<'data, P>],
     section_part_ids: &[crate::part_id::PartId],
     output_sections: &OutputSections<P>,
@@ -584,7 +584,7 @@ impl BucketOffset {
 /// Looks for a merged string at `symbol_index` + `addend` in the input and if found, returns its
 /// address in the output.
 #[inline(always)]
-pub(crate) fn get_merged_string_output_address<'data, P: Platform>(
+pub(crate) fn get_merged_string_output_address<'data, P: EnginePlatform>(
     symbol_index: object::SymbolIndex,
     addend: i64,
     object: &P::File<'data>,
@@ -691,7 +691,7 @@ pub(super) fn find_string(
 }
 
 impl MergedStringStartAddresses {
-    pub(crate) fn compute<P: Platform>(
+    pub(crate) fn compute<P: EnginePlatform>(
         output_sections: &OutputSections<'_, P>,
         starting_mem_offsets_by_group: &[OutputSectionPartMap<u64>],
         merge_string_sections: &OutputSectionMap<MergedStringsSection>,

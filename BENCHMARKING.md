@@ -381,7 +381,7 @@ For more details, see the [dhat docs](https://docs.rs/dhat/latest/dhat/).
 ### Generating report-style benchmarks
 
 Benchmarks such as [benchmarks/ryzen-9955hx.md](benchmarks/ryzen-9955hx.md) are generated using the
-tool in `benchmarks/runner`. You'll need a directory containing one or more "save-dirs" where the
+tool in `crates/benchmarks/runner`. You'll need a directory containing one or more "save-dirs" where the
 names of the directories are the names of the benchmarks.
 
 ```sh

@@ -2,46 +2,46 @@
 //! Read trait and we want to borrow the data of each entry. We do however use the ar crate as a dev
 //! dependency in our tests so that we can verify consistency.
 
-use crate::error::Result;
 use crate::fs::path_from_bytes;
 use std::ops::Range;
 use std::path::PathBuf;
+use wild_error::error::Result;
 
-pub(crate) enum ArchiveEntry<'data> {
+pub enum ArchiveEntry<'data> {
     Regular(ArchiveContent<'data>),
     Thin(ThinEntry<'data>),
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct Identifier<'data> {
+pub struct Identifier<'data> {
     data: &'data [u8],
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct EntryMeta<'data> {
-    pub(crate) identifier: Identifier<'data>,
+pub struct EntryMeta<'data> {
+    pub identifier: Identifier<'data>,
 
     /// Where in the original archive file the entry came from, not including the entry header.
-    pub(crate) start_offset: usize,
+    pub start_offset: usize,
 
     // Exclusive end offset of where the entry came from in the archive.
-    pub(crate) end_offset: usize,
+    pub end_offset: usize,
 }
 
-pub(crate) struct ArchiveContent<'data> {
-    pub(crate) ident: Identifier<'data>,
+pub struct ArchiveContent<'data> {
+    pub ident: Identifier<'data>,
 
-    pub(crate) entry_data: &'data [u8],
+    pub entry_data: &'data [u8],
 
     /// The offset in the archive at which the data is from.
-    pub(crate) data_offset: usize,
+    pub data_offset: usize,
 }
 
-pub(crate) struct ThinEntry<'data> {
-    pub(crate) ident: Identifier<'data>,
+pub struct ThinEntry<'data> {
+    pub ident: Identifier<'data>,
 }
 
-pub(crate) struct ArchiveIterator<'data> {
+pub struct ArchiveIterator<'data> {
     data: &'data [u8],
     is_thin: bool,
     iter: object::read::archive::ArchiveMemberIterator<'data>,
@@ -50,7 +50,7 @@ pub(crate) struct ArchiveIterator<'data> {
 impl<'data> ArchiveIterator<'data> {
     /// Create an iterator from the bytes of the whole archive. The supplied bytes should start with
     /// an archive entry.
-    pub(crate) fn from_archive_bytes(data: &'data [u8]) -> Result<Self> {
+    pub fn from_archive_bytes(data: &'data [u8]) -> Result<Self> {
         let file = object::read::archive::ArchiveFile::parse(data)?;
 
         Ok(Self {
@@ -88,17 +88,17 @@ impl<'data> Iterator for ArchiveIterator<'data> {
 }
 
 impl<'data> Identifier<'data> {
-    pub(crate) fn as_slice(&self) -> &'data [u8] {
+    pub fn as_slice(&self) -> &'data [u8] {
         self.data
     }
 
-    pub(crate) fn as_path(&self) -> PathBuf {
+    pub fn as_path(&self) -> PathBuf {
         path_from_bytes(self.as_slice())
     }
 }
 
 impl<'data> EntryMeta<'data> {
-    pub(crate) fn byte_range(&self) -> Range<usize> {
+    pub fn byte_range(&self) -> Range<usize> {
         self.start_offset..self.end_offset
     }
 }
@@ -106,11 +106,11 @@ impl<'data> EntryMeta<'data> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bail;
-    use crate::error::Context as _;
-    use crate::error::Result;
     use std::io::Read;
     use std::path::Path;
+    use wild_error::bail;
+    use wild_error::error::Context as _;
+    use wild_error::error::Result;
 
     #[derive(Default)]
     struct Summary {

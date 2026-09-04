@@ -9,6 +9,7 @@ use crate::glob_match::analyze_glob_pattern;
 use crate::glob_match::compile_glob_pattern;
 use crate::glob_match::unescape_pattern;
 use crate::hash::hash_bytes;
+use crate::layout::EnginePlatform;
 use crate::linker_script::OnlyIf;
 use crate::output_section_id::OutputSectionId;
 use crate::platform::Platform;
@@ -257,7 +258,7 @@ impl<'data> SectionRules<'data> {
     }
 
     #[inline(always)]
-    pub(crate) fn lookup<P: Platform>(
+    pub(crate) fn lookup<P: EnginePlatform>(
         &self,
         section_name: &[u8],
         file_name: Option<&[u8]>,
@@ -327,7 +328,7 @@ fn section_name_prefix_hash(name: &[u8]) -> Option<u64> {
 }
 
 /// Determines, where if anywhere, we should place an input section with no name.
-pub(crate) fn unnamed_section_output<P: Platform>(
+pub(crate) fn unnamed_section_output<P: EnginePlatform>(
     section_header: &impl SectionHeader,
 ) -> SectionRuleOutcome {
     if !section_header.is_alloc() {

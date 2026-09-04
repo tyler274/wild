@@ -1,0 +1,21 @@
+[package]
+name = "wild-util"
+description = "Shared utilities for the Wild linker"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+
+[dependencies]
+derive_more.workspace = true
+foldhash.workspace = true
+glob.workspace = true
+hashbrown.workspace = true
+leb128.workspace = true
+memchr.workspace = true
+object.workspace = true
+wild-error = { path = "../wild-error", version = "0.10.0" }
+
+[lints]
+workspace = true

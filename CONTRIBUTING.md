@@ -176,7 +176,7 @@ WILD_TEST_CONFIG=path_to_config cargo test
 C and C++ files follow Google style from clang-format that is enforced by an unit test. You can use the following command to format them:
 
 ```sh
-clang-format -i wild/tests/sources/*.{c,cc,h}
+clang-format -i crates/wild/tests/sources/*.{c,cc,h}
 ```
 
 Newer versions of clang-format might produce slightly different formatting.
@@ -208,7 +208,7 @@ cargo test --features external_tests
 
 Some tests are configured to be skipped by default. A list of these skipped tests can be found at:
 
-[wild/tests/external_tests/mold_skip_tests.toml](./wild/tests/external_tests/mold_skip_tests.toml): for the mold tests.
+[wild/tests/external_tests/mold_skip_tests.toml](./crates/wild/tests/external_tests/mold_skip_tests.toml): for the mold tests.
 
 However, you can also run the tests without skipping any of them:
 

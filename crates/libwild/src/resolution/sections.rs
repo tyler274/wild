@@ -3,6 +3,7 @@ use crate::LayoutRules;
 use crate::alignment::Alignment;
 use crate::bail;
 use crate::error::Result;
+use crate::layout::EnginePlatform;
 use crate::layout_rules::SectionOutputInfo;
 use crate::layout_rules::SectionRuleOutcome;
 use crate::layout_rules::SectionRules;
@@ -15,7 +16,6 @@ use crate::part_id::PartId;
 use crate::platform::Args as _;
 use crate::platform::ObjectFile;
 use crate::platform::OrphanHandling;
-use crate::platform::Platform;
 use crate::platform::SectionHeader as _;
 use crate::string_merging::StringMergeSectionExtra;
 use crate::string_merging::StringMergeSectionSlot;
@@ -29,7 +29,7 @@ use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
 use std::borrow::Cow;
 
-pub(super) fn resolve_sections<'data, P: Platform>(
+pub(super) fn resolve_sections<'data, P: EnginePlatform>(
     groups: &mut [ResolvedGroup<'data, P>],
     symbol_db: &mut SymbolDb<'data, P>,
     layout_rules: &LayoutRules<'data>,
@@ -118,7 +118,7 @@ pub(super) fn resolve_sections<'data, P: Platform>(
     Ok(())
 }
 
-fn only_if_writable_sections<'data, P: Platform>(
+fn only_if_writable_sections<'data, P: EnginePlatform>(
     groups: &[ResolvedGroup<'data, P>],
     rules: &SectionRules,
 ) -> HashSet<crate::output_section_id::OutputSectionId> {
@@ -147,7 +147,7 @@ fn only_if_writable_sections<'data, P: Platform>(
     writable
 }
 
-fn object_match_file_name<'data, P: Platform>(
+fn object_match_file_name<'data, P: EnginePlatform>(
     obj: &ResolvedObject<'data, P>,
 ) -> Option<&'data [u8]> {
     if let Some(entry) = &obj.common.input.entry {
@@ -162,7 +162,7 @@ fn object_match_file_name<'data, P: Platform>(
     }
 }
 
-pub(super) fn assign_section_ids<'data, P: Platform>(
+pub(super) fn assign_section_ids<'data, P: EnginePlatform>(
     resolved: &mut [ResolvedGroup<'data, P>],
     section_part_ids: &mut [PartId],
     output_sections: &mut OutputSections<'data, P>,
@@ -185,7 +185,7 @@ pub(super) fn assign_section_ids<'data, P: Platform>(
         }
     }
 }
-fn apply_init_fini_secondaries<'data, P: Platform>(
+fn apply_init_fini_secondaries<'data, P: EnginePlatform>(
     details: &[InitFiniSectionDetail],
     sections: &[SectionSlot],
     section_part_ids: &mut [PartId],
@@ -206,7 +206,7 @@ fn apply_init_fini_secondaries<'data, P: Platform>(
         section_part_ids[d.index as usize] = sid.part_id_with_alignment::<P>(d.alignment);
     }
 }
-fn resolve_sections_for_object<'data, P: Platform>(
+fn resolve_sections_for_object<'data, P: EnginePlatform>(
     obj: &mut ResolvedObject<'data, P>,
     args: &P::Args,
     allocator: &bumpalo_herd::Member<'data>,
@@ -244,7 +244,7 @@ fn resolve_sections_for_object<'data, P: Platform>(
     Ok((sections, section_part_ids))
 }
 
-fn part_id_for_output<P: Platform>(
+fn part_id_for_output<P: EnginePlatform>(
     output_info: &SectionOutputInfo,
     alignment: Alignment,
 ) -> PartId {
@@ -262,7 +262,7 @@ fn part_id_for_output<P: Platform>(
 }
 
 #[inline(always)]
-fn resolve_section<'data, P: Platform>(
+fn resolve_section<'data, P: EnginePlatform>(
     input_section_index: SectionIndex,
     input_section: &'data P::SectionHeader,
     obj: &mut ResolvedObject<'data, P>,
@@ -446,7 +446,7 @@ fn resolve_section<'data, P: Platform>(
     Ok((slot, part_id))
 }
 
-fn apply_orphan_handling<P: Platform>(
+fn apply_orphan_handling<P: EnginePlatform>(
     args: &P::Args,
     outcome: SectionRuleOutcome,
     section_name: &[u8],
@@ -476,7 +476,7 @@ fn apply_orphan_handling<P: Platform>(
 /// GNU `--emit-relocs` names copied reloc sections after the *output* section that
 /// contains the target (`.data.rel.local` in `.data` → `.rela.data`), not the
 /// input reloc name (`.rela.data.rel.local`).
-fn emit_relocs_section_name<'data, P: Platform>(
+fn emit_relocs_section_name<'data, P: EnginePlatform>(
     input_section: &P::SectionHeader,
     input_section_name: &'data [u8],
     object: &P::File<'data>,
@@ -515,7 +515,7 @@ fn emit_relocs_section_name<'data, P: Platform>(
     Some(allocator.alloc_slice_copy(&name))
 }
 
-pub(super) fn populate_start_stop_sections<'data, P: Platform>(
+pub(super) fn populate_start_stop_sections<'data, P: EnginePlatform>(
     resolved: &[ResolvedGroup<'data, P>],
     section_part_ids: &[PartId],
     output_sections: &OutputSections<'data, P>,

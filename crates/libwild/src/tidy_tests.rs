@@ -7,6 +7,14 @@ use crate::error::Result;
 use std::fs::read_dir;
 use std::path::Path;
 
+fn repo_root() -> &'static Path {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+}
+
 #[test]
 fn check_sources_format() -> Result {
     use std::process::Command;
@@ -39,9 +47,8 @@ fn check_sources_format() -> Result {
     }
 
     let extensions = ["c", "cc", "h"];
-    let sources_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
+    let sources_path = repo_root()
+        .join("crates")
         .join("wild")
         .join("tests")
         .join("sources");
@@ -101,7 +108,7 @@ fn check_toml_format() -> Result {
         return Ok(());
     }
 
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let root = repo_root();
 
     let taplo_out = Command::new("taplo")
         .arg("format")
@@ -197,7 +204,7 @@ fn check_text_files() -> Result {
         Ok(())
     }
 
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let root = repo_root();
 
     let mut problems = Vec::new();
     verify_path(root, &mut problems)?;

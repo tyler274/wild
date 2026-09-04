@@ -2,18 +2,18 @@ mod expr;
 mod sections;
 
 use super::ast::*;
-use crate::args::Input;
-use crate::args::InputSpec;
-use crate::args::Modifiers;
-use crate::error;
-use crate::error::Context as _;
-use crate::error::Result;
+use crate::inputs::Input;
+use crate::inputs::InputSpec;
+use crate::inputs::Modifiers;
 #[allow(unused_imports)]
-pub(crate) use expr::*;
+pub use expr::*;
 use object::Wrap;
 #[allow(unused_imports)]
-pub(crate) use sections::*;
+pub use sections::*;
 use std::path::Path;
+use wild_error::error;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use winnow::BStr;
 use winnow::Parser as _;
 use winnow::ascii::multispace0;
@@ -27,7 +27,7 @@ use winnow::token::take_until;
 use winnow::token::take_while;
 
 impl<'data> LinkerScript<'data> {
-    pub(crate) fn parse(bytes: &'data [u8], path: &Path) -> Result<LinkerScript<'data>> {
+    pub fn parse(bytes: &'data [u8], path: &Path) -> Result<LinkerScript<'data>> {
         let commands = parse_commands.parse(BStr::new(bytes)).map_err(|error| {
             error!(
                 "Failed to parse linker script `{}`:\n{error}",
@@ -40,7 +40,7 @@ impl<'data> LinkerScript<'data> {
 
     /// Recursively expand `INCLUDE` commands. `load` maps an include path to the included file's
     /// bytes (which must live as long as `'data`).
-    pub(crate) fn expand_includes(
+    pub fn expand_includes(
         &mut self,
         load: &mut dyn FnMut(&[u8]) -> Result<&'data [u8]>,
     ) -> Result {
@@ -49,7 +49,7 @@ impl<'data> LinkerScript<'data> {
         Ok(())
     }
 
-    pub(crate) fn foreach_input(
+    pub fn foreach_input(
         &self,
         starting_modifiers: Modifiers,
         mut cb: impl FnMut(Input) -> Result,
@@ -58,7 +58,7 @@ impl<'data> LinkerScript<'data> {
         Ok(())
     }
 
-    pub(crate) fn get_version_script_content(&self) -> Option<&'data [u8]> {
+    pub fn get_version_script_content(&self) -> Option<&'data [u8]> {
         self.commands.iter().find_map(|cmd| match cmd {
             Command::Version(content) => Some(*content),
             _ => None,
@@ -66,7 +66,7 @@ impl<'data> LinkerScript<'data> {
     }
 }
 
-pub(crate) fn parse_token<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
+pub fn parse_token<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
     if input.starts_with(b"\"") {
         '"'.parse_next(input)?;
         let content = take_until(0.., "\"").parse_next(input)?;
@@ -78,7 +78,7 @@ pub(crate) fn parse_token<'input>(input: &mut &'input BStr) -> winnow::Result<&'
     }
 }
 
-pub(crate) fn skip_comments_and_whitespace(input: &mut &BStr) -> winnow::Result<()> {
+pub fn skip_comments_and_whitespace(input: &mut &BStr) -> winnow::Result<()> {
     loop {
         multispace0(input)?;
 
@@ -97,16 +97,14 @@ pub(crate) fn skip_comments_and_whitespace(input: &mut &BStr) -> winnow::Result<
     }
 }
 
-pub(crate) fn parse_paren_group<'input>(
-    input: &mut &'input BStr,
-) -> winnow::Result<Vec<Command<'input>>> {
+pub fn parse_paren_group<'input>(input: &mut &'input BStr) -> winnow::Result<Vec<Command<'input>>> {
     '('.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
     let (group_contents, _) = repeat_till(0.., parse_command, ')').parse_next(input)?;
     Ok(group_contents)
 }
 
-pub(crate) fn parse_command<'input>(input: &mut &'input BStr) -> winnow::Result<Command<'input>> {
+pub fn parse_command<'input>(input: &mut &'input BStr) -> winnow::Result<Command<'input>> {
     let command_str = parse_token(input)?;
 
     skip_comments_and_whitespace(input)?;
@@ -160,7 +158,7 @@ pub(crate) fn parse_command<'input>(input: &mut &'input BStr) -> winnow::Result<
     Ok(command)
 }
 
-pub(crate) fn parse_provide<'input>(
+pub fn parse_provide<'input>(
     input: &mut &'input BStr,
     hidden: bool,
 ) -> winnow::Result<ProvideSymbolDefinition<'input>> {
@@ -184,9 +182,7 @@ pub(crate) fn parse_provide<'input>(
     })
 }
 
-pub(crate) fn parse_assert<'input>(
-    input: &mut &'input BStr,
-) -> winnow::Result<AssertCommand<'input>> {
+pub fn parse_assert<'input>(input: &mut &'input BStr) -> winnow::Result<AssertCommand<'input>> {
     let remainder: &'input [u8] = input;
     '('.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
@@ -212,7 +208,7 @@ pub(crate) fn parse_assert<'input>(
     })
 }
 
-pub(crate) fn parse_include_path<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
+pub fn parse_include_path<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
     skip_comments_and_whitespace(input)?;
     let has_paren = opt('(').parse_next(input)?.is_some();
     skip_comments_and_whitespace(input)?;
@@ -227,7 +223,7 @@ pub(crate) fn parse_include_path<'input>(input: &mut &'input BStr) -> winnow::Re
     Ok(path)
 }
 
-pub(crate) fn parse_memory_flags(input: &mut &BStr) -> winnow::Result<MemoryFlags> {
+pub fn parse_memory_flags(input: &mut &BStr) -> winnow::Result<MemoryFlags> {
     '('.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
     let flags_bytes = take_while(0.., |b: u8| b != b')').parse_next(input)?;
@@ -245,7 +241,7 @@ pub(crate) fn parse_memory_flags(input: &mut &BStr) -> winnow::Result<MemoryFlag
     Ok(flags)
 }
 
-pub(crate) fn parse_memory_region<'input>(
+pub fn parse_memory_region<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<MemoryRegion<'input>> {
     let name = parse_token(input)?;
@@ -290,9 +286,7 @@ pub(crate) fn parse_memory_region<'input>(
     })
 }
 
-pub(crate) fn parse_memory<'input>(
-    input: &mut &'input BStr,
-) -> winnow::Result<Vec<MemoryRegion<'input>>> {
+pub fn parse_memory<'input>(input: &mut &'input BStr) -> winnow::Result<Vec<MemoryRegion<'input>>> {
     '{'.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
     let (regions, _) = repeat_till(0.., parse_memory_region, '}').parse_next(input)?;
@@ -301,7 +295,7 @@ pub(crate) fn parse_memory<'input>(
     Ok(regions)
 }
 
-pub(crate) fn parse_phdr<'input>(input: &mut &'input BStr) -> winnow::Result<Phdr<'input>> {
+pub fn parse_phdr<'input>(input: &mut &'input BStr) -> winnow::Result<Phdr<'input>> {
     let name = parse_token(input)?;
     skip_comments_and_whitespace(input)?;
 
@@ -371,7 +365,7 @@ pub(crate) fn parse_phdr<'input>(input: &mut &'input BStr) -> winnow::Result<Phd
     })
 }
 
-pub(crate) fn parse_phdrs<'input>(input: &mut &'input BStr) -> winnow::Result<Vec<Phdr<'input>>> {
+pub fn parse_phdrs<'input>(input: &mut &'input BStr) -> winnow::Result<Vec<Phdr<'input>>> {
     '{'.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
     let (phdrs, _) = repeat_till(0.., parse_phdr, '}').parse_next(input)?;
@@ -380,7 +374,7 @@ pub(crate) fn parse_phdrs<'input>(input: &mut &'input BStr) -> winnow::Result<Ve
     Ok(phdrs)
 }
 
-pub(crate) fn parse_output_format<'input>(
+pub fn parse_output_format<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<OutputFormat<'input>> {
     '('.parse_next(input)?;
@@ -407,7 +401,7 @@ pub(crate) fn parse_output_format<'input>(
     })
 }
 
-pub(crate) fn parse_output_arch<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
+pub fn parse_output_arch<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
     skip_comments_and_whitespace(input)?;
     '('.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
@@ -417,15 +411,13 @@ pub(crate) fn parse_output_arch<'input>(input: &mut &'input BStr) -> winnow::Res
     Ok(arch)
 }
 
-pub(crate) fn parse_commands<'input>(
-    input: &mut &'input BStr,
-) -> winnow::Result<Vec<Command<'input>>> {
+pub fn parse_commands<'input>(input: &mut &'input BStr) -> winnow::Result<Vec<Command<'input>>> {
     skip_comments_and_whitespace(input)?;
 
     Ok(repeat_till(0.., parse_command, eof).parse_next(input)?.0)
 }
 
-pub(crate) fn expand_commands<'data>(
+pub fn expand_commands<'data>(
     commands: Vec<Command<'data>>,
     load: &mut dyn FnMut(&[u8]) -> Result<&'data [u8]>,
     stack: &mut Vec<Vec<u8>>,
@@ -454,7 +446,7 @@ pub(crate) fn expand_commands<'data>(
     Ok(out)
 }
 
-pub(crate) fn expand_section_commands<'data>(
+pub fn expand_section_commands<'data>(
     commands: Vec<SectionCommand<'data>>,
     load: &mut dyn FnMut(&[u8]) -> Result<&'data [u8]>,
     stack: &mut Vec<Vec<u8>>,
@@ -471,7 +463,7 @@ pub(crate) fn expand_section_commands<'data>(
     Ok(out)
 }
 
-pub(crate) fn load_included_script<'data>(
+pub fn load_included_script<'data>(
     path: &[u8],
     load: &mut dyn FnMut(&[u8]) -> Result<&'data [u8]>,
     stack: &mut Vec<Vec<u8>>,
@@ -486,7 +478,7 @@ pub(crate) fn load_included_script<'data>(
     Ok(expanded)
 }
 
-pub(crate) fn load_included_section_commands<'data>(
+pub fn load_included_section_commands<'data>(
     path: &[u8],
     load: &mut dyn FnMut(&[u8]) -> Result<&'data [u8]>,
     stack: &mut Vec<Vec<u8>>,
@@ -506,7 +498,7 @@ pub(crate) fn load_included_section_commands<'data>(
     Ok(expanded)
 }
 
-pub(crate) fn section_commands_from_top_level<'data>(
+pub fn section_commands_from_top_level<'data>(
     commands: Vec<Command<'data>>,
 ) -> Result<Vec<SectionCommand<'data>>> {
     let mut out = Vec::new();
@@ -524,28 +516,28 @@ pub(crate) fn section_commands_from_top_level<'data>(
             }
             Command::Include(path) => out.push(SectionCommand::Include(path)),
             Command::Arg(name) => {
-                crate::bail!(
+                wild_error::bail!(
                     "INCLUDE inside SECTIONS cannot contain `{}`",
                     String::from_utf8_lossy(name)
                 );
             }
             _ => {
-                crate::bail!("INCLUDE inside SECTIONS cannot contain that top-level command");
+                wild_error::bail!("INCLUDE inside SECTIONS cannot contain that top-level command");
             }
         }
     }
     Ok(out)
 }
 
-pub(crate) fn push_include_path(path: &[u8], stack: &mut Vec<Vec<u8>>) -> Result {
+pub fn push_include_path(path: &[u8], stack: &mut Vec<Vec<u8>>) -> Result {
     if stack.iter().any(|p| p == path) {
-        crate::bail!("cyclic INCLUDE of `{}`", String::from_utf8_lossy(path));
+        wild_error::bail!("cyclic INCLUDE of `{}`", String::from_utf8_lossy(path));
     }
     stack.push(path.to_vec());
     Ok(())
 }
 
-pub(crate) fn parse_entry<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
+pub fn parse_entry<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
     skip_comments_and_whitespace(input)?;
     '('.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
@@ -555,7 +547,7 @@ pub(crate) fn parse_entry<'input>(input: &mut &'input BStr) -> winnow::Result<&'
     Ok(symbol_name)
 }
 
-pub(crate) fn parse_version<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
+pub fn parse_version<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
     skip_comments_and_whitespace(input)?;
     '{'.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
@@ -587,7 +579,7 @@ pub(crate) fn parse_version<'input>(input: &mut &'input BStr) -> winnow::Result<
 }
 
 /// Call `cb` for each input file requested by `commands`.
-pub(crate) fn foreach_input(
+pub fn foreach_input(
     commands: &[Command],
     modifiers: Modifiers,
     cb: &mut impl FnMut(Input) -> Result,
@@ -621,13 +613,13 @@ pub(crate) fn foreach_input(
     Ok(())
 }
 
-pub(crate) fn to_str(bytes: &[u8]) -> Result<&str> {
+pub fn to_str(bytes: &[u8]) -> Result<&str> {
     std::str::from_utf8(bytes)
         .with_context(|| format!("Expected UTF-8, found `{}`", String::from_utf8_lossy(bytes)))
 }
 
 #[derive(Debug)]
-pub(crate) enum LinkerScriptError {
+pub enum LinkerScriptError {
     InvalidAlignment,
     UnclosedComment,
     UnsupportedNestedSort,

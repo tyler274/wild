@@ -33,6 +33,7 @@ use linker_utils::elf::RelocationKind;
 use std::sync::Mutex;
 
 pub(crate) mod addresses;
+pub(crate) mod engine;
 pub(crate) mod graph;
 pub(crate) mod script;
 pub(crate) mod sections;
@@ -40,19 +41,33 @@ pub(crate) mod sizes;
 pub(crate) mod types;
 
 pub(crate) use addresses::*;
+pub(crate) use engine::EnginePlatform;
+pub(crate) use engine::EngineScope;
+pub(crate) use engine::EngineWriter;
+pub(crate) use engine::platform_finalise_layout;
+pub(crate) use engine::platform_finalise_sizes;
+pub(crate) use engine::platform_graph;
+#[cfg(all(feature = "plugins", unix))]
+pub(crate) use engine::platform_resolution;
+pub(crate) use engine::platform_resolution_writer;
 pub(crate) use graph::*;
 pub(crate) use script::*;
 pub(crate) use sections::*;
 pub(crate) use sizes::*;
 pub(crate) use types::*;
 
-pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
+pub fn compute<'data, P, A, F>(
     symbol_db: SymbolDb<'data, A::Platform>,
     mut per_symbol_flags: PerSymbolFlags,
     mut groups: Vec<ResolvedGroup<'data, A::Platform>>,
     mut output_sections: OutputSections<'data, P>,
     output: &mut file_writer::Output<F>,
-) -> Result<Layout<'data, A::Platform>> {
+) -> Result<Layout<'data, A::Platform>>
+where
+    P: EnginePlatform,
+    A: Arch<Platform = P>,
+    F: FileSystem,
+{
     timing_phase!("Layout");
 
     let layout_resources_ext = <A::Platform as Platform>::layout_resources_ext(&symbol_db.groups);
@@ -517,7 +532,7 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
     Ok(layout)
 }
 
-pub(crate) fn objects_iter<'groups, 'data, P: Platform>(
+pub(crate) fn objects_iter<'groups, 'data, P: EnginePlatform>(
     group_states: &'groups [GroupState<'data, P>],
 ) -> impl Iterator<Item = &'groups ObjectLayoutState<'data, P>> + Clone {
     group_states.iter().flat_map(|group| {
@@ -528,7 +543,7 @@ pub(crate) fn objects_iter<'groups, 'data, P: Platform>(
     })
 }
 
-pub(crate) fn section_debug<P: Platform>(
+pub(crate) fn section_debug<P: EnginePlatform>(
     object: &P::File<'_>,
     section_index: object::SectionIndex,
 ) -> impl std::fmt::Display {

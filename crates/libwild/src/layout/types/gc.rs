@@ -6,6 +6,7 @@ use crate::error::Context;
 use crate::error::Error;
 use crate::error::Result;
 use crate::input_data::FileId;
+use crate::layout::EnginePlatform;
 use crate::layout::graph::*;
 use crate::layout::sizes::*;
 use crate::output_section_id::OutputSectionId;
@@ -40,7 +41,7 @@ pub(crate) trait HandlerData {
     fn file_id(&self) -> FileId;
 }
 
-pub(crate) trait SymbolRequestHandler<'data, P: Platform>:
+pub(crate) trait SymbolRequestHandler<'data, P: EnginePlatform>:
     std::fmt::Display + HandlerData
 {
     fn finalise_symbol_sizes<A: Arch<Platform = P>>(
@@ -102,7 +103,7 @@ impl<'data, P: Platform> HandlerData for ObjectLayoutState<'data, P> {
     }
 }
 
-impl<'data, P: Platform> SymbolRequestHandler<'data, P> for ObjectLayoutState<'data, P> {
+impl<'data, P: EnginePlatform> SymbolRequestHandler<'data, P> for ObjectLayoutState<'data, P> {
     fn load_symbol<'scope, A: Arch<Platform = P>>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
@@ -147,7 +148,7 @@ impl<'data, P: Platform> HandlerData for DynamicLayoutState<'data, P> {
     }
 }
 
-impl<'data, P: Platform> SymbolRequestHandler<'data, P> for DynamicLayoutState<'data, P> {
+impl<'data, P: EnginePlatform> SymbolRequestHandler<'data, P> for DynamicLayoutState<'data, P> {
     fn load_symbol<'scope, A: Arch<Platform = P>>(
         &mut self,
         _common: &mut CommonGroupState<'data, P>,
@@ -180,7 +181,7 @@ impl<P: Platform> HandlerData for PreludeLayoutState<'_, P> {
     }
 }
 
-impl<'data, P: Platform> SymbolRequestHandler<'data, P> for PreludeLayoutState<'data, P> {
+impl<'data, P: EnginePlatform> SymbolRequestHandler<'data, P> for PreludeLayoutState<'data, P> {
     fn load_symbol<'scope, A: Arch<Platform = P>>(
         &mut self,
         _common: &mut CommonGroupState<'data, P>,
@@ -203,7 +204,9 @@ impl<P: Platform> HandlerData for LinkerScriptLayoutState<'_, P> {
     }
 }
 
-impl<'data, P: Platform> SymbolRequestHandler<'data, P> for LinkerScriptLayoutState<'data, P> {
+impl<'data, P: EnginePlatform> SymbolRequestHandler<'data, P>
+    for LinkerScriptLayoutState<'data, P>
+{
     fn load_symbol<'scope, A: Arch<Platform = P>>(
         &mut self,
         _common: &mut CommonGroupState<'data, P>,
@@ -226,7 +229,7 @@ impl<P: Platform> HandlerData for StubLibraryLayoutState<'_, P> {
     }
 }
 
-impl<'data, P: Platform> SymbolRequestHandler<'data, P> for StubLibraryLayoutState<'data, P> {
+impl<'data, P: EnginePlatform> SymbolRequestHandler<'data, P> for StubLibraryLayoutState<'data, P> {
     fn load_symbol<'scope, A: Arch<Platform = P>>(
         &mut self,
         _common: &mut CommonGroupState<'data, P>,
@@ -249,7 +252,9 @@ impl<P: Platform> HandlerData for SyntheticSymbolsLayoutState<'_, P> {
     }
 }
 
-impl<'data, P: Platform> SymbolRequestHandler<'data, P> for SyntheticSymbolsLayoutState<'data, P> {
+impl<'data, P: EnginePlatform> SymbolRequestHandler<'data, P>
+    for SyntheticSymbolsLayoutState<'data, P>
+{
     fn load_symbol<'scope, A: Arch<Platform = P>>(
         &mut self,
         _common: &mut CommonGroupState<'data, P>,
@@ -281,7 +286,7 @@ impl<'data, P: Platform> SymbolRequestHandler<'data, P> for SyntheticSymbolsLayo
     }
 }
 
-impl<'data, P: Platform> CommonGroupState<'data, P> {
+impl<'data, P: EnginePlatform> CommonGroupState<'data, P> {
     pub(crate) fn new(output_sections: &OutputSections<P>) -> Self {
         Self {
             mem_sizes: output_sections.new_part_map(),
@@ -352,7 +357,7 @@ impl<'data, P: Platform> CommonGroupState<'data, P> {
     }
 }
 
-impl<'data, P: Platform> GroupActivationInputs<'data, P> {
+impl<'data, P: EnginePlatform> GroupActivationInputs<'data, P> {
     pub(crate) fn activate_group<'scope, A: Arch<Platform = P>>(
         self,
         resources: &'scope GraphResources<'data, '_, P>,
@@ -392,7 +397,7 @@ impl<'data, P: Platform> GroupActivationInputs<'data, P> {
     }
 }
 
-impl<'data, P: Platform> GroupState<'data, P> {
+impl<'data, P: EnginePlatform> GroupState<'data, P> {
     /// Does work until there's nothing left in the queue, then returns our worker to its slot and
     /// shuts down.
     pub(crate) fn do_pending_work<'scope, A: Arch<Platform = P>>(
@@ -501,7 +506,7 @@ impl<'data, P: Platform> GroupState<'data, P> {
     }
 }
 
-impl<P: Platform> LocalWorkQueue<P> {
+impl<P: EnginePlatform> LocalWorkQueue<P> {
     #[inline(always)]
     pub(crate) fn send_work<'data, 'scope, A: Arch<Platform = P>>(
         &mut self,
@@ -573,7 +578,7 @@ impl<P: Platform> LocalWorkQueue<P> {
     }
 }
 
-impl<'data, P: Platform> GraphResources<'data, '_, P> {
+impl<'data, P: EnginePlatform> GraphResources<'data, '_, P> {
     pub(crate) fn report_error(&self, error: Error) {
         self.errors.lock().unwrap().push(error);
     }
@@ -624,7 +629,7 @@ impl<'data, P: Platform> GraphResources<'data, '_, P> {
     }
 }
 
-impl<'data, P: Platform> FileLayoutState<'data, P> {
+impl<'data, P: EnginePlatform> FileLayoutState<'data, P> {
     pub(crate) fn finalise_sizes<A: Arch<Platform = P>>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
@@ -684,9 +689,11 @@ impl<'data, P: Platform> FileLayoutState<'data, P> {
                     )
                 }),
             WorkItem::CopyRelocateSymbol(symbol_id) => match self {
-                FileLayoutState::Dynamic(state) => {
-                    P::copy_relocate_symbol(state, symbol_id, resources)
-                }
+                FileLayoutState::Dynamic(state) => P::copy_relocate_symbol(
+                    state,
+                    symbol_id,
+                    crate::layout::platform_graph(resources),
+                ),
 
                 _ => {
                     bail!(
@@ -699,7 +706,7 @@ impl<'data, P: Platform> FileLayoutState<'data, P> {
                 FileLayoutState::Object(object_layout_state) => P::load_gc_unit::<A>(
                     object_layout_state,
                     common,
-                    resources,
+                    crate::layout::platform_graph(resources),
                     queue,
                     request.gc_unit,
                     scope,
@@ -762,11 +769,11 @@ impl<'data, P: Platform> FileLayoutState<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn finalise_layout(
+    pub(crate) fn finalise_layout<'scope, 'writer, 'out>(
         self,
         memory_offsets: &mut OutputSectionPartMap<u64>,
-        resolutions_out: &mut sharded_vec_writer::Shard<Option<Resolution<P>>>,
-        resources: &FinaliseLayoutResources<'_, 'data, P>,
+        resolutions_out: &'writer mut sharded_vec_writer::Shard<'out, Option<Resolution<P>>>,
+        resources: &FinaliseLayoutResources<'scope, 'data, P>,
     ) -> Result<FileLayout<'data, P>> {
         let resolutions_out = &mut ResolutionWriter { resolutions_out };
 
@@ -941,7 +948,7 @@ impl<'data, P: Platform> std::fmt::Display for ObjectLayout<'data, P> {
 }
 
 impl Section {
-    pub(crate) fn create<'data, P: Platform>(
+    pub(crate) fn create<'data, P: EnginePlatform>(
         header: &P::SectionHeader,
         object_state: &ObjectLayoutState<'data, P>,
         _part_id: PartId,
@@ -955,7 +962,7 @@ impl Section {
 
     // How much space we take up. This is our size rounded up to the next multiple of our
     // alignment, unless we're in a packed section, in which case it's just our size.
-    pub(crate) fn capacity<P: Platform>(
+    pub(crate) fn capacity<P: EnginePlatform>(
         self,
         part_id: PartId,
         output_sections: &OutputSections<P>,
@@ -992,7 +999,7 @@ impl<'data, P: Platform> std::fmt::Debug for FileLayoutState<'data, P> {
     }
 }
 
-impl<P: Platform> GcLoadRequest<P> {
+impl<P: EnginePlatform> GcLoadRequest<P> {
     pub(crate) fn new(file_id: FileId, gc_unit: P::GcUnit) -> Self {
         Self { file_id, gc_unit }
     }
@@ -1008,7 +1015,7 @@ pub(crate) struct InputSortedSection {
     pub(crate) alignment: Alignment,
 }
 
-pub(crate) fn assign_addresses_to_sorted_sections<P: Platform>(
+pub(crate) fn assign_addresses_to_sorted_sections<P: EnginePlatform>(
     group_states: &mut [GroupState<P>],
     starting_mem_offsets_by_group: &[OutputSectionPartMap<u64>],
     sorted_sections: &mut [InputSortedSection],

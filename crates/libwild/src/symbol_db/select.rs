@@ -4,8 +4,8 @@ use super::ids::SymbolId;
 use crate::bail;
 use crate::error::Error;
 use crate::error::Result;
+use crate::layout::EnginePlatform;
 use crate::platform::Args;
-use crate::platform::Platform;
 use crate::platform::Symbol;
 use crate::resolution::ResolvedGroup;
 use crate::timing_phase;
@@ -26,7 +26,7 @@ use std::mem::take;
 /// symbol we're using. The symbol we select will be the first strongly defined symbol in a loaded
 /// object, or if there are no strong definitions, then the first definition in a loaded object. If
 /// a symbol definition is a common symbol, then the largest definition will be used.
-pub(crate) fn resolve_alternative_symbol_definitions<'data, P: Platform>(
+pub(crate) fn resolve_alternative_symbol_definitions<'data, P: EnginePlatform>(
     symbol_db: &mut SymbolDb<'data, P>,
     per_symbol_flags: &mut PerSymbolFlags,
     resolved: &[ResolvedGroup<'data, P>],
@@ -78,14 +78,9 @@ pub(crate) fn resolve_alternative_symbol_definitions<'data, P: Platform>(
     Ok(())
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Visibility {
-    Default,
-    Protected,
-    Hidden,
-}
+pub(crate) use crate::platform::Visibility;
 
-fn process_alternatives<'data, P: Platform>(
+fn process_alternatives<'data, P: EnginePlatform>(
     alternative_definitions: &mut HashMap<SymbolId, Vec<SymbolId>>,
     error_queue: &SegQueue<Error>,
     symbol_db: &AtomicSymbolDb<'data, '_, P>,
@@ -181,7 +176,7 @@ pub(crate) fn apply_visibility_to_definition(
 /// Selects which version of the symbol to use. For more information on symbol priority, see
 /// https://maskray.me/blog/2021-06-20-linker-symbol-resolution
 #[inline(always)]
-fn select_symbol<'data, P: Platform>(
+fn select_symbol<'data, P: EnginePlatform>(
     symbol_db: &AtomicSymbolDb<'data, '_, P>,
     per_symbol_flags: &AtomicPerSymbolFlags,
     first_id: SymbolId,

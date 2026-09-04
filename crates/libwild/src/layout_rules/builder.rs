@@ -7,6 +7,7 @@ use crate::error::Result;
 use crate::expression_eval::evaluate_const;
 use crate::input_data::InputLinkerScript;
 use crate::input_data::InputRef;
+use crate::layout::EnginePlatform;
 use crate::linker_script;
 use crate::linker_script::ContentsCommand;
 use crate::linker_script::Expression;
@@ -22,7 +23,6 @@ use crate::parsing::RedirectKind;
 use crate::parsing::SymbolLoc;
 use crate::parsing::SymbolPlacement;
 use crate::platform::Args as _;
-use crate::platform::Platform;
 use hashbrown::HashMap;
 use linker_utils::elf::secnames::NOTE_GNU_BUILD_ID_SECTION_NAME;
 
@@ -58,7 +58,7 @@ fn loc_for_global_expr<'data>(
 }
 impl<'data> LayoutRulesBuilder<'data> {
     /// Records information about any sections and symbols declared by the linker script.
-    pub(crate) fn process_linker_script<P: Platform>(
+    pub(crate) fn process_linker_script<P: EnginePlatform>(
         &mut self,
         input: &InputLinkerScript<'data>,
         output_sections: &mut OutputSections<'data, P>,
@@ -612,7 +612,7 @@ impl<'data> LayoutRulesBuilder<'data> {
         })
     }
 
-    pub(crate) fn build<P: Platform>(mut self, args: &P::Args) -> LayoutRules<'data> {
+    pub(crate) fn build<P: EnginePlatform>(mut self, args: &P::Args) -> LayoutRules<'data> {
         let section_rules = if self.rules.is_empty() {
             SectionRules::from_rules(&P::default_layout_rules(args))
         } else {
@@ -629,7 +629,7 @@ impl<'data> LayoutRulesBuilder<'data> {
 }
 
 /// First matching linker-script rule for `.note.gnu.build-id` wins, matching GNU ld.
-fn record_gnu_build_id_placement<P: Platform>(
+fn record_gnu_build_id_placement<P: EnginePlatform>(
     output_sections: &mut OutputSections<P>,
     rule: &SectionRule<'_>,
     placement: GnuBuildIdPlacement,

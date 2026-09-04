@@ -447,7 +447,7 @@ impl platform::SectionAttributes for SectionAttributes {
 pub(crate) struct NonAddressableIndexes {}
 
 impl platform::NonAddressableIndexes for NonAddressableIndexes {
-    fn new<P: platform::Platform>(_symbol_db: &crate::symbol_db::SymbolDb<P>) -> Self {
+    fn new<P: platform::Platform>(_symbol_db: &P::SymbolDb<'_>) -> Self {
         NonAddressableIndexes {}
     }
 }

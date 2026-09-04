@@ -1,14 +1,14 @@
-use crate::bail;
-use crate::error::Result;
 use object::elf::EM_AARCH64;
 use object::elf::EM_LOONGARCH;
 use object::elf::EM_PPC64;
 use object::elf::EM_RISCV;
 use object::elf::EM_X86_64;
 use std::fmt::Display;
+use wild_error::bail;
+use wild_error::error::Result;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Architecture {
+pub enum Architecture {
     X86_64,
     AArch64,
     RiscV64,
@@ -18,7 +18,7 @@ pub(crate) enum Architecture {
 }
 
 impl TryFrom<object::elf::Machine> for Architecture {
-    type Error = crate::error::Error;
+    type Error = wild_error::error::Error;
 
     fn try_from(arch: object::elf::Machine) -> Result<Self, Self::Error> {
         match arch {
@@ -47,7 +47,7 @@ impl Display for Architecture {
 }
 
 impl Architecture {
-    pub(crate) fn parse_output_format(format: &[u8]) -> Self {
+    pub fn parse_output_format(format: &[u8]) -> Self {
         let Some(format) = format.strip_prefix(b"elf64-") else {
             return Self::Unsupported;
         };
@@ -63,7 +63,7 @@ impl Architecture {
     }
 
     /// BFD `OUTPUT_ARCH` names used by kernel `vmlinux.lds` and GNU ld.
-    pub(crate) fn parse_output_arch(arch: &[u8]) -> Self {
+    pub fn parse_output_arch(arch: &[u8]) -> Self {
         match arch {
             b"i386:x86-64" | b"x86-64" => Self::X86_64,
             b"aarch64" => Self::AArch64,
@@ -75,10 +75,9 @@ impl Architecture {
     }
 }
 
-pub(crate) const SUPPORTED_TARGETS: &str =
+pub const SUPPORTED_TARGETS: &str =
     "elf64-x86-64 elf64-littleaarch64 elf64-littleriscv elf64-loongarch elf64-powerpcle";
-pub(crate) const SUPPORTED_EMULATIONS: &str =
-    "elf_x86_64 aarch64elf elf64lriscv elf64loongarch elf64lppc";
+pub const SUPPORTED_EMULATIONS: &str = "elf_x86_64 aarch64elf elf64lriscv elf64loongarch elf64lppc";
 
 #[cfg(test)]
 mod tests {

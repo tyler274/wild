@@ -1,39 +1,39 @@
-use crate::bail;
-use crate::error::Result;
-use crate::glob_match::unescape_pattern;
-use crate::hash::PassThroughHasher;
-use crate::hash::PreHashed;
-use crate::symbol::UnversionedSymbolName;
 use glob::Pattern;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 use symbolic_demangle::Demangle;
 use symbolic_demangle::DemangleOptions;
+use wild_error::bail;
+use wild_error::error::Result;
+use wild_util::glob_match::unescape_pattern;
+use wild_util::hash::PassThroughHasher;
+use wild_util::hash::PreHashed;
+use wild_util::symbol_name::UnversionedSymbolName;
 
 #[derive(Debug, Default, PartialEq, Eq)]
-pub(crate) struct MatchRules<'data> {
-    pub(crate) general: BasicMatchRules<'data>,
-    pub(crate) cxx: BasicMatchRules<'data>,
+pub struct MatchRules<'data> {
+    pub general: BasicMatchRules<'data>,
+    pub cxx: BasicMatchRules<'data>,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
-pub(crate) struct VersionBody<'data> {
-    pub(crate) globals: MatchRules<'data>,
-    pub(crate) locals: MatchRules<'data>,
+pub struct VersionBody<'data> {
+    pub globals: MatchRules<'data>,
+    pub locals: MatchRules<'data>,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
-pub(crate) struct Version<'data> {
-    pub(crate) name: &'data [u8],
-    pub(crate) parent_index: Option<u16>,
-    pub(crate) version_body: VersionBody<'data>,
+pub struct Version<'data> {
+    pub name: &'data [u8],
+    pub parent_index: Option<u16>,
+    pub version_body: VersionBody<'data>,
 }
 
 /// A general version script. See https://sourceware.org/binutils/docs/ld/VERSION.html
 #[derive(Debug, Default, PartialEq, Eq)]
-pub(crate) struct RegularVersionScript<'data> {
-    pub(crate) versions: Vec<Version<'data>>,
-    pub(crate) version_name_mapping: HashMap<&'data [u8], usize>,
+pub struct RegularVersionScript<'data> {
+    pub versions: Vec<Version<'data>>,
+    pub version_name_mapping: HashMap<&'data [u8], usize>,
 }
 
 /// An optimized version script for Rustc.
@@ -41,14 +41,14 @@ pub(crate) struct RegularVersionScript<'data> {
 /// Only contains general (non-C++) exact symbol matchers.
 /// Doesn't use actual versioning.
 #[derive(Debug, Default, PartialEq, Eq)]
-pub(crate) struct RustVersionScript<'data> {
-    pub(crate) global: Vec<&'data [u8]>,
+pub struct RustVersionScript<'data> {
+    pub global: Vec<&'data [u8]>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 /// Possibly specialized version script.
 /// See `RegularVersionScript` for the general case.
-pub(crate) enum VersionScript<'data> {
+pub enum VersionScript<'data> {
     Regular(RegularVersionScript<'data>),
     Rust(RustVersionScript<'data>),
 }
@@ -60,7 +60,7 @@ impl Default for VersionScript<'_> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) enum SymbolMatcher<'data> {
+pub enum SymbolMatcher<'data> {
     // Exact match.
     Exact(&'data [u8]),
     // Exact match with escape sequences that need unescaping.
@@ -74,12 +74,12 @@ pub(crate) enum SymbolMatcher<'data> {
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
-pub(crate) struct BasicMatchRules<'data> {
-    pub(crate) exact: HashSet<PreHashed<UnversionedSymbolName<'data>>, PassThroughHasher>,
-    pub(crate) escaped_exact: HashSet<Vec<u8>>,
-    pub(crate) star_globs: Vec<Pattern>,
-    pub(crate) nonstar_globs: Vec<Pattern>,
-    pub(crate) matches_all: bool,
+pub struct BasicMatchRules<'data> {
+    pub exact: HashSet<PreHashed<UnversionedSymbolName<'data>>, PassThroughHasher>,
+    pub escaped_exact: HashSet<Vec<u8>>,
+    pub star_globs: Vec<Pattern>,
+    pub nonstar_globs: Vec<Pattern>,
+    pub matches_all: bool,
 }
 
 impl<'data> BasicMatchRules<'data> {
@@ -99,11 +99,7 @@ impl<'data> BasicMatchRules<'data> {
     }
 
     #[inline]
-    pub(crate) fn matches_exact(
-        &self,
-        lookup: &mut SymbolLookupNameWrapper,
-        mangled: bool,
-    ) -> bool {
+    pub fn matches_exact(&self, lookup: &mut SymbolLookupNameWrapper, mangled: bool) -> bool {
         // Check normal exact matches first
         if !self.exact.is_empty() {
             if mangled {
@@ -139,7 +135,7 @@ impl<'data> BasicMatchRules<'data> {
     }
 
     #[inline]
-    pub(crate) fn matches_glob(
+    pub fn matches_glob(
         &self,
         lookup: &mut SymbolLookupNameWrapper,
         non_star: bool,
@@ -165,25 +161,25 @@ impl<'data> BasicMatchRules<'data> {
     }
 
     #[inline]
-    pub(crate) fn matches_all(&self) -> bool {
+    pub fn matches_all(&self) -> bool {
         self.matches_all
     }
 }
 
-pub(crate) enum VersionRuleSection {
+pub enum VersionRuleSection {
     Global,
     Local,
 }
 
 #[derive(Debug)]
-pub(crate) enum ParsedSymbolMatcher<'data> {
+pub enum ParsedSymbolMatcher<'data> {
     Single(SymbolMatcher<'data>),
     Multiple(Vec<SymbolMatcher<'data>>),
     CxxMatchers(Vec<SymbolMatcher<'data>>),
 }
 
 impl<'data> MatchRules<'data> {
-    pub(crate) fn push(&mut self, pattern: ParsedSymbolMatcher<'data>) {
+    pub fn push(&mut self, pattern: ParsedSymbolMatcher<'data>) {
         match pattern {
             ParsedSymbolMatcher::Single(single) => {
                 self.general.push(single);
@@ -202,14 +198,14 @@ impl<'data> MatchRules<'data> {
     }
 }
 
-pub(crate) struct SymbolLookupNameWrapper<'data> {
+pub struct SymbolLookupNameWrapper<'data> {
     name: &'data PreHashed<UnversionedSymbolName<'data>>,
     name_string: Option<&'data str>,
     demangled_name: Option<String>,
 }
 
 impl<'data> SymbolLookupNameWrapper<'data> {
-    pub(crate) fn from_name(name: &'data PreHashed<UnversionedSymbolName<'data>>) -> Self {
+    pub fn from_name(name: &'data PreHashed<UnversionedSymbolName<'data>>) -> Self {
         Self {
             name,
             name_string: None,
@@ -217,7 +213,7 @@ impl<'data> SymbolLookupNameWrapper<'data> {
         }
     }
 
-    pub(crate) fn get_name_string(&mut self) -> &'data str {
+    pub fn get_name_string(&mut self) -> &'data str {
         self.name_string.get_or_insert_with(|| {
             str::from_utf8(self.name.bytes()).unwrap_or_else(|_| {
                 panic!(
@@ -228,7 +224,7 @@ impl<'data> SymbolLookupNameWrapper<'data> {
         })
     }
 
-    pub(crate) fn get_demangled_name(&mut self) -> &String {
+    pub fn get_demangled_name(&mut self) -> &String {
         // Extract the name string before the closure to avoid double mutable borrow
         let name_string = self.get_name_string();
         self.demangled_name.get_or_insert_with(|| {
@@ -245,7 +241,7 @@ impl<'data> SymbolLookupNameWrapper<'data> {
 }
 
 impl<'data> RegularVersionScript<'data> {
-    pub(crate) fn find_match(
+    pub fn find_match(
         &self,
         name: &PreHashed<UnversionedSymbolName>,
     ) -> Option<(usize, VersionRuleSection)> {
@@ -313,20 +309,20 @@ impl<'data> RegularVersionScript<'data> {
 }
 
 impl<'data> VersionScript<'data> {
-    pub(crate) fn version_count(&self) -> u16 {
+    pub fn version_count(&self) -> u16 {
         match self {
             VersionScript::Regular(script) => script.version_count(),
             VersionScript::Rust(_) => 0,
         }
     }
 
-    pub(crate) fn parent_count(&self) -> u16 {
+    pub fn parent_count(&self) -> u16 {
         match self {
             VersionScript::Regular(script) => script.parent_count(),
             VersionScript::Rust(_) => 0,
         }
     }
-    pub(crate) fn version_for_symbol(
+    pub fn version_for_symbol(
         &self,
         name: &PreHashed<UnversionedSymbolName>,
         version_name: Option<&[u8]>,
@@ -339,13 +335,13 @@ impl<'data> VersionScript<'data> {
 }
 
 impl<'data> RegularVersionScript<'data> {
-    pub(crate) fn is_local(&self, name: &PreHashed<UnversionedSymbolName>) -> bool {
+    pub fn is_local(&self, name: &PreHashed<UnversionedSymbolName>) -> bool {
         self.find_match(name)
             .is_some_and(|(_, rule)| matches!(rule, VersionRuleSection::Local))
     }
 
     /// Number of versions in the Version Script, including the base version.
-    pub(crate) fn version_count(&self) -> u16 {
+    pub fn version_count(&self) -> u16 {
         if self.versions.len() == 1 {
             // Ignore it if we have just the base version.
             0
@@ -354,18 +350,18 @@ impl<'data> RegularVersionScript<'data> {
         }
     }
 
-    pub(crate) fn parent_count(&self) -> u16 {
+    pub fn parent_count(&self) -> u16 {
         self.versions
             .iter()
             .filter(|v| v.parent_index.is_some())
             .count() as u16
     }
 
-    pub(crate) fn version_iter(&self) -> impl Iterator<Item = &Version<'data>> {
+    pub fn version_iter(&self) -> impl Iterator<Item = &Version<'data>> {
         self.versions.iter()
     }
 
-    pub(crate) fn version_for_symbol(
+    pub fn version_for_symbol(
         &self,
         name: &PreHashed<UnversionedSymbolName>,
         version_name: Option<&[u8]>,

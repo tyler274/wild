@@ -111,21 +111,7 @@ pub(crate) fn get_page_mask(mask: Option<PageMask>) -> PageMaskValue {
     }
 }
 
-pub(crate) enum PropertyClass {
-    // A bit in the output pr_data is set if it is set in any relocatable input.
-    // If all bits in the output pr_data field are zero, this property should be removed from
-    // output.
-    Or,
-    // A bit in the output pr_data field is set only if it is set in all relocatable input pr_data
-    // fields. If all bits in the output pr_data field are zero, this property should be
-    // removed from output.
-    And,
-    // A bit in the output pr_data field is set if it is set in any relocatable input pr_data
-    // fields and this property is present in all relocatable input files. When all bits in
-    // the output pr_data field are zero, this property should not be removed from output to
-    // indicate it has zero in all bits.
-    AndOr,
-}
+pub(crate) use crate::platform::PropertyClass;
 
 #[derive(Debug)]
 pub(crate) struct GnuProperty {
@@ -232,10 +218,13 @@ impl LayoutExt {
     }
 }
 
-pub(crate) fn merge_gnu_property_notes<'states, 'data: 'states, C: ElfClass, A: Arch>(
+pub(crate) fn merge_gnu_property_notes<'states, 'data: 'states, C: ElfClass, A>(
     states: impl Iterator<Item = &'states ObjectLayoutStateExt<'data, C>>,
     isa_needed: Option<NonZeroU32>,
-) -> Result<Vec<GnuProperty>> {
+) -> Result<Vec<GnuProperty>>
+where
+    A: Arch<Platform = Elf<C>>,
+{
     timing_phase!("Merge GNU property notes");
 
     let properties_per_file = states.map(|state| &state.gnu_property_notes).collect_vec();

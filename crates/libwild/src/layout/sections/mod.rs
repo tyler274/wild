@@ -7,6 +7,7 @@ use crate::alignment::Alignment;
 use crate::ensure;
 use crate::error::Context;
 use crate::error::Result;
+use crate::layout::EnginePlatform;
 use crate::layout_rules::SectionKind;
 use crate::output_section_id;
 use crate::output_section_id::OutputOrder;
@@ -14,7 +15,6 @@ use crate::output_section_id::OutputSections;
 use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::platform::Args as _;
-use crate::platform::Platform;
 use crate::platform::SectionAttributes as _;
 use crate::platform::SectionFlags as _;
 use crate::program_segments::ProgramSegmentId;
@@ -31,7 +31,7 @@ use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 use std::mem::take;
 
-pub(crate) fn layout_section_from_part_layouts<'data, P: Platform>(
+pub(crate) fn layout_section_from_part_layouts<'data, P: EnginePlatform>(
     part: &OutputRecordLayout,
     section_layout: &mut OutputRecordLayout,
     section_info: &output_section_id::SectionOutputInfo<'data, P>,
@@ -69,7 +69,7 @@ pub(crate) fn layout_section_from_part_layouts<'data, P: Platform>(
     };
 }
 
-pub(crate) fn merge_secondary_parts<P: Platform>(
+pub(crate) fn merge_secondary_parts<P: EnginePlatform>(
     output_sections: &OutputSections<P>,
     section_layouts: &OutputSectionMap<OutputRecordLayout>,
 ) -> OutputSectionMap<OutputRecordLayout> {
@@ -119,7 +119,7 @@ pub(crate) fn merge_secondary_parts<P: Platform>(
     merged
 }
 
-pub(crate) fn compute_start_offsets_by_group<P: Platform>(
+pub(crate) fn compute_start_offsets_by_group<P: EnginePlatform>(
     group_states: &[GroupState<P>],
     mut mem_offsets: OutputSectionPartMap<u64>,
 ) -> Vec<OutputSectionPartMap<u64>> {
@@ -136,7 +136,7 @@ pub(crate) fn compute_start_offsets_by_group<P: Platform>(
     starts
 }
 
-pub(crate) fn compute_symbols_and_layouts<'data, P: Platform>(
+pub(crate) fn compute_symbols_and_layouts<'data, P: EnginePlatform>(
     group_states: Vec<GroupState<'data, P>>,
     starting_mem_offsets_by_group: Vec<OutputSectionPartMap<u64>>,
     per_group_res_writers: &mut [sharded_vec_writer::Shard<Option<Resolution<P>>>],
@@ -177,7 +177,7 @@ pub(crate) fn compute_symbols_and_layouts<'data, P: Platform>(
         .collect()
 }
 
-pub(crate) fn compute_segment_layout<'data, P: Platform>(
+pub(crate) fn compute_segment_layout<'data, P: EnginePlatform>(
     section_layouts: &OutputSectionMap<OutputRecordLayout>,
     output_sections: &OutputSections<P>,
     output_order: &OutputOrder<'data>,

@@ -15,6 +15,7 @@ use crate::hash::PreHashed;
 use crate::hash::hash_bytes;
 use crate::input_data::FileId;
 use crate::input_data::PRELUDE_FILE_ID;
+use crate::layout::EnginePlatform;
 use crate::output_section_id::OutputSectionId;
 use crate::parsing::InternalSymDefInfo;
 use crate::parsing::Prelude;
@@ -70,7 +71,7 @@ impl<'out> SymbolVecWriters<'out> {
         }
     }
 
-    pub(super) fn new_shard<'group, 'data, P: Platform>(
+    pub(super) fn new_shard<'group, 'data, P: EnginePlatform>(
         &mut self,
         group: &'group Group<'data, P>,
     ) -> SymbolWriterShard<'out, 'group, 'data, P> {
@@ -84,7 +85,7 @@ impl<'out> SymbolVecWriters<'out> {
         }
     }
 
-    pub(super) fn return_shard<'data, P: Platform>(
+    pub(super) fn return_shard<'data, P: EnginePlatform>(
         &mut self,
         shard: SymbolWriterShard<'_, '_, 'data, P>,
     ) {
@@ -94,7 +95,7 @@ impl<'out> SymbolVecWriters<'out> {
         self.symbol_file_ids_writer.return_shard(shard.file_ids);
     }
 }
-pub(super) fn read_symbols<'data, P: Platform>(
+pub(super) fn read_symbols<'data, P: EnginePlatform>(
     version_script: &VersionScript,
     shards: &mut [SymbolWriterShard<'_, '_, 'data, P>],
     args: &P::Args,
@@ -120,7 +121,7 @@ pub(super) fn read_symbols<'data, P: Platform>(
         .collect::<Result<Vec<SymbolLoadOutputs>>>()
 }
 
-fn read_symbols_for_group<'data, P: Platform>(
+fn read_symbols_for_group<'data, P: EnginePlatform>(
     shard: &mut SymbolWriterShard<'_, '_, 'data, P>,
     version_script: &VersionScript,
     export_list: Option<&ExportList<'data>>,
@@ -180,7 +181,7 @@ fn read_symbols_for_group<'data, P: Platform>(
     Ok(outputs)
 }
 
-fn load_stub_library_symbols<'data, P: Platform>(
+fn load_stub_library_symbols<'data, P: EnginePlatform>(
     stub: &crate::grouping::SequencedStubLibrary<'data>,
     symbols_out: &mut SymbolWriterShard<'_, '_, 'data, P>,
     outputs: &mut SymbolLoadOutputs<'data>,
@@ -199,7 +200,7 @@ fn load_stub_library_symbols<'data, P: Platform>(
 }
 
 #[cfg(all(feature = "plugins", unix))]
-fn load_lto_symbols<'data, P: Platform>(
+fn load_lto_symbols<'data, P: EnginePlatform>(
     symbols_out: &mut SymbolWriterShard<'_, '_, 'data, P>,
     outputs: &mut SymbolLoadOutputs<'data>,
     obj: &crate::linker_plugins::LtoInput<'data>,
@@ -254,7 +255,7 @@ pub(super) fn populate_symbol_db<'data>(
     });
 }
 
-fn load_linker_script_symbols<'data, P: Platform>(
+fn load_linker_script_symbols<'data, P: EnginePlatform>(
     script: &SequencedLinkerScript<'data, P>,
     symbols_out: &mut SymbolWriterShard<'_, '_, 'data, P>,
     outputs: &mut SymbolLoadOutputs<'data>,
@@ -282,7 +283,7 @@ fn load_linker_script_symbols<'data, P: Platform>(
     }
 }
 
-fn load_symbols_from_file<'data, P: Platform>(
+fn load_symbols_from_file<'data, P: EnginePlatform>(
     s: &SequencedInputObject<'data, P>,
     version_script: &VersionScript,
     symbols_out: &mut SymbolWriterShard<'_, '_, 'data, P>,
@@ -319,7 +320,7 @@ pub(super) struct SymbolWriterShard<'out, 'group, 'data, P: Platform> {
     next: SymbolId,
 }
 
-impl<'out, 'group, 'data, P: Platform> SymbolWriterShard<'out, 'group, 'data, P> {
+impl<'out, 'group, 'data, P: EnginePlatform> SymbolWriterShard<'out, 'group, 'data, P> {
     fn set_next(&mut self, flags: ValueFlags, resolution: SymbolId, file_id: FileId) {
         self.flags.push(flags.raw());
         self.resolutions.push(resolution);
@@ -328,7 +329,7 @@ impl<'out, 'group, 'data, P: Platform> SymbolWriterShard<'out, 'group, 'data, P>
     }
 }
 
-trait SymbolLoader<'data, P: Platform> {
+trait SymbolLoader<'data, P: EnginePlatform> {
     fn load_symbols(
         &self,
         file_id: FileId,
@@ -426,7 +427,7 @@ struct DynamicObjectSymbolLoader<'a, 'data, P: Platform> {
     version_names: P::VersionNames<'data>,
 }
 
-impl<'a, 'data, P: Platform> DynamicObjectSymbolLoader<'a, 'data, P> {
+impl<'a, 'data, P: EnginePlatform> DynamicObjectSymbolLoader<'a, 'data, P> {
     fn new(object: &'a P::File<'data>) -> Result<Self> {
         let version_names = object.get_version_names()?;
         Ok(Self {
@@ -436,7 +437,7 @@ impl<'a, 'data, P: Platform> DynamicObjectSymbolLoader<'a, 'data, P> {
     }
 }
 
-impl<'data, P: Platform> SymbolLoader<'data, P> for RegularObjectSymbolLoader<'_, 'data, P> {
+impl<'data, P: EnginePlatform> SymbolLoader<'data, P> for RegularObjectSymbolLoader<'_, 'data, P> {
     fn compute_value_flags(&self, sym: &P::SymtabEntry) -> ValueFlags {
         let is_undefined = sym.is_undefined();
 
@@ -498,7 +499,7 @@ impl<'data, P: Platform> SymbolLoader<'data, P> for RegularObjectSymbolLoader<'_
     }
 }
 
-impl<'data, P: Platform> SymbolLoader<'data, P> for DynamicObjectSymbolLoader<'_, 'data, P> {
+impl<'data, P: EnginePlatform> SymbolLoader<'data, P> for DynamicObjectSymbolLoader<'_, 'data, P> {
     fn compute_value_flags(&self, symbol: &P::SymtabEntry) -> ValueFlags {
         let mut flags = ValueFlags::DYNAMIC;
         if symbol.is_func() || symbol.is_ifunc() {
@@ -528,7 +529,7 @@ impl<'data, P: Platform> SymbolLoader<'data, P> for DynamicObjectSymbolLoader<'_
         symbol.is_hidden()
     }
 }
-impl<'data, P: Platform> Prelude<'data, P> {
+impl<'data, P: EnginePlatform> Prelude<'data, P> {
     fn load_symbols(
         &self,
         symbols_out: &mut SymbolWriterShard<'_, '_, 'data, P>,
@@ -567,7 +568,7 @@ impl<'data, P: Platform> Prelude<'data, P> {
         }
     }
 }
-impl<P: Platform> InternalSymDefInfo<'_, P> {
+impl<P: EnginePlatform> InternalSymDefInfo<'_, P> {
     pub(crate) fn section_id(&self) -> Option<OutputSectionId> {
         match self.placement {
             SymbolPlacement::Redirect(Redirect { ref loc, .. }) => loc.section_id(),

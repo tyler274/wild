@@ -13,11 +13,11 @@ use winnow::error::ContextError;
 use winnow::token::one_of;
 use winnow::token::take_while;
 
-pub(crate) fn parse_expression<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
+pub fn parse_expression<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
     parse_ternary.parse_next(input)
 }
 
-pub(crate) fn parse_ternary<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
+pub fn parse_ternary<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
     let mut left = parse_logical_or.parse_next(input)?;
 
     multispace0.parse_next(input)?;
@@ -36,7 +36,7 @@ pub(crate) fn parse_ternary<'a>(input: &mut &'a BStr) -> winnow::Result<Expressi
 }
 
 /// Parse logical OR: expression || expression
-pub(crate) fn parse_logical_or<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
+pub fn parse_logical_or<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
     let mut left = parse_logical_and.parse_next(input)?;
 
     multispace0.parse_next(input)?;
@@ -52,7 +52,7 @@ pub(crate) fn parse_logical_or<'a>(input: &mut &'a BStr) -> winnow::Result<Expre
 }
 
 /// Parse logical AND: expression && expression
-pub(crate) fn parse_logical_and<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
+pub fn parse_logical_and<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
     let mut left = parse_comparison.parse_next(input)?;
 
     multispace0.parse_next(input)?;
@@ -68,7 +68,7 @@ pub(crate) fn parse_logical_and<'a>(input: &mut &'a BStr) -> winnow::Result<Expr
 }
 
 /// Parse comparison expression: expression < expression, expression == expression, etc.
-pub(crate) fn parse_comparison<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
+pub fn parse_comparison<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
     let mut left = parse_bitwise_or.parse_next(input)?;
 
     multispace0.parse_next(input)?;
@@ -100,7 +100,7 @@ pub(crate) fn parse_comparison<'a>(input: &mut &'a BStr) -> winnow::Result<Expre
 }
 
 /// Parse Shift operators: <<, >>
-pub(crate) fn parse_shift<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
+pub fn parse_shift<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
     let mut left = parse_additive.parse_next(input)?;
 
     multispace0.parse_next(input)?;
@@ -124,7 +124,7 @@ pub(crate) fn parse_shift<'a>(input: &mut &'a BStr) -> winnow::Result<Expression
 }
 
 /// Parse bitwise OR: expression | expression
-pub(crate) fn parse_bitwise_or<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
+pub fn parse_bitwise_or<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
     let mut left = parse_bitwise_xor.parse_next(input)?;
 
     multispace0.parse_next(input)?;
@@ -143,7 +143,7 @@ pub(crate) fn parse_bitwise_or<'a>(input: &mut &'a BStr) -> winnow::Result<Expre
 }
 
 /// Parse bitwise XOR: expression ^ expression
-pub(crate) fn parse_bitwise_xor<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
+pub fn parse_bitwise_xor<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
     let mut left = parse_bitwise_and.parse_next(input)?;
 
     multispace0.parse_next(input)?;
@@ -159,7 +159,7 @@ pub(crate) fn parse_bitwise_xor<'a>(input: &mut &'a BStr) -> winnow::Result<Expr
 }
 
 /// Parse bitwise AND: expression & expression
-pub(crate) fn parse_bitwise_and<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
+pub fn parse_bitwise_and<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
     let mut left = parse_shift.parse_next(input)?;
 
     multispace0.parse_next(input)?;
@@ -178,7 +178,7 @@ pub(crate) fn parse_bitwise_and<'a>(input: &mut &'a BStr) -> winnow::Result<Expr
 }
 
 /// Parse additive operators: +, -
-pub(crate) fn parse_additive<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
+pub fn parse_additive<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
     let mut left = parse_multiplicative.parse_next(input)?;
 
     multispace0.parse_next(input)?;
@@ -199,7 +199,7 @@ pub(crate) fn parse_additive<'a>(input: &mut &'a BStr) -> winnow::Result<Express
 }
 
 /// Parse multiplicative operators: *, /
-pub(crate) fn parse_multiplicative<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
+pub fn parse_multiplicative<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
     let mut left = parse_unary.parse_next(input)?;
 
     multispace0.parse_next(input)?;
@@ -225,7 +225,7 @@ pub(crate) fn parse_multiplicative<'a>(input: &mut &'a BStr) -> winnow::Result<E
 }
 
 /// Parse unary prefix operators: !, ~, -
-pub(crate) fn parse_unary<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
+pub fn parse_unary<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
     multispace0.parse_next(input)?;
 
     if opt(('!', winnow::combinator::not('=')))
@@ -250,7 +250,7 @@ pub(crate) fn parse_unary<'a>(input: &mut &'a BStr) -> winnow::Result<Expression
 }
 
 /// Parse hex and decimal numbers, applying an optional K (x1024) or M (x1024^2) suffix.
-pub(crate) fn parse_number_with_suffix<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
+pub fn parse_number_with_suffix<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
     let base_number = alt((
         // Hex numbers (0x or 0X prefix)
         preceded(alt(("0x", "0X")), hex_uint::<_, u64, _>),
@@ -271,7 +271,7 @@ pub(crate) fn parse_number_with_suffix<'a>(input: &mut &'a BStr) -> winnow::Resu
 }
 
 /// Parse primary expressions: numbers, symbols, functions, parentheses
-pub(crate) fn parse_primary<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
+pub fn parse_primary<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
     multispace0.parse_next(input)?;
 
     alt((
@@ -286,9 +286,7 @@ pub(crate) fn parse_primary<'a>(input: &mut &'a BStr) -> winnow::Result<Expressi
 }
 
 /// Parse an identifier (symbol or function call)
-pub(crate) fn parse_identifier_or_function<'a>(
-    input: &mut &'a BStr,
-) -> winnow::Result<Expression<'a>> {
+pub fn parse_identifier_or_function<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
     // Parse identifier: starts with letter or underscore, contains alphanumeric, underscore, or dot
     let ident = take_while(1.., |b: u8| {
         b.is_ascii_alphanumeric() || b == b'_' || b == b'.'
@@ -392,7 +390,7 @@ pub(crate) fn parse_identifier_or_function<'a>(
                 let default_expr = parse_expression.parse_next(input)?;
                 multispace0.parse_next(input)?;
                 ')'.parse_next(input)?;
-                let segment_name = crate::parsing::SegmentName::from_bytes(name);
+                let segment_name = crate::linker_script::SegmentName::from_bytes(name);
                 Ok(Expression::SegmentStart(
                     segment_name,
                     Box::new(default_expr),
@@ -471,7 +469,7 @@ pub(crate) fn parse_identifier_or_function<'a>(
 }
 
 /// Parse a function argument (section name for SIZEOF/ADDR)
-pub(crate) fn parse_function_arg<'a>(input: &mut &'a BStr) -> winnow::Result<&'a [u8]> {
+pub fn parse_function_arg<'a>(input: &mut &'a BStr) -> winnow::Result<&'a [u8]> {
     '('.parse_next(input)?;
     multispace0.parse_next(input)?;
 
@@ -489,7 +487,7 @@ pub(crate) fn parse_function_arg<'a>(input: &mut &'a BStr) -> winnow::Result<&'a
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum CompOp {
+pub enum CompOp {
     LessThan,
     GreaterThan,
     LessEqual,
@@ -499,26 +497,26 @@ pub(crate) enum CompOp {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ShiftOp {
+pub enum ShiftOp {
     Left,
     Right,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum AddOp {
+pub enum AddOp {
     Add,
     Subtract,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum MulOp {
+pub enum MulOp {
     Multiply,
     Divide,
     Modulo,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum AssignmentOp {
+pub enum AssignmentOp {
     Assign,
     Add,
     Subtract,
@@ -531,7 +529,7 @@ pub(crate) enum AssignmentOp {
     BitwiseXor,
 }
 
-pub(crate) fn parse_assignment_op(input: &mut &BStr) -> winnow::Result<AssignmentOp> {
+pub fn parse_assignment_op(input: &mut &BStr) -> winnow::Result<AssignmentOp> {
     alt((
         alt((
             "+=".value(AssignmentOp::Add),
@@ -552,7 +550,7 @@ pub(crate) fn parse_assignment_op(input: &mut &BStr) -> winnow::Result<Assignmen
 }
 
 impl AssignmentOp {
-    pub(crate) fn expand<'a>(self, name: &'a [u8], rhs: Expression<'a>) -> Expression<'a> {
+    pub fn expand<'a>(self, name: &'a [u8], rhs: Expression<'a>) -> Expression<'a> {
         let lhs = if name == b"." {
             Expression::LocationCounter
         } else {

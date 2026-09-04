@@ -1,13 +1,13 @@
 use glob::Pattern;
 use std::str;
-pub(crate) enum GlobPatternType {
+pub enum GlobPatternType {
     Exact,
     EscapedExact,
     Star,
     NonStar,
 }
 
-pub(crate) fn analyze_glob_pattern(pattern: &[u8]) -> GlobPatternType {
+pub fn analyze_glob_pattern(pattern: &[u8]) -> GlobPatternType {
     // Fast path for when none of the characters are present.
     if memchr::memchr3(b'*', b'?', b'\\', pattern).is_none()
         && memchr::memchr2(b'[', b']', pattern).is_none()
@@ -42,7 +42,7 @@ pub(crate) fn analyze_glob_pattern(pattern: &[u8]) -> GlobPatternType {
 
 /// Unescapes a pattern by removing backslashes that escape special characters.
 /// For exact patterns, we need to normalize escaped characters to their literal form.
-pub(crate) fn unescape_pattern(pattern: &[u8]) -> Vec<u8> {
+pub fn unescape_pattern(pattern: &[u8]) -> Vec<u8> {
     let mut result = Vec::with_capacity(pattern.len());
     let mut it = pattern.iter();
 
@@ -62,7 +62,7 @@ pub(crate) fn unescape_pattern(pattern: &[u8]) -> Vec<u8> {
     result
 }
 
-pub(crate) fn compile_glob_pattern(token: &[u8]) -> Result<Pattern, &str> {
+pub fn compile_glob_pattern(token: &[u8]) -> Result<Pattern, &str> {
     let pattern = str::from_utf8(token).map_err(|_| "Invalid UTF-8 string")?;
     // Right now, there is a pending PR that will support the '^' as the negation
     // character in the glob crate: https://github.com/rust-lang/glob/issues/116

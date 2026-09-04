@@ -3,8 +3,6 @@
 //! The main output is exposed as a sized random-access byte buffer because linker writers fill
 //! disjoint regions in parallel. Auxiliary outputs are written as complete byte slices.
 
-use crate::error::Context as _;
-use crate::error::Result;
 #[cfg(not(target_family = "wasm"))]
 use memmap2::Mmap;
 use memmap2::MmapOptions;
@@ -18,6 +16,9 @@ use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use wild_error::error;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileReplacementMode {
@@ -98,8 +99,8 @@ pub trait OutputFileData: Send {
 ///
 /// // A small in-memory filesystem backed by a dictionary of path -> contents.
 /// #[derive(Clone, Default)]
-/// pub(crate) struct InMemoryFileSystem {
-///     pub(crate) files: Arc<Mutex<HashMap<PathBuf, Vec<u8>>>>,
+/// pub struct InMemoryFileSystem {
+///     pub files: Arc<Mutex<HashMap<PathBuf, Vec<u8>>>>,
 /// }
 ///
 /// #[derive(Debug)]
@@ -550,7 +551,7 @@ impl FileSystem for OsFileSystem {
         let file_write_mode = options.write_mode.unwrap_or(defaults.write_mode);
 
         if huge_pages_required && matches!(file_write_mode, FileWriteMode::BufferThenWrite) {
-            return Err(crate::error!(
+            return Err(error!(
                 "--madvise-huge-pages requires mmapped output file"
             ));
         }
@@ -661,7 +662,7 @@ fn preallocate_output_file(file: &File, size: u64) -> Result {
 
 #[cfg(not(target_os = "linux"))]
 fn preallocate_output_file(_file: &File, _size: u64) -> Result {
-    Err(crate::error!("fallocate is only supported on Linux"))
+    Err(error!("fallocate is only supported on Linux"))
 }
 
 #[cfg(target_os = "linux")]
@@ -675,7 +676,7 @@ fn advise_huge_pages_if_requested(mmap: &memmap2::MmapMut, requested: bool) -> R
 #[cfg(not(target_os = "linux"))]
 fn advise_huge_pages_if_requested(_mmap: &memmap2::MmapMut, requested: bool) -> Result {
     if requested {
-        return Err(crate::error!("MADV_HUGEPAGE is only supported on Linux"));
+        return Err(error!("MADV_HUGEPAGE is only supported on Linux"));
     }
     Ok(())
 }
@@ -756,7 +757,7 @@ pub fn make_executable(_file: &File) -> Result {
     Ok(())
 }
 
-pub(crate) fn path_from_bytes(bytes: &[u8]) -> PathBuf {
+pub fn path_from_bytes(bytes: &[u8]) -> PathBuf {
     cfg_select! {
         unix => {
             use std::ffi::OsStr;

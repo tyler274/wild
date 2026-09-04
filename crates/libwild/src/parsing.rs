@@ -7,6 +7,7 @@ use crate::input_data::FileId;
 use crate::input_data::InputBytes;
 use crate::input_data::InputLinkerScript;
 use crate::input_data::InputRef;
+use crate::layout::EnginePlatform;
 use crate::layout_rules::LayoutRulesBuilder;
 use crate::layout_rules::LocationCounter;
 use crate::linker_script::Expression;
@@ -22,7 +23,7 @@ use crate::symbol_db::SymbolIdRange;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
 
-pub(crate) fn process_linker_scripts<'data, P: Platform>(
+pub(crate) fn process_linker_scripts<'data, P: EnginePlatform>(
     linker_scripts_in: &[InputLinkerScript<'data>],
     output_sections: &mut OutputSections<'data, P>,
     layout_rules_builder: &mut LayoutRulesBuilder<'data>,
@@ -148,28 +149,7 @@ pub(crate) enum RedirectKind {
     Script,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SegmentName {
-    Text,
-    Rodata,
-    Data,
-    Bss,
-    /// Any segment name not in the known set. Wild has no `-T` override for
-    /// these, so they always resolve to the default value.
-    Other,
-}
-
-impl SegmentName {
-    pub(crate) fn from_bytes(name: &[u8]) -> Self {
-        match name {
-            b"text" => Self::Text,
-            b"rodata" => Self::Rodata,
-            b"data" => Self::Data,
-            b"bss" => Self::Bss,
-            _ => Self::Other,
-        }
-    }
-}
+pub(crate) use crate::linker_script::SegmentName;
 
 /// Parse a number. Interprets 0x prefix as hex, otherwise as decimal.
 pub(crate) fn parse_number(s: &str) -> Result<u64, ()> {
@@ -238,7 +218,7 @@ impl<'data, P: Platform> ParsedInputObject<'data, P> {
     }
 }
 
-impl<'data, P: Platform> Prelude<'data, P> {
+impl<'data, P: EnginePlatform> Prelude<'data, P> {
     pub(crate) fn new(args: &'data P::Args, output_kind: OutputKind) -> Result<Self> {
         verbose_timing_phase!("Construct prelude");
 
@@ -274,7 +254,9 @@ impl<'data, P: Platform> Prelude<'data, P> {
             symbol_definitions: symbols.symbol_definitions,
         })
     }
+}
 
+impl<'data, P: Platform> Prelude<'data, P> {
     pub(crate) fn symbol_name(&self, symbol_id: SymbolId) -> UnversionedSymbolName<'data> {
         let def = &self.symbol_definitions[symbol_id.as_usize()];
         UnversionedSymbolName::new(def.name)

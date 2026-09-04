@@ -113,6 +113,19 @@ allow_unsafe = true
 [pkg.tracing-subscriber]
 allow_unsafe = true
 
+[pkg.wild-scripts]
+allow_unsafe = true
+
+[pkg.wild-fs]
+allow_unsafe = true
+allow_apis = ["fs"]
+
+[pkg.wild-util]
+allow_unsafe = true
+
+[pkg.wild-error]
+allow_apis = ["process"]
+
 [pkg.libwild]
 allow_unsafe = true
 test.allow_unsafe = true
@@ -330,4 +343,4 @@ from.test.allow_apis = ["fs"]
 
 [api.fs]
 no_auto_detect = ["wild"]
-include = ["rustix::fs", "libwild::fs"]
+include = ["rustix::fs", "libwild::fs", "wild_fs::fs"]

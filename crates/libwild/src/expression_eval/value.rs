@@ -4,6 +4,7 @@ use crate::error::Context;
 use crate::error::Result;
 use crate::input_data::InputRef;
 use crate::layout;
+use crate::layout::EnginePlatform;
 use crate::layout::OutputRecordLayout;
 use crate::linker_script::Expression;
 use crate::output_section_id::OutputSectionId;
@@ -14,7 +15,6 @@ use crate::output_section_part_map::OutputSectionPartMap;
 use crate::parsing::SymbolLoc;
 use crate::part_id::PartId;
 use crate::platform::Args;
-use crate::platform::Platform;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
 use hashbrown::HashMap;
@@ -44,7 +44,7 @@ pub(crate) enum SymbolValue {
     },
 }
 
-fn evaluate_symbol_value<P: Platform>(
+fn evaluate_symbol_value<P: EnginePlatform>(
     symbol_value: &SymbolValue,
     loc: &SymbolLoc,
     output_sections: &OutputSections<'_, P>,
@@ -141,7 +141,7 @@ fn location_is_section_relative(
     }
 }
 
-fn evaluate_location<'data, P: Platform>(
+fn evaluate_location<'data, P: EnginePlatform>(
     expr_loc: &SymbolLoc,
     section_layouts: &OutputSectionMap<OutputRecordLayout>,
     output_sections: &OutputSections<'data, P>,
@@ -176,7 +176,7 @@ fn evaluate_location<'data, P: Platform>(
 
 /// Absolute VMA of the location counter. Inside a section, `evaluate_location` is relative to
 /// the section start; GNU ld's one-arg `ALIGN(n)` aligns the absolute address.
-fn absolute_location_counter<'data, P: Platform>(
+fn absolute_location_counter<'data, P: EnginePlatform>(
     expr_loc: &SymbolLoc,
     section_layouts: &OutputSectionMap<OutputRecordLayout>,
     output_sections: &OutputSections<'data, P>,
@@ -204,7 +204,7 @@ fn absolute_location_counter<'data, P: Platform>(
     Ok(relative.wrapping_add(base))
 }
 
-pub(crate) fn evaluate_expression<'data, P: Platform>(
+pub(crate) fn evaluate_expression<'data, P: EnginePlatform>(
     expr: &Expression<'data>,
     expr_loc: &SymbolLoc,
     input_ref: Option<&InputRef<'data>>,
@@ -261,7 +261,7 @@ pub(crate) fn data_segment_align(dot: u64, maxpagesize: u64) -> u64 {
     aligned.wrapping_add(offset)
 }
 
-fn evaluate_expression_value<'data, P: Platform>(
+fn evaluate_expression_value<'data, P: EnginePlatform>(
     expr: &Expression<'data>,
     expr_loc: &SymbolLoc,
     input_ref: Option<&InputRef<'data>>,
@@ -532,7 +532,7 @@ fn evaluate_expression_value<'data, P: Platform>(
         }
     }
 }
-fn section_size<'data, P: Platform>(
+fn section_size<'data, P: EnginePlatform>(
     name: &[u8],
     section_layouts: &OutputSectionMap<OutputRecordLayout>,
     output_sections: &OutputSections<'data, P>,
@@ -546,7 +546,7 @@ fn section_size<'data, P: Platform>(
         .saturating_sub(section_layouts.get(id).mem_offset)
 }
 
-fn section_align<'data, P: Platform>(
+fn section_align<'data, P: EnginePlatform>(
     name: &[u8],
     section_layouts: &OutputSectionMap<OutputRecordLayout>,
     output_sections: &OutputSections<'data, P>,
@@ -559,7 +559,7 @@ fn section_align<'data, P: Platform>(
     section_layouts.get(id).alignment.value()
 }
 
-fn section_address<'data, P: Platform>(
+fn section_address<'data, P: EnginePlatform>(
     name: &[u8],
     section_layouts: &OutputSectionMap<OutputRecordLayout>,
     output_sections: &OutputSections<'data, P>,
@@ -575,7 +575,7 @@ fn section_address<'data, P: Platform>(
     Ok(section_layouts.get(id).mem_offset)
 }
 
-fn section_load_address<'data, P: Platform>(
+fn section_load_address<'data, P: EnginePlatform>(
     name: &[u8],
     section_layouts: &OutputSectionMap<OutputRecordLayout>,
     output_sections: &OutputSections<'data, P>,

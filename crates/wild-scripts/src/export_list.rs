@@ -1,27 +1,27 @@
-use crate::error;
-use crate::error::Result;
-use crate::hash::PreHashed;
-use crate::input_data::ScriptData;
 use crate::linker_script::skip_comments_and_whitespace;
-use crate::symbol::UnversionedSymbolName;
+use crate::script_data::ScriptData;
 use crate::version_script::MatchRules;
 use crate::version_script::SymbolLookupNameWrapper;
 use crate::version_script::parse_matcher;
+use wild_error::error;
+use wild_error::error::Result;
+use wild_util::hash::PreHashed;
+use wild_util::symbol_name::UnversionedSymbolName;
 use winnow::BStr;
 use winnow::Parser;
 
 #[derive(Debug, Default)]
-pub(crate) struct ExportList<'data>(MatchRules<'data>);
+pub struct ExportList<'data>(MatchRules<'data>);
 
 impl<'data> ExportList<'data> {
-    pub(crate) fn parse(data: ScriptData<'data>) -> Result<Self> {
+    pub fn parse(data: ScriptData<'data>) -> Result<Self> {
         parse_export_list
             .parse(BStr::new(data.raw))
             .map_err(|err| error!("Failed to parse symbol export list:\n{err}"))
     }
 
     // Based on Version Script counterpart
-    pub(crate) fn contains(&self, name: &PreHashed<UnversionedSymbolName>) -> bool {
+    pub fn contains(&self, name: &PreHashed<UnversionedSymbolName>) -> bool {
         let mut lookup_name = SymbolLookupNameWrapper::from_name(name);
 
         if self.0.general.matches_exact(&mut lookup_name, false)
@@ -44,7 +44,7 @@ impl<'data> ExportList<'data> {
         self.0.general.matches_all() || self.0.cxx.matches_all()
     }
 
-    pub(crate) fn add_symbol(&mut self, symbol: &'data str, without_semicolon: bool) -> Result<()> {
+    pub fn add_symbol(&mut self, symbol: &'data str, without_semicolon: bool) -> Result<()> {
         let matcher = parse_matcher(&mut BStr::new(symbol), without_semicolon)?;
         self.0.push(matcher);
         Ok(())
@@ -77,7 +77,7 @@ fn parse_export_list<'input>(input: &mut &'input BStr) -> winnow::Result<ExportL
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::input_data::ScriptData;
+    use crate::script_data::ScriptData;
 
     #[test]
     fn parse_inline() {

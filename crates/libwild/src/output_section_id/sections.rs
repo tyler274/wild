@@ -6,6 +6,7 @@ use crate::alignment;
 use crate::alignment::Alignment;
 use crate::alignment::NUM_ALIGNMENTS;
 use crate::grouping::SequencedLinkerScript;
+use crate::layout::EnginePlatform;
 use crate::layout_rules::SectionKind;
 use crate::linker_script;
 use crate::linker_script::Expression;
@@ -412,7 +413,10 @@ impl<'data, P: Platform> OutputSections<'data, P> {
         output_kind: OutputKind,
         linker_scripts: &[&SequencedLinkerScript<'data, P>],
         location_counters: &[crate::layout_rules::LocationCounter<'data>],
-    ) -> Result<(OutputOrder<'data>, ProgramSegments<P::ProgramSegmentDef>)> {
+    ) -> Result<(OutputOrder<'data>, ProgramSegments<P::ProgramSegmentDef>)>
+    where
+        P: EnginePlatform,
+    {
         timing_phase!("Compute output order");
 
         let has_custom_phdrs = linker_scripts

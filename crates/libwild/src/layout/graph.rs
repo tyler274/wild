@@ -5,6 +5,7 @@ use crate::error::Context;
 use crate::error::Error;
 use crate::error::Result;
 use crate::input_data::InputRef;
+use crate::layout::EnginePlatform;
 use crate::layout_rules::SectionKind;
 use crate::linker_script::Expression;
 use crate::output_section_id::OutputSections;
@@ -37,7 +38,7 @@ use std::sync::Mutex;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
 
-pub(crate) fn export_dynamic<'data, P: Platform>(
+pub(crate) fn export_dynamic<'data, P: EnginePlatform>(
     common: &mut CommonGroupState<'data, P>,
     symbol_id: SymbolId,
     symbol_db: &SymbolDb<'data, P>,
@@ -57,7 +58,10 @@ pub(crate) fn traverse_reference_graph<'data, A: Arch>(
     per_symbol_flags: &AtomicPerSymbolFlags,
     output_sections: &OutputSections<'data, A::Platform>,
     layout_resources_ext: <A::Platform as Platform>::LayoutResourcesExt<'data>,
-) -> Result<GcOutputs<'data, A::Platform>> {
+) -> Result<GcOutputs<'data, A::Platform>>
+where
+    A::Platform: EnginePlatform,
+{
     timing_phase!("Traverse reference graph");
 
     let num_groups = groups_in.len();
@@ -110,7 +114,7 @@ pub(crate) fn traverse_reference_graph<'data, A: Arch>(
     <A::Platform as Platform>::pre_finalise_sizes_prelude(
         prelude,
         &mut prelude_group.common,
-        &resources,
+        crate::layout::platform_graph(&resources),
     );
 
     let must_keep_sections = resources.must_keep_sections.into_map(|v| v.into_inner());
@@ -129,7 +133,9 @@ pub(crate) fn queue_initial_group_processing<'data, 'scope, A: Arch>(
     symbol_db: &'scope SymbolDb<'data, A::Platform>,
     resources: &'scope GraphResources<'data, '_, A::Platform>,
     scope: &Scope<'scope>,
-) {
+) where
+    A::Platform: EnginePlatform,
+{
     verbose_timing_phase!("Create worker slots");
 
     assert_eq!(groups_in.len(), symbol_db.groups.len());
@@ -151,7 +157,7 @@ pub(crate) fn queue_initial_group_processing<'data, 'scope, A: Arch>(
         });
 }
 
-pub(crate) fn unwrap_worker_states<'data, P: Platform>(
+pub(crate) fn unwrap_worker_states<'data, P: EnginePlatform>(
     worker_slots: &[Mutex<WorkerSlot<'data, P>>],
 ) -> Vec<GroupState<'data, P>> {
     worker_slots
@@ -166,7 +172,10 @@ pub(crate) fn activate<'data, 'scope, A: Arch>(
     queue: &mut LocalWorkQueue<A::Platform>,
     resources: &'scope GraphResources<'data, '_, A::Platform>,
     scope: &Scope<'scope>,
-) -> Result {
+) -> Result
+where
+    A::Platform: EnginePlatform,
+{
     match file {
         FileLayoutState::Object(s) => s.activate::<A>(common, resources, queue, scope)?,
         FileLayoutState::Prelude(s) => s.activate::<A>(common, resources, queue, scope)?,
@@ -230,7 +239,9 @@ pub(crate) fn load_redirect_referenced_symbols<'data, 'scope, A: Arch>(
     scope: &Scope<'scope>,
     symbol_id: SymbolId,
     redirect: &crate::parsing::Redirect<'data>,
-) {
+) where
+    A::Platform: EnginePlatform,
+{
     resources
         .per_symbol_flags
         .get_atomic(symbol_id)
@@ -244,7 +255,9 @@ pub(crate) fn load_expression_referenced_symbols<'data, 'scope, A: Arch>(
     queue: &mut LocalWorkQueue<A::Platform>,
     scope: &Scope<'scope>,
     expression: &Expression<'data>,
-) {
+) where
+    A::Platform: EnginePlatform,
+{
     // Also mark any symbols in the expression as used and queue it for loading to
     // prevent it from being GC'd.
     expression.visit_expressions(&mut |e| {
@@ -278,11 +291,13 @@ pub(crate) fn load_redirect_expression_targets<'data, 'scope, A: Arch>(
     queue: &mut LocalWorkQueue<A::Platform>,
     scope: &Scope<'scope>,
     redirect: &crate::parsing::Redirect<'data>,
-) {
+) where
+    A::Platform: EnginePlatform,
+{
     load_expression_referenced_symbols::<A>(resources, queue, scope, &redirect.expression);
 }
 
-pub(crate) fn provide_has_missing_rhs<'data, P: Platform>(
+pub(crate) fn provide_has_missing_rhs<'data, P: EnginePlatform>(
     def_info: &InternalSymDefInfo<'data, P>,
     symbol_db: &SymbolDb<'data, P>,
 ) -> bool {
@@ -303,7 +318,7 @@ pub(crate) fn provide_has_missing_rhs<'data, P: Platform>(
     missing
 }
 
-pub(crate) fn create_internal_symbol_resolution<'data, P: Platform>(
+pub(crate) fn create_internal_symbol_resolution<'data, P: EnginePlatform>(
     memory_offsets: &mut OutputSectionPartMap<u64>,
     resources: &FinaliseLayoutResources<'_, 'data, P>,
     def_info: &InternalSymDefInfo<P>,
@@ -386,7 +401,10 @@ pub(crate) fn check_for_undefined<A: Arch>(
     flags: ValueFlags,
     symbol_id: SymbolId,
     resources: &GraphResources<A::Platform>,
-) -> Result {
+) -> Result
+where
+    A::Platform: EnginePlatform,
+{
     let symbol_db = resources.symbol_db;
 
     if !should_emit_undefined_error(object, local_sym_index, flags, symbol_id, symbol_db) {
@@ -412,7 +430,7 @@ pub(crate) fn check_for_undefined<A: Arch>(
     Ok(())
 }
 
-pub(crate) fn should_emit_undefined_error<P: Platform>(
+pub(crate) fn should_emit_undefined_error<P: EnginePlatform>(
     object: &ObjectLayoutState<P>,
     local_sym_index: object::SymbolIndex,
     flags: ValueFlags,
@@ -447,7 +465,7 @@ pub(crate) fn should_emit_undefined_error<P: Platform>(
 
 /// Construct a new inactive instance, which means we don't yet load non-GC sections and only
 /// load them later if a symbol from this object is referenced.
-pub(crate) fn new_object_layout_state<P: Platform>(
+pub(crate) fn new_object_layout_state<P: EnginePlatform>(
     input_state: resolution::ResolvedObject<P>,
 ) -> FileLayoutState<P> {
     // Note, this function is called for all objects from a single thread, so don't be tempted to do
@@ -472,7 +490,7 @@ pub(crate) fn new_object_layout_state<P: Platform>(
     })
 }
 
-pub(crate) fn new_dynamic_object_layout_state<'data, P: Platform>(
+pub(crate) fn new_dynamic_object_layout_state<'data, P: EnginePlatform>(
     input_state: &resolution::ResolvedDynamic<'data, P>,
     args: &P::Args,
 ) -> FileLayoutState<'data, P> {
@@ -486,7 +504,7 @@ pub(crate) fn new_dynamic_object_layout_state<'data, P: Platform>(
     })
 }
 
-pub(crate) fn export_symbols_mode<P: Platform>(
+pub(crate) fn export_symbols_mode<P: EnginePlatform>(
     symbol_db: &SymbolDb<P>,
     input: &InputRef,
 ) -> Option<ExportSymbolsMode> {
@@ -508,7 +526,7 @@ pub(crate) fn export_symbols_mode<P: Platform>(
     None
 }
 
-pub(crate) fn can_export_symbol<P: Platform>(
+pub(crate) fn can_export_symbol<P: EnginePlatform>(
     sym: &P::SymtabEntry,
     symbol_id: SymbolId,
     resources: &GraphResources<P>,
@@ -529,7 +547,7 @@ pub(crate) fn can_export_symbol<P: Platform>(
     )
 }
 
-pub(crate) fn can_export_global_def<P: Platform>(
+pub(crate) fn can_export_global_def<P: EnginePlatform>(
     symbol_db: &SymbolDb<P>,
     visibility: Visibility,
     symbol_id: SymbolId,

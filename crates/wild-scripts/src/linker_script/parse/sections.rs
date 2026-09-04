@@ -1,6 +1,6 @@
 use super::*;
-use crate::alignment::Alignment;
 use crate::linker_script::ast::*;
+use wild_util::alignment::Alignment;
 use winnow::BStr;
 use winnow::Parser as _;
 use winnow::ascii::dec_uint;
@@ -12,7 +12,7 @@ use winnow::error::ContextError;
 use winnow::error::FromExternalError;
 use winnow::token::take_while;
 
-pub(crate) fn parse_section_command_list<'input>(
+pub fn parse_section_command_list<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<Vec<SectionCommand<'input>>> {
     skip_comments_and_whitespace(input)?;
@@ -20,7 +20,7 @@ pub(crate) fn parse_section_command_list<'input>(
         .parse_next(input)?
         .0)
 }
-pub(crate) fn parse_sections<'input>(input: &mut &'input BStr) -> winnow::Result<Sections<'input>> {
+pub fn parse_sections<'input>(input: &mut &'input BStr) -> winnow::Result<Sections<'input>> {
     '{'.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
     let (commands, _) = repeat_till(0.., parse_section_command, '}').parse_next(input)?;
@@ -28,7 +28,7 @@ pub(crate) fn parse_sections<'input>(input: &mut &'input BStr) -> winnow::Result
     Ok(Sections { commands })
 }
 
-pub(crate) fn parse_section_command<'input>(
+pub fn parse_section_command<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<SectionCommand<'input>> {
     let name = parse_token(input)?;
@@ -156,7 +156,7 @@ pub(crate) fn parse_section_command<'input>(
     }))
 }
 
-pub(crate) fn parse_overlay<'input>(
+pub fn parse_overlay<'input>(
     input: &mut &'input BStr,
     start_address: Option<Expression<'input>>,
 ) -> winnow::Result<SectionCommand<'input>> {
@@ -234,7 +234,7 @@ pub(crate) fn parse_overlay<'input>(
     }))
 }
 
-pub(crate) fn parse_section_attribute(input: &mut &BStr) -> winnow::Result<SectionAttributes> {
+pub fn parse_section_attribute(input: &mut &BStr) -> winnow::Result<SectionAttributes> {
     '('.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
 
@@ -306,19 +306,19 @@ fn resolve_output_section_type(expr: &Expression<'_>) -> Result<u32, ()> {
         Expression::Symbol(b"SHT_FINI_ARRAY") => Ok(object::elf::SHT_FINI_ARRAY.0),
         Expression::Symbol(b"SHT_PREINIT_ARRAY") => Ok(object::elf::SHT_PREINIT_ARRAY.0),
         Expression::Symbol(_) => Err(()),
-        other => crate::expression_eval::evaluate_const(other)
+        other => crate::evaluate_const(other)
             .map(|v| v as u32)
             .map_err(|_| ()),
     }
 }
 
-pub(crate) fn parse_fill<'input>(input: &mut &'input BStr) -> winnow::Result<Fill<'input>> {
+pub fn parse_fill<'input>(input: &mut &'input BStr) -> winnow::Result<Fill<'input>> {
     return Ok(Fill {
         value: parse_expression.parse_next(input)?,
     });
 }
 
-pub(crate) fn parse_alignment(input: &mut &BStr) -> winnow::Result<Alignment> {
+pub fn parse_alignment(input: &mut &BStr) -> winnow::Result<Alignment> {
     "ALIGN".parse_next(input)?;
     skip_comments_and_whitespace(input)?;
     '('.parse_next(input)?;
@@ -333,9 +333,7 @@ pub(crate) fn parse_alignment(input: &mut &BStr) -> winnow::Result<Alignment> {
     Ok(alignment)
 }
 
-pub(crate) fn parse_at_address<'input>(
-    input: &mut &'input BStr,
-) -> winnow::Result<Expression<'input>> {
+pub fn parse_at_address<'input>(input: &mut &'input BStr) -> winnow::Result<Expression<'input>> {
     skip_comments_and_whitespace(input)?;
     '('.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
@@ -346,7 +344,7 @@ pub(crate) fn parse_at_address<'input>(
     Ok(address)
 }
 
-pub(crate) fn parse_contents_command<'input>(
+pub fn parse_contents_command<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<ContentsCommand<'input>> {
     alt((
@@ -362,7 +360,7 @@ pub(crate) fn parse_contents_command<'input>(
     .parse_next(input)
 }
 
-pub(crate) fn parse_contents_fill<'input>(
+pub fn parse_contents_fill<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<ContentsCommand<'input>> {
     "FILL".parse_next(input)?;
@@ -378,7 +376,7 @@ pub(crate) fn parse_contents_fill<'input>(
     Ok(ContentsCommand::Fill(Fill { value }))
 }
 
-pub(crate) fn parse_output_data<'input>(
+pub fn parse_output_data<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<ContentsCommand<'input>> {
     let width = alt((
@@ -400,7 +398,7 @@ pub(crate) fn parse_output_data<'input>(
     Ok(ContentsCommand::OutputData(OutputData { width, value }))
 }
 
-pub(crate) fn parse_contents_provide<'input>(
+pub fn parse_contents_provide<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<ContentsCommand<'input>> {
     let hidden = alt(("PROVIDE_HIDDEN", "PROVIDE")).parse_next(input)? == b"PROVIDE_HIDDEN";
@@ -409,7 +407,7 @@ pub(crate) fn parse_contents_provide<'input>(
     Ok(ContentsCommand::Provide(provide))
 }
 
-pub(crate) fn parse_assignment<'input>(
+pub fn parse_assignment<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<ContentsCommand<'input>> {
     let name = parse_token(input)?;
@@ -435,7 +433,7 @@ pub(crate) fn parse_assignment<'input>(
     Ok(cmd)
 }
 
-pub(crate) fn parse_constructors<'input>(
+pub fn parse_constructors<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<ContentsCommand<'input>> {
     if opt("SORT").parse_next(input)?.is_some() {
@@ -454,7 +452,7 @@ pub(crate) fn parse_constructors<'input>(
     Ok(ContentsCommand::Constructors)
 }
 
-pub(crate) fn parse_linker_version<'input>(
+pub fn parse_linker_version<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<ContentsCommand<'input>> {
     "LINKER_VERSION".parse_next(input)?;
@@ -464,16 +462,14 @@ pub(crate) fn parse_linker_version<'input>(
     Ok(ContentsCommand::LinkerVersion)
 }
 
-pub(crate) fn parse_matcher<'input>(
-    input: &mut &'input BStr,
-) -> winnow::Result<ContentsCommand<'input>> {
+pub fn parse_matcher<'input>(input: &mut &'input BStr) -> winnow::Result<ContentsCommand<'input>> {
     let matcher = alt((parse_keep, parse_matcher_pattern)).parse_next(input)?;
     opt(';').parse_next(input)?;
     skip_comments_and_whitespace(input)?;
     Ok(ContentsCommand::Matcher(matcher))
 }
 
-pub(crate) fn parse_keep<'input>(input: &mut &'input BStr) -> winnow::Result<Matcher<'input>> {
+pub fn parse_keep<'input>(input: &mut &'input BStr) -> winnow::Result<Matcher<'input>> {
     "KEEP".parse_next(input)?;
     skip_comments_and_whitespace(input)?;
     '('.parse_next(input)?;
@@ -484,7 +480,7 @@ pub(crate) fn parse_keep<'input>(input: &mut &'input BStr) -> winnow::Result<Mat
     Ok(matcher)
 }
 
-pub(crate) fn parse_exclude_file_list<'input>(
+pub fn parse_exclude_file_list<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<Vec<&'input [u8]>> {
     "EXCLUDE_FILE".parse_next(input)?;
@@ -501,9 +497,7 @@ pub(crate) fn parse_exclude_file_list<'input>(
     Ok(files)
 }
 
-pub(crate) fn parse_matcher_pattern<'input>(
-    input: &mut &'input BStr,
-) -> winnow::Result<Matcher<'input>> {
+pub fn parse_matcher_pattern<'input>(input: &mut &'input BStr) -> winnow::Result<Matcher<'input>> {
     let mut exclude_file_patterns = Vec::new();
     if input.starts_with(b"EXCLUDE_FILE") {
         exclude_file_patterns = parse_exclude_file_list(input)?;
@@ -542,7 +536,7 @@ pub(crate) fn parse_matcher_pattern<'input>(
     })
 }
 
-pub(crate) fn parse_sort(input: &mut &BStr) -> winnow::Result<SortKind> {
+pub fn parse_sort(input: &mut &BStr) -> winnow::Result<SortKind> {
     alt((
         "SORT_BY_INIT_PRIORITY".map(|_| SortKind::InitPriority),
         "SORT_BY_NAME".map(|_| SortKind::Name),
@@ -553,9 +547,7 @@ pub(crate) fn parse_sort(input: &mut &BStr) -> winnow::Result<SortKind> {
     .parse_next(input)
 }
 
-pub(crate) fn parse_pattern<'input>(
-    input: &mut &'input BStr,
-) -> winnow::Result<SectionPattern<'input>> {
+pub fn parse_pattern<'input>(input: &mut &'input BStr) -> winnow::Result<SectionPattern<'input>> {
     let wrapped = opt(parse_sort).parse_next(input)?;
     let sort = wrapped.unwrap_or(SortKind::None);
 
@@ -581,7 +573,7 @@ pub(crate) fn parse_pattern<'input>(
     Ok(SectionPattern { name, sort })
 }
 
-pub(crate) fn parse_contents_assert<'input>(
+pub fn parse_contents_assert<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<ContentsCommand<'input>> {
     "ASSERT".parse_next(input)?;

@@ -3,10 +3,10 @@ use std::hash::BuildHasher;
 use std::hash::Hasher;
 use std::ops::Deref;
 
-pub(crate) type PassThroughHashMap<K, V> = HashMap<PreHashed<K>, V, PassThroughHasher>;
+pub type PassThroughHashMap<K, V> = HashMap<PreHashed<K>, V, PassThroughHasher>;
 
 #[derive(Default)]
-pub(crate) struct PassThroughHasher {
+pub struct PassThroughHasher {
     hash: u64,
 }
 
@@ -32,14 +32,14 @@ impl BuildHasher for PassThroughHasher {
     }
 }
 
-pub(crate) fn hash_bytes(bytes: &[u8]) -> u64 {
+pub fn hash_bytes(bytes: &[u8]) -> u64 {
     let mut hasher = foldhash::fast::FixedState::default().build_hasher();
     hasher.write(bytes);
     hasher.finish()
 }
 
 #[derive(Eq, Clone, Copy)]
-pub(crate) struct PreHashed<T> {
+pub struct PreHashed<T> {
     value: T,
     hash: u64,
 }
@@ -57,11 +57,11 @@ impl<T: PartialEq> PartialEq for PreHashed<T> {
 }
 
 impl<T> PreHashed<T> {
-    pub(crate) fn new(value: T, hash: u64) -> Self {
+    pub fn new(value: T, hash: u64) -> Self {
         Self { value, hash }
     }
 
-    pub(crate) fn hash(&self) -> u64 {
+    pub fn hash(&self) -> u64 {
         self.hash
     }
 }

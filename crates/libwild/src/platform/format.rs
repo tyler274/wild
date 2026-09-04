@@ -8,23 +8,8 @@ use crate::Result;
 use crate::alignment::Alignment;
 use crate::bail;
 use crate::fs::FileReplacementMode;
-use crate::grouping::Group;
-use crate::grouping::SequencedLinkerScript;
-use crate::input_data::FileLoader;
-use crate::layout;
-use crate::layout::CommonGroupState;
-use crate::layout::DynamicSymbolDefinition;
-use crate::layout::GroupState;
-use crate::layout::Layout;
-use crate::layout::ObjectLayoutState;
-use crate::layout::OutputRecordLayout;
-use crate::layout::PreludeLayoutState;
-use crate::layout::SymbolResolutions;
-use crate::layout_rules;
-use crate::layout_rules::LayoutRulesBuilder;
 use crate::layout_rules::SectionRule;
 use crate::layout_rules::SectionRuleOutcome;
-use crate::linker_plugins::LinkerPlugin;
 use crate::linker_script;
 use crate::output_section_id::CustomSectionIds;
 use crate::output_section_id::OutputOrder;
@@ -34,15 +19,9 @@ use crate::output_section_id::SectionIdentity;
 use crate::output_section_id::SectionName;
 use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
-use crate::parsing::InternalSymDefInfo;
 use crate::part_id;
 use crate::part_id::PartId;
 use crate::program_segments::ProgramSegments;
-use crate::resolution;
-use crate::resolution::LoadedMetrics;
-use crate::resolution::Resolver;
-use crate::resolution::UnloadedSection;
-use crate::symbol_db::SymbolDb;
 use crate::symbol_db::SymbolId;
 use crate::value_flags::AtomicPerSymbolFlags;
 use crate::value_flags::PerSymbolFlags;
@@ -168,13 +147,59 @@ pub(crate) trait Platform:
     /// For platforms that don't support symbol versioning, this can just be the unit type.
     type VerneedTable<'data>: VerneedTable<'data>;
 
+    type Layout<'data>;
+    type SymbolDb<'data>;
+    type Resolver<'data>;
+    type ResolutionResources<'data, 'scope>
+    where
+        'data: 'scope;
+    type ObjectLayoutState<'data>;
+    type CommonGroupState<'data>;
+    type GroupState<'data>;
+    type DynamicLayoutState<'data>;
+    type PreludeLayoutState<'data>;
+    type StubLibraryLayoutState<'data>;
+    type GraphResources<'data, 'scope>
+    where
+        'data: 'scope;
+    type LocalWorkQueue;
+    type FinaliseLayoutResources<'scope, 'data>
+    where
+        'data: 'scope;
+    type FinaliseSizesResources<'data, 'scope>
+    where
+        'data: 'scope;
+    type ResolutionWriter<'writer, 'out>
+    where
+        'out: 'writer;
+    type DynamicSymbolDefinition<'data>;
+    type OutputRecordLayout;
+    type SymbolResolutions;
+    type LayoutSection;
+    type HeaderInfo;
+    type Resolution;
+    type UnloadedSection;
+    type LoadedMetrics;
+    type ResolvedObject<'data>;
+    type ResolvedDynamic<'data>;
+    type ResolvedStubLibrary<'data>;
+    type LinkerPlugin<'data>;
+    type LoadedPlugin;
+    type LtoInput<'data>;
+    type Group<'data>;
+    type SequencedLinkerScript<'data>;
+    type FileLoader<'data, F: crate::fs::FileSystem>;
+    type LayoutRulesBuilder<'data>;
+    type InternalSymbolsBuilder<'data>;
+    type InternalSymDefInfo<'data>;
+
     fn write_output_file<'data, A: Arch<Platform = Self>, F: FileSystem>(
         output: &crate::file_writer::Output<F>,
-        layout: &Layout<'data, Self>,
+        layout: &Self::Layout<'data>,
     ) -> Result;
 
     fn maybe_compress_debug_sections<'data, A: Arch<Platform = Self>>(
-        _layout: &mut Layout<'data, Self>,
+        _layout: &mut Self::Layout<'data>,
     ) -> Result {
         Ok(())
     }
@@ -183,21 +208,21 @@ pub(crate) trait Platform:
     /// that one should be used.
     fn maybe_init_linker_plugin<'data>(
         _args: &'data Self::Args,
-        _linker_plugin_arena: &'data colosseum::sync::Arena<crate::linker_plugins::LoadedPlugin>,
+        _linker_plugin_arena: &'data colosseum::sync::Arena<Self::LoadedPlugin>,
         _herd: &'data bumpalo_herd::Herd,
-    ) -> Result<Option<crate::linker_plugins::LinkerPlugin<'data>>> {
+    ) -> Result<Option<Self::LinkerPlugin<'data>>> {
         Ok(None)
     }
 
     /// Called once all symbols have been read, but only if a linker plugin is active.
     fn plugin_all_symbols_read<'data, F: FileSystem>(
-        _plugin: &mut LinkerPlugin<'data>,
-        _symbol_db: &mut SymbolDb<'data, Self>,
-        _resolver: &mut Resolver<'data, Self>,
-        _file_loader: &mut FileLoader<'data, F>,
+        _plugin: &mut Self::LinkerPlugin<'data>,
+        _symbol_db: &mut Self::SymbolDb<'data>,
+        _resolver: &mut Self::Resolver<'data>,
+        _file_loader: &mut Self::FileLoader<'data, F>,
         _per_symbol_flags: &mut PerSymbolFlags,
         _output_sections: &mut OutputSections<'data, Self>,
-        _layout_rules_builder: &mut LayoutRulesBuilder<'data>,
+        _layout_rules_builder: &mut Self::LayoutRulesBuilder<'data>,
     ) -> Result {
         // Platforms that implement maybe_init_linker_plugin must implement this method too.
         unimplemented!();
@@ -205,8 +230,8 @@ pub(crate) trait Platform:
 
     #[allow(dead_code)]
     fn resolve_lto_symbols<'data, 'scope>(
-        _obj: &crate::linker_plugins::LtoInput<'data>,
-        _resources: &'scope crate::resolution::ResolutionResources<'data, 'scope, Self>,
+        _obj: &Self::LtoInput<'data>,
+        _resources: &'scope Self::ResolutionResources<'data, 'scope>,
         _definitions_out: &mut [SymbolId],
         _scope: &Scope<'scope>,
     ) -> Result {
@@ -216,6 +241,11 @@ pub(crate) trait Platform:
     /// Returns whether the supplied file kind is permitted in archives.
     fn is_allowed_in_archive(_kind: crate::file_kind::FileKind) -> bool {
         false
+    }
+
+    /// Number of versions named by a version script, if this platform uses them.
+    fn version_script_version_count(_symbol_db: &Self::SymbolDb<'_>) -> u16 {
+        0
     }
 
     /// Returns attributes of the supplied section. This is type+flags and doesn't include other
@@ -253,8 +283,8 @@ pub(crate) trait Platform:
 
     /// Called after GC phase has completed.
     fn post_gc<'data>(
-        _groups: &mut [layout::GroupState<Self>],
-        _symbol_db: &SymbolDb<'data, Self>,
+        _groups: &mut [Self::GroupState<'_>],
+        _symbol_db: &Self::SymbolDb<'data>,
     ) -> Result {
         Ok(())
     }
@@ -262,28 +292,28 @@ pub(crate) trait Platform:
     /// The dynamic object will be linked against. This is a chance to perform extra initialisation
     /// of `state`.
     fn activate_dynamic<'data>(
-        state: &mut layout::DynamicLayoutState<'data, Self>,
-        common: &mut CommonGroupState<'data, Self>,
+        state: &mut Self::DynamicLayoutState<'data>,
+        common: &mut Self::CommonGroupState<'data>,
     );
 
     fn pre_finalise_sizes_prelude<'scope, 'data>(
-        prelude: &mut layout::PreludeLayoutState<'data, Self>,
-        common: &mut layout::CommonGroupState<'data, Self>,
-        resources: &layout::GraphResources<'data, 'scope, Self>,
+        prelude: &mut Self::PreludeLayoutState<'data>,
+        common: &mut Self::CommonGroupState<'data>,
+        resources: &Self::GraphResources<'data, 'scope>,
     );
 
     fn finalise_sizes_dynamic<'data>(
-        object: &mut layout::DynamicLayoutState<'data, Self>,
-        common: &mut layout::CommonGroupState<'data, Self>,
+        object: &mut Self::DynamicLayoutState<'data>,
+        common: &mut Self::CommonGroupState<'data>,
     ) -> Result;
 
     fn finalise_object_sizes<'data>(
-        object: &mut layout::ObjectLayoutState<'data, Self>,
-        common: &mut layout::CommonGroupState<'data, Self>,
+        object: &mut Self::ObjectLayoutState<'data>,
+        common: &mut Self::CommonGroupState<'data>,
     );
 
     fn finalise_object_layout<'data>(
-        object: &layout::ObjectLayoutState<'data, Self>,
+        object: &Self::ObjectLayoutState<'data>,
         memory_offsets: &mut OutputSectionPartMap<u64>,
     );
 
@@ -294,17 +324,17 @@ pub(crate) trait Platform:
     }
 
     fn finalise_layout_dynamic<'data>(
-        state: &mut layout::DynamicLayoutState<'data, Self>,
+        state: &mut Self::DynamicLayoutState<'data>,
         memory_offsets: &mut OutputSectionPartMap<u64>,
-        resources: &layout::FinaliseLayoutResources<'_, 'data, Self>,
-        resolutions_out: &mut layout::ResolutionWriter<Self>,
+        resources: &Self::FinaliseLayoutResources<'_, 'data>,
+        resolutions_out: &mut Self::ResolutionWriter<'_, '_>,
     ) -> Result<Option<Self::DynamicLayoutExt<'data>>>;
 
     fn finalise_layout_stub<'data>(
-        _state: layout::StubLibraryLayoutState<'data, Self>,
+        _state: Self::StubLibraryLayoutState<'data>,
         _memory_offsets: &mut OutputSectionPartMap<u64>,
-        _resources: &layout::FinaliseLayoutResources<'_, 'data, Self>,
-        _resolutions_out: &mut layout::ResolutionWriter<Self>,
+        _resources: &Self::FinaliseLayoutResources<'_, 'data>,
+        _resolutions_out: &mut Self::ResolutionWriter<'_, '_>,
     ) -> Result<Option<Self::StubLibraryLayoutExt>> {
         Ok(None)
     }
@@ -313,16 +343,16 @@ pub(crate) trait Platform:
     /// one.
     fn take_dynsym_index(
         memory_offsets: &mut OutputSectionPartMap<u64>,
-        section_layouts: &OutputSectionMap<OutputRecordLayout>,
+        section_layouts: &OutputSectionMap<Self::OutputRecordLayout>,
     ) -> Result<u32>;
 
     fn compute_object_addresses<'data>(
-        object: &layout::ObjectLayoutState<'data, Self>,
+        object: &Self::ObjectLayoutState<'data>,
         memory_offsets: &mut OutputSectionPartMap<u64>,
     );
 
     fn layout_resources_ext<'data>(
-        groups: &[Group<'data, Self>],
+        groups: &[Self::Group<'data>],
     ) -> Self::LayoutResourcesExt<'data>;
 
     fn gc_unit_for_symbol<'data>(
@@ -340,30 +370,30 @@ pub(crate) trait Platform:
 
     /// Loads GC roots for an object. May also perform platform-specific allocation.
     fn activate_object_gc<'data, 'scope, A: Arch<Platform = Self>>(
-        object: &mut layout::ObjectLayoutState<'data, Self>,
-        common: &mut layout::CommonGroupState<'data, Self>,
-        resources: &'scope layout::GraphResources<'data, 'scope, Self>,
-        queue: &mut layout::LocalWorkQueue<Self>,
+        object: &mut Self::ObjectLayoutState<'data>,
+        common: &mut Self::CommonGroupState<'data>,
+        resources: &'scope Self::GraphResources<'data, 'scope>,
+        queue: &mut Self::LocalWorkQueue,
         scope: &Scope<'scope>,
     ) -> Result;
 
     /// Loads the specified GC unit and queue loading of whatever it references.
     fn load_gc_unit<'data, 'scope, A: Arch<Platform = Self>>(
-        object: &mut layout::ObjectLayoutState<'data, Self>,
-        common: &mut layout::CommonGroupState<'data, Self>,
-        resources: &'scope layout::GraphResources<'data, 'scope, Self>,
-        queue: &mut layout::LocalWorkQueue<Self>,
+        object: &mut Self::ObjectLayoutState<'data>,
+        common: &mut Self::CommonGroupState<'data>,
+        resources: &'scope Self::GraphResources<'data, 'scope>,
+        queue: &mut Self::LocalWorkQueue,
         unit: Self::GcUnit,
         scope: &Scope<'scope>,
     ) -> Result;
 
     /// Calls `load_section_relocations` on `state` for the relocations in `section`.
     fn load_object_section_relocations<'data, 'scope, A: Arch<Platform = Self>>(
-        state: &mut layout::ObjectLayoutState<'data, Self>,
-        common: &mut layout::CommonGroupState<'data, Self>,
-        queue: &mut layout::LocalWorkQueue<Self>,
-        resources: &'scope layout::GraphResources<'data, '_, Self>,
-        section: layout::Section,
+        state: &mut Self::ObjectLayoutState<'data>,
+        common: &mut Self::CommonGroupState<'data>,
+        queue: &mut Self::LocalWorkQueue,
+        resources: &'scope Self::GraphResources<'data, '_>,
+        section: Self::LayoutSection,
         section_index: object::SectionIndex,
         scope: &Scope<'scope>,
     ) -> Result;
@@ -371,10 +401,10 @@ pub(crate) trait Platform:
     /// When `--emit-relocs` is set, load the `SHT_REL`/`SHT_RELA` sections that apply to
     /// `section_index` so they survive GC with their target.
     fn load_associated_reloc_sections<'data, 'scope, A: Arch<Platform = Self>>(
-        _state: &mut layout::ObjectLayoutState<'data, Self>,
-        _common: &mut layout::CommonGroupState<'data, Self>,
-        _queue: &mut layout::LocalWorkQueue<Self>,
-        _resources: &'scope layout::GraphResources<'data, 'scope, Self>,
+        _state: &mut Self::ObjectLayoutState<'data>,
+        _common: &mut Self::CommonGroupState<'data>,
+        _queue: &mut Self::LocalWorkQueue,
+        _resources: &'scope Self::GraphResources<'data, 'scope>,
         _section_index: object::SectionIndex,
         _scope: &Scope<'scope>,
     ) -> Result {
@@ -382,23 +412,23 @@ pub(crate) trait Platform:
     }
 
     fn create_dynamic_symbol_definition<'data>(
-        symbol_db: &SymbolDb<'data, Self>,
+        symbol_db: &Self::SymbolDb<'data>,
         symbol_id: SymbolId,
-    ) -> Result<layout::DynamicSymbolDefinition<'data, Self>>;
+    ) -> Result<Self::DynamicSymbolDefinition<'data>>;
 
     /// GNU ld emits an empty `STT_OBJECT`/`SHN_ABS` dynamic symbol named after each
     /// named version in `--version-script` (except the BASE/soname version). Glibc
     /// and other consumers look these up in `.dynsym`.
     fn append_version_node_dynamic_symbols<'data>(
-        _dynamic_symbol_definitions: &mut Vec<layout::DynamicSymbolDefinition<'data, Self>>,
-        _symbol_db: &SymbolDb<'data, Self>,
+        _dynamic_symbol_definitions: &mut Vec<Self::DynamicSymbolDefinition<'data>>,
+        _symbol_db: &Self::SymbolDb<'data>,
     ) {
     }
 
     fn validate_section<'data>(
         _section_info: &crate::output_section_id::SectionOutputInfo<Self>,
         _section_flags: Self::SectionFlags,
-        _section_layout: &OutputRecordLayout,
+        _section_layout: &Self::OutputRecordLayout,
         _merge_target: OutputSectionId,
         _output_sections: &OutputSections<'data, Self>,
         _section_id: OutputSectionId,
@@ -413,7 +443,7 @@ pub(crate) trait Platform:
         _output_order: &OutputOrder<'_>,
         _output_kind: OutputKind,
         _mem_sizes: &OutputSectionPartMap<u64>,
-        _resolution: &layout::Resolution<Self>,
+        _resolution: &Self::Resolution,
         _args: &Self::Args,
     ) -> Result {
         Ok(())
@@ -445,7 +475,7 @@ pub(crate) trait Platform:
     ) -> bool;
 
     fn create_linker_defined_symbols(
-        symbols: &mut crate::parsing::InternalSymbolsBuilder<Self>,
+        symbols: &mut Self::InternalSymbolsBuilder<'_>,
         output_kind: OutputKind,
         args: &Self::Args,
     );
@@ -455,8 +485,8 @@ pub(crate) trait Platform:
 
     fn create_finalise_sizes_ext<'data, 'states, 'files, A: Arch<Platform = Self>>(
         args: &Self::Args,
-        groups: &'files mut [layout::GroupState<'data, Self>],
-        symbol_db: &crate::symbol_db::SymbolDb<'data, Self>,
+        groups: &'files mut [Self::GroupState<'data>],
+        symbol_db: &Self::SymbolDb<'data>,
     ) -> Result<Self::FinaliseSizesExt<'data>>
     where
         'data: 'files,
@@ -464,34 +494,34 @@ pub(crate) trait Platform:
 
     fn create_layout_ext<'data>(
         finalise_sizes_ext: Self::FinaliseSizesExt<'data>,
-        _resolutions: &SymbolResolutions<Self>,
+        _resolutions: &Self::SymbolResolutions,
     ) -> Result<Self::LayoutExt<'data>>;
 
     fn load_exception_frame_data<'data, 'scope, A: Arch<Platform = Self>>(
-        object: &mut ObjectLayoutState<'data, Self>,
-        common: &mut layout::CommonGroupState<'data, Self>,
+        object: &mut Self::ObjectLayoutState<'data>,
+        common: &mut Self::CommonGroupState<'data>,
         eh_frame_section_index: object::SectionIndex,
-        resources: &'scope layout::GraphResources<'data, '_, Self>,
-        queue: &mut layout::LocalWorkQueue<Self>,
+        resources: &'scope Self::GraphResources<'data, '_>,
+        queue: &mut Self::LocalWorkQueue,
         scope: &Scope<'scope>,
     ) -> Result;
 
     /// Called when a section is loaded (not GCed). Implementations should process any exception
     /// frame data related to the loaded section.
     fn non_empty_section_loaded<'data, 'scope, A: Arch<Platform = Self>>(
-        object: &mut layout::ObjectLayoutState<'data, Self>,
-        common: &mut layout::CommonGroupState<'data, Self>,
-        queue: &mut layout::LocalWorkQueue<Self>,
-        unloaded: UnloadedSection,
-        resources: &'scope layout::GraphResources<'data, 'scope, Self>,
+        object: &mut Self::ObjectLayoutState<'data>,
+        common: &mut Self::CommonGroupState<'data>,
+        queue: &mut Self::LocalWorkQueue,
+        unloaded: Self::UnloadedSection,
+        resources: &'scope Self::GraphResources<'data, 'scope>,
         scope: &Scope<'scope>,
     ) -> Result;
 
     fn new_epilogue_layout<'data>(
         args: &Self::Args,
         output_kind: OutputKind,
-        dynamic_symbol_definitions: &mut [DynamicSymbolDefinition<'data, Self>],
-        group_states: &[layout::GroupState<'data, Self>],
+        dynamic_symbol_definitions: &mut [Self::DynamicSymbolDefinition<'data>],
+        group_states: &[Self::GroupState<'data>],
     ) -> Self::EpilogueLayoutExt;
 
     fn apply_non_addressable_indexes_epilogue(
@@ -500,7 +530,7 @@ pub(crate) trait Platform:
     );
 
     fn apply_non_addressable_indexes<'data, 'groups>(
-        symbol_db: &SymbolDb<'data, Self>,
+        symbol_db: &Self::SymbolDb<'data>,
         counts: &Self::NonAddressableCounts,
         mem_sizes_iter: impl Iterator<Item = &'groups mut OutputSectionPartMap<u64>>,
     );
@@ -508,21 +538,21 @@ pub(crate) trait Platform:
     fn finalise_sizes_epilogue<'data>(
         state: &mut Self::EpilogueLayoutExt,
         mem_sizes: &mut OutputSectionPartMap<u64>,
-        dynamic_symbol_definitions: &[DynamicSymbolDefinition<'data, Self>],
+        dynamic_symbol_definitions: &[Self::DynamicSymbolDefinition<'data>],
         format_specific: &Self::FinaliseSizesExt<'data>,
-        symbol_db: &SymbolDb<'data, Self>,
+        symbol_db: &Self::SymbolDb<'data>,
     );
 
     fn finalise_sizes_all<'data>(
         mem_sizes: &mut OutputSectionPartMap<u64>,
-        symbol_db: &SymbolDb<'data, Self>,
+        symbol_db: &Self::SymbolDb<'data>,
     );
 
     fn apply_late_size_adjustments_epilogue(
         _state: &mut Self::EpilogueLayoutExt,
         _current_sizes: &OutputSectionPartMap<u64>,
         _extra_sizes: &mut OutputSectionPartMap<u64>,
-        _dynamic_symbol_defs: &[DynamicSymbolDefinition<Self>],
+        _dynamic_symbol_defs: &[Self::DynamicSymbolDefinition<'_>],
         _format_specific: &Self::FinaliseSizesExt<'_>,
         _args: &Self::Args,
     ) -> Result {
@@ -541,7 +571,7 @@ pub(crate) trait Platform:
     /// Returns any extra size needed for the part that currently ends last in
     /// the output file, once its file offset and provisional size are known.
     fn last_part_size_to_extend(
-        _record: &OutputRecordLayout,
+        _record: &Self::OutputRecordLayout,
         _last_part_id: PartId,
     ) -> Result<usize> {
         Ok(0)
@@ -550,10 +580,10 @@ pub(crate) trait Platform:
     fn finalise_layout_epilogue<'data>(
         epilogue_state: &mut Self::EpilogueLayoutExt,
         memory_offsets: &mut OutputSectionPartMap<u64>,
-        symbol_db: &SymbolDb<'data, Self>,
+        symbol_db: &Self::SymbolDb<'data>,
         common_state: &Self::FinaliseSizesExt<'data>,
         dynsym_start_index: u32,
-        dynamic_symbol_defs: &[DynamicSymbolDefinition<Self>],
+        dynamic_symbol_defs: &[Self::DynamicSymbolDefinition<'_>],
     ) -> Result;
 
     fn is_symbol_non_interposable<'data>(
@@ -580,12 +610,12 @@ pub(crate) trait Platform:
 
     /// Allocate space for headers based on segment and section counts.
     fn allocate_header_sizes<'data>(
-        prelude: &mut PreludeLayoutState<'data, Self>,
+        prelude: &mut Self::PreludeLayoutState<'data>,
         sizes: &mut OutputSectionPartMap<u64>,
-        header_info: &layout::HeaderInfo,
+        header_info: &Self::HeaderInfo,
         program_segments: &ProgramSegments<Self::ProgramSegmentDef>,
         output_sections: &OutputSections<Self>,
-        resources: &layout::FinaliseSizesResources<'data, '_, Self>,
+        resources: &Self::FinaliseSizesResources<'data, '_>,
         args: &Self::Args,
     );
 
@@ -600,29 +630,29 @@ pub(crate) trait Platform:
     }
 
     fn new_stub_library_layout_state_ext<'data>(
-        _stub: &resolution::ResolvedStubLibrary<'data>,
+        _stub: &Self::ResolvedStubLibrary<'data>,
         _args: &Self::Args,
     ) -> Self::StubLibraryLayoutStateExt {
         unimplemented!()
     }
 
     fn new_dynamic_layout_state_ext<'data>(
-        _file: &resolution::ResolvedDynamic<'data, Self>,
+        _file: &Self::ResolvedDynamic<'data>,
         _args: &Self::Args,
     ) -> Self::DynamicLayoutStateExt<'data> {
         unimplemented!()
     }
 
     fn load_stub_library_symbol(
-        _state: &mut layout::StubLibraryLayoutState<Self>,
+        _state: &mut Self::StubLibraryLayoutState<'_>,
         _symbol_id: SymbolId,
     ) -> Result {
         Ok(())
     }
 
     fn finalise_sizes_for_symbol<'data>(
-        common: &mut CommonGroupState<'data, Self>,
-        symbol_db: &SymbolDb<'data, Self>,
+        common: &mut Self::CommonGroupState<'data>,
+        symbol_db: &Self::SymbolDb<'data>,
         symbol_id: SymbolId,
         flags: ValueFlags,
     ) -> Result;
@@ -635,42 +665,42 @@ pub(crate) trait Platform:
     );
 
     fn allocate_object_symtab_space<'data>(
-        state: &ObjectLayoutState<'data, Self>,
-        common: &mut CommonGroupState<'data, Self>,
-        symbol_db: &SymbolDb<'data, Self>,
+        state: &Self::ObjectLayoutState<'data>,
+        common: &mut Self::CommonGroupState<'data>,
+        symbol_db: &Self::SymbolDb<'data>,
         per_symbol_flags: &AtomicPerSymbolFlags,
     ) -> Result;
 
     fn allocate_thunk_symbol_sizes(
         _sizes: &mut OutputSectionPartMap<u64>,
         _symbols: &[SymbolId],
-        _symbol_db: &SymbolDb<Self>,
+        _symbol_db: &Self::SymbolDb<'_>,
         _format_specific: &mut Self::CommonGroupStateExt,
     ) {
     }
 
     fn allocate_internal_symbol(
         symbol_id: SymbolId,
-        def_info: &InternalSymDefInfo<Self>,
+        def_info: &Self::InternalSymDefInfo<'_>,
         sizes: &mut OutputSectionPartMap<u64>,
-        symbol_db: &SymbolDb<Self>,
+        symbol_db: &Self::SymbolDb<'_>,
         format_specific: &mut Self::CommonGroupStateExt,
     ) -> Result;
 
     /// Suffix-merge `.strtab` like GNU ld and move the merged size onto the prelude group.
     fn share_strtab_suffixes<'data>(
-        _group_states: &mut [GroupState<'data, Self>],
+        _group_states: &mut [Self::GroupState<'data>],
         _total_sizes: &mut OutputSectionPartMap<u64>,
         _format_specific: &mut Self::FinaliseSizesExt<'data>,
     ) {
     }
 
-    fn allocate_prelude(common: &mut CommonGroupState<Self>, symbol_db: &SymbolDb<Self>);
+    fn allocate_prelude(common: &mut Self::CommonGroupState<'_>, symbol_db: &Self::SymbolDb<'_>);
 
     fn finalise_prelude_layout<'data>(
-        prelude: &layout::PreludeLayoutState<Self>,
+        prelude: &Self::PreludeLayoutState<'_>,
         memory_offsets: &mut OutputSectionPartMap<u64>,
-        resources: &layout::FinaliseLayoutResources<'_, 'data, Self>,
+        resources: &Self::FinaliseLayoutResources<'_, 'data>,
     ) -> Result<Self::PreludeLayoutExt>;
 
     fn create_resolution(
@@ -680,11 +710,11 @@ pub(crate) trait Platform:
         memory_offsets: &mut OutputSectionPartMap<u64>,
         args: &Self::Args,
         output_kind: OutputKind,
-    ) -> layout::Resolution<Self>;
+    ) -> Self::Resolution;
 
     fn validate_resolution(
         _name: &[u8],
-        _resolution: &crate::layout::Resolution<Self>,
+        _resolution: &Self::Resolution,
         _got: &Self::SectionHeader,
         _got_data: &[u8],
     ) -> Result {
@@ -706,19 +736,19 @@ pub(crate) trait Platform:
     /// Only called if a linker script that provides custom sections and layout rules is present.
     /// Gives the platform a chance to add extra built-in rules that need to be present even when a
     /// linker script is providing most of the rules.
-    fn linker_script_rules_pre_build(_rule_builder: &mut layout_rules::LayoutRulesBuilder) {}
+    fn linker_script_rules_pre_build(_rule_builder: &mut Self::LayoutRulesBuilder<'_>) {}
 
     fn copy_relocate_symbol<'scope, 'data>(
-        _state: &mut layout::DynamicLayoutState<Self>,
+        _state: &mut Self::DynamicLayoutState<'_>,
         _symbol_id: SymbolId,
-        _resources: &layout::GraphResources<'data, 'scope, Self>,
+        _resources: &Self::GraphResources<'data, 'scope>,
     ) -> Result {
         bail!("Platform does not support copy relocations");
     }
 
     fn finalise_copy_relocations<'data>(
-        _group_states: &mut [layout::GroupState<'data, Self>],
-        _symbol_db: &SymbolDb<'data, Self>,
+        _group_states: &mut [Self::GroupState<'data>],
+        _symbol_db: &Self::SymbolDb<'data>,
         _symbol_flags: &AtomicPerSymbolFlags,
     ) -> Result {
         Ok(())
@@ -737,7 +767,7 @@ pub(crate) trait Platform:
         output_kind: OutputKind,
         output_sections: &OutputSections<'data, Self>,
         secondary: &OutputSectionMap<Vec<OutputSectionId>>,
-        _linker_scripts: &[&SequencedLinkerScript<'data, Self>],
+        _linker_scripts: &[&Self::SequencedLinkerScript<'data>],
         location_counters: &[crate::layout_rules::LocationCounter<'data>],
     ) -> Result<(OutputOrder<'data>, ProgramSegments<Self::ProgramSegmentDef>)> {
         Ok(Self::build_output_order_and_program_segments(
@@ -783,7 +813,7 @@ pub(crate) trait Platform:
     ) {
     }
 
-    fn get_sizeof_headers(_header_info: &layout::HeaderInfo) -> u64 {
+    fn get_sizeof_headers(_header_info: &Self::HeaderInfo) -> u64 {
         0
     }
 
@@ -792,17 +822,17 @@ pub(crate) trait Platform:
 
     /// Compute the size of the `.gdb_index` section and return the scan result for the write phase.
     fn compute_gdb_index_size<'data>(
-        _groups: &[crate::layout::GroupState<'data, Self>],
+        _groups: &[Self::GroupState<'data>],
     ) -> crate::error::Result<(u64, Option<Self::GdbIndexScanResult<'data>>)> {
         Ok((0, None))
     }
 
     fn handle_debug_index_section<'data>(
-        _obj: &mut crate::resolution::ResolvedObject<'data, Self>,
+        _obj: &mut Self::ResolvedObject<'data>,
         _section_index: object::SectionIndex,
         _input_section: &'data Self::SectionHeader,
         _member: &bumpalo_herd::Member<'data>,
-        _loaded_metrics: &LoadedMetrics,
+        _loaded_metrics: &Self::LoadedMetrics,
     ) -> Result {
         Ok(())
     }

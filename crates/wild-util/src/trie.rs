@@ -4,10 +4,10 @@ use leb128::write::unsigned_len as uleb128_size;
 use object::macho;
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct Symbol<'data> {
-    pub(crate) name: &'data [u8],
-    pub(crate) address: u64,
-    pub(crate) flags: macho::ExportSymbolFlags,
+pub struct Symbol<'data> {
+    pub name: &'data [u8],
+    pub address: u64,
+    pub flags: macho::ExportSymbolFlags,
 }
 
 #[derive(Debug, Default)]
@@ -36,7 +36,7 @@ struct UncompressedNode {
 }
 
 /// Build a Mach-O exports trie for `symbols`. `symbols` is sorted in place.
-pub(crate) fn build(symbols: &mut [Symbol<'_>]) -> Vec<u8> {
+pub fn build(symbols: &mut [Symbol<'_>]) -> Vec<u8> {
     if symbols.is_empty() {
         return Vec::new();
     }

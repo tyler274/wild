@@ -4,10 +4,10 @@
 //! generally passed via the `--version-script` flag instead. They can also sometimes be quite
 //! large. For this reason, we have a separate parser for them.
 
-pub(crate) mod parse;
-pub(crate) mod types;
+pub mod parse;
+pub mod types;
 
 #[allow(unused_imports)]
-pub(crate) use parse::*;
+pub use parse::*;
 #[allow(unused_imports)]
-pub(crate) use types::*;
+pub use types::*;

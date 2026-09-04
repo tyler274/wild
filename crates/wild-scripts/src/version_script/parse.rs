@@ -1,14 +1,13 @@
 use super::types::*;
-use crate::error;
-use crate::error::Result;
-use crate::glob_match::GlobPatternType;
-use crate::glob_match::analyze_glob_pattern;
-use crate::glob_match::compile_glob_pattern;
-use crate::input_data::ScriptData;
 use crate::linker_script::skip_comments_and_whitespace;
-use crate::timing_phase;
+use crate::script_data::ScriptData;
 use glob::Pattern;
 use hashbrown::HashMap;
+use wild_error::error;
+use wild_error::error::Result;
+use wild_util::glob_match::GlobPatternType;
+use wild_util::glob_match::analyze_glob_pattern;
+use wild_util::glob_match::compile_glob_pattern;
 use winnow::BStr;
 use winnow::Parser;
 use winnow::error::ContextError;
@@ -85,8 +84,8 @@ fn parse_version_script<'input>(input: &mut &'input BStr) -> winnow::Result<Vers
     Ok(VersionScript::Regular(version_script))
 }
 impl<'data> VersionScript<'data> {
-    pub(crate) fn parse(data: ScriptData<'data>) -> Result<VersionScript<'data>> {
-        timing_phase!("Parse version script");
+    pub fn parse(data: ScriptData<'data>) -> Result<VersionScript<'data>> {
+        let _span = tracing::info_span!("Parse version script").entered();
 
         parse_version_script
             .parse(BStr::new(data.raw))
@@ -100,7 +99,9 @@ impl<'data> RegularVersionScript<'data> {
         match VersionScript::parse(data)? {
             VersionScript::Regular(script) => Ok(script),
             VersionScript::Rust(_) => {
-                crate::bail!("Rust-style version script cannot be used as a regular version script")
+                wild_error::bail!(
+                    "Rust-style version script cannot be used as a regular version script"
+                )
             }
         }
     }
@@ -225,7 +226,7 @@ fn parse_version_section<'data>(input: &mut &'data BStr) -> winnow::Result<RawVe
     Ok(out)
 }
 
-pub(crate) fn parse_matcher<'data>(
+pub fn parse_matcher<'data>(
     input: &mut &'data BStr,
     without_semicolon: bool, // e.g. symbol to export passed via CLI arg
 ) -> winnow::Result<ParsedSymbolMatcher<'data>> {
@@ -374,10 +375,10 @@ impl std::fmt::Display for VersionScriptError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::symbol::UnversionedSymbolName;
     use hashbrown::HashSet;
     use itertools::Itertools;
     use itertools::assert_equal;
+    use wild_util::symbol_name::UnversionedSymbolName;
 
     fn is_matching_global<'data>(script: &RegularVersionScript<'data>, name: &str) -> bool {
         let Some(m) = script.find_match(&UnversionedSymbolName::prehashed(name.as_bytes())) else {

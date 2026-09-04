@@ -32,7 +32,6 @@ impl crate::platform::Relaxation for Relaxation {
 
 impl crate::platform::Arch for WasmWasm32 {
     type Relaxation = Relaxation;
-
     type Platform = Wasm;
 
     fn arch_identifier() -> <Self::Platform as crate::platform::Platform>::ArchIdentifier {}
@@ -68,7 +67,7 @@ impl crate::platform::Arch for WasmWasm32 {
         0
     }
 
-    fn get_property_class(_property_type: u32) -> Option<crate::elf::PropertyClass> {
+    fn get_property_class(_property_type: u32) -> Option<crate::platform::PropertyClass> {
         // Wasm has no GNU property notes.
         None
     }

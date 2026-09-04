@@ -60,7 +60,6 @@ impl crate::platform::Relaxation for Relaxation {
 
 impl crate::platform::Arch for MachOAArch64 {
     type Relaxation = Relaxation;
-
     type Platform = MachO;
     fn start_memory_address(_output_kind: crate::output_kind::OutputKind) -> u64 {
         crate::macho::MACHO_START_MEM_ADDRESS
@@ -193,7 +192,7 @@ impl crate::platform::Arch for MachOAArch64 {
         todo!()
     }
 
-    fn get_property_class(property_type: u32) -> Option<crate::elf::PropertyClass> {
+    fn get_property_class(_property_type: u32) -> Option<crate::platform::PropertyClass> {
         todo!()
     }
 

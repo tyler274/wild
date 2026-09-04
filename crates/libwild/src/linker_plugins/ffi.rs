@@ -9,6 +9,7 @@ use crate::error::Error;
 use crate::error::Result;
 use crate::input_data::FileId;
 use crate::input_data::InputRef;
+use crate::layout::EnginePlatform;
 use crate::platform::Platform;
 use crate::resolution::ResolvedGroup;
 use crate::symbol::UnversionedSymbolName;
@@ -414,7 +415,7 @@ pub(crate) fn get_symbol_resolution<'data, C: ElfClass>(
             .map(|id| symbol_db.definition(id))
     } else {
         symbol_db
-            .get(&PreHashedSymbolName::from_raw(&raw_name), true)
+            .get(&crate::symbol::symbol_name_from_raw(&raw_name), true)
             .map(|id| symbol_db.definition(id))
     };
 
@@ -631,7 +632,7 @@ pub(crate) struct AllSymbolsReadContext<'scope, 'data, P: Platform> {
     pub(crate) per_symbol_flags: &'scope PerSymbolFlags,
 }
 
-impl<'scope, 'data, P: Platform> AllSymbolsReadContext<'scope, 'data, P> {
+impl<'scope, 'data, P: EnginePlatform> AllSymbolsReadContext<'scope, 'data, P> {
     pub(crate) fn with_current(
         cb: impl FnOnce(&mut AllSymbolsReadContext<'scope, 'data, P>) -> Status,
     ) -> Status {

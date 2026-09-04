@@ -7,6 +7,7 @@ use crate::bail;
 use crate::error::Result;
 use crate::grouping::Group;
 use crate::input_data::PRELUDE_FILE_ID;
+use crate::layout::EnginePlatform;
 use crate::output_section_id::OutputSections;
 use crate::platform::Platform;
 use crate::symbol_db::SymbolDb;
@@ -43,7 +44,7 @@ pub(crate) struct Resolver<'data, P: Platform> {
     pub(crate) resolved_groups: Vec<ResolvedGroup<'data, P>>,
 }
 
-impl<'data, P: Platform> Resolver<'data, P> {
+impl<'data, P: EnginePlatform> Resolver<'data, P> {
     /// Resolves undefined symbols. In the process of resolving symbols, we decide which archive
     /// entries to load. Some symbols may not have definitions, in which case we'll note those for
     /// later processing. Can be called multiple times with additional groups having been added to
@@ -115,7 +116,7 @@ impl<'data, P: Platform> Resolver<'data, P> {
     }
 }
 
-fn resolve_symbols_and_select_archive_entries<'data, P: Platform>(
+fn resolve_symbols_and_select_archive_entries<'data, P: EnginePlatform>(
     resolver: &mut Resolver<'data, P>,
     symbol_db: &mut SymbolDb<'data, P>,
     per_symbol_flags: &mut PerSymbolFlags,
@@ -239,7 +240,7 @@ fn resolve_symbols_and_select_archive_entries<'data, P: Platform>(
     Ok(())
 }
 
-fn resolve_group<'data, 'definitions, P: Platform>(
+fn resolve_group<'data, 'definitions, P: EnginePlatform>(
     group: &Group<'data, P>,
     initial_work_out: &mut Vec<LoadObjectSymbolsRequest<'definitions>>,
     definitions_out_per_file: &mut Vec<AtomicTake<&'definitions mut [SymbolId]>>,
@@ -415,7 +416,7 @@ fn resolve_group<'data, 'definitions, P: Platform>(
 
     resolved_group
 }
-impl<'data, P: Platform> Default for Resolver<'data, P> {
+impl<'data, P: EnginePlatform> Default for Resolver<'data, P> {
     fn default() -> Self {
         Self {
             undefined_symbols: Default::default(),

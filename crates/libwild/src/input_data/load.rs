@@ -12,6 +12,7 @@ use crate::error::Context as _;
 use crate::error::Error;
 use crate::error::Result;
 use crate::file_kind::FileKind;
+use crate::layout::EnginePlatform;
 use crate::linker_plugins::LinkerPlugin;
 use crate::linker_script::LinkerScript;
 use crate::macho_stub_library::DefinedStubLibrary;
@@ -154,7 +155,7 @@ impl<'data, F: FileSystem> FileLoader<'data, F> {
         }
     }
 
-    pub(crate) fn load_inputs<P: Platform>(
+    pub(crate) fn load_inputs<P: EnginePlatform>(
         &mut self,
         inputs: &[Input],
         args: &'data P::Args,
@@ -166,7 +167,7 @@ impl<'data, F: FileSystem> FileLoader<'data, F> {
 
         let mut initial_work = Vec::with_capacity(inputs.len());
         for input in inputs {
-            let path = input.path(args, self.file_system.as_ref())?;
+            let path = input_path(input, args, self.file_system.as_ref())?;
             path_to_load_index
                 .entry(path.absolute.clone())
                 .or_insert_with(|| {
@@ -248,7 +249,7 @@ impl<'data, F: FileSystem> FileLoader<'data, F> {
     /// linker script is loaded, its files appear at the point at which the linker script appeared
     /// on the command-line, even though the FileLoadIndex for files loaded by linker scripts is
     /// later.
-    fn extract_all<P: Platform>(
+    fn extract_all<P: EnginePlatform>(
         &mut self,
         files: &mut [Option<LoadedFileState<'data, P, F::Input>>],
         plugin: &mut Option<LinkerPlugin<'data>>,
@@ -268,7 +269,7 @@ impl<'data, F: FileSystem> FileLoader<'data, F> {
         Ok(loaded)
     }
 
-    fn extract_file<P: Platform>(
+    fn extract_file<P: EnginePlatform>(
         &mut self,
         index: FileLoadIndex,
         files: &mut [Option<LoadedFileState<'data, P, F::Input>>],
@@ -412,7 +413,7 @@ fn load_included_linker_script<'data, F: FileSystem>(
     crate::bail!("cannot open INCLUDE file `{}`", path.display())
 }
 
-fn process_archive<'data, P: Platform, F: FileSystem>(
+fn process_archive<'data, P: EnginePlatform, F: FileSystem>(
     opened: &'data InputFile<F::Input>,
     input_ref: &InputRef<'data>,
     file: Option<&Arc<std::fs::File>>,
@@ -461,7 +462,7 @@ fn process_archive<'data, P: Platform, F: FileSystem>(
     Ok(LoadedFileState::Archive(opened, outputs))
 }
 
-fn process_thin_archive<'data, P: Platform, F: FileSystem>(
+fn process_thin_archive<'data, P: EnginePlatform, F: FileSystem>(
     input_file: &'data InputFile<F::Input>,
     state: &TemporaryState<'data, P, F>,
 ) -> Result<LoadedFileState<'data, P, F::Input>> {
@@ -527,7 +528,7 @@ fn process_thin_archive<'data, P: Platform, F: FileSystem>(
     Ok(LoadedFileState::ThinArchive(files, parsed_files))
 }
 
-fn process_fat_macho_object<'data, P: Platform, F: FileSystem>(
+fn process_fat_macho_object<'data, P: EnginePlatform, F: FileSystem>(
     file: &'data InputFile<F::Input>,
     input_ref: InputRef<'data>,
     native_file: Option<&Arc<std::fs::File>>,
@@ -554,7 +555,7 @@ fn process_fat_macho_object<'data, P: Platform, F: FileSystem>(
     }
 }
 
-impl<'data, P: Platform, F: FileSystem> TemporaryState<'data, P, F> {
+impl<'data, P: EnginePlatform, F: FileSystem> TemporaryState<'data, P, F> {
     fn process_and_record_open_file_request<'scope>(
         &'scope self,
         request: OpenFileRequest,
@@ -667,7 +668,7 @@ impl<'data, P: Platform, F: FileSystem> TemporaryState<'data, P, F> {
         scope: &Scope<'scope>,
         referenced_by: Option<PathBuf>,
     ) -> Result<FileLoadIndex> {
-        let paths = input.path(self.args, self.file_system.as_ref())?;
+        let paths = input_path(input, self.args, self.file_system.as_ref())?;
 
         let mut path_to_load_index = self.path_to_load_index.lock().unwrap();
 
@@ -802,73 +803,75 @@ fn read_script_data<'data, F: FileSystem>(
     Ok(ScriptData { raw: file.data() })
 }
 
-impl Input {
-    fn path(&self, args: &impl platform::Args, file_system: &impl FileSystem) -> Result<InputPath> {
-        match &self.spec {
-            InputSpec::File(p) => {
-                if self.search_first.is_some()
-                    && let Some(path) = search_for_file(
-                        file_system,
-                        args.lib_search_path(),
-                        self.search_first.as_ref(),
-                        p.as_ref(),
-                    )
-                {
-                    return Ok(InputPath {
-                        absolute: std::path::absolute(path)?,
-                        original: p.as_ref().to_owned(),
-                    });
-                }
-                Ok(InputPath {
-                    absolute: p.as_ref().to_owned(),
+fn input_path(
+    input: &Input,
+    args: &impl platform::Args,
+    file_system: &impl FileSystem,
+) -> Result<InputPath> {
+    match &input.spec {
+        InputSpec::File(p) => {
+            if input.search_first.is_some()
+                && let Some(path) = search_for_file(
+                    file_system,
+                    args.lib_search_path(),
+                    input.search_first.as_ref(),
+                    p.as_ref(),
+                )
+            {
+                return Ok(InputPath {
+                    absolute: std::path::absolute(path)?,
                     original: p.as_ref().to_owned(),
-                })
+                });
             }
-            InputSpec::Lib(lib_name) => {
-                let mut filenames = Vec::new();
-                if self.modifiers.allow_shared {
-                    filenames.push(PathBuf::from(format!("lib{lib_name}.so")));
-                }
-                filenames.push(PathBuf::from(format!("lib{lib_name}.a")));
-                if let Some((path, filename_index)) = search_for_files(
-                    file_system,
-                    args.lib_search_path(),
-                    self.search_first.as_ref(),
-                    &filenames,
-                ) {
-                    return Ok(InputPath {
-                        absolute: std::path::absolute(&path)?,
-                        original: filenames[filename_index].clone(),
-                    });
-                }
-                let filename = format!("lib{lib_name}.tbd");
-                if let Some(path) = search_for_file(
-                    file_system,
-                    args.lib_search_path(),
-                    self.search_first.as_ref(),
-                    &filename,
-                ) {
-                    return Ok(InputPath {
-                        absolute: std::path::absolute(&path)?,
-                        original: PathBuf::from(filename),
-                    });
-                }
-                bail!("Couldn't find library `{lib_name}` on library search path");
+            Ok(InputPath {
+                absolute: p.as_ref().to_owned(),
+                original: p.as_ref().to_owned(),
+            })
+        }
+        InputSpec::Lib(lib_name) => {
+            let mut filenames = Vec::new();
+            if input.modifiers.allow_shared {
+                filenames.push(PathBuf::from(format!("lib{lib_name}.so")));
             }
-            InputSpec::Search(filename) => {
-                if let Some(path) = search_for_file(
-                    file_system,
-                    args.lib_search_path(),
-                    self.search_first.as_ref(),
-                    filename.as_ref(),
-                ) {
-                    return Ok(InputPath {
-                        absolute: std::path::absolute(&path)?,
-                        original: PathBuf::from(filename.as_ref()),
-                    });
-                }
-                bail!("Couldn't find library `{filename}` on library search path");
+            filenames.push(PathBuf::from(format!("lib{lib_name}.a")));
+            if let Some((path, filename_index)) = search_for_files(
+                file_system,
+                args.lib_search_path(),
+                input.search_first.as_ref(),
+                &filenames,
+            ) {
+                return Ok(InputPath {
+                    absolute: std::path::absolute(&path)?,
+                    original: filenames[filename_index].clone(),
+                });
             }
+            let filename = format!("lib{lib_name}.tbd");
+            if let Some(path) = search_for_file(
+                file_system,
+                args.lib_search_path(),
+                input.search_first.as_ref(),
+                &filename,
+            ) {
+                return Ok(InputPath {
+                    absolute: std::path::absolute(&path)?,
+                    original: PathBuf::from(filename),
+                });
+            }
+            bail!("Couldn't find library `{lib_name}` on library search path");
+        }
+        InputSpec::Search(filename) => {
+            if let Some(path) = search_for_file(
+                file_system,
+                args.lib_search_path(),
+                input.search_first.as_ref(),
+                filename.as_ref(),
+            ) {
+                return Ok(InputPath {
+                    absolute: std::path::absolute(&path)?,
+                    original: PathBuf::from(filename.as_ref()),
+                });
+            }
+            bail!("Couldn't find library `{filename}` on library search path");
         }
     }
 }
@@ -916,7 +919,7 @@ fn search_for_files(
         .or_else(|| lib_search_path.iter().find_map(|dir| search_dir(dir)))
 }
 
-impl<'data, P: Platform> LoadedInputs<'data, P> {
+impl<'data, P: EnginePlatform> LoadedInputs<'data, P> {
     fn add_record(
         &mut self,
         record: InputRecord<'data, P>,
@@ -965,7 +968,7 @@ impl<'data, P: Platform> LoadedInputs<'data, P> {
     }
 }
 
-impl<'data, P: Platform> InputRecord<'data, P> {
+impl<'data, P: EnginePlatform> InputRecord<'data, P> {
     fn is_dynamic_object(&self) -> bool {
         match self {
             InputRecord::Object(Ok(obj)) => obj.is_dynamic(),

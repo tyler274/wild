@@ -10,6 +10,7 @@ use crate::error::Result;
 use crate::fs::FileReplacementMode;
 use crate::fs::FileType;
 use crate::fs::FileWriteMode;
+use crate::layout::EnginePlatform;
 use crate::layout::GroupLayout;
 use crate::layout::Layout;
 use crate::output_section_id::OutputSectionId;
@@ -17,7 +18,6 @@ use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::output_trace::TraceOutput;
 use crate::platform::Args;
-use crate::platform::Platform;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
 use anyhow::anyhow;
@@ -97,7 +97,7 @@ struct SectionAllocation {
 }
 
 impl<F: FileSystem> Output<F> {
-    pub(crate) fn new<P: Platform>(
+    pub(crate) fn new<P: EnginePlatform>(
         args: &P::Args,
         output_kind: OutputKind,
         file_system: Arc<F>,
@@ -183,7 +183,7 @@ impl<F: FileSystem> Output<F> {
         }
     }
 
-    pub fn write<'data, 'layout, P: Platform>(
+    pub fn write<'data, 'layout, P: EnginePlatform>(
         &self,
         layout: &'layout Layout<'data, P>,
         write_fn: impl FnOnce(&mut SizedOutput<F::Output>, &'layout Layout<'data, P>) -> Result,
@@ -226,7 +226,7 @@ impl<F: FileSystem> Output<F> {
 }
 
 /// Returns the file replacement mode that we should use to write to the specified path.
-fn default_file_replacement_mode<P: Platform>(
+fn default_file_replacement_mode<P: EnginePlatform>(
     args: &P::Args,
     output_kind: OutputKind,
     file_system: &impl FileSystem,
@@ -323,7 +323,7 @@ pub(crate) fn verify_allocations_message() -> String {
     }
 }
 
-pub(crate) fn split_output_by_group<'layout, 'data, 'out, P: Platform>(
+pub(crate) fn split_output_by_group<'layout, 'data, 'out, P: EnginePlatform>(
     layout: &'layout Layout<'data, P>,
     writable_buckets: &'out mut OutputSectionPartMap<&mut [u8]>,
 ) -> Vec<(
@@ -366,7 +366,7 @@ impl PaddingSlices<'_> {
     }
 }
 
-pub(crate) fn split_output_into_sections<'out, 'data, P: Platform>(
+pub(crate) fn split_output_into_sections<'out, 'data, P: EnginePlatform>(
     layout: &Layout<'data, P>,
     mut data: &'out mut [u8],
 ) -> (OutputSectionMap<&'out mut [u8]>, PaddingSlices<'out>) {
@@ -412,7 +412,7 @@ pub(crate) fn split_output_into_sections<'out, 'data, P: Platform>(
 }
 
 /// Splits the writable buffers for each segment further into separate buffers for each alignment.
-pub(crate) fn split_buffers_by_alignment<'out, 'data, P: Platform>(
+pub(crate) fn split_buffers_by_alignment<'out, 'data, P: EnginePlatform>(
     section_buffers: &'out mut OutputSectionMap<&mut [u8]>,
     layout: &Layout<'data, P>,
 ) -> OutputSectionPartMap<&'out mut [u8]> {
@@ -440,13 +440,13 @@ pub(crate) fn split_buffers_by_alignment<'out, 'data, P: Platform>(
     )
 }
 
-fn write_layout<P: Platform>(layout: &Layout<P>, file_system: &impl FileSystem) -> Result {
+fn write_layout<P: EnginePlatform>(layout: &Layout<P>, file_system: &impl FileSystem) -> Result {
     let layout_path = linker_layout::layout_path(layout.args().output());
     write_layout_to(layout, &layout_path, file_system)
         .with_context(|| format!("Failed to write layout to `{}`", layout_path.display()))
 }
 
-fn write_layout_to<'data, P: Platform>(
+fn write_layout_to<'data, P: EnginePlatform>(
     layout: &Layout<'data, P>,
     path: &Path,
     file_system: &impl FileSystem,

@@ -1,13 +1,12 @@
 use crate::grouping::SequencedInput;
 use crate::input_data::FileId;
 use crate::input_data::PRELUDE_FILE_ID;
+use crate::layout::EnginePlatform;
 use crate::platform::Args as _;
 use crate::platform::ObjectFile;
-use crate::platform::Platform;
 use crate::platform::Symbol as _;
 use crate::resolution::ResolvedFile;
 use crate::resolution::ResolvedGroup;
-use crate::symbol::PreHashedSymbolName;
 use crate::symbol_db::SymbolDb;
 use crate::symbol_db::SymbolId;
 use crate::value_flags::AtomicPerSymbolFlags;
@@ -40,7 +39,7 @@ impl Drop for SymbolInfoPrinter {
 }
 
 impl SymbolInfoPrinter {
-    pub(crate) fn new<'data, P: Platform>(
+    pub(crate) fn new<'data, P: EnginePlatform>(
         args: &P::Args,
         groups: &[ResolvedGroup<'data, P>],
     ) -> Self {
@@ -72,7 +71,7 @@ impl SymbolInfoPrinter {
         }))
     }
 
-    pub(crate) fn update<'data, P: Platform>(
+    pub(crate) fn update<'data, P: EnginePlatform>(
         &mut self,
         symbol_db: &SymbolDb<'data, P>,
         per_symbol_flags: &AtomicPerSymbolFlags<'_>,
@@ -93,7 +92,7 @@ impl SymbolInfoPrinter {
         related_ids.extend(name.parse().ok().map(SymbolId::from_usize));
 
         let symbol_id = symbol_db.get(
-            &PreHashedSymbolName::from_raw(&P::parse_raw_symbol_name(name.as_bytes())),
+            &crate::symbol::symbol_name_from_raw(&P::parse_raw_symbol_name(name.as_bytes())),
             true,
         );
         let _ = writeln!(&mut out, "Global name `{name}` refers to: {symbol_id:?}");
@@ -251,7 +250,7 @@ impl NameMatcher {
         }
     }
 
-    fn matches<'data, P: Platform>(
+    fn matches<'data, P: EnginePlatform>(
         &self,
         name: &[u8],
         symbol_id: SymbolId,

@@ -5,9 +5,9 @@
 //! is always the empty string.
 
 use crate::error::Result;
+use crate::layout::EnginePlatform;
 use crate::layout_rules::SectionKind;
 use crate::output_section_id::OutputSections;
-use crate::platform::Platform;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 
@@ -109,7 +109,7 @@ pub(crate) fn finalize_strtab(names: impl IntoIterator<Item = Box<[u8]>>) -> Fin
 }
 
 /// Emitted primary section names, suffix-merged like GNU `.shstrtab`.
-pub(crate) fn shstrtab_from_sections<'data, P: Platform>(
+pub(crate) fn shstrtab_from_sections<'data, P: EnginePlatform>(
     output_sections: &OutputSections<'data, P>,
 ) -> FinalizedStrtab {
     let mut names = Vec::new();

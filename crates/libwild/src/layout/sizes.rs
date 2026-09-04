@@ -7,6 +7,7 @@ use crate::expression_eval::ResolvedLocationCounter;
 use crate::expression_eval::SymbolValue;
 use crate::grouping::Group;
 use crate::input_data::InputRef;
+use crate::layout::EnginePlatform;
 use crate::output_section_id::GnuBuildIdPlacement;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSections;
@@ -19,7 +20,6 @@ use crate::platform::Arch;
 use crate::platform::Args as _;
 use crate::platform::NonAddressableIndexes as _;
 use crate::platform::ObjectFile;
-use crate::platform::Platform;
 use crate::platform::SectionAttributes as _;
 use crate::program_segments::ProgramSegments;
 use crate::symbol::UnversionedSymbolName;
@@ -35,7 +35,7 @@ use rayon::iter::ParallelIterator;
 use std::num::NonZeroU32;
 
 /// Update resolutions for symbol redirects.
-pub(crate) fn update_redirect_resolutions<'data, P: Platform>(
+pub(crate) fn update_redirect_resolutions<'data, P: EnginePlatform>(
     symbol_db: &SymbolDb<'data, P>,
     resolutions: &mut [Option<Resolution<P>>],
     output_sections: &OutputSections<'data, P>,
@@ -109,7 +109,7 @@ pub(crate) fn update_redirect_resolutions<'data, P: Platform>(
     Ok(())
 }
 
-pub(crate) fn update_defsym_symbol_resolution<'data, P: Platform>(
+pub(crate) fn update_defsym_symbol_resolution<'data, P: EnginePlatform>(
     input_ref: Option<&InputRef<'data>>,
     def_info: &InternalSymDefInfo<'data, P>,
     symbol_db: &SymbolDb<'data, P>,
@@ -204,7 +204,7 @@ pub(crate) fn update_defsym_symbol_resolution<'data, P: Platform>(
 }
 
 /// Update resolutions for all dynamic symbols that our output file defines.
-pub(crate) fn update_dynamic_symbol_resolutions<'data, P: Platform>(
+pub(crate) fn update_dynamic_symbol_resolutions<'data, P: EnginePlatform>(
     resources: &FinaliseLayoutResources<'_, 'data, P>,
     layouts: &[GroupLayout<'data, P>],
     resolutions: &mut [Option<Resolution<P>>],
@@ -228,7 +228,7 @@ pub(crate) fn update_dynamic_symbol_resolutions<'data, P: Platform>(
     }
 }
 
-pub(crate) fn finalise_all_sizes<'data, P: Platform, A: Arch<Platform = P>>(
+pub(crate) fn finalise_all_sizes<'data, P: EnginePlatform, A: Arch<Platform = P>>(
     group_states: &mut [GroupState<'data, P>],
     per_symbol_flags: &AtomicPerSymbolFlags,
     resources: &FinaliseSizesResources<'data, '_, P>,
@@ -241,7 +241,7 @@ pub(crate) fn finalise_all_sizes<'data, P: Platform, A: Arch<Platform = P>>(
     })
 }
 
-pub(crate) fn merge_dynamic_symbol_definitions<'data, P: Platform>(
+pub(crate) fn merge_dynamic_symbol_definitions<'data, P: EnginePlatform>(
     group_states: &[GroupState<'data, P>],
     symbol_db: &SymbolDb<'data, P>,
 ) -> Result<Vec<DynamicSymbolDefinition<'data, P>>> {
@@ -261,7 +261,7 @@ pub(crate) fn merge_dynamic_symbol_definitions<'data, P: Platform>(
     Ok(dynamic_symbol_definitions)
 }
 
-pub(crate) fn create_canonical_plt_entries<'data, P: Platform>(
+pub(crate) fn create_canonical_plt_entries<'data, P: EnginePlatform>(
     group_states: &[GroupState<'data, P>],
     symbol_db: &SymbolDb<'data, P>,
     per_symbol_flags: &AtomicPerSymbolFlags<'_>,
@@ -292,7 +292,7 @@ pub(crate) fn create_canonical_plt_entries<'data, P: Platform>(
     Ok(())
 }
 
-pub(crate) fn append_prelude_defsym_dynamic_symbols<'data, P: Platform>(
+pub(crate) fn append_prelude_defsym_dynamic_symbols<'data, P: EnginePlatform>(
     group_states: &[GroupState<'data, P>],
     symbol_db: &SymbolDb<'data, P>,
     dynamic_symbol_definitions: &mut Vec<DynamicSymbolDefinition<'data, P>>,
@@ -339,7 +339,7 @@ pub(crate) fn compute_total_file_size(
 
 /// Computes how much to allocate for a particular resolution. This is intended for debug assertions
 /// when we're writing, to make sure that we would have allocated memory before we write.
-pub(crate) fn compute_allocations<P: Platform>(
+pub(crate) fn compute_allocations<P: EnginePlatform>(
     resolution: &Resolution<P>,
     output_kind: OutputKind,
     args: &P::Args,
@@ -350,14 +350,14 @@ pub(crate) fn compute_allocations<P: Platform>(
     sizes
 }
 
-pub(crate) fn compute_total_section_part_sizes<'data, P: Platform>(
+pub(crate) fn compute_total_section_part_sizes<'data, 'scope, P: EnginePlatform>(
     group_states: &mut [GroupState<'data, P>],
     output_sections: &mut OutputSections<P>,
     output_order: &OutputOrder<'data>,
     program_segments: &ProgramSegments<P::ProgramSegmentDef>,
     per_symbol_flags: &mut PerSymbolFlags,
     must_keep_sections: OutputSectionMap<bool>,
-    resources: &FinaliseSizesResources<'data, '_, P>,
+    resources: &FinaliseSizesResources<'data, 'scope, P>,
 ) -> Result<(
     OutputSectionPartMap<u64>,
     Option<P::GdbIndexScanResult<'data>>,
@@ -434,7 +434,7 @@ pub(crate) fn compute_total_section_part_sizes<'data, P: Platform>(
 
 /// Move the generated GNU build-id note into the script section that matches
 /// `.note.gnu.build-id`, or drop it when that name is discarded.
-pub(crate) fn relocate_gnu_build_id_allocation<P: Platform>(
+pub(crate) fn relocate_gnu_build_id_allocation<P: EnginePlatform>(
     output_sections: &mut OutputSections<P>,
     total_sizes: &mut OutputSectionPartMap<u64>,
     epilogue_sizes: &mut OutputSectionPartMap<u64>,
@@ -478,7 +478,7 @@ pub(crate) fn relocate_gnu_build_id_allocation<P: Platform>(
 }
 
 /// The epilogue still advances the builtin build-id cursor; redirect it after a merge or discard.
-pub(crate) fn relocate_gnu_build_id_layout_offset<P: Platform>(
+pub(crate) fn relocate_gnu_build_id_layout_offset<P: EnginePlatform>(
     memory_offsets: &mut OutputSectionPartMap<u64>,
     output_sections: &OutputSections<P>,
 ) {
@@ -499,7 +499,7 @@ pub(crate) fn relocate_gnu_build_id_layout_offset<P: Platform>(
 }
 
 /// Allocates space for thunk blocks in each object that owns one.
-pub(crate) fn allocate_thunk_block_space<P: Platform>(
+pub(crate) fn allocate_thunk_block_space<P: EnginePlatform>(
     group_states: &mut [GroupState<P>],
     thunk_blocks: &[crate::thunks::ThunkBlock],
     total_sizes: &mut OutputSectionPartMap<u64>,
@@ -540,7 +540,7 @@ pub(crate) fn allocate_thunk_block_space<P: Platform>(
 }
 
 /// Propagates attributes from input sections to the output sections into which they were placed.
-pub(crate) fn propagate_section_attributes<'data, P: Platform>(
+pub(crate) fn propagate_section_attributes<'data, P: EnginePlatform>(
     group_states: &[GroupState<'data, P>],
     output_sections: &mut OutputSections<P>,
 ) {
@@ -560,13 +560,13 @@ pub(crate) fn propagate_section_attributes<'data, P: Platform>(
 /// This is similar to computing start addresses, but is used for things that aren't addressable,
 /// but which need to be unique. It's non parallel. It could potentially be run in parallel with
 /// some of the stages that run after it, that don't need access to the file states.
-pub(crate) fn apply_non_addressable_indexes<'data, P: Platform>(
+pub(crate) fn apply_non_addressable_indexes<'data, P: EnginePlatform>(
     group_states: &mut [GroupState<'data, P>],
     symbol_db: &SymbolDb<'data, P>,
 ) -> Result<P::NonAddressableCounts> {
     timing_phase!("Apply non-addressable indexes");
 
-    let mut indexes = P::NonAddressableIndexes::new(symbol_db);
+    let mut indexes = P::NonAddressableIndexes::new::<P>(symbol_db);
 
     let mut counts = P::NonAddressableCounts::default();
 
@@ -606,7 +606,7 @@ pub(crate) fn starting_memory_offsets(
     section_layouts.map(|_, rec| rec.mem_offset)
 }
 
-pub(crate) fn compute_file_sizes<P: Platform>(
+pub(crate) fn compute_file_sizes<P: EnginePlatform>(
     mem_sizes: &OutputSectionPartMap<u64>,
     output_sections: &OutputSections<'_, P>,
 ) -> OutputSectionPartMap<usize> {
@@ -623,7 +623,7 @@ pub(crate) fn compute_file_sizes<P: Platform>(
 /// combination of flags and output kind. If this function returns an error, then we would have
 /// failed during writing anyway. By failing now, we can report the particular combination of inputs
 /// that caused the failure.
-pub(crate) fn verify_consistent_allocation_handling<P: Platform, A: Arch<Platform = P>>(
+pub(crate) fn verify_consistent_allocation_handling<P: EnginePlatform, A: Arch<Platform = P>>(
     flags: ValueFlags,
     output_kind: OutputKind,
     args: &P::Args,

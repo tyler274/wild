@@ -1,0 +1,24 @@
+[package]
+name = "wild-scripts"
+description = "Linker-script, version-script, and export-list parsing for the Wild linker"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+
+[dependencies]
+derive_more.workspace = true
+glob.workspace = true
+hashbrown.workspace = true
+itertools.workspace = true
+object.workspace = true
+symbolic-common.workspace = true
+symbolic-demangle.workspace = true
+tracing.workspace = true
+wild-error = { path = "../wild-error", version = "0.10.0" }
+wild-util = { path = "../wild-util", version = "0.10.0" }
+winnow.workspace = true
+
+[lints]
+workspace = true

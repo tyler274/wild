@@ -1,4 +1,5 @@
 use super::*;
+use crate::layout::EnginePlatform;
 use crate::linker_script;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::SectionIdentity;
@@ -66,7 +67,7 @@ pub(crate) enum SectionRuleOutcome {
 }
 
 impl SectionRuleOutcome {
-    pub(crate) fn section_rule_from_id<P: Platform>(
+    pub(crate) fn section_rule_from_id<P: EnginePlatform>(
         section_id: OutputSectionId,
         output_info: SectionOutputInfo,
     ) -> SectionRuleOutcome {

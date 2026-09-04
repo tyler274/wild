@@ -125,8 +125,12 @@ impl FakesDir {
     fn new(linker: &ExternalLinker) -> Result<Self> {
         match linker {
             ExternalLinker::Wild => {
-                let current_dir = env::current_dir().expect("failed to get current directory");
-                let fakes = current_dir.parent().unwrap().join("fakes-debug");
+                let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .parent()
+                    .unwrap()
+                    .parent()
+                    .unwrap();
+                let fakes = repo_root.join("fakes-debug");
                 assert!(
                     fakes.exists(),
                     "fakes-debug directory not found at {}",

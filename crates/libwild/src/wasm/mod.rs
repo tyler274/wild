@@ -27,6 +27,10 @@ pub(crate) use symbols::*;
 #[derive(Debug, Copy, Clone, Default)]
 pub(crate) struct Wasm;
 
+impl crate::layout::EnginePlatform for Wasm {}
+impl<'data, 'scope> crate::layout::EngineScope<'data, 'scope> for Wasm where 'data: 'scope {}
+impl<'writer, 'out> crate::layout::EngineWriter<'writer, 'out> for Wasm where 'out: 'writer {}
+
 pub(crate) fn link_for_arch<'data, F: FileSystem>(
     linker: &'data crate::Linker<F>,
     args: &'data WasmArgs,

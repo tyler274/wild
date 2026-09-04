@@ -23,6 +23,10 @@ pub(crate) use types::*;
 #[derive(Debug, Copy, Clone, Default)]
 pub(crate) struct MachO;
 
+impl crate::layout::EnginePlatform for MachO {}
+impl<'data, 'scope> crate::layout::EngineScope<'data, 'scope> for MachO where 'data: 'scope {}
+impl<'writer, 'out> crate::layout::EngineWriter<'writer, 'out> for MachO where 'out: 'writer {}
+
 pub(crate) fn link_for_arch<'data, F: FileSystem>(
     linker: &'data crate::Linker<F>,
     args: &'data MachOArgs,

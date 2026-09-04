@@ -186,12 +186,12 @@ pub(crate) struct NonAddressableIndexes {
 }
 
 impl platform::NonAddressableIndexes for NonAddressableIndexes {
-    fn new<P: Platform>(symbol_db: &crate::symbol_db::SymbolDb<P>) -> Self {
+    fn new<P: Platform>(symbol_db: &P::SymbolDb<'_>) -> Self {
         Self {
             // Allocate version indexes starting from after the local and global indexes and any
             // versions defined by a version script.
             next_gnu_version_r_index: object::elf::VER_NDX_GLOBAL
-                + 1.max(symbol_db.version_script.version_count()),
+                + 1.max(P::version_script_version_count(symbol_db)),
         }
     }
 }

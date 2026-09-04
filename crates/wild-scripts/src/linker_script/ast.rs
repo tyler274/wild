@@ -1,12 +1,12 @@
-use crate::alignment::Alignment;
+use wild_util::alignment::Alignment;
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct LinkerScript<'a> {
-    pub(crate) commands: Vec<Command<'a>>,
+pub struct LinkerScript<'a> {
+    pub commands: Vec<Command<'a>>,
 }
 
 #[derive(derive_more::Debug, PartialEq, Eq)]
-pub(crate) enum Command<'a> {
+pub enum Command<'a> {
     #[debug("{}", String::from_utf8_lossy(_0))]
     Arg(&'a [u8]),
     Group(Vec<Command<'a>>),
@@ -32,12 +32,12 @@ pub(crate) enum Command<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct Sections<'a> {
-    pub(crate) commands: Vec<SectionCommand<'a>>,
+pub struct Sections<'a> {
+    pub commands: Vec<SectionCommand<'a>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum SectionCommand<'a> {
+pub enum SectionCommand<'a> {
     Section(Section<'a>),
     SetLocation(Location<'a>),
     Assert(AssertCommand<'a>),
@@ -48,29 +48,29 @@ pub(crate) enum SectionCommand<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct Overlay<'a> {
-    pub(crate) start_address: Option<Expression<'a>>,
-    pub(crate) at_address: Option<Expression<'a>>,
-    pub(crate) nocrossrefs: bool,
-    pub(crate) sections: Vec<Section<'a>>,
-    pub(crate) region: Option<&'a [u8]>,
-    pub(crate) at_region: Option<&'a [u8]>,
-    pub(crate) phdrs: Vec<&'a [u8]>,
-    pub(crate) fill: Option<Fill<'a>>,
+pub struct Overlay<'a> {
+    pub start_address: Option<Expression<'a>>,
+    pub at_address: Option<Expression<'a>>,
+    pub nocrossrefs: bool,
+    pub sections: Vec<Section<'a>>,
+    pub region: Option<&'a [u8]>,
+    pub at_region: Option<&'a [u8]>,
+    pub phdrs: Vec<&'a [u8]>,
+    pub fill: Option<Fill<'a>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct Location<'a> {
-    pub(crate) address: Expression<'a>,
+pub struct Location<'a> {
+    pub address: Expression<'a>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct Fill<'a> {
-    pub(crate) value: Expression<'a>,
+pub struct Fill<'a> {
+    pub value: Expression<'a>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) enum SectionAttributes {
+pub enum SectionAttributes {
     Noload,
     Readonly,
     Dsect,
@@ -89,44 +89,44 @@ pub(crate) enum SectionAttributes {
 /// section and selects the RO or RW placement from whether any matching input
 /// has `SHF_WRITE`.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub(crate) enum OnlyIf {
+pub enum OnlyIf {
     Ro,
     Rw,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct Section<'a> {
-    pub(crate) output_section_name: &'a [u8],
-    pub(crate) commands: Vec<ContentsCommand<'a>>,
-    pub(crate) alignment: Option<Alignment>,
-    pub(crate) start_address_expression: Option<Expression<'a>>,
-    pub(crate) phdrs: Vec<&'a [u8]>,
-    pub(crate) at_address: Option<Expression<'a>>,
-    pub(crate) region: Option<&'a [u8]>,
-    pub(crate) at_region: Option<&'a [u8]>,
-    pub(crate) fill: Option<Fill<'a>>,
-    pub(crate) attributes: Option<SectionAttributes>,
-    pub(crate) only_if: Option<OnlyIf>,
+pub struct Section<'a> {
+    pub output_section_name: &'a [u8],
+    pub commands: Vec<ContentsCommand<'a>>,
+    pub alignment: Option<Alignment>,
+    pub start_address_expression: Option<Expression<'a>>,
+    pub phdrs: Vec<&'a [u8]>,
+    pub at_address: Option<Expression<'a>>,
+    pub region: Option<&'a [u8]>,
+    pub at_region: Option<&'a [u8]>,
+    pub fill: Option<Fill<'a>>,
+    pub attributes: Option<SectionAttributes>,
+    pub only_if: Option<OnlyIf>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
-pub(crate) struct MemoryFlags {
-    pub(crate) read: bool,
-    pub(crate) write: bool,
-    pub(crate) exec: bool,
-    pub(crate) alloc: bool,
+pub struct MemoryFlags {
+    pub read: bool,
+    pub write: bool,
+    pub exec: bool,
+    pub alloc: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct MemoryRegion<'a> {
-    pub(crate) name: &'a [u8],
-    pub(crate) origin: Expression<'a>,
-    pub(crate) length: Expression<'a>,
-    pub(crate) flags: Option<MemoryFlags>,
+pub struct MemoryRegion<'a> {
+    pub name: &'a [u8],
+    pub origin: Expression<'a>,
+    pub length: Expression<'a>,
+    pub flags: Option<MemoryFlags>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum ContentsCommand<'a> {
+pub enum ContentsCommand<'a> {
     Matcher(Matcher<'a>),
     SymbolAssignment(SymbolAssignment<'a>),
     Provide(ProvideSymbolDefinition<'a>),
@@ -141,7 +141,7 @@ pub(crate) enum ContentsCommand<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub(crate) enum OutputDataWidth {
+pub enum OutputDataWidth {
     Byte = 1,
     Short = 2,
     Long = 4,
@@ -149,31 +149,31 @@ pub(crate) enum OutputDataWidth {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct OutputData<'a> {
-    pub(crate) width: OutputDataWidth,
-    pub(crate) value: Expression<'a>,
+pub struct OutputData<'a> {
+    pub width: OutputDataWidth,
+    pub value: Expression<'a>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct SymbolAssignment<'a> {
-    pub(crate) name: &'a [u8],
-    pub(crate) expr: Expression<'a>,
+pub struct SymbolAssignment<'a> {
+    pub name: &'a [u8],
+    pub expr: Expression<'a>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct ProvideSymbolDefinition<'a> {
-    pub(crate) name: &'a [u8],
-    pub(crate) value: Expression<'a>,
-    pub(crate) hidden: bool,
+pub struct ProvideSymbolDefinition<'a> {
+    pub name: &'a [u8],
+    pub value: Expression<'a>,
+    pub hidden: bool,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct AssertCommand<'a> {
-    pub(crate) expression: Box<Expression<'a>>,
-    pub(crate) message: &'a [u8],
+pub struct AssertCommand<'a> {
+    pub expression: Box<Expression<'a>>,
+    pub message: &'a [u8],
     /// Remaining input at the point this ASSERT was parsed. Used to lazily compute
     /// the line number only when an error occurs.
-    pub(crate) remainder: &'a [u8],
+    pub remainder: &'a [u8],
 }
 
 impl<'a> PartialEq for AssertCommand<'a> {
@@ -185,20 +185,20 @@ impl<'a> PartialEq for AssertCommand<'a> {
 impl<'a> Eq for AssertCommand<'a> {}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct Phdr<'a> {
-    pub(crate) name: &'a [u8],
-    pub(crate) ptype: Expression<'a>,
-    pub(crate) flags: Option<Expression<'a>>,
-    pub(crate) has_filehdr: bool,
-    pub(crate) has_phdrs: bool,
-    pub(crate) at_address: Option<Expression<'a>>,
+pub struct Phdr<'a> {
+    pub name: &'a [u8],
+    pub ptype: Expression<'a>,
+    pub flags: Option<Expression<'a>>,
+    pub has_filehdr: bool,
+    pub has_phdrs: bool,
+    pub at_address: Option<Expression<'a>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct OutputFormat<'a> {
-    pub(crate) default: &'a [u8],
-    pub(crate) big: Option<&'a [u8]>,
-    pub(crate) little: Option<&'a [u8]>,
+pub struct OutputFormat<'a> {
+    pub default: &'a [u8],
+    pub big: Option<&'a [u8]>,
+    pub little: Option<&'a [u8]>,
 }
 
 /// Represents a parsed expression in linker scripts (e.g., in ASSERT commands).
@@ -215,7 +215,7 @@ pub(crate) struct OutputFormat<'a> {
 /// - Parentheses for grouping
 /// - Ternary operator (? :)
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) enum Expression<'a> {
+pub enum Expression<'a> {
     /// A numeric literal (e.g., 0x1000, 42)
     Number(u64),
     /// A symbol reference (e.g., __bss_start)
@@ -249,7 +249,7 @@ pub(crate) enum Expression<'a> {
     /// SEGMENT_START("segment-name", default) - returns the `-T` command-line override for the
     /// named segment if one was provided, otherwise returns `default`.
     /// Unknown segment names always return `default` (matching GNU ld behavior).
-    SegmentStart(crate::parsing::SegmentName, Box<Expression<'a>>),
+    SegmentStart(SegmentName, Box<Expression<'a>>),
     /// `CONSTANT(MAXPAGESIZE)` — `-z max-page-size` / architecture default.
     ConstantMaxPageSize,
     /// `CONSTANT(COMMONPAGESIZE)` — `-z common-page-size`, capped at max page size.
@@ -294,13 +294,13 @@ pub(crate) enum Expression<'a> {
 /// residual (a symbol or `.`). `ABSOLUTE()`, a difference of two section symbols, and pure
 /// constants have no residual and become `SHN_ABS`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RelocatableAnchor<'a> {
+pub enum RelocatableAnchor<'a> {
     LocationCounter,
     Symbol(&'a [u8]),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
-pub(crate) enum SortKind {
+pub enum SortKind {
     #[default]
     None,
     Name,
@@ -309,30 +309,30 @@ pub(crate) enum SortKind {
 }
 
 impl SortKind {
-    pub(crate) fn needs_sort(self) -> bool {
+    pub fn needs_sort(self) -> bool {
         !matches!(self, SortKind::None)
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct SectionPattern<'a> {
-    pub(crate) name: &'a [u8],
-    pub(crate) sort: SortKind,
+pub struct SectionPattern<'a> {
+    pub name: &'a [u8],
+    pub sort: SortKind,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct Matcher<'a> {
-    pub(crate) must_keep: bool,
+pub struct Matcher<'a> {
+    pub must_keep: bool,
     /// Optional glob pattern for matching input filenames. `None` means match all files (i.e. the
     /// `*` wildcard was used, or no filename was specified).
-    pub(crate) input_file_pattern: Option<&'a [u8]>,
+    pub input_file_pattern: Option<&'a [u8]>,
     /// Glob patterns of files to skip even when `input_file_pattern` matches.
-    pub(crate) exclude_file_patterns: Vec<&'a [u8]>,
-    pub(crate) input_section_name_patterns: Vec<SectionPattern<'a>>,
+    pub exclude_file_patterns: Vec<&'a [u8]>,
+    pub input_section_name_patterns: Vec<SectionPattern<'a>>,
 }
 
 impl<'a> Expression<'a> {
-    pub(crate) fn visit_expressions(&self, cb: &mut impl FnMut(&Self) -> bool) {
+    pub fn visit_expressions(&self, cb: &mut impl FnMut(&Self) -> bool) {
         if !cb(self) {
             return;
         }
@@ -394,7 +394,7 @@ impl<'a> Expression<'a> {
         }
     }
 
-    pub(crate) fn contains_next_section(&self) -> bool {
+    pub fn contains_next_section(&self) -> bool {
         let mut found = false;
         self.visit_expressions(&mut |expr| {
             if matches!(
@@ -412,7 +412,7 @@ impl<'a> Expression<'a> {
 
     /// GNU `ALIGNOF(NEXT_SECTION)` / `SIZEOF(NEXT_SECTION)`: the next allocated output
     /// section in the script, or 0 if there is none.
-    pub(crate) fn rewrite_next_section(&self, align: u64, size: u64) -> Self {
+    pub fn rewrite_next_section(&self, align: u64, size: u64) -> Self {
         match self {
             Expression::Alignof(b"NEXT_SECTION") => Expression::Number(align),
             Expression::Sizeof(b"NEXT_SECTION") => Expression::Number(size),
@@ -556,7 +556,7 @@ impl<'a> Expression<'a> {
         }
     }
 
-    pub(crate) fn relocatable_anchor(&self) -> Option<RelocatableAnchor<'_>> {
+    pub fn relocatable_anchor(&self) -> Option<RelocatableAnchor<'_>> {
         match self {
             Expression::Absolute(_) => None,
             Expression::LocationCounter => Some(RelocatableAnchor::LocationCounter),
@@ -642,5 +642,28 @@ fn sub_dot_residual<'a>(
             Some(RelocatableAnchor::LocationCounter)
         }
         _ => None,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SegmentName {
+    Text,
+    Rodata,
+    Data,
+    Bss,
+    /// Any segment name not in the known set. Wild has no `-T` override for
+    /// these, so they always resolve to the default value.
+    Other,
+}
+
+impl SegmentName {
+    pub fn from_bytes(name: &[u8]) -> Self {
+        match name {
+            b"text" => Self::Text,
+            b"rodata" => Self::Rodata,
+            b"data" => Self::Data,
+            b"bss" => Self::Bss,
+            _ => Self::Other,
+        }
     }
 }

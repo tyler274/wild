@@ -3,6 +3,7 @@ use crate::bail;
 use crate::error::Context;
 use crate::error::Error;
 use crate::error::Result;
+use crate::layout::EnginePlatform;
 use crate::layout::graph::*;
 use crate::layout::section_debug;
 use crate::layout::sections::*;
@@ -28,7 +29,7 @@ use rayon::Scope;
 use smallvec::SmallVec;
 use std::num::NonZeroU32;
 
-impl<'data, P: Platform> ObjectLayoutState<'data, P> {
+impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
     #[inline(always)]
     pub(crate) fn activate<'scope, A: Arch<Platform = P>>(
         &mut self,
@@ -37,7 +38,13 @@ impl<'data, P: Platform> ObjectLayoutState<'data, P> {
         queue: &mut LocalWorkQueue<P>,
         scope: &Scope<'scope>,
     ) -> Result {
-        P::activate_object_gc::<A>(self, common, resources, queue, scope)?;
+        P::activate_object_gc::<A>(
+            self,
+            common,
+            crate::layout::platform_graph(resources),
+            queue,
+            scope,
+        )?;
 
         if let Some(mode) = export_symbols_mode(resources.symbol_db, &self.input) {
             self.load_non_hidden_symbols::<A>(common, resources, queue, mode, scope)?;
@@ -53,7 +60,7 @@ pub(crate) enum ExportSymbolsMode {
     All,
 }
 
-impl<'data, P: Platform<GcUnit = SectionGcUnit>> ObjectLayoutState<'data, P> {
+impl<'data, P: EnginePlatform<GcUnit = SectionGcUnit>> ObjectLayoutState<'data, P> {
     pub(crate) fn activate_section_gc<'scope, A>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
@@ -110,7 +117,7 @@ impl<'data, P: Platform<GcUnit = SectionGcUnit>> ObjectLayoutState<'data, P> {
                 self,
                 common,
                 frame_data_section_index,
-                resources,
+                crate::layout::platform_graph(resources),
                 queue,
                 scope,
             )?;
@@ -134,7 +141,7 @@ impl<'data, P: Platform<GcUnit = SectionGcUnit>> ObjectLayoutState<'data, P> {
     }
 }
 
-impl<'data, P: Platform> ObjectLayoutState<'data, P> {
+impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
     pub(crate) fn handle_section_load_request<'scope, A: Arch<Platform = P>>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
@@ -205,7 +212,7 @@ impl<'data, P: Platform> ObjectLayoutState<'data, P> {
             self,
             common,
             queue,
-            resources,
+            crate::layout::platform_graph(resources),
             section,
             section_index,
             scope,
@@ -244,7 +251,14 @@ impl<'data, P: Platform> ObjectLayoutState<'data, P> {
         let section_id = part_id.output_section_id::<P>();
 
         if section.size > 0 {
-            P::non_empty_section_loaded::<A>(self, common, queue, unloaded, resources, scope)?;
+            P::non_empty_section_loaded::<A>(
+                self,
+                common,
+                queue,
+                unloaded,
+                crate::layout::platform_graph(resources),
+                scope,
+            )?;
         } else if P::is_zero_sized_section_content(section_id) {
             resources.keep_section(section_id);
         }
@@ -253,7 +267,7 @@ impl<'data, P: Platform> ObjectLayoutState<'data, P> {
             self,
             common,
             queue,
-            resources,
+            crate::layout::platform_graph(resources),
             section_index,
             scope,
         )?;
@@ -656,7 +670,7 @@ impl<'data> SymbolCopyInfo<'data> {
     /// the symtab. In the process, we also return the name of the symbol, to avoid needing to read
     /// it again.
     #[inline(always)]
-    pub(crate) fn new<P: Platform>(
+    pub(crate) fn new<P: EnginePlatform>(
         object: &P::File<'data>,
         sym_index: object::SymbolIndex,
         sym: &P::SymtabEntry,
@@ -700,7 +714,7 @@ impl<'data> SymbolCopyInfo<'data> {
     }
 }
 
-impl<'data, P: Platform> ObjectLayout<'data, P> {
+impl<'data, P: EnginePlatform> ObjectLayout<'data, P> {
     pub(crate) fn relocations(&self, index: SectionIndex) -> Result<P::RelocationList<'data>> {
         self.object.relocations(index, &self.relocations)
     }

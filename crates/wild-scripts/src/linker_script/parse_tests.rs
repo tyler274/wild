@@ -1,10 +1,10 @@
 use super::*;
-use crate::alignment::Alignment;
-use crate::args::InputSpec;
+use crate::inputs::InputSpec;
 use crate::linker_script::maybe_apply_sysroot;
 use itertools::assert_equal;
 use std::assert_matches;
 use std::path::Path;
+use wild_util::alignment::Alignment;
 
 fn parse_script(text: &str) -> Result<LinkerScript<'_>> {
     LinkerScript::parse(text.as_bytes(), Path::new("test-linker-script.txt"))
@@ -493,7 +493,7 @@ fn test_version_command_with_other_commands() {
 
 #[test]
 fn test_version_script_parsing_from_version_command() {
-    use crate::input_data::ScriptData;
+    use crate::script_data::ScriptData;
     use crate::version_script::VersionScript;
 
     let script = parse_script(

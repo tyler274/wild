@@ -18,18 +18,18 @@
 
 use crate::error::Context as _;
 use crate::error::Result;
+use crate::layout::EnginePlatform;
 use crate::layout::FileLayout;
 use crate::layout::GroupLayout;
 use crate::platform::Args;
 use crate::platform::ObjectFile;
-use crate::platform::Platform;
 use crate::resolution::SectionSlot;
 use crate::symbol_db::SymbolDb;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use std::path::PathBuf;
 
-pub(crate) fn maybe_write_gc_stats<'data, P: Platform>(
+pub(crate) fn maybe_write_gc_stats<'data, P: EnginePlatform>(
     group_layouts: &[GroupLayout<'data, P>],
     symbol_db: &SymbolDb<P>,
 ) -> Result {
@@ -52,7 +52,7 @@ struct InputFile<'data> {
     discarded_names: Vec<&'data [u8]>,
 }
 
-fn write_gc_stats<'data, P: Platform>(
+fn write_gc_stats<'data, P: EnginePlatform>(
     group_layouts: &[GroupLayout<'data, P>],
     section_part_ids: &[crate::part_id::PartId],
     stats_file: &std::path::Path,

@@ -147,6 +147,16 @@ pub(super) type SymbolTable<'data, C> = object::read::elf::SymbolTable<'data, Fi
 #[derive(Debug, Copy, Clone, Default)]
 pub(crate) struct Elf<C: ElfClass>(PhantomData<C>);
 
+impl<C: ElfClass> crate::layout::EnginePlatform for Elf<C> {}
+impl<'data, 'scope, C: ElfClass> crate::layout::EngineScope<'data, 'scope> for Elf<C> where
+    'data: 'scope
+{
+}
+impl<'writer, 'out, C: ElfClass> crate::layout::EngineWriter<'writer, 'out> for Elf<C> where
+    'out: 'writer
+{
+}
+
 pub(crate) type Elf64 = Elf<Class64>;
 pub(crate) type File64<'data> = File<'data, Class64>;
 pub(crate) type RelocationList64<'data> = RelocationList<'data, Class64>;

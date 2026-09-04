@@ -1,12 +1,16 @@
 [workspace]
 members = [
-  "linker-diff",
-  "linker-layout",
-  "linker-trace",
-  "linker-utils",
-  "wild",
-  "libwild",
-  "benchmarks/runner",
+  "crates/linker-diff",
+  "crates/linker-layout",
+  "crates/linker-trace",
+  "crates/linker-utils",
+  "crates/wild",
+  "crates/libwild",
+  "crates/wild-error",
+  "crates/wild-util",
+  "crates/wild-fs",
+  "crates/wild-scripts",
+  "crates/benchmarks/runner",
 ]
 resolver = "2"
 

@@ -3,7 +3,6 @@ use super::object::SourceInfo;
 use crate::OutputKind;
 use crate::Result;
 use crate::bail;
-use crate::layout::Layout;
 use crate::part_id::PartId;
 use crate::value_flags::ValueFlags;
 use linker_utils::elf::DynamicRelocationKind;
@@ -26,6 +25,18 @@ pub(crate) struct ThunkConfig {
     /// Size in bytes of a single thunk. Must be a multiple of the `primary_function_part_id`
     /// alignment.
     pub(crate) thunk_size: u64,
+}
+
+/// How overlapping GNU property note bits are combined. Used by ELF; other formats return `None`
+/// from [`Arch::get_property_class`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PropertyClass {
+    /// A bit in the output is set if it is set in any relocatable input.
+    Or,
+    /// A bit in the output is set only if it is set in all relocatable inputs.
+    And,
+    /// A bit is set if it is set in any input and this property is present in all inputs.
+    AndOr,
 }
 
 /// Represents a supported architecture. Note that implementations are file-format specific.
@@ -70,10 +81,10 @@ pub(crate) trait Arch: Send + Sync + 'static {
     /// Get position of the $tp (thread pointer) in the TLS section. Each platform defines
     /// a different place based on the following article:
     /// https://maskray.me/blog/2021-02-14-all-about-thread-local-storage#tls-variants
-    fn tp_offset_start(layout: &Layout<Self::Platform>) -> u64;
+    fn tp_offset_start(layout: &<Self::Platform as Platform>::Layout<'_>) -> u64;
 
-    /// Classify a GNU property note.
-    fn get_property_class(property_type: u32) -> Option<crate::elf::PropertyClass>;
+    /// Classify a GNU property note. ELF platforms return a class; others return None.
+    fn get_property_class(property_type: u32) -> Option<PropertyClass>;
 
     /// Merge e_flags of the input files and provide an error
     /// if the flags are not compatible.

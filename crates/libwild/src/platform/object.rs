@@ -2,18 +2,23 @@ use super::format::Platform;
 use crate::Result;
 use crate::input_data::InputBytes;
 use crate::input_data::InputRef;
-use crate::layout;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
-use crate::resolution::LoadedMetrics;
-use crate::symbol_db::SymbolDb;
 use std::borrow::Cow;
 use std::fmt::Display;
 use std::num::NonZeroU32;
 use std::ops::Range;
 use std::path::PathBuf;
+
+/// Symbol visibility. Lives here so `platform/` does not import `symbol_db`.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum Visibility {
+    Default,
+    Protected,
+    Hidden,
+}
 
 /// Abstracts over the different object file formats that we support (or may support). e.g. ELF.
 pub(crate) trait ObjectFile<'data>: Sized + Send + Sync + std::fmt::Debug + 'data {
@@ -100,7 +105,7 @@ pub(crate) trait ObjectFile<'data>: Sized + Send + Sync + std::fmt::Debug + 'dat
     fn dynamic_symbol_used(
         &self,
         _symbol_index: object::SymbolIndex,
-        _file: &mut layout::DynamicLayoutState<'data, Self::Platform>,
+        _file: &mut <Self::Platform as Platform>::DynamicLayoutState<'data>,
     ) -> Result {
         unimplemented!();
     }
@@ -131,7 +136,7 @@ pub(crate) trait ObjectFile<'data>: Sized + Send + Sync + std::fmt::Debug + 'dat
         &self,
         section: &<Self::Platform as Platform>::SectionHeader,
         member: &bumpalo_herd::Member<'data>,
-        loaded_metrics: &LoadedMetrics,
+        loaded_metrics: &<Self::Platform as Platform>::LoadedMetrics,
     ) -> Result<&'data [u8]>;
 
     /// Copies the data for the specified section into `out`, which must be the correct size.
@@ -193,7 +198,7 @@ pub(crate) trait ObjectFile<'data>: Sized + Send + Sync + std::fmt::Debug + 'dat
     /// objects.
     fn should_enforce_undefined(
         &self,
-        resources: &layout::GraphResources<'data, '_, Self::Platform>,
+        resources: &<Self::Platform as Platform>::GraphResources<'data, '_>,
     ) -> bool;
 
     fn verneed_table(&self) -> Result<<Self::Platform as Platform>::VerneedTable<'data>>;
@@ -300,7 +305,7 @@ pub(crate) trait Symbol: std::fmt::Debug + Copy + Send + Sync + 'static {
 
     fn is_weak(&self) -> bool;
 
-    fn visibility(&self) -> crate::symbol_db::Visibility;
+    fn visibility(&self) -> Visibility;
 
     fn value(&self) -> u64;
 
@@ -381,7 +386,7 @@ pub(crate) trait DynamicTagValues<'data>: std::fmt::Debug + Send + Sync + 'data 
 }
 
 pub(crate) trait NonAddressableIndexes: Send + Sync + 'static {
-    fn new<P: Platform>(symbol_db: &SymbolDb<P>) -> Self;
+    fn new<P: Platform>(symbol_db: &P::SymbolDb<'_>) -> Self;
 }
 
 pub(crate) trait SectionAttributes:

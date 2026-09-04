@@ -6,7 +6,7 @@ use crate::env;
 pub const ENV_NAME: &str = "WILD_MALFUNCTION";
 
 #[inline(always)]
-pub(crate) fn malfunction_point(name: &str) -> bool {
+pub fn malfunction_point(name: &str) -> bool {
     cfg!(debug_assertions) && env::var(ENV_NAME).is_ok_and(|v| v == name)
 }
 

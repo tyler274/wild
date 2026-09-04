@@ -13,10 +13,10 @@ use crate::error::Context as _;
 use crate::error::Result;
 use crate::layout;
 use crate::layout::CommonGroupState;
+use crate::layout::EnginePlatform;
 use crate::layout::HandlerData as _;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::platform::ObjectFile;
-use crate::platform::Platform;
 use crate::platform::Symbol as _;
 use crate::symbol_db::SymbolDb;
 use crate::symbol_db::SymbolId;
@@ -173,7 +173,7 @@ pub(crate) fn assign_copy_relocation_address<C: ElfClass>(
 }
 
 impl CopyRelocationInfo {
-    pub(crate) fn add_symbol<'data, P: Platform>(
+    pub(crate) fn add_symbol<'data, P: EnginePlatform>(
         &mut self,
         symbol_id: SymbolId,
         is_weak: bool,

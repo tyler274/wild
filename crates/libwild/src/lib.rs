@@ -1,7 +1,7 @@
-pub(crate) mod alignment;
 pub use args::Args;
-pub(crate) mod arch;
-pub(crate) mod archive;
+pub(crate) use wild_fs::archive;
+pub(crate) use wild_util::alignment;
+pub(crate) use wild_util::arch;
 pub mod args;
 pub(crate) mod compression;
 pub(crate) mod debug_trace;
@@ -15,21 +15,21 @@ pub(crate) mod elf_ppc64;
 pub(crate) mod elf_riscv64;
 pub(crate) mod elf_writer;
 pub(crate) mod elf_x86_64;
-pub(crate) mod env;
-pub mod error;
-pub(crate) mod export_list;
+pub(crate) use wild_error::env;
+pub use wild_error::error;
+pub(crate) use wild_scripts::export_list;
 pub(crate) mod expression_eval;
 pub(crate) mod file_kind;
 pub(crate) mod file_writer;
-pub(crate) mod fs;
+pub(crate) use wild_fs::fs;
 pub(crate) mod gc_stats;
 pub(crate) mod gdb_index;
-pub(crate) mod glob_match;
+pub(crate) use wild_util::glob_match;
 pub(crate) mod grouping;
-pub(crate) mod hash;
+pub(crate) use wild_util::hash;
 pub(crate) mod incremental;
 pub(crate) mod input_data;
-pub(crate) mod input_section_id;
+pub(crate) use wild_util::input_section_id;
 pub(crate) mod layout;
 pub(crate) mod layout_rules;
 #[cfg_attr(
@@ -37,12 +37,16 @@ pub(crate) mod layout_rules;
     path = "linker_plugins_disabled.rs"
 )]
 mod linker_plugins;
-pub(crate) mod linker_script;
+pub(crate) use wild_scripts::linker_script;
 pub(crate) mod macho;
 pub(crate) mod macho_aarch64;
 pub(crate) mod macho_stub_library;
 pub(crate) mod macho_writer;
-pub mod malfunction;
+pub use wild_error::bail;
+pub use wild_error::debug_assert_bail;
+pub use wild_error::ensure;
+pub use wild_error::malfunction;
+pub use wild_error::malfunction_point_ret;
 pub(crate) mod output_kind;
 pub(crate) mod output_section_id;
 pub(crate) mod output_section_map;
@@ -73,7 +77,7 @@ pub(crate) mod program_segments;
 pub(crate) mod resolution;
 pub(crate) mod save_dir;
 pub(crate) mod sframe;
-pub(crate) mod sharding;
+pub(crate) use wild_util::sharding;
 pub(crate) mod string_merging;
 #[cfg(all(feature = "fork", unix))]
 pub(crate) mod subprocess;
@@ -86,11 +90,11 @@ pub(crate) mod thunks;
 #[cfg(all(test, not(target_family = "wasm")))]
 mod tidy_tests;
 pub(crate) mod timing;
-pub(crate) mod trie;
+pub(crate) use wild_util::trie;
 pub(crate) mod validation;
 pub(crate) mod value_flags;
 pub(crate) mod verification;
-pub(crate) mod version_script;
+pub(crate) use wild_scripts::version_script;
 pub(crate) mod wasm;
 pub(crate) mod wasm_wasm32;
 pub(crate) mod wasm_writer;
@@ -98,6 +102,7 @@ pub(crate) mod writable_elf;
 
 use crate::error::Context;
 use crate::error::Result;
+use crate::layout::EnginePlatform;
 use crate::layout_rules::LayoutRulesBuilder;
 use crate::output_kind::OutputKind;
 use crate::platform::Arch;
@@ -274,10 +279,14 @@ impl<F: FileSystem> Linker<F> {
         }
     }
 
-    fn link_for_arch<'data, P: Platform, A: Arch<Platform = P>>(
+    fn link_for_arch<'data, P, A>(
         &'data self,
         args: &'data P::Args,
-    ) -> error::Result<LinkerOutput<'data>> {
+    ) -> error::Result<LinkerOutput<'data>>
+    where
+        P: EnginePlatform + Platform<FileLoader<'data, F> = input_data::FileLoader<'data, F>>,
+        A: Arch<Platform = P>,
+    {
         let mut file_loader = input_data::FileLoader::new(
             &self.inputs_arena,
             std::sync::Arc::clone(&self.file_system),
@@ -320,11 +329,15 @@ impl<F: FileSystem> Linker<F> {
         self.file_system.as_ref()
     }
 
-    fn load_inputs_and_link<'data, P: Platform, A: Arch<Platform = P>>(
+    fn load_inputs_and_link<'data, P, A>(
         &'data self,
         file_loader: &mut FileLoader<'data, F>,
         args: &'data P::Args,
-    ) -> error::Result<LinkerOutput<'data>> {
+    ) -> error::Result<LinkerOutput<'data>>
+    where
+        P: EnginePlatform + Platform<FileLoader<'data, F> = input_data::FileLoader<'data, F>>,
+        A: Arch<Platform = P>,
+    {
         let mut plugin = P::maybe_init_linker_plugin(args, &self.linker_plugin_arena, &self.herd)?;
 
         let loaded = file_loader.load_inputs::<P>(&args.common().inputs, args, &mut plugin);
@@ -374,7 +387,7 @@ impl<F: FileSystem> Linker<F> {
         if let Some(plugin) = plugin.as_mut()
             && plugin.is_initialised()
         {
-            P::plugin_all_symbols_read(
+            P::plugin_all_symbols_read::<F>(
                 plugin,
                 &mut symbol_db,
                 &mut resolver,
@@ -491,7 +504,7 @@ impl Drop for LinkerOutput<'_> {
     }
 }
 
-fn incremental_section_snapshot<P: Platform>(
+fn incremental_section_snapshot<P: EnginePlatform>(
     layout: &layout::Layout<P>,
 ) -> (Vec<crate::incremental::PersistedSection>, bool) {
     let mut sections = Vec::new();

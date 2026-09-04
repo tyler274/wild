@@ -2,6 +2,7 @@ use crate::elf;
 use crate::elf::Elf;
 use crate::elf::ElfClass;
 use crate::error::Result;
+use crate::layout::EnginePlatform;
 use crate::platform::Args as _;
 use crate::platform::Platform;
 use crate::resolution::ResolutionResources;
@@ -56,7 +57,9 @@ pub(crate) fn mark_lto_symbols_for_dynamic_export<C: ElfClass>(
     }
 }
 
-pub(crate) fn has_loaded_lto_input<P: Platform>(resolved_groups: &[ResolvedGroup<P>]) -> bool {
+pub(crate) fn has_loaded_lto_input<P: EnginePlatform>(
+    resolved_groups: &[ResolvedGroup<P>],
+) -> bool {
     resolved_groups.iter().any(|group| {
         group
             .files
@@ -110,7 +113,7 @@ pub(crate) fn resolve_lto_symbols<'data, 'scope, C: ElfClass>(
 
 /// Marks symbols related to --wrap as having non-IR references. This ensures that the linker
 /// plugin preserves these symbols in its output rather than internalising them.
-pub(crate) fn mark_wrap_symbols_as_non_ir_ref<'data, P: Platform>(
+pub(crate) fn mark_wrap_symbols_as_non_ir_ref<'data, P: EnginePlatform>(
     symbol_db: &SymbolDb<'data, P>,
     per_symbol_flags: &mut PerSymbolFlags,
 ) {
