@@ -170,7 +170,8 @@ The GNU oracle is still linked with GNU ld so the relink tests have a BFD binary
 `nix develop` sets `WILD_GLIBC_TREE` to nixpkgs' glibc source and `WILD_GLIBC_BUILD` to
 `target/glibc-gnu`; run `wild-build-glibc` then
 `cargo test -p wild-linker --test integration_tests -- glibc`. Override those variables to use
-another tree. A full `make check` is follow-up.
+another tree. `wild-glibc-check` runs a small glibc `make test` subset against the Wild-linked
+`libc.so` / `ld.so`. A full `make check` is follow-up.
 
 ## Known gaps / follow-ups
 

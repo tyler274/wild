@@ -129,4 +129,12 @@ cargo test -p wild-linker --no-default-features --features fork,zstd --test inte
 ```
 
 `wild-build-glibc` uses unwrapped GCC 15 (the Nix gcc wrapper injects `_FORTIFY_SOURCE=3`) and GNU
-ld. Pass `--force` to reconfigure. A from-scratch glibc build is not part of `nix flake check`.
+ld. Pass `--force` to reconfigure. The shell sets `LIBRARY_PATH` so glibc tests can link `-lgcc_s`.
+A from-scratch glibc build is not part of `nix flake check`. After relink:
+
+```sh
+wild-glibc-check
+```
+
+That swaps Wild-linked `libc.so` / `ld.so` into `$WILD_GLIBC_BUILD`, runs a small `make test`
+subset, and restores the GNU oracles. Single tests: `make -C "$WILD_GLIBC_BUILD" test t=elf/tst-tls1`.

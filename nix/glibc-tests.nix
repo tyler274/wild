@@ -47,6 +47,9 @@ let
   # -U_FORTIFY_SOURCE, which breaks glibc's syslog.c always_inline aliases.
   gccUnwrapped = "${gcc.cc}/bin/gcc";
   gxxUnwrapped = "${gcc.cc}/bin/g++";
+  # Shared libgcc lives in gcc's lib output, which unwrapped `gcc -print-file-name`
+  # does not search. Glibc tests link `-lgcc_s`.
+  libgccLib = "${gcc.cc.lib}/lib";
 
   # Glibc configure only accepts GNU ld / gold / LLD version strings. Wild's
   # --version first line is GNU ld compatible, but the oracle objects are still
@@ -116,6 +119,7 @@ let
       export NIX_CFLAGS_COMPILE="-U_FORTIFY_SOURCE"
       export CC="${gccUnwrapped}"
       export CXX="${gxxUnwrapped}"
+      export LIBRARY_PATH="${libgccLib}''${LIBRARY_PATH:+:$LIBRARY_PATH}"
       unset LD
 
       cc_stamp=$build/.wild-build-glibc-cc
@@ -146,11 +150,89 @@ let
 
       echo "glibc ready. Relink with Wild:"
       echo "  cargo test -p wild-linker --no-default-features --features fork,zstd --test integration_tests -- glibc"
+      echo "Then: wild-glibc-check"
+    '';
+  };
+
+  # Swap Wild-linked libc.so / ld.so into the GNU build and run a small `make test`
+  # subset. Always restores the GNU oracles so relink diffs stay valid.
+  wild-glibc-check = writeShellApplication {
+    name = "wild-glibc-check";
+    runtimeInputs = [
+      coreutils
+      gnumake
+      gnused
+      gnugrep
+      python3
+    ];
+    text = ''
+      set -euo pipefail
+      build=''${WILD_GLIBC_BUILD:?WILD_GLIBC_BUILD is not set}
+      repo=''${WILD_REPO:-$PWD}
+      libc_wild=$repo/wild/tests/build/elf/x86_64/glibc-libc/libc.so.wild
+      ldso_wild=$repo/wild/tests/build/elf/x86_64/glibc-ldso/ld.so.wild
+
+      if [ ! -f "$libc_wild" ] || [ ! -f "$ldso_wild" ]; then
+        echo "missing Wild relink artifacts. Run:" >&2
+        echo "  cargo test -p wild-linker --no-default-features --features fork,zstd --test integration_tests -- glibc" >&2
+        exit 1
+      fi
+
+      tests=(
+        elf/tst-tls1
+        elf/tst-array1
+        elf/tst-main1
+        malloc/tst-malloc
+        stdlib/tst-strtol
+        string/test-strcpy
+      )
+
+      if [ ! -f "$build/libc.so.gnu-oracle" ]; then
+        cp -a "$build/libc.so" "$build/libc.so.gnu-oracle"
+      fi
+      if [ ! -f "$build/elf/ld.so.gnu-oracle" ]; then
+        cp -a "$build/elf/ld.so" "$build/elf/ld.so.gnu-oracle"
+      fi
+
+      restore() {
+        cp -a "$build/libc.so.gnu-oracle" "$build/libc.so"
+        cp -a "$build/elf/ld.so.gnu-oracle" "$build/elf/ld.so"
+      }
+      trap restore EXIT
+
+      cp -a "$libc_wild" "$build/libc.so"
+      cp -a "$ldso_wild" "$build/elf/ld.so"
+      ln -sfn libc.so "$build/libc.so.6"
+      ln -sfn ld.so "$build/elf/ld-linux-x86-64.so.2"
+
+      export LIBRARY_PATH="${libgccLib}''${LIBRARY_PATH:+:$LIBRARY_PATH}"
+      export NIX_HARDENING_ENABLE=""
+      export CC="${gccUnwrapped}"
+      export CXX="${gxxUnwrapped}"
+
+      pass=0
+      fail=0
+      failed=()
+      for t in "''${tests[@]}"; do
+        rm -f "$build/$t.out" "$build/$t.test-result"
+        if make -C "$build" test "t=$t"; then
+          pass=$((pass + 1))
+        else
+          fail=$((fail + 1))
+          failed+=("$t")
+        fi
+      done
+
+      echo "wild-glibc-check: $pass passed, $fail failed"
+      if [ "$fail" -ne 0 ]; then
+        echo "failed: ''${failed[*]}" >&2
+        exit 1
+      fi
     '';
   };
 in
 {
-  inherit glibcSrc wild-build-glibc;
+  inherit glibcSrc wild-build-glibc wild-glibc-check;
   version = glibc.version;
 
   packages = [
@@ -163,6 +245,7 @@ in
     gnum4
     flex
     wild-build-glibc
+    wild-glibc-check
   ];
 
   shellHook = ''
@@ -173,5 +256,7 @@ in
       export WILD_GLIBC_BUILD="$PWD/target/glibc-gnu"
     fi
     export WILD_GLIBC_HEADERS="''${WILD_GLIBC_HEADERS:-${headers}}"
+    # Unwrapped GCC cannot find libgcc_s; glibc tests need it to link.
+    export LIBRARY_PATH="${libgccLib}''${LIBRARY_PATH:+:$LIBRARY_PATH}"
   '';
 }
