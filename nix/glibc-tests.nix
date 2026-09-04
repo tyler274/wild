@@ -243,6 +243,42 @@ let
         stdlib/test-canon
         string/test-strcmp
         malloc/tst-mallocfork
+        elf/reldep2
+        elf/reldep4
+        elf/reldep6
+        elf/reldep8
+        elf/filter
+        elf/global
+        elf/initfirst
+        elf/loadfail
+        elf/origtest
+        elf/preloadtest
+        elf/tst-dlmopen1
+        elf/tst-dlmopen-twice
+        elf/tst-audit-tlsdesc
+        elf/tst-audit2
+        elf/tst-audit8
+        elf/tst-absolute-sym
+        elf/tst-absolute-zero
+        elf/tst-gnu2-tls2
+        elf/tst-unique1
+        elf/tst-tls-ie
+        elf/tst-tls10
+        elf/tst-nodeps1
+        elf/tst-filterobj
+        elf/tst-hash-collision1
+        nptl/tst-rwlock1
+        nptl/tst-sem1
+        nptl/tst-barrier1
+        nptl/tst-cond16
+        nptl/tst-mutex7
+        nptl/tst-once3
+        nptl/tst-tls3
+        nptl/tst-stack2
+        malloc/tst-mallocfork2
+        stdio-common/tst-unbputc
+        posix/tst-fnmatch
+        time/tst-mktime
       )
 
       restore() {
@@ -255,7 +291,11 @@ let
           "$build/mathvec/libmvec.so" \
           "$build/nptl/libpthread.so" \
           "$build/dlfcn/libdl.so" \
-          "$build/rt/librt.so"
+          "$build/rt/librt.so" \
+          "$build/nis/libnsl.so" \
+          "$build/nptl_db/libthread_db.so" \
+          "$build/malloc/libc_malloc_debug.so" \
+          "$build/nss/libnss_compat.so"
         do
           if [ -f "$dest.gnu-oracle" ]; then
             cp -a "$dest.gnu-oracle" "$dest"
@@ -284,6 +324,10 @@ let
       swap_dso "$artifacts/glibc-libpthread/libpthread.so.wild" "$build/nptl/libpthread.so" libpthread.so.0
       swap_dso "$artifacts/glibc-libdl/libdl.so.wild" "$build/dlfcn/libdl.so" libdl.so.2
       swap_dso "$artifacts/glibc-librt/librt.so.wild" "$build/rt/librt.so" librt.so.1
+      swap_dso "$artifacts/glibc-libnsl/libnsl.so.wild" "$build/nis/libnsl.so" libnsl.so.1
+      swap_dso "$artifacts/glibc-libthread_db/libthread_db.so.wild" "$build/nptl_db/libthread_db.so" libthread_db.so.1
+      swap_dso "$artifacts/glibc-libc_malloc_debug/libc_malloc_debug.so.wild" "$build/malloc/libc_malloc_debug.so" libc_malloc_debug.so.0
+      swap_dso "$artifacts/glibc-libnss_compat/libnss_compat.so.wild" "$build/nss/libnss_compat.so" libnss_compat.so.2
 
       export LIBRARY_PATH="${libgccLib}''${LIBRARY_PATH:+:$LIBRARY_PATH}"
       export NIX_HARDENING_ENABLE=""

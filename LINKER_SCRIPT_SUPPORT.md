@@ -157,7 +157,8 @@ because `.data..ro_after_init` is 4KiB-aligned. `.strtab` and `.shstrtab` suffix
 ## Glibc (`libc.so` / `ld.so` / `lib%.so`)
 
 Current glibc links `libc.so` / `ld.so` with `gcc -shared` and a version script, not a generated
-`shlib.lds`. Other DSOs (`libm`, `libresolv`, `libmvec`, the `libpthread` / `libdl` / `librt` stubs)
+`shlib.lds`. Other DSOs (`libm`, `libresolv`, `libmvec`, `libnsl`, `libthread_db`,
+`libc_malloc_debug`, `libnss_compat`, and the `libpthread` / `libdl` / `librt` stubs)
 use GNU's `lib%.so` pattern (`*_pic.a`, crtbeginS/crtendS, linked against `libc.so`). Wild's
 default ELF layout is what those links use. GNU ld's default shared script
 (`DATA_SEGMENT_*`, `CONSTANT`, `ONLY_IF_*`, `SORT_NONE`, `LINKER_VERSION` as an ELF nop,

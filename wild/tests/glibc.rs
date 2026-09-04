@@ -1,5 +1,6 @@
 //! Opt-in x86_64 glibc DSO relink against a GNU-built tree (`ld.so`, `libc.so`,
-//! then GNU `lib%.so` PIC archives: `libm`, `libresolv`, `libmvec`, and the
+//! then GNU `lib%.so` PIC archives: `libm`, `libresolv`, `libmvec`, `libnsl`,
+//! `libthread_db`, `libc_malloc_debug`, `libnss_compat`, and the
 //! `libpthread` / `libdl` / `librt` stubs).
 //!
 //! Glibc's `configure` accepts GNU ld, gold, or LLD version strings. Wild's
@@ -59,6 +60,9 @@ struct PicShlib {
     named_dynsyms: &'static [&'static str],
     extra_needed: &'static [&'static str],
     smoke: Option<&'static str>,
+    /// GNU `libfoo.so-no-z-defs = yes`, or Wild does not yet resolve these
+    /// imports from `libc.so` under `-z defs` (libnsl RPC).
+    no_z_defs: bool,
 }
 
 /// GNU `lib%.so: lib%_pic.a` shared objects (not libc / ld.so, which use
@@ -73,6 +77,7 @@ const PIC_SHLIBS: &[PicShlib] = &[
         named_dynsyms: &["sin", "cos", "sqrt", "pow", "nan"],
         extra_needed: &[],
         smoke: Some("math/basic-test"),
+        no_z_defs: false,
     },
     PicShlib {
         test_name: "elf/x86_64/glibc-libresolv",
@@ -83,6 +88,7 @@ const PIC_SHLIBS: &[PicShlib] = &[
         named_dynsyms: &["inet_net_pton", "ns_initparse"],
         extra_needed: &[],
         smoke: Some("resolv/tst-aton"),
+        no_z_defs: false,
     },
     PicShlib {
         test_name: "elf/x86_64/glibc-libmvec",
@@ -93,6 +99,7 @@ const PIC_SHLIBS: &[PicShlib] = &[
         named_dynsyms: &["_ZGVcN4v_exp", "_ZGVcN4v_log"],
         extra_needed: &["math/libm.so"],
         smoke: None,
+        no_z_defs: false,
     },
     PicShlib {
         test_name: "elf/x86_64/glibc-libpthread",
@@ -103,6 +110,7 @@ const PIC_SHLIBS: &[PicShlib] = &[
         named_dynsyms: &["__libpthread_version_placeholder"],
         extra_needed: &[],
         smoke: None,
+        no_z_defs: false,
     },
     PicShlib {
         test_name: "elf/x86_64/glibc-libdl",
@@ -113,6 +121,7 @@ const PIC_SHLIBS: &[PicShlib] = &[
         named_dynsyms: &["__libdl_version_placeholder"],
         extra_needed: &[],
         smoke: None,
+        no_z_defs: false,
     },
     PicShlib {
         test_name: "elf/x86_64/glibc-librt",
@@ -123,6 +132,51 @@ const PIC_SHLIBS: &[PicShlib] = &[
         named_dynsyms: &["__librt_version_placeholder"],
         extra_needed: &[],
         smoke: Some("rt/tst-timer"),
+        no_z_defs: false,
+    },
+    PicShlib {
+        test_name: "elf/x86_64/glibc-libnsl",
+        gnu: "nis/libnsl.so",
+        pic: "nis/libnsl_pic.a",
+        map: "libnsl.map",
+        soname: "libnsl.so.1",
+        named_dynsyms: &["yp_all", "nis_leaf_of"],
+        extra_needed: &[],
+        smoke: None,
+        no_z_defs: true,
+    },
+    PicShlib {
+        test_name: "elf/x86_64/glibc-libthread_db",
+        gnu: "nptl_db/libthread_db.so",
+        pic: "nptl_db/libthread_db_pic.a",
+        map: "libthread_db.map",
+        soname: "libthread_db.so.1",
+        named_dynsyms: &["td_ta_get_nthreads", "td_thr_get_info"],
+        extra_needed: &[],
+        smoke: None,
+        no_z_defs: true,
+    },
+    PicShlib {
+        test_name: "elf/x86_64/glibc-libc_malloc_debug",
+        gnu: "malloc/libc_malloc_debug.so",
+        pic: "malloc/libc_malloc_debug_pic.a",
+        map: "libc_malloc_debug.map",
+        soname: "libc_malloc_debug.so.0",
+        named_dynsyms: &["malloc", "free", "mallopt"],
+        extra_needed: &[],
+        smoke: None,
+        no_z_defs: false,
+    },
+    PicShlib {
+        test_name: "elf/x86_64/glibc-libnss_compat",
+        gnu: "nss/libnss_compat.so",
+        pic: "nss/libnss_compat_pic.a",
+        map: "libnss_compat.map",
+        soname: "libnss_compat.so.2",
+        named_dynsyms: &["_nss_compat_getpwnam_r", "_nss_compat_getgrnam_r"],
+        extra_needed: &[],
+        smoke: None,
+        no_z_defs: false,
     },
 ];
 
@@ -369,10 +423,11 @@ fn run_pic_shlib_test(spec: &PicShlib) -> Result<libtest_mimic::Completion> {
     let crtend = gcc_print_file_name("crtendS.o")?;
 
     let mut cmd = Command::new(wild_path());
+    cmd.args(["-shared"]);
+    if !spec.no_z_defs {
+        cmd.args(["-z", "defs"]);
+    }
     cmd.args([
-        "-shared",
-        "-z",
-        "defs",
         "-z",
         "relro",
         "-z",
