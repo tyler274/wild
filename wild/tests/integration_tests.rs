@@ -223,8 +223,10 @@
 //!
 //! TestIncremental:{bool} After the first Wild link with `--incremental`, relink at the same path
 //! and check that `{output}.incr/log` records an incremental-update. Recompiles C sources with
-//! `-DWILD_INC=1` for the second link when the primary source is C/C++. The recompile uses this
-//! config's Compiler, CompilerWrapper, and CompArgs.
+//! `-DWILD_INC=1` and Rust sources with `--cfg wild_inc` for the second link. The recompile uses
+//! this config's Compiler, CompilerWrapper, and CompArgs. Rust tests that pass `--emit=obj` compile
+//! to a stable `.o` so an in-place update is possible; rustc save-dir tests typically need
+//! IncrementalAllowFallback because codegen-unit hashes change.
 //!
 //! IncrementalExpect:{exit-code} Exit status expected after the `-DWILD_INC=1` incremental update.
 //! Defaults to 43.
@@ -362,6 +364,7 @@
 
 mod external_tests;
 mod glibc;
+mod incremental_check;
 mod vmlinux;
 
 use bitflags::bitflags;
@@ -2881,15 +2884,13 @@ impl ProgramInputs {
         cross_arch: Option<Architecture>,
     ) -> Result<Program<'a>> {
         if config.test_incremental {
-            // A previous incremental run may have left a -DWILD_INC object. Force a clean
-            // compile so GNU ld and Wild both start from the unmarked object.
-            let obj = add_to_path(
-                &config
-                    .build_dir()
-                    .join(self.source_file.file_name().unwrap()),
-                ".o",
-            );
-            let _ = std::fs::remove_file(&obj);
+            // A previous incremental run may have left a -DWILD_INC / --cfg wild_inc object.
+            // Force a clean compile so GNU ld and Wild both start from the unmarked object.
+            let stem = config
+                .build_dir()
+                .join(self.source_file.file_name().unwrap());
+            let _ = std::fs::remove_file(add_to_path(&stem, ".o"));
+            let _ = std::fs::remove_dir_all(add_to_path(&stem, ".d"));
         }
 
         let primary = build_linker_input(
@@ -3100,8 +3101,9 @@ impl ProgramInputs {
                     state_dir.join("reverse_relocs.bin").display()
                 )
             })?;
+        let reverse_reloc_count = reverse_reloc_nodes(&reverse_reloc_bytes)?;
         ensure!(
-            reverse_reloc_nodes(&reverse_reloc_bytes)? > 0,
+            reverse_reloc_count > 0 || config.incremental_allow_fallback,
             "Incremental reverse reloc index should record applied reloc sites"
         );
 
@@ -3123,23 +3125,10 @@ impl ProgramInputs {
             "Incremental relink wrote a different path"
         );
 
-        struct RestoreObject {
-            dest: PathBuf,
-            bytes: Vec<u8>,
-        }
-        impl Drop for RestoreObject {
-            fn drop(&mut self) {
-                let _ = std::fs::write(&self.dest, &self.bytes);
-            }
-        }
-        let restore = RestoreObject {
-            dest: inputs[0].path.clone(),
-            bytes: std::fs::read(&inputs[0].path)
-                .with_context(|| format!("Failed to snapshot {}", inputs[0].path.display()))?,
-        };
+        let restore = RestoreObject::snapshot(&inputs[0].path)?;
 
-        self.rebuild_primary_c(config, &inputs[0].path, cross_arch, true)
-            .context("Failed to recompile primary source with -DWILD_INC=1")?;
+        self.rebuild_primary(config, &inputs[0].path, cross_arch, true)
+            .context("Failed to recompile primary source with -DWILD_INC=1 / --cfg wild_inc")?;
         let updated = linker.link(self.name(), inputs, config, cross_arch)?;
         let log = std::fs::read_to_string(state_dir.join("log")).with_context(|| {
             format!(
@@ -3173,7 +3162,7 @@ impl ProgramInputs {
         Ok(())
     }
 
-    fn rebuild_primary_c(
+    fn rebuild_primary(
         &self,
         config: &Config,
         dest: &Path,
@@ -3187,12 +3176,24 @@ impl ProgramInputs {
                 self.source_file.display()
             )
         })?;
-        ensure!(
-            compiler_kind == CompilerKind::C,
-            "TestIncremental recompile is only implemented for C/C++/assembly sources"
-        );
+        match compiler_kind {
+            CompilerKind::C => self.rebuild_primary_c(compiler, config, dest, cross_arch, wild_inc),
+            CompilerKind::Rust => {
+                self.rebuild_primary_rust(compiler, config, dest, cross_arch, wild_inc)
+            }
+        }
+    }
+
+    fn rebuild_primary_c(
+        &self,
+        compiler: String,
+        config: &Config,
+        dest: &Path,
+        cross_arch: Option<Architecture>,
+        wild_inc: bool,
+    ) -> Result {
         let tmp = dest.with_extension("inc.o");
-        let mut command = compiler_invocation(&compiler, config, compiler_kind);
+        let mut command = compiler_invocation(&compiler, config, CompilerKind::C);
         command.current_dir(config.build_dir());
         command.arg("-c").arg("-o").arg(&tmp).arg(&self.source_file);
         add_cross_args(
@@ -3211,6 +3212,59 @@ impl ProgramInputs {
         ensure!(status.success(), "Recompile failed: {command:?}");
         std::fs::copy(&tmp, dest)
             .with_context(|| format!("Failed to copy {} onto {}", tmp.display(), dest.display()))?;
+        Ok(())
+    }
+
+    fn rebuild_primary_rust(
+        &self,
+        compiler: String,
+        config: &Config,
+        dest: &Path,
+        cross_arch: Option<Architecture>,
+        wild_inc: bool,
+    ) -> Result {
+        let compiler_args = &config.compiler_args.args;
+        let emit_obj = rustc_emits_single_object(compiler_args);
+        let mut command = compiler_invocation(&compiler, config, CompilerKind::Rust);
+        command.current_dir(config.build_dir());
+        add_rustc_compile_args(
+            &mut command,
+            config,
+            compiler_args,
+            cross_arch,
+            InputType::Object,
+            emit_obj,
+        )?;
+        command.arg(&self.source_file);
+        command.args(compiler_args);
+        if wild_inc {
+            command.arg("--cfg").arg("wild_inc");
+        }
+        if emit_obj {
+            let tmp = dest.with_extension("inc.o");
+            command.arg("-o").arg(&tmp);
+            let status = command
+                .status()
+                .with_context(|| format!("Failed to run {command:?}"))?;
+            ensure!(status.success(), "Recompile failed: {command:?}");
+            std::fs::copy(&tmp, dest).with_context(|| {
+                format!("Failed to copy {} onto {}", tmp.display(), dest.display())
+            })?;
+        } else {
+            command.env("WILD_SAVE_DIR", dest);
+            let run_with = run_with_path(dest);
+            let _ = std::fs::remove_file(&run_with);
+            let _ = std::fs::remove_file(cmd_path(&run_with));
+            let output = command
+                .output()
+                .with_context(|| format!("Failed to run {command:?}"))?;
+            ensure!(
+                output.status.success(),
+                "Recompile failed: {command:?}\n{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            post_process_rust_run_script(dest)?;
+        }
         Ok(())
     }
 
@@ -3866,9 +3920,21 @@ fn build_obj(
 
     // For Rust programs, we don't have an easy way to separate compilation from linking, so we
     // output Rust compilation to a directory containing copies of the object files and a script to
-    // perform the link step.
+    // perform the link step. `--emit=obj` is the exception: a single stable `.o`, like C.
+    let mut compiler_args =
+        if input_type == InputType::SharedObject && !config.compiler_so_args.args.is_empty() {
+            config.compiler_so_args.args.clone()
+        } else {
+            config.compiler_args.args.clone()
+        };
+
+    compiler_args.extend_from_slice(&file.args.args);
+
+    let emit_obj = compiler_kind == CompilerKind::Rust && rustc_emits_single_object(&compiler_args);
+
     let suffix = match compiler_kind {
         CompilerKind::C => ".o",
+        CompilerKind::Rust if emit_obj => ".o",
         CompilerKind::Rust => ".d",
     };
 
@@ -3878,15 +3944,6 @@ fn build_obj(
     // processes, so we change to the build directory for the current test, so that if the compiler
     // writes temporary files to the working directory, they won't collide.
     command.current_dir(config.build_dir());
-
-    let mut compiler_args =
-        if input_type == InputType::SharedObject && !config.compiler_so_args.args.is_empty() {
-            config.compiler_so_args.args.clone()
-        } else {
-            config.compiler_args.args.clone()
-        };
-
-    compiler_args.extend_from_slice(&file.args.args);
 
     let output_path = add_to_path(
         &config.build_dir().join(file.path.file_name().unwrap()),
@@ -3925,66 +3982,14 @@ fn build_obj(
             }
         }
         CompilerKind::Rust => {
-            let wild = wild_path().to_str().context("Need UTF-8 path")?.to_owned();
-
-            command
-                .env("WILD_SAVE_SKIP_LINKING", "1")
-                .args(config.rustc_channel.as_arg());
-
-            if config.platform == PlatformKind::Wasm {
-                command
-                    .args(["-C", &format!("linker={wild}")])
-                    .args(["-C", "linker-flavor=wasm-ld"]);
-            } else {
-                command
-                    .args(["-C", "linker=clang"])
-                    .args(["-C", &format!("link-arg=--ld-path={wild}")]);
-            }
-
-            if let Some(arch) = cross_arch {
-                // Debian sets sysroot to `/` and uses real paths for libraries in linker scripts.
-                // So using real sysroot path breaks linking.
-                if !is_host_debian_based() && config.platform != PlatformKind::Wasm {
-                    command.args([
-                        "-C",
-                        &format!("link-arg=--sysroot={}", arch.get_cross_sysroot_path()),
-                    ]);
-                }
-            }
-
-            if let Some(arch) = cross_arch {
-                let target = get_target(&compiler_args).unwrap_or_else(|_| {
-                    command.arg(format!(
-                        "--target={}",
-                        arch.default_target_triple_rustc(config.platform)
-                    ));
-                    arch.default_target_triple(config.platform).to_owned()
-                });
-                if config.platform != PlatformKind::Wasm {
-                    let target_underscore = target.replace('-', "_");
-                    let target_triple = target.replace("-unknown", "");
-
-                    command.env(
-                        format!("CC_{target_underscore}"),
-                        format!("{target_triple}-gcc"),
-                    );
-
-                    command.env(
-                        format!("AR_{target_underscore}"),
-                        format!("{target_triple}-ar"),
-                    );
-
-                    command.arg(format!("-Clink-arg=--target={target}"));
-                }
-            }
-
-            if is_musl_used() {
-                command.args(["-C", "target-feature=-crt-static"]);
-            }
-
-            if input_type == InputType::SharedObject {
-                command.arg("--crate-type").arg("cdylib");
-            }
+            add_rustc_compile_args(
+                &mut command,
+                &config,
+                &compiler_args,
+                cross_arch,
+                input_type,
+                emit_obj,
+            )?;
         }
     }
 
@@ -4003,7 +4008,11 @@ fn build_obj(
             command.arg("-o").arg(&output_path);
         }
         CompilerKind::Rust => {
-            command.env("WILD_SAVE_DIR", &output_path);
+            if emit_obj {
+                command.arg("-o").arg(&output_path);
+            } else {
+                command.env("WILD_SAVE_DIR", &output_path);
+            }
         }
     }
 
@@ -4113,6 +4122,96 @@ fn verify_path_unique_for_args(output_path: &Path, command: &Command) -> Result 
         }
     }
 
+    Ok(())
+}
+
+fn rustc_emits_single_object(compiler_args: &[String]) -> bool {
+    compiler_args.iter().any(|arg| {
+        arg == "--emit=obj"
+            || arg
+                .strip_prefix("--emit=")
+                .is_some_and(|kinds| kinds.split(',').any(|kind| kind == "obj"))
+    })
+}
+
+fn add_rustc_compile_args(
+    command: &mut Command,
+    config: &Config,
+    compiler_args: &[String],
+    cross_arch: Option<Architecture>,
+    input_type: InputType,
+    emit_obj: bool,
+) -> Result {
+    command.args(config.rustc_channel.as_arg());
+    if emit_obj {
+        if let Some(arch) = cross_arch
+            && get_target(compiler_args).is_err()
+        {
+            command.arg(format!(
+                "--target={}",
+                arch.default_target_triple_rustc(config.platform)
+            ));
+        }
+        return Ok(());
+    }
+
+    let wild = wild_path().to_str().context("Need UTF-8 path")?.to_owned();
+    command.env("WILD_SAVE_SKIP_LINKING", "1");
+
+    if config.platform == PlatformKind::Wasm {
+        command
+            .args(["-C", &format!("linker={wild}")])
+            .args(["-C", "linker-flavor=wasm-ld"]);
+    } else {
+        command
+            .args(["-C", "linker=clang"])
+            .args(["-C", &format!("link-arg=--ld-path={wild}")]);
+    }
+
+    if let Some(arch) = cross_arch {
+        // Debian sets sysroot to `/` and uses real paths for libraries in linker scripts.
+        // So using real sysroot path breaks linking.
+        if !is_host_debian_based() && config.platform != PlatformKind::Wasm {
+            command.args([
+                "-C",
+                &format!("link-arg=--sysroot={}", arch.get_cross_sysroot_path()),
+            ]);
+        }
+    }
+
+    if let Some(arch) = cross_arch {
+        let target = get_target(compiler_args).unwrap_or_else(|_| {
+            command.arg(format!(
+                "--target={}",
+                arch.default_target_triple_rustc(config.platform)
+            ));
+            arch.default_target_triple(config.platform).to_owned()
+        });
+        if config.platform != PlatformKind::Wasm {
+            let target_underscore = target.replace('-', "_");
+            let target_triple = target.replace("-unknown", "");
+
+            command.env(
+                format!("CC_{target_underscore}"),
+                format!("{target_triple}-gcc"),
+            );
+
+            command.env(
+                format!("AR_{target_underscore}"),
+                format!("{target_triple}-ar"),
+            );
+
+            command.arg(format!("-Clink-arg=--target={target}"));
+        }
+    }
+
+    if is_musl_used() {
+        command.args(["-C", "target-feature=-crt-static"]);
+    }
+
+    if input_type == InputType::SharedObject {
+        command.arg("--crate-type").arg("cdylib");
+    }
     Ok(())
 }
 
@@ -5083,6 +5182,78 @@ fn add_to_path(path: &Path, extra: &str) -> PathBuf {
     let mut path = path.as_os_str().to_owned();
     path.push(extra);
     PathBuf::from(path)
+}
+
+fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let to = dst.join(entry.file_name());
+        let ft = entry.file_type()?;
+        if ft.is_symlink() {
+            let target = std::fs::read_link(entry.path())?;
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(target, to)?;
+            #[cfg(not(unix))]
+            {
+                let _ = target;
+                std::fs::copy(entry.path(), to)?;
+            }
+        } else if ft.is_dir() {
+            copy_dir_all(&entry.path(), &to)?;
+        } else {
+            std::fs::copy(entry.path(), to)?;
+        }
+    }
+    Ok(())
+}
+
+struct RestoreObject {
+    dest: PathBuf,
+    backup: PathBuf,
+    is_dir: bool,
+}
+
+impl RestoreObject {
+    fn snapshot(dest: &Path) -> Result<Self> {
+        let backup = {
+            let mut name = dest.as_os_str().to_os_string();
+            name.push(".bak");
+            PathBuf::from(name)
+        };
+        if dest.is_dir() {
+            let _ = std::fs::remove_dir_all(&backup);
+            copy_dir_all(dest, &backup)
+                .with_context(|| format!("Failed to snapshot {}", dest.display()))?;
+            Ok(Self {
+                dest: dest.to_owned(),
+                backup,
+                is_dir: true,
+            })
+        } else {
+            let _ = std::fs::remove_file(&backup);
+            std::fs::copy(dest, &backup)
+                .with_context(|| format!("Failed to snapshot {}", dest.display()))?;
+            Ok(Self {
+                dest: dest.to_owned(),
+                backup,
+                is_dir: false,
+            })
+        }
+    }
+}
+
+impl Drop for RestoreObject {
+    fn drop(&mut self) {
+        if self.is_dir {
+            let _ = std::fs::remove_dir_all(&self.dest);
+            let _ = copy_dir_all(&self.backup, &self.dest);
+            let _ = std::fs::remove_dir_all(&self.backup);
+        } else {
+            let _ = std::fs::copy(&self.backup, &self.dest);
+            let _ = std::fs::remove_file(&self.backup);
+        }
+    }
 }
 
 fn add_inputs_to_command(config: &Config, inputs: &[LinkerInput], command: &mut Command) {

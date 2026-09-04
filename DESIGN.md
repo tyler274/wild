@@ -32,7 +32,14 @@ link). Cross-run identity is a generational atom table in `incremental/`: unchan
 handle, a replaced path reuses a slot with a new generation, and reverse-reloc lists plus
 resolutions are keyed by `(atom, local symbol)` so a neighboring file cannot reshuffle IDs. Skip
 updates merge reverse-reloc lists, replacing sites in rewritten objects and keeping sites in skipped
-ones. GC and LTO still fall back to a full padded link.
+ones. GC and LTO still fall back to a full padded link. Custom linker scripts skip section padding
+so kernel `ASSERT`s keep their sizes; unchanged inputs can still skip payloads.
+
+Integration tests cover GCC, Clang, and rustc at `-O0`/`-O1`/`-O2`/`-O3`/`-Os` (plus LTO fallback)
+and an unchanged `--incremental` relink of x86_64 `vmlinux` (`WILD_LINUX_TREE`). Rust `--emit=obj`
+keeps a stable `.o` path; rustc save-dir tests allow fallback because codegen-unit hashes change
+with `--cfg wild_inc`. Glibc DSOs still fail `--incremental` (debug offset verification on
+`libc.so`, leftover `.rela.dyn` / `.relr.dyn` slots on an unchanged `ld.so` / `libm.so` update).
 
 ## Threading
 
@@ -62,7 +69,9 @@ Kernel `vmlinux` is GNU-only. Set `WILD_LINUX_TREE` to an x86_64 tree that alrea
 and GNU `vmlinux.unstripped`, then `cargo test -p wild-linker --test integration_tests -- vmlinux`.
 Pack objects with `scripts/pack-vmlinux-objects.sh`. CI job `vmlinux` runs when the repository
 variable `WILD_LINUX_OBJECTS_URL` points at that tarball (a from-scratch kernel build will not fit
-the 10-minute timeout). Follow-up: a small userspace / initramfs also linked with Wild.
+the 10-minute timeout). `vmlinux-incremental` links the same objects with `--incremental` and checks
+an unchanged second link records `incremental-update`. Follow-up: a small userspace / initramfs also
+linked with Wild.
 
 Glibc's `libc.so` link uses GNU ld's default shared script (`DATA_SEGMENT_*`, `CONSTANT`,
 `ONLY_IF_*`). Wild can parse and link that script (see `linker-script-gnu-default`). `nix develop`
@@ -73,8 +82,8 @@ linked with GNU ld so the relink tests have something to diff. Then
 `cargo test -p wild-linker --test integration_tests -- glibc`. Override the env vars to use another
 tree. `wild-glibc-check` installs those Wild-linked `libc.so` / `ld.so` / `libm.so` (and other
 `lib%.so` relinks when present) into the GNU build and runs a `make test` subset (TLS, IFUNC,
-RELR, ctors, malloc, libm, nptl), then restores the GNU oracles. A full `make check` is still
-follow-up.
+RELR, ctors, malloc, libm, nptl), then restores the GNU oracles. `--incremental` on those DSOs is
+follow-up. A full `make check` is still follow-up.
 
 ## Modularity (Mold and LLD)
 

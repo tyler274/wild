@@ -317,6 +317,77 @@ fn glibc_paths() -> Result<Option<(PathBuf, PathBuf)>> {
     Ok(Some((tree, build)))
 }
 
+fn ldso_command(out: &Path, librtld: &Path, map: Option<&Path>) -> Command {
+    let mut cmd = Command::new(wild_path());
+    cmd.args([
+        "-shared",
+        "-z",
+        "defs",
+        "-z",
+        "relro",
+        "-z",
+        "now",
+        "-z",
+        "pack-relative-relocs",
+        "-z",
+        "nomark-plt",
+        "--hash-style=both",
+        "-soname",
+        LDSO_SONAME,
+        "-o",
+    ])
+    .arg(out)
+    .arg(librtld);
+    if let Some(map) = map {
+        cmd.arg(format!("--version-script={}", map.display()));
+    }
+    cmd
+}
+
+fn libc_command(
+    out: &Path,
+    pic: &Path,
+    abi_note: Option<&Path>,
+    interp: Option<&Path>,
+    ldso: Option<&Path>,
+    sofini: Option<&Path>,
+    map: Option<&Path>,
+    libgcc: &Path,
+) -> Command {
+    let mut cmd = Command::new(wild_path());
+    cmd.args([
+        "-shared",
+        "-z",
+        "defs",
+        "-z",
+        "relro",
+        "-z",
+        "now",
+        "-z",
+        "pack-relative-relocs",
+        "-z",
+        "nomark-plt",
+        "--hash-style=both",
+        "-e",
+        "__libc_main",
+        "-soname",
+        LIBC_SONAME,
+        "-o",
+    ])
+    .arg(out);
+    if let Some(map) = map {
+        cmd.arg(format!("--version-script={}", map.display()));
+    }
+    // GNU `build-shlib` order: abi-note, pic, interp, ld.so, libgcc, sofini last.
+    for input in [abi_note, Some(pic), interp, ldso, Some(libgcc), sofini]
+        .into_iter()
+        .flatten()
+    {
+        cmd.arg(input);
+    }
+    cmd
+}
+
 fn run_ldso_test() -> Result<libtest_mimic::Completion> {
     let Some((_tree, build)) = glibc_paths()? else {
         return Ok(libtest_mimic::Completion::ignored_with(format!(
@@ -339,29 +410,7 @@ fn run_ldso_test() -> Result<libtest_mimic::Completion> {
         .with_context(|| format!("Failed to create {}", out_dir.display()))?;
     let out = out_dir.join("ld.so.wild");
 
-    let mut cmd = Command::new(wild_path());
-    cmd.args([
-        "-shared",
-        "-z",
-        "defs",
-        "-z",
-        "relro",
-        "-z",
-        "now",
-        "-z",
-        "pack-relative-relocs",
-        "-z",
-        "nomark-plt",
-        "--hash-style=both",
-        "-soname",
-        LDSO_SONAME,
-        "-o",
-    ])
-    .arg(&out)
-    .arg(&librtld);
-    if let Some(map) = map {
-        cmd.arg(format!("--version-script={}", map.display()));
-    }
+    let mut cmd = ldso_command(&out, &librtld, map.as_deref());
     let status = cmd
         .status()
         .with_context(|| format!("Failed to spawn {}", wild_path().display()))?;
@@ -411,37 +460,16 @@ fn run_libc_test() -> Result<libtest_mimic::Completion> {
 
     let libgcc = libgcc_archive()?;
 
-    let mut cmd = Command::new(wild_path());
-    cmd.args([
-        "-shared",
-        "-z",
-        "defs",
-        "-z",
-        "relro",
-        "-z",
-        "now",
-        "-z",
-        "pack-relative-relocs",
-        "-z",
-        "nomark-plt",
-        "--hash-style=both",
-        "-e",
-        "__libc_main",
-        "-soname",
-        LIBC_SONAME,
-        "-o",
-    ])
-    .arg(&out);
-    if let Some(map) = map {
-        cmd.arg(format!("--version-script={}", map.display()));
-    }
-    // GNU `build-shlib` order: abi-note, pic, interp, ld.so, libgcc, sofini last.
-    for input in [abi_note, Some(pic), interp, ldso, Some(libgcc), sofini]
-        .into_iter()
-        .flatten()
-    {
-        cmd.arg(input);
-    }
+    let mut cmd = libc_command(
+        &out,
+        &pic,
+        abi_note.as_deref(),
+        interp.as_deref(),
+        ldso.as_deref(),
+        sofini.as_deref(),
+        map.as_deref(),
+        &libgcc,
+    );
     let status = cmd
         .status()
         .with_context(|| format!("Failed to spawn {}", wild_path().display()))?;

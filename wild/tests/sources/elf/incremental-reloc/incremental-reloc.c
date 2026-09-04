@@ -11,6 +11,9 @@
 //#DiffEnabled:false
 //#Arch: x86_64
 
+//#Config:clang:default
+//#Compiler:clang
+
 #ifdef WILD_INC
 static int pad __attribute__((used, section(".data"))) = 1;
 int target __attribute__((section(".data"))) = 42;

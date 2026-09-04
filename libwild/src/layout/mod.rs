@@ -189,7 +189,10 @@ pub fn compute<'data, P: Platform, A: Arch<Platform = P>, F: FileSystem>(
     )?;
     drop(finalise_sizes_resources);
 
-    if symbol_db.args.common().incremental {
+    // Spare room at the end of allocated sections so a later update can grow in place. Linker
+    // scripts (kernel `vmlinux.lds`) size-check output sections (`ASSERT`); padding those
+    // sections fails the script.
+    if symbol_db.args.common().incremental && linker_scripts.is_empty() {
         for (section_id, _) in output_sections.ids_with_info() {
             if !section_id.is_regular::<P>() || !output_sections.has_data_in_file(section_id) {
                 continue;

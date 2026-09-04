@@ -5,10 +5,13 @@
 //! `vmlinux.unstripped`. Pack those files with `scripts/pack-vmlinux-objects.sh`.
 //! CI job `vmlinux` unpacks `vars.WILD_LINUX_OBJECTS_URL` and sets this variable.
 //! Skipped when `WILD_LINUX_TREE` is unset (a from-scratch kernel build will not
-//! fit the 10-minute CI timeout). GNU ld is the only oracle.
+//! fit the 10-minute CI timeout). GNU ld is the only oracle. `vmlinux-incremental`
+//! is a separate `--incremental` link of the same objects (section padding, so
+//! not compared to GNU addresses).
 
 use crate::Filter;
 use crate::build_dir;
+use crate::incremental_check;
 use crate::wild_path;
 use libtest_mimic::Trial;
 use libwild::bail;
@@ -25,6 +28,7 @@ use std::process::Command;
 
 const LINUX_TREE_VAR: &str = "WILD_LINUX_TREE";
 const TEST_NAME: &str = "elf/x86_64/vmlinux";
+const INCREMENTAL_TEST: &str = "elf/x86_64/vmlinux-incremental";
 
 const SCRIPT: &str = "arch/x86/kernel/vmlinux.lds";
 const GNU_ORACLE: &str = "vmlinux.unstripped";
@@ -58,21 +62,23 @@ const KEY_SYMBOLS: &[&str] = &[
 ];
 
 pub(super) fn collect_tests(tests: &mut Vec<Trial>, filter: &Filter) {
-    if filter.excludes(TEST_NAME) {
-        return;
+    if !filter.excludes(TEST_NAME) {
+        tests.push(Trial::ignorable_test(TEST_NAME, || {
+            run_vmlinux_test().map_err(|e| libtest_mimic::Failed::from(e.to_string()))
+        }));
     }
-    tests.push(Trial::ignorable_test(TEST_NAME, || {
-        run_vmlinux_test().map_err(|e| libtest_mimic::Failed::from(e.to_string()))
-    }));
+    if !filter.excludes(INCREMENTAL_TEST) {
+        tests.push(Trial::ignorable_test(INCREMENTAL_TEST, || {
+            run_vmlinux_incremental_test().map_err(|e| libtest_mimic::Failed::from(e.to_string()))
+        }));
+    }
 }
 
-fn run_vmlinux_test() -> Result<libtest_mimic::Completion> {
-    let Some(tree) = std::env::var_os(LINUX_TREE_VAR).map(PathBuf::from) else {
-        return Ok(libtest_mimic::Completion::ignored_with(format!(
-            "{LINUX_TREE_VAR} is unset"
-        )));
-    };
+fn linux_tree() -> Result<Option<PathBuf>> {
+    Ok(std::env::var_os(LINUX_TREE_VAR).map(PathBuf::from))
+}
 
+fn require_vmlinux_inputs(tree: &Path) -> Result<()> {
     let script = tree.join(SCRIPT);
     let gnu = tree.join(GNU_ORACLE);
     let vmlinux_o = tree.join(WHOLE_ARCHIVE);
@@ -95,36 +101,56 @@ fn run_vmlinux_test() -> Result<libtest_mimic::Completion> {
             missing.join(", ")
         );
     }
+    Ok(())
+}
 
+fn vmlinux_command(tree: &Path, out: &Path, incremental: bool) -> Command {
+    let script = tree.join(SCRIPT);
+    let mut cmd = Command::new(wild_path());
+    cmd.current_dir(tree).args([
+        "-m",
+        "elf_x86_64",
+        "-z",
+        "noexecstack",
+        "--no-warn-rwx-segments",
+        "-z",
+        "max-page-size=0x200000",
+        "--build-id=sha1",
+        "--orphan-handling=error",
+        "--emit-relocs",
+        "--discard-none",
+        "--no-gc-sections",
+        "--no-identity-comment",
+    ]);
+    if incremental {
+        cmd.arg("--incremental");
+    }
+    cmd.arg(format!("--script={}", script.display()))
+        .arg("-o")
+        .arg(out)
+        .arg("--whole-archive")
+        .arg(WHOLE_ARCHIVE)
+        .arg("--no-whole-archive")
+        .args(EXTRA_OBJECTS);
+    cmd
+}
+
+fn run_vmlinux_test() -> Result<libtest_mimic::Completion> {
+    let Some(tree) = linux_tree()? else {
+        return Ok(libtest_mimic::Completion::ignored_with(format!(
+            "{LINUX_TREE_VAR} is unset"
+        )));
+    };
+    require_vmlinux_inputs(&tree)?;
+
+    let gnu = tree.join(GNU_ORACLE);
     let out_dir = build_dir().join("elf/x86_64/vmlinux");
     std::fs::create_dir_all(&out_dir)
         .with_context(|| format!("Failed to create {}", out_dir.display()))?;
     let out = out_dir.join("vmlinux.wild");
 
-    let status = Command::new(wild_path())
-        .current_dir(&tree)
-        .args([
-            "-m",
-            "elf_x86_64",
-            "-z",
-            "noexecstack",
-            "--no-warn-rwx-segments",
-            "-z",
-            "max-page-size=0x200000",
-            "--build-id=sha1",
-            "--orphan-handling=error",
-            "--emit-relocs",
-            "--discard-none",
-            "--no-gc-sections",
-            "--no-identity-comment",
-        ])
-        .arg(format!("--script={}", script.display()))
-        .arg("-o")
-        .arg(&out)
-        .arg("--whole-archive")
-        .arg(WHOLE_ARCHIVE)
-        .arg("--no-whole-archive")
-        .args(EXTRA_OBJECTS)
+    let mut cmd = vmlinux_command(&tree, &out, false);
+    let status = cmd
         .status()
         .with_context(|| format!("Failed to spawn {}", wild_path().display()))?;
     if !status.success() {
@@ -133,6 +159,60 @@ fn run_vmlinux_test() -> Result<libtest_mimic::Completion> {
 
     compare_key_symbols(&gnu, &out)
         .with_context(|| format!("Wild `{}` vs GNU `{}`", out.display(), gnu.display()))?;
+    Ok(libtest_mimic::Completion::Completed)
+}
+
+fn run_vmlinux_incremental_test() -> Result<libtest_mimic::Completion> {
+    let Some(tree) = linux_tree()? else {
+        return Ok(libtest_mimic::Completion::ignored_with(format!(
+            "{LINUX_TREE_VAR} is unset"
+        )));
+    };
+    require_vmlinux_inputs(&tree)?;
+
+    let out_dir = build_dir().join("elf/x86_64/vmlinux-incremental");
+    std::fs::create_dir_all(&out_dir)
+        .with_context(|| format!("Failed to create {}", out_dir.display()))?;
+    let out = out_dir.join("vmlinux.incr.wild");
+
+    incremental_check::clear_state(&out);
+    incremental_check::run_wild(&mut vmlinux_command(&tree, &out, true), "vmlinux initial")?;
+    let first = load_key_symbols(&out)?;
+    incremental_check::run_wild(&mut vmlinux_command(&tree, &out, true), "vmlinux unchanged")?;
+    let log = incremental_check::read_log(&out)?;
+    if log.is_fallback {
+        bail!(
+            "vmlinux unchanged incremental relink fell back: {}",
+            log.last_line
+        );
+    }
+    if !log.is_update {
+        bail!("Expected incremental-update, got: {}", log.last_line);
+    }
+    if log.skip_payloads == 0 && !log.strict_order {
+        bail!(
+            "vmlinux unchanged incremental relink skipped no payloads: {}",
+            log.last_line
+        );
+    }
+    let second = load_key_symbols(&out)?;
+    let mut mismatches = Vec::new();
+    for name in KEY_SYMBOLS {
+        match (first.get(*name), second.get(*name)) {
+            (Some(a), Some(b)) if a != b => mismatches.push(format!(
+                "{name}: first {} @ {:#x} vs second {} @ {:#x}",
+                a.section, a.address, b.section, b.address
+            )),
+            (Some(_), Some(_)) => {}
+            (a, b) => mismatches.push(format!("{name}: first {a:?} vs second {b:?}")),
+        }
+    }
+    if !mismatches.is_empty() {
+        bail!(
+            "Key symbols moved across an unchanged incremental relink:\n{}",
+            mismatches.join("\n")
+        );
+    }
     Ok(libtest_mimic::Completion::Completed)
 }
 
