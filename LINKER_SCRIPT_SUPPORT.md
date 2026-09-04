@@ -178,9 +178,9 @@ The GNU oracle is still linked with GNU ld so the relink tests have a BFD binary
 `target/glibc-gnu`; run `wild-build-glibc` then
 `cargo test -p wild-linker --test integration_tests -- glibc`. Override those variables to use
 another tree. `wild-glibc-check` runs a glibc `make test` subset against the Wild-linked
-`libc.so` / `ld.so` / `lib%.so` DSOs. `--incremental` on those DSOs is follow-up: an unchanged
-relink currently leaves a spare `.rela.dyn` / `.relr.dyn` slot, and `libc.so` trips debug
-offset verification on `.interp`. A full `make check` is follow-up.
+`libc.so` / `ld.so` / `lib%.so` DSOs. `--incremental` on those DSOs is covered by
+`glibc-*-incremental` (unchanged relink; skip updates still emit dynamic reloc tables). A full
+`make check` is follow-up.
 
 ## Known gaps / follow-ups
 
@@ -189,7 +189,6 @@ These are tracked here so they are not forgotten. They are not part of the curre
 
 ### Lower priority versus GNU
 
-* `--incremental` on glibc DSOs (spare `.rela.dyn` / `.relr.dyn` on unchanged update; `libc.so` debug offset verification)
 * `ALIGNOF(NEXT_SECTION)` (GNU default script aligns `.bss` to the next section; currently a no-op)
 * `LINKER_VERSION` is parsed and ignored; a script-defined `.comment` can leave Wild's identity in a second `.comment` section
 * `ONLY_IF_RO` / `ONLY_IF_RW` keep the first duplicate name rather than picking by input `SHF_WRITE`

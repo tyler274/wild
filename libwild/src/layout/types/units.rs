@@ -576,6 +576,15 @@ impl<'data, P: Platform> PreludeLayoutState<'data, P> {
             );
         }
 
+        if let Some(dynamic_linker) = self.dynamic_linker.as_ref() {
+            let interp_section_id = P::INTERP_SECTION_ID
+                .expect("platform specified a dynamic linker without an interpreter section");
+            memory_offsets.increment(
+                interp_section_id.base_part_id::<P>(),
+                dynamic_linker.as_bytes_with_nul().len() as u64,
+            );
+        }
+
         resources.merged_strings.for_each(|section_id, merged| {
             if merged.len() > 0 {
                 memory_offsets.increment(

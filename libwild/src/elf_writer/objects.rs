@@ -216,9 +216,16 @@ pub(crate) fn write_object_section<'data, C: ElfClass, A: Arch<Platform = elf::E
         buffers,
         !skip_payload,
     )?;
-    if skip_payload {
-        return Ok(());
-    }
+    // Skip copies of unchanged section bytes, but still emit `.rela.dyn` / `.relr.dyn`
+    // entries so TableWriter stays in lockstep with layout. Relocations are applied
+    // to a scratch copy of the input; UpdateInPlace keeps the previous output pages.
+    let mut scratch;
+    let reloc_out: &mut [u8] = if skip_payload && !out.is_empty() {
+        scratch = input_section_reloc_scratch::<C, A>(object, layout, section, section_index)?;
+        &mut scratch
+    } else {
+        out
+    };
 
     // We need to reverse the contents and adjust relocations because .ctors/.dtors are executed in
     // reverse order while .init_array/.fini_array are executed in forward order.
@@ -234,7 +241,7 @@ pub(crate) fn write_object_section<'data, C: ElfClass, A: Arch<Platform = elf::E
             section_index,
             table_writer,
             trace,
-            out,
+            reloc_out,
         );
     }
 
@@ -246,7 +253,7 @@ pub(crate) fn write_object_section<'data, C: ElfClass, A: Arch<Platform = elf::E
     let result = match relocations {
         elf::RelocationList::Rela(rela) => apply_relocations::<C, A, elf::ElfRela<C>, _>(
             object,
-            out,
+            reloc_out,
             section_index,
             rela.iter().map(|rela| Ok(elf::ElfRela::new(*rela))),
             layout,
@@ -255,7 +262,7 @@ pub(crate) fn write_object_section<'data, C: ElfClass, A: Arch<Platform = elf::E
         ),
         elf::RelocationList::Crel(crel_iter) => apply_relocations::<C, A, elf::ElfCrel<C>, _>(
             object,
-            out,
+            reloc_out,
             section_index,
             crel_iter.map(|r| r.map(elf::ElfCrel::new)),
             layout,

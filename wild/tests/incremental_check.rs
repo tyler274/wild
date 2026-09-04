@@ -63,7 +63,6 @@ pub(crate) fn read_log(output: &Path) -> Result<IncrementalLog> {
 ///
 /// `require_skips` fails if the update copied every payload. Shared objects with `.init`/`.fini`
 /// may do a strict-order full link (`allow_strict_order`).
-#[allow(dead_code)]
 pub(crate) fn relink_unchanged(
     mut initial: Command,
     mut update: Command,

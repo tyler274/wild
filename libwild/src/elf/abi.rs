@@ -171,7 +171,6 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         output_section_id::GNU_VERSION,
         output_section_id::GNU_HASH,
         output_section_id::DYNAMIC,
-        output_section_id::INTERP,
         crate::output_section_id::FILE_HEADER,
         output_section_id::PROGRAM_HEADERS,
         output_section_id::SECTION_HEADERS,

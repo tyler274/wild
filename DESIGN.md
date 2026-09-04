@@ -38,8 +38,10 @@ so kernel `ASSERT`s keep their sizes; unchanged inputs can still skip payloads.
 Integration tests cover GCC, Clang, and rustc at `-O0`/`-O1`/`-O2`/`-O3`/`-Os` (plus LTO fallback)
 and an unchanged `--incremental` relink of x86_64 `vmlinux` (`WILD_LINUX_TREE`). Rust `--emit=obj`
 keeps a stable `.o` path; rustc save-dir tests allow fallback because codegen-unit hashes change
-with `--cfg wild_inc`. Glibc DSOs still fail `--incremental` (debug offset verification on
-`libc.so`, leftover `.rela.dyn` / `.relr.dyn` slots on an unchanged `ld.so` / `libm.so` update).
+with `--cfg wild_inc`. Unchanged `--incremental` relinks of glibc `ld.so` / `libc.so` / `libm.so`
+(`WILD_GLIBC_TREE`) skip object payloads; skip updates still rewrite dynamic reloc tables so
+`.rela.dyn` / `.relr.dyn` stay in lockstep with layout. Input `.interp` objects (glibc `interp.os`)
+are laid out like other allocated sections.
 
 ## Threading
 
@@ -82,8 +84,9 @@ linked with GNU ld so the relink tests have something to diff. Then
 `cargo test -p wild-linker --test integration_tests -- glibc`. Override the env vars to use another
 tree. `wild-glibc-check` installs those Wild-linked `libc.so` / `ld.so` / `libm.so` (and other
 `lib%.so` relinks when present) into the GNU build and runs a `make test` subset (TLS, IFUNC,
-RELR, ctors, malloc, libm, nptl), then restores the GNU oracles. `--incremental` on those DSOs is
-follow-up. A full `make check` is still follow-up.
+RELR, ctors, malloc, libm, nptl), then restores the GNU oracles. `glibc-*-incremental` tests an
+unchanged `--incremental` relink of `ld.so` / `libc.so` / `libm.so`. A full `make check` is still
+follow-up.
 
 ## Modularity (Mold and LLD)
 

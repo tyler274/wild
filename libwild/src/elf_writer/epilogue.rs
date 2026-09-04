@@ -85,55 +85,89 @@ pub(crate) fn write_section_raw<'out, 'data, C: ElfClass, A: Arch<Platform = elf
             let n = section_size.min(out.len());
             return Ok(&mut out[..n]);
         }
-        let relax_deltas = object.section_relax_deltas.get(section_index.0);
-
         let section_info = layout
             .output_sections
             .output_info(part_id.output_section_id::<elf::Elf<C>>());
         fill_section_padding::<C, A>(leading, section_info);
-        match relax_deltas {
-            None => {
-                let section_size = object.object.section_size(object_section)?;
-                let (out, padding) = out.split_at_mut(section_size as usize);
-                object.object.copy_section_data(object_section, out)?;
-                fill_section_padding::<C, A>(padding, section_info);
-                Ok(out)
-            }
-            Some(deltas) => {
-                let input_data = object.object.raw_section_data(object_section)?;
-                let effective_size = sec.size as usize;
-
-                let mut input_pos: usize = 0;
-                let mut output_pos: usize = 0;
-
-                for delta in deltas.deltas() {
-                    let skip_start = delta.input_offset as usize;
-                    // Copy everything from input_pos up to the deletion point.
-                    let copy_len = skip_start - input_pos;
-                    if copy_len > 0 {
-                        out[output_pos..output_pos + copy_len]
-                            .copy_from_slice(&input_data[input_pos..skip_start]);
-                        output_pos += copy_len;
-                    }
-                    // Skip over the deleted bytes in the input.
-                    input_pos = skip_start + delta.bytes_deleted as usize;
-                }
-
-                // Copy the remainder after the last deletion.
-                let remaining = input_data.len() - input_pos;
-                if remaining > 0 {
-                    out[output_pos..output_pos + remaining]
-                        .copy_from_slice(&input_data[input_pos..]);
-                    output_pos += remaining;
-                }
-                fill_section_padding::<C, A>(&mut out[output_pos..], section_info);
-
-                Ok(&mut out[..effective_size])
-            }
-        }
+        copy_input_section_data::<C, A>(object, layout, sec, section_index, part_id, out)
     } else {
         Ok(&mut [])
     }
+}
+
+/// Copy an input section into `out` the same way a full write does, including relaxation
+/// compaction. Used when applying relocations to a scratch buffer during an incremental skip.
+fn copy_input_section_data<'out, 'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
+    object: &ObjectLayout<'data, elf::Elf<C>>,
+    layout: &ElfLayout<C>,
+    sec: Section,
+    section_index: object::SectionIndex,
+    part_id: PartId,
+    out: &'out mut [u8],
+) -> Result<&'out mut [u8]> {
+    let object_section = object.object.section(section_index)?;
+    let relax_deltas = object.section_relax_deltas.get(section_index.0);
+    let section_info = layout
+        .output_sections
+        .output_info(part_id.output_section_id::<elf::Elf<C>>());
+    match relax_deltas {
+        None => {
+            let section_size = object.object.section_size(object_section)?;
+            let (out, padding) = out.split_at_mut(section_size as usize);
+            object.object.copy_section_data(object_section, out)?;
+            fill_section_padding::<C, A>(padding, section_info);
+            Ok(out)
+        }
+        Some(deltas) => {
+            let input_data = object.object.raw_section_data(object_section)?;
+            let effective_size = sec.size as usize;
+
+            let mut input_pos: usize = 0;
+            let mut output_pos: usize = 0;
+
+            for delta in deltas.deltas() {
+                let skip_start = delta.input_offset as usize;
+                let copy_len = skip_start - input_pos;
+                if copy_len > 0 {
+                    out[output_pos..output_pos + copy_len]
+                        .copy_from_slice(&input_data[input_pos..skip_start]);
+                    output_pos += copy_len;
+                }
+                input_pos = skip_start + delta.bytes_deleted as usize;
+            }
+
+            let remaining = input_data.len() - input_pos;
+            if remaining > 0 {
+                out[output_pos..output_pos + remaining].copy_from_slice(&input_data[input_pos..]);
+                output_pos += remaining;
+            }
+            fill_section_padding::<C, A>(&mut out[output_pos..], section_info);
+
+            Ok(&mut out[..effective_size])
+        }
+    }
+}
+
+/// Input-section bytes for relocation application without writing the output mapping.
+pub(crate) fn input_section_reloc_scratch<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
+    object: &ObjectLayout<'data, elf::Elf<C>>,
+    layout: &ElfLayout<C>,
+    sec: Section,
+    section_index: object::SectionIndex,
+) -> Result<Vec<u8>> {
+    let part_id = object.section_part_id(section_index, &layout.symbol_db.section_part_ids);
+    let object_section = object.object.section(section_index)?;
+    let len = if object.section_relax_deltas.get(section_index.0).is_some() {
+        sec.size as usize
+    } else {
+        object.object.section_size(object_section)? as usize
+    };
+    if len == 0 {
+        return Ok(Vec::new());
+    }
+    let mut buf = vec![0u8; len];
+    copy_input_section_data::<C, A>(object, layout, sec, section_index, part_id, &mut buf)?;
+    Ok(buf)
 }
 
 pub(crate) fn write_prelude<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
