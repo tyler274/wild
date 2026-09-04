@@ -154,10 +154,12 @@ because `.data..ro_after_init` is 4KiB-aligned. `.strtab` and `.shstrtab` suffix
 | `--build-id` into `*(.note.*)` | ✅ | Merged into the matching output section (kernel `.notes`); not a leftover `PT_LOAD` |
 | `--orphan-handling` (`place`, `warn`, `error`, `discard`) | ✅ | Default `place` creates a same-named custom output section after the last output section with the same flags (GNU). `error` matches kernel `vmlinux` links |
 
-## Glibc (`libc.so` / `ld.so`)
+## Glibc (`libc.so` / `ld.so` / `libm.so`)
 
 Current glibc links `libc.so` / `ld.so` with `gcc -shared` and a version script, not a generated
-`shlib.lds`. Wild's default ELF layout is what that link uses. GNU ld's default shared script
+`shlib.lds`. `libm.so` uses GNU's `lib%.so` pattern (`libm_pic.a`, crtbeginS/crtendS, linked
+against `libc.so`). Wild's default ELF layout is what those links use. GNU ld's default shared
+script
 (`DATA_SEGMENT_*`, `CONSTANT`, `ONLY_IF_*`, `SORT_NONE`, `LINKER_VERSION` as an ELF nop,
 `SORT(CONSTRUCTORS)`, mid-list `EXCLUDE_FILE`) is still parsed and linked
 (`linker-script-gnu-default`). `PROVIDE` does not override an existing definition (prelude
@@ -170,8 +172,8 @@ The GNU oracle is still linked with GNU ld so the relink tests have a BFD binary
 `nix develop` sets `WILD_GLIBC_TREE` to nixpkgs' glibc source and `WILD_GLIBC_BUILD` to
 `target/glibc-gnu`; run `wild-build-glibc` then
 `cargo test -p wild-linker --test integration_tests -- glibc`. Override those variables to use
-another tree. `wild-glibc-check` runs a small glibc `make test` subset against the Wild-linked
-`libc.so` / `ld.so`. A full `make check` is follow-up.
+another tree. `wild-glibc-check` runs a glibc `make test` subset against the Wild-linked
+`libc.so` / `ld.so` / `libm.so`. A full `make check` is follow-up.
 
 ## Known gaps / follow-ups
 

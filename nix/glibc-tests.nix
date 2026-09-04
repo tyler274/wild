@@ -154,8 +154,9 @@ let
     '';
   };
 
-  # Swap Wild-linked libc.so / ld.so into the GNU build and run a small `make test`
-  # subset. Always restores the GNU oracles so relink diffs stay valid.
+  # Swap Wild-linked libc.so / ld.so (and libm.so when present) into the GNU
+  # build and run a glibc `make test` subset. Always restores the GNU oracles
+  # so relink diffs stay valid.
   wild-glibc-check = writeShellApplication {
     name = "wild-glibc-check";
     runtimeInputs = [
@@ -171,6 +172,7 @@ let
       repo=''${WILD_REPO:-$PWD}
       libc_wild=$repo/wild/tests/build/elf/x86_64/glibc-libc/libc.so.wild
       ldso_wild=$repo/wild/tests/build/elf/x86_64/glibc-ldso/ld.so.wild
+      libm_wild=$repo/wild/tests/build/elf/x86_64/glibc-libm/libm.so.wild
 
       if [ ! -f "$libc_wild" ] || [ ! -f "$ldso_wild" ]; then
         echo "missing Wild relink artifacts. Run:" >&2
@@ -180,11 +182,39 @@ let
 
       tests=(
         elf/tst-tls1
+        elf/tst-tls9
+        elf/tst-tls13
+        elf/tst-tlsalign
+        elf/tst-gnu2-tls1
         elf/tst-array1
+        elf/tst-array2
+        elf/tst-array3
+        elf/tst-array4
+        elf/tst-array5
         elf/tst-main1
+        elf/tst-initorder
+        elf/tst-initorder2
+        elf/tst-align
+        elf/tst-auxv
+        elf/tst-dlopen-self
+        elf/ifuncmain1
+        elf/tst-relr
+        elf/tst-relr2
         malloc/tst-malloc
+        malloc/tst-malloc-usable
         stdlib/tst-strtol
+        stdlib/tst-strtod
         string/test-strcpy
+        string/test-strlen
+        string/test-memcpy
+        string/test-memcmp
+        nptl/tst-mutex1
+        nptl/tst-basic1
+        nptl/tst-stack1
+        stdio-common/tst-printf
+        stdio-common/tst-sprintf
+        math/basic-test
+        rt/tst-timer
       )
 
       if [ ! -f "$build/libc.so.gnu-oracle" ]; then
@@ -193,10 +223,16 @@ let
       if [ ! -f "$build/elf/ld.so.gnu-oracle" ]; then
         cp -a "$build/elf/ld.so" "$build/elf/ld.so.gnu-oracle"
       fi
+      if [ -f "$libm_wild" ] && [ ! -f "$build/math/libm.so.gnu-oracle" ]; then
+        cp -a "$build/math/libm.so" "$build/math/libm.so.gnu-oracle"
+      fi
 
       restore() {
         cp -a "$build/libc.so.gnu-oracle" "$build/libc.so"
         cp -a "$build/elf/ld.so.gnu-oracle" "$build/elf/ld.so"
+        if [ -f "$build/math/libm.so.gnu-oracle" ]; then
+          cp -a "$build/math/libm.so.gnu-oracle" "$build/math/libm.so"
+        fi
       }
       trap restore EXIT
 
@@ -204,6 +240,10 @@ let
       cp -a "$ldso_wild" "$build/elf/ld.so"
       ln -sfn libc.so "$build/libc.so.6"
       ln -sfn ld.so "$build/elf/ld-linux-x86-64.so.2"
+      if [ -f "$libm_wild" ]; then
+        cp -a "$libm_wild" "$build/math/libm.so"
+        ln -sfn libm.so "$build/math/libm.so.6"
+      fi
 
       export LIBRARY_PATH="${libgccLib}''${LIBRARY_PATH:+:$LIBRARY_PATH}"
       export NIX_HARDENING_ENABLE=""

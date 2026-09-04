@@ -136,5 +136,6 @@ A from-scratch glibc build is not part of `nix flake check`. After relink:
 wild-glibc-check
 ```
 
-That swaps Wild-linked `libc.so` / `ld.so` into `$WILD_GLIBC_BUILD`, runs a small `make test`
-subset, and restores the GNU oracles. Single tests: `make -C "$WILD_GLIBC_BUILD" test t=elf/tst-tls1`.
+That swaps Wild-linked `libc.so` / `ld.so` (and `libm.so` when the relink test produced it) into
+`$WILD_GLIBC_BUILD`, runs a `make test` subset (TLS, IFUNC, RELR, ctors, malloc, libm, nptl), and
+restores the GNU oracles. Single tests: `make -C "$WILD_GLIBC_BUILD" test t=elf/tst-tls1`.
