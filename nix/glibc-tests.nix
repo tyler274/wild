@@ -295,7 +295,12 @@ let
           "$build/nis/libnsl.so" \
           "$build/nptl_db/libthread_db.so" \
           "$build/malloc/libc_malloc_debug.so" \
-          "$build/nss/libnss_compat.so"
+          "$build/nss/libnss_compat.so" \
+          "$build/nss/libnss_db.so" \
+          "$build/hesiod/libnss_hesiod.so" \
+          "$build/locale/libBrokenLocale.so" \
+          "$build/login/libutil.so" \
+          "$build/resolv/libanl.so"
         do
           if [ -f "$dest.gnu-oracle" ]; then
             cp -a "$dest.gnu-oracle" "$dest"
@@ -328,6 +333,11 @@ let
       swap_dso "$artifacts/glibc-libthread_db/libthread_db.so.wild" "$build/nptl_db/libthread_db.so" libthread_db.so.1
       swap_dso "$artifacts/glibc-libc_malloc_debug/libc_malloc_debug.so.wild" "$build/malloc/libc_malloc_debug.so" libc_malloc_debug.so.0
       swap_dso "$artifacts/glibc-libnss_compat/libnss_compat.so.wild" "$build/nss/libnss_compat.so" libnss_compat.so.2
+      swap_dso "$artifacts/glibc-libnss_db/libnss_db.so.wild" "$build/nss/libnss_db.so" libnss_db.so.2
+      swap_dso "$artifacts/glibc-libnss_hesiod/libnss_hesiod.so.wild" "$build/hesiod/libnss_hesiod.so" libnss_hesiod.so.2
+      swap_dso "$artifacts/glibc-libBrokenLocale/libBrokenLocale.so.wild" "$build/locale/libBrokenLocale.so" libBrokenLocale.so.1
+      swap_dso "$artifacts/glibc-libutil/libutil.so.wild" "$build/login/libutil.so" libutil.so.1
+      swap_dso "$artifacts/glibc-libanl/libanl.so.wild" "$build/resolv/libanl.so" libanl.so.1
 
       export LIBRARY_PATH="${libgccLib}''${LIBRARY_PATH:+:$LIBRARY_PATH}"
       export NIX_HARDENING_ENABLE=""

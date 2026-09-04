@@ -27,7 +27,8 @@
 //! PostLinkArgs:... Like LinkArgs, but appended after input objects. Useful for archive libraries
 //! such as `-lc` that need to appear after objects that reference them.
 //!
-//! LinkSoArgs:... Arguments to pass when linking a shared object.
+//! LinkSoArgs:... Arguments to pass when linking a shared object. `./<filename>` is rewritten like
+//! LinkArgs.
 //!
 //! SoSingleLinker:{linker name} If specified, we will use the named linker for liking shared
 //! objects regardless of the linker under test.
@@ -2470,7 +2471,17 @@ fn process_directive(
             if is_rust {
                 bail!("LinkSoArgs is not used when building Rust code");
             }
-            config.linker_so_args = ArgumentSet::parse(arg)?
+            let arg = expand_test_arg_placeholders(arg, config);
+            if let Some((_, rest)) = arg.split_once("./") {
+                let filename = rest.split_once(' ').map_or(rest, |(f, _)| f);
+                let src_path = config.test_src_dir.join(filename);
+                config.tracked_files.push(src_path.clone());
+                let with_replaced_path =
+                    arg.replace(&format!("./{filename}"), &src_path.display().to_string());
+                config.linker_so_args = ArgumentSet::parse(&with_replaced_path)?
+            } else {
+                config.linker_so_args = ArgumentSet::parse(&arg)?
+            }
         }
         "SoSingleLinker" => {
             config.so_single_linker = config

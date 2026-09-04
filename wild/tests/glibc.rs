@@ -1,7 +1,8 @@
 //! Opt-in x86_64 glibc DSO relink against a GNU-built tree (`ld.so`, `libc.so`,
 //! then GNU `lib%.so` PIC archives: `libm`, `libresolv`, `libmvec`, `libnsl`,
-//! `libthread_db`, `libc_malloc_debug`, `libnss_compat`, and the
-//! `libpthread` / `libdl` / `librt` stubs).
+//! `libthread_db`, `libc_malloc_debug`, `libnss_{compat,db,hesiod}`,
+//! `libBrokenLocale`, the `libpthread` / `libdl` / `librt` / `libutil` /
+//! `libanl` stubs).
 //!
 //! Glibc's `configure` accepts GNU ld, gold, or LLD version strings. Wild's
 //! `--version` first line is GNU ld compatible, but the GNU oracle is still
@@ -60,9 +61,14 @@ struct PicShlib {
     named_dynsyms: &'static [&'static str],
     extra_needed: &'static [&'static str],
     smoke: Option<&'static str>,
-    /// GNU `libfoo.so-no-z-defs = yes`, or Wild does not yet resolve these
-    /// imports from `libc.so` under `-z defs` (libnsl RPC).
+    /// GNU `libfoo.so-no-z-defs = yes` (e.g. libthread_db's debugger `ps_*`).
     no_z_defs: bool,
+    /// Glibc `libc-for-link`. `None` uses `libc.so`. libnsl and NSS DSOs that
+    /// still call deprecated RPC APIs use `linkobj/libc.so`, where those
+    /// symbols are default versions (`xdr_array@@GLIBC_2.2.5`). The installed
+    /// `libc.so` keeps them hidden (`xdr_array@GLIBC_2.2.5`), which GNU ld
+    /// will not bind to an unversioned reference under `-z defs`.
+    libc_for_link: Option<&'static str>,
 }
 
 /// GNU `lib%.so: lib%_pic.a` shared objects (not libc / ld.so, which use
@@ -78,6 +84,7 @@ const PIC_SHLIBS: &[PicShlib] = &[
         extra_needed: &[],
         smoke: Some("math/basic-test"),
         no_z_defs: false,
+        libc_for_link: None,
     },
     PicShlib {
         test_name: "elf/x86_64/glibc-libresolv",
@@ -89,6 +96,7 @@ const PIC_SHLIBS: &[PicShlib] = &[
         extra_needed: &[],
         smoke: Some("resolv/tst-aton"),
         no_z_defs: false,
+        libc_for_link: None,
     },
     PicShlib {
         test_name: "elf/x86_64/glibc-libmvec",
@@ -100,6 +108,7 @@ const PIC_SHLIBS: &[PicShlib] = &[
         extra_needed: &["math/libm.so"],
         smoke: None,
         no_z_defs: false,
+        libc_for_link: None,
     },
     PicShlib {
         test_name: "elf/x86_64/glibc-libpthread",
@@ -111,6 +120,7 @@ const PIC_SHLIBS: &[PicShlib] = &[
         extra_needed: &[],
         smoke: None,
         no_z_defs: false,
+        libc_for_link: None,
     },
     PicShlib {
         test_name: "elf/x86_64/glibc-libdl",
@@ -122,6 +132,7 @@ const PIC_SHLIBS: &[PicShlib] = &[
         extra_needed: &[],
         smoke: None,
         no_z_defs: false,
+        libc_for_link: None,
     },
     PicShlib {
         test_name: "elf/x86_64/glibc-librt",
@@ -133,6 +144,7 @@ const PIC_SHLIBS: &[PicShlib] = &[
         extra_needed: &[],
         smoke: Some("rt/tst-timer"),
         no_z_defs: false,
+        libc_for_link: None,
     },
     PicShlib {
         test_name: "elf/x86_64/glibc-libnsl",
@@ -143,7 +155,8 @@ const PIC_SHLIBS: &[PicShlib] = &[
         named_dynsyms: &["yp_all", "nis_leaf_of"],
         extra_needed: &[],
         smoke: None,
-        no_z_defs: true,
+        no_z_defs: false,
+        libc_for_link: Some("linkobj/libc.so"),
     },
     PicShlib {
         test_name: "elf/x86_64/glibc-libthread_db",
@@ -155,6 +168,7 @@ const PIC_SHLIBS: &[PicShlib] = &[
         extra_needed: &[],
         smoke: None,
         no_z_defs: true,
+        libc_for_link: None,
     },
     PicShlib {
         test_name: "elf/x86_64/glibc-libc_malloc_debug",
@@ -166,6 +180,7 @@ const PIC_SHLIBS: &[PicShlib] = &[
         extra_needed: &[],
         smoke: None,
         no_z_defs: false,
+        libc_for_link: None,
     },
     PicShlib {
         test_name: "elf/x86_64/glibc-libnss_compat",
@@ -177,6 +192,67 @@ const PIC_SHLIBS: &[PicShlib] = &[
         extra_needed: &[],
         smoke: None,
         no_z_defs: false,
+        libc_for_link: Some("linkobj/libc.so"),
+    },
+    PicShlib {
+        test_name: "elf/x86_64/glibc-libnss_db",
+        gnu: "nss/libnss_db.so",
+        pic: "nss/libnss_db_pic.a",
+        map: "libnss_db.map",
+        soname: "libnss_db.so.2",
+        named_dynsyms: &["_nss_db_getpwnam_r", "_nss_db_getgrnam_r"],
+        extra_needed: &[],
+        smoke: None,
+        no_z_defs: false,
+        libc_for_link: Some("linkobj/libc.so"),
+    },
+    PicShlib {
+        test_name: "elf/x86_64/glibc-libnss_hesiod",
+        gnu: "hesiod/libnss_hesiod.so",
+        pic: "hesiod/libnss_hesiod_pic.a",
+        map: "libnss_hesiod.map",
+        soname: "libnss_hesiod.so.2",
+        named_dynsyms: &["_nss_hesiod_getpwnam_r", "_nss_hesiod_getgrnam_r"],
+        extra_needed: &["resolv/libresolv.so", "nss/libnss_files.so"],
+        smoke: None,
+        no_z_defs: false,
+        libc_for_link: Some("linkobj/libc.so"),
+    },
+    PicShlib {
+        test_name: "elf/x86_64/glibc-libBrokenLocale",
+        gnu: "locale/libBrokenLocale.so",
+        pic: "locale/libBrokenLocale_pic.a",
+        map: "libBrokenLocale.map",
+        soname: "libBrokenLocale.so.1",
+        named_dynsyms: &["__ctype_get_mb_cur_max"],
+        extra_needed: &[],
+        smoke: None,
+        no_z_defs: false,
+        libc_for_link: None,
+    },
+    PicShlib {
+        test_name: "elf/x86_64/glibc-libutil",
+        gnu: "login/libutil.so",
+        pic: "login/libutil_pic.a",
+        map: "libutil.map",
+        soname: "libutil.so.1",
+        named_dynsyms: &["__libutil_version_placeholder"],
+        extra_needed: &[],
+        smoke: None,
+        no_z_defs: false,
+        libc_for_link: None,
+    },
+    PicShlib {
+        test_name: "elf/x86_64/glibc-libanl",
+        gnu: "resolv/libanl.so",
+        pic: "resolv/libanl_pic.a",
+        map: "libanl.map",
+        soname: "libanl.so.1",
+        named_dynsyms: &["__libanl_version_placeholder"],
+        extra_needed: &[],
+        smoke: None,
+        no_z_defs: false,
+        libc_for_link: None,
     },
 ];
 
@@ -387,6 +463,10 @@ fn run_pic_shlib_test(spec: &PicShlib) -> Result<libtest_mimic::Completion> {
     let libc_nonshared = first_existing(&build, &["libc_nonshared.a"]);
     let ldso = first_existing(&build, &["elf/ld.so"]);
     let map = first_existing(&build, &[spec.map]);
+    let libc = match spec.libc_for_link {
+        Some(rel) => first_existing(&build, &[rel]),
+        None => libc,
+    };
 
     if !pic.is_file() {
         return Ok(libtest_mimic::Completion::ignored_with(format!(
@@ -403,8 +483,9 @@ fn run_pic_shlib_test(spec: &PicShlib) -> Result<libtest_mimic::Completion> {
         )));
     }
     let Some(libc) = libc else {
+        let missing = spec.libc_for_link.unwrap_or("libc.so");
         return Ok(libtest_mimic::Completion::ignored_with(format!(
-            "{} has no libc.so yet (configure && make)",
+            "{} has no {missing} yet (configure && make)",
             build.display()
         )));
     };
