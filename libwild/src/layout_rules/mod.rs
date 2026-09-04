@@ -9,12 +9,14 @@ use crate::glob_match::analyze_glob_pattern;
 use crate::glob_match::compile_glob_pattern;
 use crate::glob_match::unescape_pattern;
 use crate::hash::hash_bytes;
+use crate::linker_script::OnlyIf;
 use crate::output_section_id::OutputSectionId;
 use crate::platform::Platform;
 use crate::platform::SectionHeader;
 #[allow(unused_imports)]
 pub(crate) use builder::*;
 use glob::Pattern;
+use hashbrown::HashSet;
 use hashbrown::HashTable;
 use std::borrow::Cow;
 #[allow(unused_imports)]
@@ -35,6 +37,12 @@ pub(crate) struct SectionRule<'data> {
 
     /// What to do if the rule matches.
     outcome: SectionRuleOutcome,
+
+    /// GNU `ONLY_IF_RO` / `ONLY_IF_RW` on the output section this rule feeds.
+    only_if: Option<OnlyIf>,
+
+    /// Output section used to group an `ONLY_IF_RO` copy with its `ONLY_IF_RW` pair.
+    only_if_section_id: Option<OutputSectionId>,
 }
 
 impl<'data> SectionRule<'data> {
@@ -65,7 +73,21 @@ impl<'data> SectionRule<'data> {
             input_file_pattern: compiled_file_pattern,
             exclude_file_patterns: Vec::new(),
             outcome,
+            only_if: None,
+            only_if_section_id: None,
         })
+    }
+
+    pub(crate) fn with_only_if(
+        mut self,
+        only_if: Option<OnlyIf>,
+        section_id: OutputSectionId,
+    ) -> Self {
+        self.only_if = only_if;
+        if only_if.is_some() {
+            self.only_if_section_id = Some(section_id);
+        }
+        self
     }
 
     pub(crate) fn with_excludes(mut self, patterns: &[&'data [u8]]) -> Result<Self> {
@@ -165,6 +187,8 @@ impl<'data> SectionRule<'data> {
             input_file_pattern: None,
             exclude_file_patterns: Vec::new(),
             outcome: SectionRuleOutcome::SortedSection(SectionOutputInfo::keep(section_id)),
+            only_if: None,
+            only_if_section_id: None,
         }
     }
 
@@ -177,6 +201,8 @@ impl<'data> SectionRule<'data> {
             input_file_pattern: None,
             exclude_file_patterns: Vec::new(),
             outcome,
+            only_if: None,
+            only_if_section_id: None,
         }
     }
 
@@ -189,6 +215,20 @@ impl<'data> SectionRule<'data> {
             input_file_pattern: None,
             exclude_file_patterns: Vec::new(),
             outcome,
+            only_if: None,
+            only_if_section_id: None,
+        }
+    }
+
+    fn allows_only_if(&self, writable_sections: &HashSet<OutputSectionId>) -> bool {
+        match self.only_if {
+            None => true,
+            Some(OnlyIf::Ro) => !self
+                .only_if_section_id
+                .is_some_and(|id| writable_sections.contains(&id)),
+            Some(OnlyIf::Rw) => self
+                .only_if_section_id
+                .is_some_and(|id| writable_sections.contains(&id)),
         }
     }
 }
@@ -222,6 +262,7 @@ impl<'data> SectionRules<'data> {
         section_name: &[u8],
         file_name: Option<&[u8]>,
         section_header: &impl SectionHeader,
+        only_if_writable: &HashSet<OutputSectionId>,
     ) -> SectionRuleOutcome {
         if section_header.should_exclude() {
             return SectionRuleOutcome::Discard;
@@ -235,9 +276,9 @@ impl<'data> SectionRules<'data> {
         }
 
         if let Some(hash) = section_name_prefix_hash(section_name)
-            && let Some(rule) = self
-                .rules
-                .find(hash, |rule| rule.matches(section_name, file_name))
+            && let Some(rule) = self.rules.find(hash, |rule| {
+                rule.matches(section_name, file_name) && rule.allows_only_if(only_if_writable)
+            })
         {
             return rule.outcome;
         }
@@ -247,6 +288,29 @@ impl<'data> SectionRules<'data> {
         }
 
         SectionRuleOutcome::Custom
+    }
+
+    /// Record output sections whose `ONLY_IF_*` matchers see a writable input.
+    /// GNU then uses the `ONLY_IF_RW` copy for every matching input, including
+    /// read-only ones.
+    pub(crate) fn note_writable_only_if(
+        &self,
+        section_name: &[u8],
+        file_name: Option<&[u8]>,
+        is_writable: bool,
+        writable_sections: &mut HashSet<OutputSectionId>,
+    ) {
+        if !is_writable {
+            return;
+        }
+        for rule in self.rules.iter() {
+            if rule.only_if.is_some()
+                && rule.matches(section_name, file_name)
+                && let Some(id) = rule.only_if_section_id
+            {
+                writable_sections.insert(id);
+            }
+        }
     }
 }
 
@@ -312,8 +376,9 @@ fn test_section_mapping() {
         sh_addralign: Default::default(),
         sh_entsize: Default::default(),
     };
-    let lookup_name =
-        |name: &str| rules.lookup::<crate::elf::Elf64>(name.as_bytes(), None, &header);
+    let lookup_name = |name: &str| {
+        rules.lookup::<crate::elf::Elf64>(name.as_bytes(), None, &header, &HashSet::new())
+    };
 
     assert_eq!(
         lookup_name(".comment"),
@@ -332,7 +397,7 @@ fn test_section_mapping() {
         ..header
     };
     assert_eq!(
-        rules.lookup::<crate::elf::Elf64>(b".rela.data", None, &rela_header),
+        rules.lookup::<crate::elf::Elf64>(b".rela.data", None, &rela_header, &HashSet::new()),
         SectionRuleOutcome::Discard
     );
 
@@ -341,7 +406,7 @@ fn test_section_mapping() {
         ..header
     };
     assert_eq!(
-        rules.lookup::<crate::elf::Elf64>(b".symtab", None, &symtab_header),
+        rules.lookup::<crate::elf::Elf64>(b".symtab", None, &symtab_header, &HashSet::new()),
         SectionRuleOutcome::Discard
     );
 }

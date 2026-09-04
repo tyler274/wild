@@ -22,6 +22,7 @@ use crate::string_merging::StringMergeSectionSlot;
 use crate::symbol_db::SymbolDb;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
+use hashbrown::HashSet;
 use object::SectionIndex;
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelRefMutIterator;
@@ -32,9 +33,12 @@ pub(super) fn resolve_sections<'data, P: Platform>(
     groups: &mut [ResolvedGroup<'data, P>],
     symbol_db: &mut SymbolDb<'data, P>,
     layout_rules: &LayoutRules<'data>,
-    output_sections: &OutputSections<'data, P>,
+    output_sections: &mut OutputSections<'data, P>,
 ) -> Result {
     timing_phase!("Resolve sections");
+
+    let only_if_writable = only_if_writable_sections(groups, &layout_rules.section_rules);
+    output_sections.apply_only_if_choice(&only_if_writable);
 
     let loaded_metrics: LoadedMetrics = Default::default();
     let herd = symbol_db.herd;
@@ -84,6 +88,7 @@ pub(super) fn resolve_sections<'data, P: Platform>(
                                 &loaded_metrics,
                                 &layout_rules.section_rules,
                                 output_sections,
+                                &only_if_writable,
                             )?;
                             obj.sections = sections;
                             for part_id in part_ids {
@@ -111,6 +116,50 @@ pub(super) fn resolve_sections<'data, P: Platform>(
     loaded_metrics.log();
 
     Ok(())
+}
+
+fn only_if_writable_sections<'data, P: Platform>(
+    groups: &[ResolvedGroup<'data, P>],
+    rules: &SectionRules,
+) -> HashSet<crate::output_section_id::OutputSectionId> {
+    let mut writable = HashSet::new();
+    for group in groups {
+        for file in &group.files {
+            let ResolvedFile::Object(obj) = file else {
+                continue;
+            };
+            let file_name = object_match_file_name(obj);
+            for (input_section_index, input_section) in obj.common.object.enumerate_sections() {
+                let section_name = obj
+                    .common
+                    .object
+                    .section_name(input_section_index)
+                    .unwrap_or_default();
+                rules.note_writable_only_if(
+                    section_name,
+                    file_name,
+                    input_section.is_writable(),
+                    &mut writable,
+                );
+            }
+        }
+    }
+    writable
+}
+
+fn object_match_file_name<'data, P: Platform>(
+    obj: &ResolvedObject<'data, P>,
+) -> Option<&'data [u8]> {
+    if let Some(entry) = &obj.common.input.entry {
+        Some(entry.identifier.as_slice())
+    } else {
+        obj.common
+            .input
+            .file
+            .filename
+            .file_name()
+            .map(|n| n.as_encoded_bytes())
+    }
 }
 
 pub(super) fn assign_section_ids<'data, P: Platform>(
@@ -164,6 +213,7 @@ fn resolve_sections_for_object<'data, P: Platform>(
     loaded_metrics: &LoadedMetrics,
     rules: &SectionRules,
     output_sections: &OutputSections<'data, P>,
+    only_if_writable: &HashSet<crate::output_section_id::OutputSectionId>,
 ) -> Result<(Vec<SectionSlot>, Vec<PartId>)> {
     // Note, we build up the collection with push rather than collect because at the time of
     // writing, object's `SectionTable::enumerate` isn't an exact-size iterator, so using collect
@@ -185,6 +235,7 @@ fn resolve_sections_for_object<'data, P: Platform>(
             loaded_metrics,
             rules,
             output_sections,
+            only_if_writable,
         )?;
         sections.push(slot);
         section_part_ids.push(part_id);
@@ -220,6 +271,7 @@ fn resolve_section<'data, P: Platform>(
     loaded_metrics: &LoadedMetrics,
     rules: &SectionRules,
     output_sections: &OutputSections<'data, P>,
+    only_if_writable: &HashSet<crate::output_section_id::OutputSectionId>,
 ) -> Result<(SectionSlot, PartId)> {
     let section_name = obj
         .common
@@ -242,18 +294,7 @@ fn resolve_section<'data, P: Platform>(
     let mut must_load = input_section.should_retain() || input_section.is_note();
     let part_id: PartId;
 
-    let file_name = if let Some(entry) = &obj.common.input.entry {
-        // For archive members, match against the member name (e.g., "app.o"),
-        // not the archive filename (e.g., "libfoo.a").
-        Some(entry.identifier.as_slice())
-    } else {
-        obj.common
-            .input
-            .file
-            .filename
-            .file_name()
-            .map(|n| n.as_encoded_bytes())
-    };
+    let file_name = object_match_file_name(obj);
 
     let emit_relocs_name = if args.emit_relocs()
         && !args.should_output_partial_object()
@@ -267,6 +308,7 @@ fn resolve_section<'data, P: Platform>(
             rules,
             output_sections,
             allocator,
+            only_if_writable,
         )
     } else {
         None
@@ -275,7 +317,7 @@ fn resolve_section<'data, P: Platform>(
     let rule_outcome = if args.should_output_partial_object() {
         P::lookup_for_partial_link(section_name, input_section, args)
     } else {
-        let outcome = rules.lookup::<P>(section_name, file_name, input_section);
+        let outcome = rules.lookup::<P>(section_name, file_name, input_section, only_if_writable);
         if matches!(outcome, SectionRuleOutcome::Discard) && emit_relocs_name.is_some() {
             // Copied `--emit-relocs` contents are not script orphans. GNU still
             // emits them when `--orphan-handling=error`.
@@ -442,23 +484,25 @@ fn emit_relocs_section_name<'data, P: Platform>(
     rules: &SectionRules,
     output_sections: &OutputSections<'data, P>,
     allocator: &bumpalo_herd::Member<'data>,
+    only_if_writable: &HashSet<crate::output_section_id::OutputSectionId>,
 ) -> Option<&'data [u8]> {
     let prefix = input_section.reloc_output_name_prefix()?;
     let target_idx = input_section.reloc_target_section_index()?;
     let target_name = object.section_name(target_idx).ok()?;
     let target_header = object.section(target_idx).ok()?;
-    let target_output_name = match rules.lookup::<P>(target_name, file_name, target_header) {
-        SectionRuleOutcome::Section(info) | SectionRuleOutcome::SortedSection(info) => {
-            let primary = output_sections.primary_output_section(info.section_id);
-            output_sections.name(primary)?.0
-        }
-        SectionRuleOutcome::Custom | SectionRuleOutcome::Debug => target_name,
-        SectionRuleOutcome::EhFrame => {
-            let id = P::EH_FRAME_SECTION_ID?;
-            output_sections.name(id)?.0
-        }
-        _ => return None,
-    };
+    let target_output_name =
+        match rules.lookup::<P>(target_name, file_name, target_header, only_if_writable) {
+            SectionRuleOutcome::Section(info) | SectionRuleOutcome::SortedSection(info) => {
+                let primary = output_sections.primary_output_section(info.section_id);
+                output_sections.name(primary)?.0
+            }
+            SectionRuleOutcome::Custom | SectionRuleOutcome::Debug => target_name,
+            SectionRuleOutcome::EhFrame => {
+                let id = P::EH_FRAME_SECTION_ID?;
+                output_sections.name(id)?.0
+            }
+            _ => return None,
+        };
     if input_section_name.len() == prefix.len() + target_output_name.len()
         && input_section_name.starts_with(prefix)
         && &input_section_name[prefix.len()..] == target_output_name

@@ -84,10 +84,10 @@ pub(crate) enum SectionAttributes {
     ReadonlyType(u32),
 }
 
-/// GNU `ONLY_IF_RO` / `ONLY_IF_RW` on an output section. The default shared
-/// script (glibc `shlib.lds`) lists a RO copy then a RW copy of `.eh_frame`
-/// and similar; Wild keeps the first and skips later duplicates of the same
-/// name so PIC links put unwind info in the RO region.
+/// GNU `ONLY_IF_RO` / `ONLY_IF_RW` on an output section. When both copies of
+/// the same name appear (GNU default `.eh_frame`), Wild keeps one output
+/// section and selects the RO or RW placement from whether any matching input
+/// has `SHF_WRITE`.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub(crate) enum OnlyIf {
     Ro,
@@ -132,6 +132,9 @@ pub(crate) enum ContentsCommand<'a> {
     Provide(ProvideSymbolDefinition<'a>),
     SetLocation(Location<'a>),
     Constructors,
+    /// GNU `LINKER_VERSION` in an output section. On ELF this is a nop unless
+    /// `--enable-linker-version`; Wild always writes identity into `.comment`.
+    LinkerVersion,
     Assert(AssertCommand<'a>),
     Fill(Fill<'a>),
     OutputData(OutputData<'a>),

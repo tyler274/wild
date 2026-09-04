@@ -354,6 +354,7 @@ pub(crate) fn parse_contents_command<'input>(
         parse_contents_assert,
         parse_contents_fill,
         parse_output_data,
+        parse_linker_version,
         parse_constructors,
         parse_matcher,
         parse_assignment,
@@ -445,12 +446,22 @@ pub(crate) fn parse_constructors<'input>(
         skip_comments_and_whitespace(input)?;
         ')'.parse_next(input)?;
     } else {
-        alt(("CONSTRUCTORS", "LINKER_VERSION")).parse_next(input)?;
+        "CONSTRUCTORS".parse_next(input)?;
     }
     skip_comments_and_whitespace(input)?;
     opt(';').parse_next(input)?;
     skip_comments_and_whitespace(input)?;
     Ok(ContentsCommand::Constructors)
+}
+
+pub(crate) fn parse_linker_version<'input>(
+    input: &mut &'input BStr,
+) -> winnow::Result<ContentsCommand<'input>> {
+    "LINKER_VERSION".parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    opt(';').parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    Ok(ContentsCommand::LinkerVersion)
 }
 
 pub(crate) fn parse_matcher<'input>(

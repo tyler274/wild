@@ -5916,6 +5916,13 @@ impl Assertions {
             return Ok(());
         }
         let actual_comments = read_comments(obj)?;
+        if matches!(linker_used, Linker::Wild)
+            && !actual_comments
+                .iter()
+                .any(|comment| comment.starts_with("Linker: Wild "))
+        {
+            bail!("Wild identity missing from .comment");
+        }
         for expected in self.expected_comments.iter() {
             if let Some(expected) = expected.strip_suffix('*') {
                 if !actual_comments

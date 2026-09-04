@@ -1,4 +1,5 @@
 use super::*;
+use crate::alignment::Alignment;
 use crate::args::InputSpec;
 use crate::linker_script::maybe_apply_sysroot;
 use itertools::assert_equal;
@@ -1311,6 +1312,37 @@ fn test_exclude_file_between_patterns() {
             at_region: None,
             fill: None,
             attributes: None,
+            only_if: None,
+        }),
+    );
+}
+
+#[test]
+fn test_linker_version_in_comment() {
+    check_section_command(
+        ".comment 0 (INFO) : { *(.comment); LINKER_VERSION; }",
+        &SectionCommand::Section(Section {
+            output_section_name: b".comment",
+            commands: vec![
+                ContentsCommand::Matcher(Matcher {
+                    must_keep: false,
+                    input_file_pattern: None,
+                    exclude_file_patterns: vec![],
+                    input_section_name_patterns: vec![SectionPattern {
+                        name: b".comment",
+                        sort: SortKind::None,
+                    }],
+                }),
+                ContentsCommand::LinkerVersion,
+            ],
+            alignment: None,
+            start_address_expression: Some(Expression::Number(0)),
+            phdrs: vec![],
+            at_address: None,
+            region: None,
+            at_region: None,
+            fill: None,
+            attributes: Some(SectionAttributes::Info),
             only_if: None,
         }),
     );

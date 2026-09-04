@@ -9,6 +9,7 @@ use crate::grouping::SequencedLinkerScript;
 use crate::layout_rules::SectionKind;
 use crate::linker_script;
 use crate::linker_script::Expression;
+use crate::linker_script::OnlyIf;
 use crate::output_kind::OutputKind;
 use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
@@ -19,6 +20,7 @@ use crate::platform::SectionAttributes as _;
 use crate::program_segments::ProgramSegments;
 use crate::timing_phase;
 use hashbrown::HashMap;
+use hashbrown::HashSet;
 use std::fmt::Display;
 
 #[derive(Debug)]
@@ -50,6 +52,9 @@ pub(crate) struct OutputSections<'data, P: Platform> {
     /// Size of the generated build-id note that was moved off the builtin section, if any.
     /// Used to redirect the epilogue layout cursor after GNU ld-style merging or discard.
     pub(crate) gnu_build_id_allocated: u64,
+
+    /// `ONLY_IF_RO` / `ONLY_IF_RW` copies of the same output section name.
+    only_if_slots: HashMap<OutputSectionId, OnlyIfSlots<'data>>,
 }
 impl<'data, P: Platform> OutputSections<'data, P> {
     /// Returns an iterator that emits all section IDs and their info.
@@ -191,12 +196,19 @@ impl<'data, P: Platform> OutputSections<'data, P> {
         attributes: Option<&linker_script::SectionAttributes>,
     ) -> OutputSectionId {
         let mut resolved_id = None;
-        if !self.output_kind.is_partial_link()
-            && let Some(builtin_id) = (0..regular_section_base::<P>().as_usize())
+        if !self.output_kind.is_partial_link() {
+            if let Some(builtin_id) = (0..regular_section_base::<P>().as_usize())
                 .map(OutputSectionId::from_usize)
                 .find(|&bid| self.identity(bid) == Some(identity))
-        {
-            resolved_id = Some(builtin_id);
+            {
+                resolved_id = Some(builtin_id);
+            } else if let Some(comment_id) = P::COMMENT_SECTION_ID
+                && self.identity(comment_id) == Some(identity)
+            {
+                // `.comment` is a regular built-in. Script `.comment` must reuse it so
+                // linker identity and `*(.comment)` share one section (GNU default script).
+                resolved_id = Some(comment_id);
+            }
         }
 
         let output_id = match self.custom_by_identity.entry(identity) {
@@ -287,6 +299,7 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             script_output_data: Vec::new(),
             gnu_build_id_placement: GnuBuildIdPlacement::Builtin,
             gnu_build_id_allocated: 0,
+            only_if_slots: HashMap::new(),
         }
     }
 
@@ -308,6 +321,61 @@ impl<'data, P: Platform> OutputSections<'data, P> {
 
     pub(crate) fn set_rosegment(&mut self, rosegment: bool) {
         self.rosegment = rosegment;
+    }
+
+    pub(crate) fn record_only_if(
+        &mut self,
+        id: OutputSectionId,
+        only_if: OnlyIf,
+        order_index: usize,
+        location_info: SectionLocationInfo<'data>,
+        phdrs: Vec<&'data [u8]>,
+    ) {
+        *self.only_if_slots.entry(id).or_default().slot_mut(only_if) = Some(OnlyIfPlacement {
+            order_index,
+            location_info,
+            phdrs,
+        });
+    }
+
+    /// GNU: if any matching input is writable, the `ONLY_IF_RW` copy is used for
+    /// every matching input; otherwise the `ONLY_IF_RO` copy is used.
+    pub(crate) fn apply_only_if_choice(&mut self, writable_sections: &HashSet<OutputSectionId>) {
+        let ids: Vec<OutputSectionId> = self.only_if_slots.keys().copied().collect();
+        for id in ids {
+            let prefer_rw = writable_sections.contains(&id)
+                && self
+                    .only_if_slots
+                    .get(&id)
+                    .is_some_and(|slots| slots.rw.is_some());
+            if let Some(slots) = self.only_if_slots.get_mut(&id) {
+                slots.prefer_rw = prefer_rw;
+            }
+            if let Some(placement) = self
+                .only_if_slots
+                .get(&id)
+                .and_then(|slots| slots.chosen().cloned())
+            {
+                let info = self.section_infos.get_mut(id);
+                info.location_info = Some(placement.location_info);
+                if !placement.phdrs.is_empty() {
+                    info.phdrs = placement.phdrs;
+                }
+            }
+        }
+    }
+
+    pub(crate) fn should_emit_only_if_order_slot(
+        &self,
+        id: OutputSectionId,
+        order_index: usize,
+    ) -> bool {
+        let Some(slots) = self.only_if_slots.get(&id) else {
+            return true;
+        };
+        slots
+            .chosen()
+            .is_none_or(|placement| placement.order_index == order_index)
     }
 
     pub(crate) fn bump_min_alignment(&mut self, sid: OutputSectionId, a: Alignment) {
@@ -351,8 +419,10 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             .iter()
             .any(|s| !s.parsed.program_headers.is_empty());
 
-        let mut custom = CustomSectionIds::default();
-        custom.place_after_similar = !linker_scripts.is_empty();
+        let mut custom = CustomSectionIds {
+            place_after_similar: !linker_scripts.is_empty(),
+            ..Default::default()
+        };
 
         let mut secondary: OutputSectionMap<Vec<OutputSectionId>> = self.new_section_map();
 
@@ -407,7 +477,17 @@ impl<'data, P: Platform> OutputSections<'data, P> {
 
         let script_section_order: Vec<OutputSectionId> = linker_scripts
             .iter()
-            .flat_map(|script| script.parsed.ordered_sections.iter().copied())
+            .flat_map(|script| {
+                script
+                    .parsed
+                    .ordered_sections
+                    .iter()
+                    .copied()
+                    .enumerate()
+                    .filter_map(|(index, id)| {
+                        self.should_emit_only_if_order_slot(id, index).then_some(id)
+                    })
+            })
             .collect();
 
         let (mut output_order, program_segments) = if has_custom_phdrs {
@@ -478,7 +558,7 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             .iter()
             .enumerate()
             .rev()
-            .find_map(|(i, idx)| idx.and_then(|_| self.emitted_neighbor_id(i)))
+            .find_map(|(i, idx)| idx.and_then(|_| Self::emitted_neighbor_id(i)))
     }
 
     /// Next emitted section in output-section-id order.
@@ -490,10 +570,10 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             .iter()
             .enumerate()
             .skip(id.as_usize() + 1)
-            .find_map(|(i, idx)| idx.and_then(|_| self.emitted_neighbor_id(i)))
+            .find_map(|(i, idx)| idx.and_then(|_| Self::emitted_neighbor_id(i)))
     }
 
-    fn emitted_neighbor_id(&self, index: usize) -> Option<OutputSectionId> {
+    fn emitted_neighbor_id(index: usize) -> Option<OutputSectionId> {
         let id = OutputSectionId::from_usize(index);
         if id == FILE_HEADER { None } else { Some(id) }
     }

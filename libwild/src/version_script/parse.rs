@@ -1,5 +1,4 @@
 use super::types::*;
-use crate::bail;
 use crate::error;
 use crate::error::Result;
 use crate::glob_match::GlobPatternType;
@@ -7,11 +6,9 @@ use crate::glob_match::analyze_glob_pattern;
 use crate::glob_match::compile_glob_pattern;
 use crate::input_data::ScriptData;
 use crate::linker_script::skip_comments_and_whitespace;
-use crate::symbol::UnversionedSymbolName;
 use crate::timing_phase;
 use glob::Pattern;
 use hashbrown::HashMap;
-use hashbrown::HashSet;
 use winnow::BStr;
 use winnow::Parser;
 use winnow::error::ContextError;
@@ -103,7 +100,7 @@ impl<'data> RegularVersionScript<'data> {
         match VersionScript::parse(data)? {
             VersionScript::Regular(script) => Ok(script),
             VersionScript::Rust(_) => {
-                bail!("Rust-style version script cannot be used as a regular version script")
+                crate::bail!("Rust-style version script cannot be used as a regular version script")
             }
         }
     }
@@ -377,6 +374,8 @@ impl std::fmt::Display for VersionScriptError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::symbol::UnversionedSymbolName;
+    use hashbrown::HashSet;
     use itertools::Itertools;
     use itertools::assert_equal;
 

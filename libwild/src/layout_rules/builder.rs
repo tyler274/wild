@@ -23,6 +23,7 @@ use crate::parsing::SymbolLoc;
 use crate::parsing::SymbolPlacement;
 use crate::platform::Args as _;
 use crate::platform::Platform;
+use hashbrown::HashMap;
 use linker_utils::elf::secnames::NOTE_GNU_BUILD_ID_SECTION_NAME;
 
 #[derive(Default)]
@@ -102,7 +103,7 @@ impl<'data> LayoutRulesBuilder<'data> {
             } else if let linker_script::Command::Sections(sections) = cmd {
                 let mut section_start_lc_idx = last_lc_idx;
                 let mut prev_phdrs = Vec::new();
-                let mut script_section_names: Vec<&[u8]> = Vec::new();
+                let mut only_if_by_name: HashMap<&[u8], OutputSectionId> = HashMap::new();
                 for sec_cmd in &sections.commands {
                     match sec_cmd {
                         SectionCommand::Section(sec) => {
@@ -130,15 +131,12 @@ impl<'data> LayoutRulesBuilder<'data> {
                                 }
                                 continue;
                             }
-                            // GNU default shared scripts list `.eh_frame : ONLY_IF_RO` then
-                            // `.eh_frame : ONLY_IF_RW`. Duplicate names collapse to one output
-                            // section in Wild, so keep the first and skip later ONLY_IF copies.
-                            if sec.only_if.is_some()
-                                && script_section_names.contains(&sec.output_section_name)
-                            {
-                                continue;
-                            }
-                            script_section_names.push(sec.output_section_name);
+                            // GNU `ONLY_IF_RO` then `ONLY_IF_RW` for the same name share one
+                            // output section. The unused copy is dropped after we see whether
+                            // any matching input is writable.
+                            let existing_only_if_id = sec.only_if.and_then(|_| {
+                                only_if_by_name.get(sec.output_section_name).copied()
+                            });
                             let min_alignment =
                                 sec.alignment.unwrap_or(alignment::MIN).max(alignment::MIN);
 
@@ -169,24 +167,42 @@ impl<'data> LayoutRulesBuilder<'data> {
                             if !sec.phdrs.is_empty() {
                                 prev_phdrs = sec.phdrs.clone();
                             }
-                            let identity = P::section_identity_from_name(SectionName(
-                                sec.output_section_name,
-                            ))
-                            .with_context(|| {
-                                format!(
-                                    "Output section `{}` cannot be identified from the name alone",
-                                    SectionName(sec.output_section_name)
-                                )
-                            })?;
-                            let primary_section_id = output_sections.add_named_section(
-                                identity,
-                                min_alignment,
-                                sec.region,
-                                Some(&location_info),
-                                fill_value,
-                                prev_phdrs.clone(),
-                                sec.attributes.as_ref(),
-                            );
+                            let primary_section_id = if let Some(existing_id) = existing_only_if_id
+                            {
+                                existing_id
+                            } else {
+                                let identity = P::section_identity_from_name(SectionName(
+                                    sec.output_section_name,
+                                ))
+                                .with_context(|| {
+                                    format!(
+                                        "Output section `{}` cannot be identified from the name alone",
+                                        SectionName(sec.output_section_name)
+                                    )
+                                })?;
+                                let id = output_sections.add_named_section(
+                                    identity,
+                                    min_alignment,
+                                    sec.region,
+                                    Some(&location_info),
+                                    fill_value,
+                                    prev_phdrs.clone(),
+                                    sec.attributes.as_ref(),
+                                );
+                                if sec.only_if.is_some() {
+                                    only_if_by_name.insert(sec.output_section_name, id);
+                                }
+                                id
+                            };
+                            if let Some(only_if) = sec.only_if {
+                                output_sections.record_only_if(
+                                    primary_section_id,
+                                    only_if,
+                                    ordered_sections.len(),
+                                    location_info.clone(),
+                                    prev_phdrs.clone(),
+                                );
+                            }
                             ordered_sections.push(primary_section_id);
                             current_section_id = Some(primary_section_id);
                             loc = SymbolLoc::SectionEnd(primary_section_id);
@@ -252,7 +268,8 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                 matcher.input_file_pattern,
                                                 outcome,
                                             )?
-                                            .with_excludes(&matcher.exclude_file_patterns)?;
+                                            .with_excludes(&matcher.exclude_file_patterns)?
+                                            .with_only_if(sec.only_if, primary_section_id);
                                             record_gnu_build_id_placement(
                                                 output_sections,
                                                 &rule,
@@ -302,7 +319,8 @@ impl<'data> LayoutRulesBuilder<'data> {
                                     // The CONSTRUCTORS command is used in legacy file formats only.
                                     // On ELF it is a nop.
                                     // (https://sourceware.org/binutils/docs/ld/Output-Section-Keywords.html#index-CONSTRUCTORS)
-                                    ContentsCommand::Constructors => (),
+                                    ContentsCommand::Constructors
+                                    | ContentsCommand::LinkerVersion => (),
                                     ContentsCommand::Assert(assert_cmd) => {
                                         let placement = SymbolPlacement::Redirect(Redirect {
                                             kind: RedirectKind::Script,
@@ -313,9 +331,9 @@ impl<'data> LayoutRulesBuilder<'data> {
                                     }
                                     ContentsCommand::Fill(fill) => {
                                         if let Ok(value) = evaluate_const(&fill.value)
-                                            && value <= u64::from(u32::MAX)
+                                            && let Ok(value) = u32::try_from(value)
                                         {
-                                            let bytes = (value as u32).to_be_bytes();
+                                            let bytes = value.to_be_bytes();
                                             output_sections
                                                 .section_infos
                                                 .get_mut(primary_section_id)

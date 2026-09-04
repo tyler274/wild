@@ -3,17 +3,8 @@
 mod early;
 mod value;
 
-use crate::error::Result;
-use crate::layout;
-use crate::layout::OutputRecordLayout;
-use crate::linker_script::Expression;
-use crate::output_section_id::OutputSections;
-use crate::output_section_map::OutputSectionMap;
-use crate::output_section_part_map::OutputSectionPartMap;
-use crate::parsing::SymbolLoc;
 #[allow(unused_imports)]
 pub(crate) use early::*;
-use hashbrown::HashMap;
 #[allow(unused_imports)]
 pub(crate) use value::*;
 
@@ -22,18 +13,26 @@ mod tests {
     use super::*;
     use crate::OsFileSystem;
     use crate::elf::Elf64;
+    use crate::error::Result;
     use crate::grouping::SequencedLinkerScript;
     use crate::input_data::FileId;
     use crate::layout::MemoryRegion;
+    use crate::layout::OutputRecordLayout;
     use crate::linker_script::AssertCommand;
+    use crate::linker_script::Expression;
+    use crate::output_section_id::OutputSections;
+    use crate::output_section_map::OutputSectionMap;
+    use crate::output_section_part_map::OutputSectionPartMap;
     use crate::parsing::InternalSymDefInfo;
     use crate::parsing::ProcessedLinkerScript;
     use crate::parsing::Redirect;
     use crate::parsing::RedirectKind;
+    use crate::parsing::SymbolLoc;
     use crate::parsing::SymbolPlacement;
     use crate::symbol_db::SymbolDb;
     use crate::symbol_db::SymbolIdRange;
     use colosseum::sync::Arena;
+    use hashbrown::HashMap;
 
     fn with_dummy_context<R>(
         f: impl for<'test> FnOnce(
@@ -449,7 +448,7 @@ mod tests {
         section_layouts: &OutputSectionMap<OutputRecordLayout>,
         output_sections: &OutputSections<'data, Elf64>,
         sizeof_headers: u64,
-        memory_regions: &HashMap<&[u8], layout::MemoryRegion>,
+        memory_regions: &HashMap<&[u8], MemoryRegion>,
         resolved_location_counters: &[ResolvedLocationCounter],
     ) -> Result {
         for assertion in &script.parsed.symbol_defs {

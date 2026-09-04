@@ -2,6 +2,7 @@ use super::ids::*;
 use crate::alignment::Alignment;
 use crate::layout_rules::SectionKind;
 use crate::linker_script::Expression;
+use crate::linker_script::OnlyIf;
 use crate::platform::Platform;
 use crate::platform::SectionAttributes as _;
 use std::fmt::Debug;
@@ -35,6 +36,41 @@ pub(crate) enum GnuBuildIdPlacement {
     /// A `/DISCARD/` matcher matched `.note.gnu.build-id`.
     Discard,
 }
+
+/// One of the two GNU `ONLY_IF_RO` / `ONLY_IF_RW` placements for an output section.
+#[derive(Debug, Clone)]
+pub(crate) struct OnlyIfPlacement<'data> {
+    pub(crate) order_index: usize,
+    pub(crate) location_info: SectionLocationInfo<'data>,
+    pub(crate) phdrs: Vec<&'data [u8]>,
+}
+
+/// Paired (or unpaired) `ONLY_IF_*` copies of the same output section name.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct OnlyIfSlots<'data> {
+    pub(crate) ro: Option<OnlyIfPlacement<'data>>,
+    pub(crate) rw: Option<OnlyIfPlacement<'data>>,
+    /// After seeing inputs, use the RW copy when this is set.
+    pub(crate) prefer_rw: bool,
+}
+
+impl<'data> OnlyIfSlots<'data> {
+    pub(crate) fn slot_mut(&mut self, only_if: OnlyIf) -> &mut Option<OnlyIfPlacement<'data>> {
+        match only_if {
+            OnlyIf::Ro => &mut self.ro,
+            OnlyIf::Rw => &mut self.rw,
+        }
+    }
+
+    pub(crate) fn chosen(&self) -> Option<&OnlyIfPlacement<'data>> {
+        if self.prefer_rw {
+            self.rw.as_ref().or(self.ro.as_ref())
+        } else {
+            self.ro.as_ref().or(self.rw.as_ref())
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum OrphanClass {
     Exec,

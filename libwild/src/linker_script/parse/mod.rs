@@ -2,7 +2,6 @@ mod expr;
 mod sections;
 
 use super::ast::*;
-use crate::alignment::Alignment;
 use crate::args::Input;
 use crate::args::InputSpec;
 use crate::args::Modifiers;
@@ -418,8 +417,6 @@ pub(crate) fn parse_output_arch<'input>(input: &mut &'input BStr) -> winnow::Res
     Ok(arch)
 }
 
-/// Parse an expression - entry point for expression parsing
-
 pub(crate) fn parse_commands<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<Vec<Command<'input>>> {
@@ -496,14 +493,13 @@ pub(crate) fn load_included_section_commands<'data>(
 ) -> Result<Vec<SectionCommand<'data>>> {
     push_include_path(path, stack)?;
     let bytes = load(path)?;
-    let section_cmds = match parse_section_command_list.parse(BStr::new(bytes)) {
-        Ok(cmds) => cmds,
-        Err(_) => {
-            let parsed = parse_commands
-                .parse(BStr::new(bytes))
-                .map_err(|error| error!("Failed to parse included linker script:\n{error}"))?;
-            section_commands_from_top_level(parsed)?
-        }
+    let section_cmds = if let Ok(cmds) = parse_section_command_list.parse(BStr::new(bytes)) {
+        cmds
+    } else {
+        let parsed = parse_commands
+            .parse(BStr::new(bytes))
+            .map_err(|error| error!("Failed to parse included linker script:\n{error}"))?;
+        section_commands_from_top_level(parsed)?
     };
     let expanded = expand_section_commands(section_cmds, load, stack)?;
     stack.pop();

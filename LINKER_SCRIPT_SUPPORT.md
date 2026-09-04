@@ -64,7 +64,7 @@ matching all three.
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | Both `*(EXCLUDE_FILE(a.o) .text)` and `EXCLUDE_FILE(a.o) *(.text)` |
 | `BYTE(expr)`, `SHORT(expr)`, `LONG(expr)`, `QUAD(expr)` output data | ✅ | Written in the target endianness |
 | `SUBALIGN(n)` forced input alignment | ❌ | |
-| `ONLY_IF_RO` / `ONLY_IF_RW` output section constraints | 🧪 | Parsed. Duplicate names (GNU default `.eh_frame : ONLY_IF_RO` then `ONLY_IF_RW`) keep the first copy so PIC / glibc `shlib.lds` links put unwind info in the RO region |
+| `ONLY_IF_RO` / `ONLY_IF_RW` output section constraints | ✅ | Parsed. Duplicate names (GNU default `.eh_frame : ONLY_IF_RO` then `ONLY_IF_RW`) share one output section. If any matching input has `SHF_WRITE`, the RW copy is used for all of them; otherwise the RO copy |
 | `:phdr` output section phdrs | ✅ | |
 
 ## Expressions and Functions
@@ -168,9 +168,12 @@ those links use. GNU ld's default shared script
 (`DATA_SEGMENT_*`, `CONSTANT`, `ONLY_IF_*`, `SORT_NONE`, `LINKER_VERSION` as an ELF nop,
 `SORT(CONSTRUCTORS)`, mid-list `EXCLUDE_FILE`) is still parsed and linked
 (`linker-script-gnu-default`). `PROVIDE` does not override an existing definition (prelude
-`__etext` / `_end`). Duplicate `ONLY_IF_*` names keep the first copy (RO, correct for PIC).
+`__etext` / `_end`). Duplicate `ONLY_IF_*` names pick RO vs RW from input `SHF_WRITE`.
 `ALIGNOF(NEXT_SECTION)` / `SIZEOF(NEXT_SECTION)` use the next output section in
-script order that has a non-zero allocation.
+script order that has a non-zero allocation. Script `.comment` reuses the builtin
+section so identity and `*(.comment)` share one `.comment`. `LINKER_VERSION` is
+parsed; GNU inserts a string only with `--enable-linker-version` (off by default),
+while Wild always writes identity.
 
 Glibc `configure` only accepted GNU ld / gold / LLD `--version` strings; Wild now prints a GNU ld
 compatible first line (`GNU ld (Wild) 2.44`) so configure and `scripts/ld-version.sh` accept it.
@@ -182,13 +185,3 @@ another tree. `wild-glibc-check` runs a glibc `make test` subset against the Wil
 `libc.so` / `ld.so` / `lib%.so` DSOs. `--incremental` on those DSOs is covered by
 `glibc-*-incremental` (unchanged relink; skip updates still emit dynamic reloc tables). A full
 `make check` is follow-up.
-
-## Known gaps / follow-ups
-
-These are tracked here so they are not forgotten. They are not part of the current layout /
-`elf_writer` module split.
-
-### Lower priority versus GNU
-
-* `LINKER_VERSION` is parsed and ignored; a script-defined `.comment` can leave Wild's identity in a second `.comment` section
-* `ONLY_IF_RO` / `ONLY_IF_RW` keep the first duplicate name rather than picking by input `SHF_WRITE`

@@ -2223,7 +2223,10 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                 segments_map.insert(phdr.name, id);
             }
 
-            for id in &script.parsed.ordered_sections {
+            for (index, id) in script.parsed.ordered_sections.iter().enumerate() {
+                if !output_sections.should_emit_only_if_order_slot(*id, index) {
+                    continue;
+                }
                 let info = output_sections.section_infos.get(*id);
                 for phdr in &info.phdrs {
                     if phdr == b"NONE" {
