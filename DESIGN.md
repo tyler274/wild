@@ -71,9 +71,10 @@ provides `wild-build-glibc` (GNU ld + GCC 15). Wild's `--version` first line is 
 so glibc `configure` and the kernel's `scripts/ld-version.sh` accept it; the GNU oracle is still
 linked with GNU ld so the relink tests have something to diff. Then
 `cargo test -p wild-linker --test integration_tests -- glibc`. Override the env vars to use another
-tree. `wild-glibc-check` installs those Wild-linked `libc.so` / `ld.so` / `libm.so` into the GNU
-build and runs a `make test` subset (TLS, IFUNC, RELR, ctors, malloc, libm, nptl), then restores
-the GNU oracles. A full `make check` is still follow-up.
+tree. `wild-glibc-check` installs those Wild-linked `libc.so` / `ld.so` / `libm.so` (and other
+`lib%.so` relinks when present) into the GNU build and runs a `make test` subset (TLS, IFUNC,
+RELR, ctors, malloc, libm, nptl), then restores the GNU oracles. A full `make check` is still
+follow-up.
 
 ## Modularity (Mold and LLD)
 

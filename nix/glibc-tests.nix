@@ -154,9 +154,8 @@ let
     '';
   };
 
-  # Swap Wild-linked libc.so / ld.so (and libm.so when present) into the GNU
-  # build and run a glibc `make test` subset. Always restores the GNU oracles
-  # so relink diffs stay valid.
+  # Swap Wild-linked glibc DSOs into the GNU build and run a `make test`
+  # subset. Always restores the GNU oracles so relink diffs stay valid.
   wild-glibc-check = writeShellApplication {
     name = "wild-glibc-check";
     runtimeInputs = [
@@ -170,9 +169,9 @@ let
       set -euo pipefail
       build=''${WILD_GLIBC_BUILD:?WILD_GLIBC_BUILD is not set}
       repo=''${WILD_REPO:-$PWD}
-      libc_wild=$repo/wild/tests/build/elf/x86_64/glibc-libc/libc.so.wild
-      ldso_wild=$repo/wild/tests/build/elf/x86_64/glibc-ldso/ld.so.wild
-      libm_wild=$repo/wild/tests/build/elf/x86_64/glibc-libm/libm.so.wild
+      artifacts=$repo/wild/tests/build/elf/x86_64
+      libc_wild=$artifacts/glibc-libc/libc.so.wild
+      ldso_wild=$artifacts/glibc-ldso/ld.so.wild
 
       if [ ! -f "$libc_wild" ] || [ ! -f "$ldso_wild" ]; then
         echo "missing Wild relink artifacts. Run:" >&2
@@ -215,35 +214,76 @@ let
         stdio-common/tst-sprintf
         math/basic-test
         rt/tst-timer
+        elf/reldep
+        elf/next
+        elf/nodelete
+        elf/tst-audit1
+        elf/ifuncmain5
+        elf/ifuncmain9
+        nptl/tst-cond1
+        nptl/tst-once1
+        nptl/tst-join1
+        nptl/tst-exit1
+        posix/bug-getopt1
+        posix/bug-regex1
+        io/test-stat
+        io/test-utime
+        time/tst-clock
+        time/tst-strptime
+        signal/tst-signal
+        signal/tst-raise
+        dirent/opendir-tst1
+        misc/tst-dirname
+        misc/tst-tsearch
+        nss/tst-getpw
+        nss/test-netdb
+        resolv/tst-aton
+        resolv/tst-inet_ntop
+        setjmp/tst-setjmp
+        stdlib/test-canon
+        string/test-strcmp
+        malloc/tst-mallocfork
       )
 
-      if [ ! -f "$build/libc.so.gnu-oracle" ]; then
-        cp -a "$build/libc.so" "$build/libc.so.gnu-oracle"
-      fi
-      if [ ! -f "$build/elf/ld.so.gnu-oracle" ]; then
-        cp -a "$build/elf/ld.so" "$build/elf/ld.so.gnu-oracle"
-      fi
-      if [ -f "$libm_wild" ] && [ ! -f "$build/math/libm.so.gnu-oracle" ]; then
-        cp -a "$build/math/libm.so" "$build/math/libm.so.gnu-oracle"
-      fi
-
       restore() {
-        cp -a "$build/libc.so.gnu-oracle" "$build/libc.so"
-        cp -a "$build/elf/ld.so.gnu-oracle" "$build/elf/ld.so"
-        if [ -f "$build/math/libm.so.gnu-oracle" ]; then
-          cp -a "$build/math/libm.so.gnu-oracle" "$build/math/libm.so"
-        fi
+        local dest
+        for dest in \
+          "$build/libc.so" \
+          "$build/elf/ld.so" \
+          "$build/math/libm.so" \
+          "$build/resolv/libresolv.so" \
+          "$build/mathvec/libmvec.so" \
+          "$build/nptl/libpthread.so" \
+          "$build/dlfcn/libdl.so" \
+          "$build/rt/librt.so"
+        do
+          if [ -f "$dest.gnu-oracle" ]; then
+            cp -a "$dest.gnu-oracle" "$dest"
+          fi
+        done
       }
       trap restore EXIT
 
-      cp -a "$libc_wild" "$build/libc.so"
-      cp -a "$ldso_wild" "$build/elf/ld.so"
-      ln -sfn libc.so "$build/libc.so.6"
-      ln -sfn ld.so "$build/elf/ld-linux-x86-64.so.2"
-      if [ -f "$libm_wild" ]; then
-        cp -a "$libm_wild" "$build/math/libm.so"
-        ln -sfn libm.so "$build/math/libm.so.6"
-      fi
+      swap_dso() {
+        local wild=$1 dest=$2 soname=$3
+        if [ ! -f "$wild" ]; then
+          return 0
+        fi
+        if [ ! -f "$dest.gnu-oracle" ]; then
+          cp -a "$dest" "$dest.gnu-oracle"
+        fi
+        cp -a "$wild" "$dest"
+        ln -sfn "$(basename "$dest")" "$(dirname "$dest")/$soname"
+      }
+
+      swap_dso "$libc_wild" "$build/libc.so" libc.so.6
+      swap_dso "$ldso_wild" "$build/elf/ld.so" ld-linux-x86-64.so.2
+      swap_dso "$artifacts/glibc-libm/libm.so.wild" "$build/math/libm.so" libm.so.6
+      swap_dso "$artifacts/glibc-libresolv/libresolv.so.wild" "$build/resolv/libresolv.so" libresolv.so.2
+      swap_dso "$artifacts/glibc-libmvec/libmvec.so.wild" "$build/mathvec/libmvec.so" libmvec.so.1
+      swap_dso "$artifacts/glibc-libpthread/libpthread.so.wild" "$build/nptl/libpthread.so" libpthread.so.0
+      swap_dso "$artifacts/glibc-libdl/libdl.so.wild" "$build/dlfcn/libdl.so" libdl.so.2
+      swap_dso "$artifacts/glibc-librt/librt.so.wild" "$build/rt/librt.so" librt.so.1
 
       export LIBRARY_PATH="${libgccLib}''${LIBRARY_PATH:+:$LIBRARY_PATH}"
       export NIX_HARDENING_ENABLE=""

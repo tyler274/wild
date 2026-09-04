@@ -1,5 +1,6 @@
-//! Opt-in x86_64 glibc `ld.so` / `libc.so` / `libm.so` relink against a GNU-built
-//! tree.
+//! Opt-in x86_64 glibc DSO relink against a GNU-built tree (`ld.so`, `libc.so`,
+//! then GNU `lib%.so` PIC archives: `libm`, `libresolv`, `libmvec`, and the
+//! `libpthread` / `libdl` / `librt` stubs).
 //!
 //! Glibc's `configure` accepts GNU ld, gold, or LLD version strings. Wild's
 //! `--version` first line is GNU ld compatible, but the GNU oracle is still
@@ -9,8 +10,8 @@
 //! `WILD_GLIBC_BUILD` to the out-of-tree build (default: `<tree>/../glibc-build`).
 //!
 //! Skipped when `WILD_GLIBC_TREE` is unset, or when the build does not yet
-//! contain `elf/ld.so` / `libc.so` / `math/libm.so` (a from-scratch glibc build
-//! will not fit the 10-minute CI timeout). GNU ld is the only oracle.
+//! contain the expected objects (a from-scratch glibc build will not fit the
+//! 10-minute CI timeout). GNU ld is the only oracle.
 
 use crate::Filter;
 use crate::build_dir;
@@ -31,11 +32,9 @@ const TREE_VAR: &str = "WILD_GLIBC_TREE";
 const BUILD_VAR: &str = "WILD_GLIBC_BUILD";
 const LDSO_TEST: &str = "elf/x86_64/glibc-ldso";
 const LIBC_TEST: &str = "elf/x86_64/glibc-libc";
-const LIBM_TEST: &str = "elf/x86_64/glibc-libm";
 
 const LDSO_SONAME: &str = "ld-linux-x86-64.so.2";
 const LIBC_SONAME: &str = "libc.so.6";
-const LIBM_SONAME: &str = "libm.so.6";
 
 const LIBC_DYNSYMS: &[&str] = &[
     "malloc",
@@ -46,11 +45,86 @@ const LIBC_DYNSYMS: &[&str] = &[
     "__libc_early_init",
 ];
 
-const LIBM_DYNSYMS: &[&str] = &["sin", "cos", "sqrt", "pow", "nan"];
-
 /// GNU ld emits this weak undef in every `gcc -shared` link. It is not a glibc
 /// export and Wild does not synthesise it.
 const GNU_SYNTHETIC_DYNSYMS: &[&str] = &["__gmon_start__"];
+
+#[derive(Clone, Copy)]
+struct PicShlib {
+    test_name: &'static str,
+    gnu: &'static str,
+    pic: &'static str,
+    map: &'static str,
+    soname: &'static str,
+    named_dynsyms: &'static [&'static str],
+    extra_needed: &'static [&'static str],
+    smoke: Option<&'static str>,
+}
+
+/// GNU `lib%.so: lib%_pic.a` shared objects (not libc / ld.so, which use
+/// `-nostdlib` and a different input order).
+const PIC_SHLIBS: &[PicShlib] = &[
+    PicShlib {
+        test_name: "elf/x86_64/glibc-libm",
+        gnu: "math/libm.so",
+        pic: "math/libm_pic.a",
+        map: "libm.map",
+        soname: "libm.so.6",
+        named_dynsyms: &["sin", "cos", "sqrt", "pow", "nan"],
+        extra_needed: &[],
+        smoke: Some("math/basic-test"),
+    },
+    PicShlib {
+        test_name: "elf/x86_64/glibc-libresolv",
+        gnu: "resolv/libresolv.so",
+        pic: "resolv/libresolv_pic.a",
+        map: "libresolv.map",
+        soname: "libresolv.so.2",
+        named_dynsyms: &["inet_net_pton", "ns_initparse"],
+        extra_needed: &[],
+        smoke: Some("resolv/tst-aton"),
+    },
+    PicShlib {
+        test_name: "elf/x86_64/glibc-libmvec",
+        gnu: "mathvec/libmvec.so",
+        pic: "mathvec/libmvec_pic.a",
+        map: "libmvec.map",
+        soname: "libmvec.so.1",
+        named_dynsyms: &["_ZGVcN4v_exp", "_ZGVcN4v_log"],
+        extra_needed: &["math/libm.so"],
+        smoke: None,
+    },
+    PicShlib {
+        test_name: "elf/x86_64/glibc-libpthread",
+        gnu: "nptl/libpthread.so",
+        pic: "nptl/libpthread_pic.a",
+        map: "libpthread.map",
+        soname: "libpthread.so.0",
+        named_dynsyms: &["__libpthread_version_placeholder"],
+        extra_needed: &[],
+        smoke: None,
+    },
+    PicShlib {
+        test_name: "elf/x86_64/glibc-libdl",
+        gnu: "dlfcn/libdl.so",
+        pic: "dlfcn/libdl_pic.a",
+        map: "libdl.map",
+        soname: "libdl.so.2",
+        named_dynsyms: &["__libdl_version_placeholder"],
+        extra_needed: &[],
+        smoke: None,
+    },
+    PicShlib {
+        test_name: "elf/x86_64/glibc-librt",
+        gnu: "rt/librt.so",
+        pic: "rt/librt_pic.a",
+        map: "librt.map",
+        soname: "librt.so.1",
+        named_dynsyms: &["__librt_version_placeholder"],
+        extra_needed: &[],
+        smoke: Some("rt/tst-timer"),
+    },
+];
 
 pub(super) fn collect_tests(tests: &mut Vec<Trial>, filter: &Filter) {
     if !filter.excludes(LDSO_TEST) {
@@ -63,9 +137,12 @@ pub(super) fn collect_tests(tests: &mut Vec<Trial>, filter: &Filter) {
             run_libc_test().map_err(|e| libtest_mimic::Failed::from(e.to_string()))
         }));
     }
-    if !filter.excludes(LIBM_TEST) {
-        tests.push(Trial::ignorable_test(LIBM_TEST, || {
-            run_libm_test().map_err(|e| libtest_mimic::Failed::from(e.to_string()))
+    for spec in PIC_SHLIBS {
+        if filter.excludes(spec.test_name) {
+            continue;
+        }
+        tests.push(Trial::ignorable_test(spec.test_name, move || {
+            run_pic_shlib_test(spec).map_err(|e| libtest_mimic::Failed::from(e.to_string()))
         }));
     }
 }
@@ -242,31 +319,33 @@ fn run_libc_test() -> Result<libtest_mimic::Completion> {
     Ok(libtest_mimic::Completion::Completed)
 }
 
-fn run_libm_test() -> Result<libtest_mimic::Completion> {
+fn run_pic_shlib_test(spec: &PicShlib) -> Result<libtest_mimic::Completion> {
     let Some((_tree, build)) = glibc_paths()? else {
         return Ok(libtest_mimic::Completion::ignored_with(format!(
             "{TREE_VAR} is unset"
         )));
     };
 
-    let gnu = build.join("math/libm.so");
-    let pic = first_existing(&build, &["math/libm_pic.a"]);
+    let gnu = build.join(spec.gnu);
+    let pic = build.join(spec.pic);
     let abi_note = first_existing(&build, &["csu/abi-note.o"]);
     let libc = first_existing(&build, &["libc.so"]);
     let libc_nonshared = first_existing(&build, &["libc_nonshared.a"]);
     let ldso = first_existing(&build, &["elf/ld.so"]);
-    let map = first_existing(&build, &["libm.map"]);
+    let map = first_existing(&build, &[spec.map]);
 
-    let Some(pic) = pic else {
+    if !pic.is_file() {
         return Ok(libtest_mimic::Completion::ignored_with(format!(
-            "{} has no math/libm_pic.a yet (configure && make)",
-            build.display()
+            "{} has no {} yet (configure && make)",
+            build.display(),
+            spec.pic
         )));
-    };
+    }
     if !gnu.is_file() {
         return Ok(libtest_mimic::Completion::ignored_with(format!(
-            "{} has no math/libm.so yet (configure && make)",
-            build.display()
+            "{} has no {} yet (configure && make)",
+            build.display(),
+            spec.gnu
         )));
     }
     let Some(libc) = libc else {
@@ -276,10 +355,14 @@ fn run_libm_test() -> Result<libtest_mimic::Completion> {
         )));
     };
 
-    let out_dir = build_dir().join("elf/x86_64/glibc-libm");
+    let out_dir = build_dir().join(spec.test_name);
     std::fs::create_dir_all(&out_dir)
         .with_context(|| format!("Failed to create {}", out_dir.display()))?;
-    let out = out_dir.join("libm.so.wild");
+    let file_name = Path::new(spec.gnu)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("lib.so");
+    let out = out_dir.join(format!("{file_name}.wild"));
 
     let libgcc = libgcc_archive()?;
     let crtbegin = gcc_print_file_name("crtbeginS.o")?;
@@ -300,7 +383,7 @@ fn run_libm_test() -> Result<libtest_mimic::Completion> {
         "nomark-plt",
         "--hash-style=both",
         "-soname",
-        LIBM_SONAME,
+        spec.soname,
         "-o",
     ])
     .arg(&out);
@@ -308,16 +391,25 @@ fn run_libm_test() -> Result<libtest_mimic::Completion> {
         cmd.arg(format!("--version-script={}", map.display()));
     }
     // GNU `lib%.so` from `lib%_pic.a`: gcc -shared inserts crtbeginS/crtendS
-    // (libc uses -nostdlib, libm does not).
+    // (libc uses -nostdlib, these DSOs do not).
     if let Some(abi_note) = abi_note {
         cmd.arg(abi_note);
     }
     cmd.arg(&crtbegin)
         .arg("--whole-archive")
         .arg(&pic)
-        .arg("--no-whole-archive")
-        .arg("--start-group")
-        .arg(&libc);
+        .arg("--no-whole-archive");
+    for extra in spec.extra_needed {
+        let path = build.join(extra);
+        if !path.is_file() {
+            return Ok(libtest_mimic::Completion::ignored_with(format!(
+                "{} has no {extra} yet (configure && make)",
+                build.display()
+            )));
+        }
+        cmd.arg(path);
+    }
+    cmd.arg("--start-group").arg(&libc);
     if let Some(libc_nonshared) = libc_nonshared {
         cmd.arg(libc_nonshared);
     }
@@ -333,31 +425,27 @@ fn run_libm_test() -> Result<libtest_mimic::Completion> {
         .status()
         .with_context(|| format!("Failed to spawn {}", wild_path().display()))?;
     if !status.success() {
-        bail!("Wild failed to link libm.so ({status})");
+        bail!("Wild failed to link {} ({status})", spec.gnu);
     }
 
-    check_soname(&out, LIBM_SONAME)?;
-    check_named_dynsyms(&out, LIBM_DYNSYMS)?;
+    check_soname(&out, spec.soname)?;
+    if !spec.named_dynsyms.is_empty() {
+        check_named_dynsyms(&out, spec.named_dynsyms)?;
+    }
     compare_dynsym_names(&gnu, &out)?;
 
     let libdir = out_dir.join("lib");
     std::fs::create_dir_all(&libdir)
         .with_context(|| format!("Failed to create {}", libdir.display()))?;
-    let staged_libm = libdir.join("libm.so.6");
-    std::fs::copy(&out, &staged_libm).with_context(|| {
-        format!(
-            "Failed to stage {} as {}",
-            out.display(),
-            staged_libm.display()
-        )
-    })?;
+    let staged = libdir.join(spec.soname);
+    std::fs::copy(&out, &staged)
+        .with_context(|| format!("Failed to stage {} as {}", out.display(), staged.display()))?;
     let gnu_ldso = build.join("elf/ld.so");
-    let basic = build.join("math/basic-test");
-    if basic.is_file() {
+    if let Some(smoke) = spec.smoke {
         smoke_run(
             &gnu_ldso,
             &glibc_library_path(&build, Some(&libdir)),
-            &basic,
+            &build.join(smoke),
         )?;
     }
     Ok(libtest_mimic::Completion::Completed)
@@ -481,8 +569,10 @@ fn check_named_dynsyms(path: &Path, names: &[&str]) -> Result {
 }
 
 fn compare_dynsym_names(gnu: &Path, wild: &Path) -> Result {
-    let gnu_names = dynsym_names(gnu)?;
-    let wild_names = dynsym_names(wild)?;
+    // Defined exports only. Wild GCs unused objects inside `--whole-archive`
+    // PIC stubs (e.g. librt), so GNU leftover UND imports are not required.
+    let gnu_names = dynsym_defined_names(gnu)?;
+    let wild_names = dynsym_defined_names(wild)?;
     let mut missing: Vec<String> = gnu_names
         .difference(&wild_names)
         .filter(|n| !n.is_empty() && !GNU_SYNTHETIC_DYNSYMS.contains(&n.as_str()))
@@ -492,14 +582,14 @@ fn compare_dynsym_names(gnu: &Path, wild: &Path) -> Result {
     if missing.len() > 20 {
         missing.truncate(20);
         bail!(
-            "Wild {} missing GNU dynamic symbols (first 20): {}",
+            "Wild {} missing GNU exported dynamic symbols (first 20): {}",
             wild.display(),
             missing.join(", ")
         );
     }
     if !missing.is_empty() {
         bail!(
-            "Wild {} missing GNU dynamic symbols: {}",
+            "Wild {} missing GNU exported dynamic symbols: {}",
             wild.display(),
             missing.join(", ")
         );
@@ -507,13 +597,14 @@ fn compare_dynsym_names(gnu: &Path, wild: &Path) -> Result {
     Ok(())
 }
 
-fn dynsym_names(path: &Path) -> Result<HashSet<String>> {
+fn dynsym_defined_names(path: &Path) -> Result<HashSet<String>> {
     let bytes =
         std::fs::read(path).with_context(|| format!("Failed to read {}", path.display()))?;
     let obj = object::File::parse(bytes.as_slice())
         .with_context(|| format!("Failed to parse {}", path.display()))?;
     Ok(obj
         .dynamic_symbols()
+        .filter(|s| !s.is_undefined())
         .filter_map(|s| s.name().ok().map(str::to_owned))
         .filter(|n| !n.is_empty())
         .collect())
