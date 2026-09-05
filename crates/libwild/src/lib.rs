@@ -24,6 +24,7 @@ pub(crate) mod file_writer;
 pub(crate) use wild_fs::fs;
 pub(crate) mod gc_stats;
 pub(crate) mod gdb_index;
+#[allow(unused_imports)]
 pub(crate) use wild_util::glob_match;
 pub(crate) mod grouping;
 pub(crate) use wild_util::hash;

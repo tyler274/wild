@@ -207,10 +207,11 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
     }
 
     fn parse(
-        input: &crate::input_data::InputBytes<'data>,
+        data: &'data [u8],
+        _is_dynamic: bool,
         _args: &<Self::Platform as platform::Platform>::Args,
     ) -> crate::error::Result<Self> {
-        Self::parse_bytes(input.data, false)
+        Self::parse_bytes(data, false)
     }
 
     fn is_dynamic(&self) -> bool {

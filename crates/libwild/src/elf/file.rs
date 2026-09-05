@@ -13,9 +13,7 @@ use crate::bail;
 use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::file_kind::FileKind;
 use crate::file_writer::copy_section_data;
-use crate::input_data::InputBytes;
 use crate::layout;
 use crate::layout::DynamicSymbolDefinition;
 use crate::output_section_part_map::OutputSectionPartMap;
@@ -100,15 +98,12 @@ impl<'data, C: ElfClass> File<'data, C> {
 impl<'data, C: ElfClass> platform::ObjectFile<'data> for File<'data, C> {
     type Platform = Elf<C>;
 
-    fn parse(input: &InputBytes<'data>, args: &ElfArgs) -> Result<Self> {
-        let is_dynamic = input.kind == FileKind::ElfDynamic;
-
-        let file = Self::parse_bytes(input.data, is_dynamic)?;
+    fn parse(data: &'data [u8], is_dynamic: bool, args: &ElfArgs) -> Result<Self> {
+        let file = Self::parse_bytes(data, is_dynamic)?;
 
         if file.arch != args.architecture() {
             bail!(
-                "`{}` has incompatible architecture: {}, expecting {}",
-                input,
+                "incompatible architecture: {}, expecting {}",
                 file.arch,
                 args.architecture(),
             )

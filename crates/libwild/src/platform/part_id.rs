@@ -2,7 +2,7 @@ use super::Platform;
 use super::output_section_id::CommonSinglePartSectionId;
 use super::output_section_id::OutputSectionId;
 use super::output_section_id::regular_section_base;
-use crate::alignment::NUM_ALIGNMENTS;
+use wild_util::alignment::NUM_ALIGNMENTS;
 
 /// An ID for a part of an output section. Parts IDs are ordered with generated
 /// single-part-per-section parts first, followed by parts that belong to multi-part sections,

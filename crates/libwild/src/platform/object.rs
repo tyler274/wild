@@ -1,15 +1,13 @@
 use super::format::Platform;
 use super::output_section_id::OutputSectionId;
+use super::output_section_part_map::OutputSectionPartMap;
 use super::part_id::PartId;
-use crate::Result;
-use crate::input_data::InputBytes;
-use crate::input_data::InputRef;
-use crate::output_section_part_map::OutputSectionPartMap;
 use std::borrow::Cow;
 use std::fmt::Display;
 use std::num::NonZeroU32;
 use std::ops::Range;
 use std::path::PathBuf;
+use wild_error::error::Result;
 
 /// Symbol visibility. Lives here so `platform/` does not import `symbol_db`.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -27,7 +25,11 @@ pub(crate) trait ObjectFile<'data>: Sized + Send + Sync + std::fmt::Debug + 'dat
 
     /// As for `parse_bytes` but also validates that the file architecture matches what is expected
     /// based on `args`.
-    fn parse(input: &InputBytes<'data>, args: &<Self::Platform as Platform>::Args) -> Result<Self>;
+    fn parse(
+        data: &'data [u8],
+        is_dynamic: bool,
+        args: &<Self::Platform as Platform>::Args,
+    ) -> Result<Self>;
 
     fn is_dynamic(&self) -> bool;
 
@@ -381,7 +383,7 @@ pub(crate) trait VerneedTable<'data>: Send + Sync + 'data {
 }
 
 pub(crate) trait DynamicTagValues<'data>: std::fmt::Debug + Send + Sync + 'data {
-    fn lib_name(&self, input: &InputRef<'data>) -> &'data [u8];
+    fn lib_name(&self, fallback_name: &'data [u8]) -> &'data [u8];
 }
 
 pub(crate) trait NonAddressableIndexes: Send + Sync + 'static {

@@ -7,6 +7,7 @@ pub(crate) mod object;
 pub(crate) mod output_kind;
 pub(crate) mod output_section_id;
 pub(crate) mod output_section_map;
+pub(crate) mod output_section_part_map;
 pub(crate) mod part_id;
 pub(crate) mod program_segments;
 pub(crate) mod section_identity;
@@ -48,6 +49,8 @@ pub(crate) use output_section_id::num_built_in_sections;
 pub(crate) use output_section_id::regular_section_base;
 #[allow(unused_imports)]
 pub(crate) use output_section_map::OutputSectionMap;
+#[allow(unused_imports)]
+pub(crate) use output_section_part_map::OutputSectionPartMap;
 #[allow(unused_imports)]
 pub(crate) use part_id::PartId;
 #[allow(unused_imports)]

@@ -16,7 +16,6 @@ use crate::bail;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::grouping::Group;
-use crate::input_data::InputRef;
 use crate::layout;
 use crate::layout_rules::SectionKind;
 use crate::output_section_id::OutputSectionId;
@@ -361,8 +360,8 @@ impl<'data> DynamicTagValues<'data> {
 }
 
 impl<'data> platform::DynamicTagValues<'data> for DynamicTagValues<'data> {
-    fn lib_name(&self, input: &InputRef<'data>) -> &'data [u8] {
-        self.soname.unwrap_or_else(|| input.lib_name())
+    fn lib_name(&self, fallback_name: &'data [u8]) -> &'data [u8] {
+        self.soname.unwrap_or(fallback_name)
     }
 }
 
@@ -636,7 +635,7 @@ impl<'data> Sonames<'data> {
                             .parsed
                             .object
                             .dynamic_tag_values()
-                            .map(|tag_values| tag_values.lib_name(&input.parsed.input))
+                            .map(|tag_values| tag_values.lib_name(input.parsed.input.lib_name()))
                     })
                 })
                 .collect(),

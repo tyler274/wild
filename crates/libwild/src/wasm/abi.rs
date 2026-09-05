@@ -429,8 +429,8 @@ pub(crate) struct DynamicTagValues<'data> {
 }
 
 impl<'data> platform::DynamicTagValues<'data> for DynamicTagValues<'data> {
-    fn lib_name(&self, input: &crate::input_data::InputRef<'data>) -> &'data [u8] {
-        input.lib_name()
+    fn lib_name(&self, fallback_name: &'data [u8]) -> &'data [u8] {
+        fallback_name
     }
 }
 

@@ -1,5 +1,5 @@
 use super::output_section_id::OutputSectionId;
-use crate::error::Result;
+use wild_error::error::Result;
 
 /// A map from output section IDs to something.
 #[derive(Debug, Clone)]

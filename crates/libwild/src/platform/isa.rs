@@ -3,13 +3,13 @@ use super::format::Platform;
 use super::object::SourceInfo;
 use super::part_id::PartId;
 use super::value_flags::ValueFlags;
-use crate::Result;
-use crate::bail;
 use linker_utils::elf::DynamicRelocationKind;
 use linker_utils::elf::RelocationKindInfo;
 use linker_utils::relaxation::RelocationModifier;
 use linker_utils::relaxation::SectionRelaxDeltas;
 use std::borrow::Cow;
+use wild_error::bail;
+use wild_error::error::Result;
 
 /// Configuration for range-extension thunks on architectures that need them.
 /// Returned by `Arch::thunk_config()`; `None` means the architecture never needs thunks.

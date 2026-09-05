@@ -311,7 +311,8 @@ impl<'data, P: Platform> ResolvedDynamic<'data, P> {
     }
 
     pub(crate) fn lib_name(&self) -> &'data [u8] {
-        self.dynamic_tag_values.lib_name(&self.common.input)
+        self.dynamic_tag_values
+            .lib_name(self.common.input.lib_name())
     }
 }
 #[derive(Debug)]

@@ -9,7 +9,6 @@ use crate::args::macho::MachOArgs;
 use crate::ensure;
 use crate::error;
 use crate::error::Result;
-use crate::file_kind::FileKind;
 use crate::file_writer::copy_section_data;
 use crate::layout;
 use crate::platform;
@@ -84,9 +83,9 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
         })
     }
 
-    fn parse(input: &crate::input_data::InputBytes<'data>, _args: &MachOArgs) -> Result<Self> {
+    fn parse(data: &'data [u8], is_dynamic: bool, _args: &MachOArgs) -> Result<Self> {
         // TODO
-        Self::parse_bytes(input.data, input.kind == FileKind::MachODylib)
+        Self::parse_bytes(data, is_dynamic)
     }
 
     fn is_dynamic(&self) -> bool {

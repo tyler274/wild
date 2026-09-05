@@ -559,7 +559,7 @@ impl<'data> platform::RelocationList<'data> for RelocationList<'data> {
 }
 
 impl<'data> platform::DynamicTagValues<'data> for DynamicTagValues<'data> {
-    fn lib_name(&self, _input: &crate::input_data::InputRef<'data>) -> &'data [u8] {
+    fn lib_name(&self, _fallback_name: &'data [u8]) -> &'data [u8] {
         &[]
     }
 }

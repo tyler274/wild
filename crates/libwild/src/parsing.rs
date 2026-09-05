@@ -199,7 +199,7 @@ impl<'data, P: Platform> ParsedInputObject<'data, P> {
     pub(crate) fn new(input: &InputBytes<'data>, args: &P::Args) -> Result<Box<Self>> {
         verbose_timing_phase!("Parse file");
 
-        let object = P::File::parse(input, args)
+        let object = P::File::parse(input.data, input.kind.is_dynamic(), args)
             .with_context(|| format!("Failed to parse object file `{input}`"))?;
 
         Ok(Box::new(Self {

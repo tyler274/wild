@@ -1,18 +1,18 @@
 use super::OutputKind;
 use super::file_id::FileId;
 use super::section_identity::SectionName;
-use crate::Result;
-use crate::alignment::Alignment;
-use crate::arch::Architecture;
-use crate::bail;
-use crate::env;
-use crate::fs::FileReplacementMode;
-use crate::fs::FileWriteMode;
 use object::Endianness;
 use std::num::NonZeroU64;
 use std::num::NonZeroUsize;
 use std::path::Path;
 use std::sync::Arc;
+use wild_error::bail;
+use wild_error::env;
+use wild_error::error::Result;
+use wild_fs::fs::FileReplacementMode;
+use wild_fs::fs::FileWriteMode;
+use wild_util::alignment::Alignment;
+use wild_util::arch::Architecture;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum EntryPoint<'a> {
@@ -239,7 +239,10 @@ pub(crate) trait Args: std::fmt::Debug + Send + Sync + 'static {
     /// Returns the address override for a `SEGMENT_START` segment name, as set via
     /// `-Ttext`, `-Tdata` or `-Tbss` on the command line. Returns `None` if no override
     /// was provided, in which case `SEGMENT_START` should return its default value.
-    fn segment_start_override(&self, _name: crate::linker_script::SegmentName) -> Option<u64> {
+    fn segment_start_override(
+        &self,
+        _name: wild_scripts::linker_script::SegmentName,
+    ) -> Option<u64> {
         None
     }
 

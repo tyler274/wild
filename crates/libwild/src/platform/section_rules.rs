@@ -1,13 +1,13 @@
 use super::output_section_id::OutputSectionId;
-use crate::error::Result;
-use crate::glob_match::GlobPatternType;
-use crate::glob_match::analyze_glob_pattern;
-use crate::glob_match::compile_glob_pattern;
-use crate::glob_match::unescape_pattern;
-use crate::linker_script::OnlyIf;
 use glob::Pattern;
 use hashbrown::HashSet;
 use std::borrow::Cow;
+use wild_error::error::Result;
+use wild_scripts::linker_script::OnlyIf;
+use wild_util::glob_match::GlobPatternType;
+use wild_util::glob_match::analyze_glob_pattern;
+use wild_util::glob_match::compile_glob_pattern;
+use wild_util::glob_match::unescape_pattern;
 
 /// Determines how a section name pattern is matched against input section names.
 #[derive(Debug, Clone)]
@@ -113,7 +113,7 @@ impl<'data> SectionRule<'data> {
         outcome: SectionRuleOutcome,
     ) -> Result<Self> {
         let compiled_file_pattern = input_file_pattern
-            .map(|pattern| compile_glob_pattern(pattern).map_err(|e| crate::error!("{e}")))
+            .map(|pattern| compile_glob_pattern(pattern).map_err(|e| wild_error::error!("{e}")))
             .transpose()?;
 
         let name_matcher = match analyze_glob_pattern(pattern) {
@@ -123,7 +123,7 @@ impl<'data> SectionRule<'data> {
             }
             GlobPatternType::Star | GlobPatternType::NonStar => {
                 let compiled_pattern =
-                    compile_glob_pattern(pattern).map_err(|e| crate::error!("{}", e))?;
+                    compile_glob_pattern(pattern).map_err(|e| wild_error::error!("{}", e))?;
 
                 SectionNameMatcher::Glob(pattern, compiled_pattern)
             }
@@ -154,7 +154,7 @@ impl<'data> SectionRule<'data> {
     pub(crate) fn with_excludes(mut self, patterns: &[&'data [u8]]) -> Result<Self> {
         self.exclude_file_patterns = patterns
             .iter()
-            .map(|pattern| compile_glob_pattern(pattern).map_err(|e| crate::error!("{e}")))
+            .map(|pattern| compile_glob_pattern(pattern).map_err(|e| wild_error::error!("{e}")))
             .collect::<Result<Vec<_>>>()?;
         Ok(self)
     }

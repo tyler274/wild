@@ -5,6 +5,7 @@ use super::isa::ThunkConfig;
 use super::object::*;
 use super::output_section_id::OutputSectionId;
 use super::output_section_map::OutputSectionMap;
+use super::output_section_part_map::OutputSectionPartMap;
 use super::part_id;
 use super::part_id::PartId;
 use super::program_segments::ProgramSegments;
@@ -16,15 +17,14 @@ use super::symbol_id::SymbolId;
 use super::value_flags::AtomicPerSymbolFlags;
 use super::value_flags::PerSymbolFlags;
 use super::value_flags::ValueFlags;
-use crate::FileSystem;
-use crate::Result;
-use crate::alignment::Alignment;
-use crate::bail;
-use crate::fs::FileReplacementMode;
-use crate::linker_script;
-use crate::output_section_part_map::OutputSectionPartMap;
 use rayon::Scope;
 use std::num::NonZeroU32;
+use wild_error::bail;
+use wild_error::error::Result;
+use wild_fs::fs::FileReplacementMode;
+use wild_fs::fs::FileSystem;
+use wild_scripts::linker_script;
+use wild_util::alignment::Alignment;
 
 /// A platform for which we support writing producing linked outputs.
 pub(crate) trait Platform:
@@ -185,14 +185,14 @@ pub(crate) trait Platform:
     type LtoInput<'data>;
     type Group<'data>;
     type SequencedLinkerScript<'data>;
-    type FileLoader<'data, F: crate::fs::FileSystem>;
+    type FileLoader<'data, F: wild_fs::fs::FileSystem>;
     type LayoutRulesBuilder<'data>;
     type InternalSymbolsBuilder<'data>;
     type InternalSymDefInfo<'data>;
     type OutputSections<'data>;
     type OutputOrder<'data>;
     type CustomSectionIds;
-    type FileWriterOutput<F: crate::fs::FileSystem>;
+    type FileWriterOutput<F: wild_fs::fs::FileSystem>;
     type LocationCounter<'data>;
     type SectionOutputInfo<'data>;
     type FileKind;
@@ -594,7 +594,7 @@ pub(crate) trait Platform:
         args: &Self::Args,
         sym: &Self::SymtabEntry,
         output_kind: OutputKind,
-        export_list: Option<&crate::export_list::ExportList>,
+        export_list: Option<&wild_scripts::export_list::ExportList>,
         lib_name: &[u8],
         archive_semantics: bool,
         is_undefined: bool,
@@ -832,7 +832,7 @@ pub(crate) trait Platform:
     /// Compute the size of the `.gdb_index` section and return the scan result for the write phase.
     fn compute_gdb_index_size<'data>(
         _groups: &[Self::GroupState<'data>],
-    ) -> crate::error::Result<(u64, Option<Self::GdbIndexScanResult<'data>>)> {
+    ) -> Result<(u64, Option<Self::GdbIndexScanResult<'data>>)> {
         Ok((0, None))
     }
 

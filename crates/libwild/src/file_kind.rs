@@ -91,6 +91,10 @@ impl FileKind {
     pub(crate) fn is_compiler_ir(self) -> bool {
         matches!(self, FileKind::LlvmIr | FileKind::GccIr)
     }
+
+    pub(crate) fn is_dynamic(self) -> bool {
+        matches!(self, FileKind::ElfDynamic | FileKind::MachODylib)
+    }
 }
 
 fn determine_macho_kind(bytes: &[u8]) -> Result<FileKind> {
