@@ -180,7 +180,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                         SectionName(sec.output_section_name)
                                     )
                                 })?;
-                                let id = output_sections.add_named_section(
+                                let id = output_sections.get_or_create_named_section(
                                     identity,
                                     min_alignment,
                                     sec.region,

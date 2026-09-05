@@ -163,7 +163,7 @@ impl Args {
                 writeln!(
                     stdout,
                     "supported emulations: {}",
-                    crate::arch::SUPPORTED_EMULATIONS
+                    elf::supported_emulations()
                 )?;
             }
             Args::Coff(_) | Args::MachO(_) | Args::Wasm(_) => (),

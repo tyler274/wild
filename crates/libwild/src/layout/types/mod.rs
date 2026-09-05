@@ -27,6 +27,7 @@ use crate::platform::Args as _;
 use crate::platform::ObjectFile;
 use crate::platform::Platform;
 use crate::platform::RelaxSymbolInfo;
+use crate::platform::SectionAttributes as _;
 use crate::platform::SectionFlags as _;
 use crate::platform::Symbol as _;
 use crate::program_segments::ProgramSegmentId;
@@ -836,6 +837,15 @@ impl<'data, P: EnginePlatform> Layout<'data, P> {
             seg.alignment
                 .align_down(seg.mem_offset - linker_utils::aarch64::TLS_TCB_SIZE)
         })
+    }
+
+    pub(crate) fn tlv_data_start_address(&self) -> u64 {
+        self.output_sections
+            .ids_with_info()
+            .filter(|(_, info)| info.section_attributes.is_tls())
+            .map(|(id, _)| self.section_layouts.get(id).mem_offset)
+            .min()
+            .unwrap_or(0)
     }
 
     pub(crate) fn layout_data(&self) -> linker_layout::Layout {

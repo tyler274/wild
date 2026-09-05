@@ -1,5 +1,5 @@
+use super::super::DynamicLinker;
 use super::super::*;
-use crate::arch::SUPPORTED_EMULATIONS;
 use crate::arch::SUPPORTED_TARGETS;
 use crate::args::ArgumentParser;
 use crate::args::BSymbolicKind;
@@ -29,7 +29,11 @@ pub(crate) fn add_info_and_script_flags(parser: &mut ArgumentParser<ElfArgs>) {
 
             // The following listing is something autoconf detection relies on.
             writeln!(stdout, "wild: supported targets: {SUPPORTED_TARGETS}")?;
-            writeln!(stdout, "wild: supported emulations: {SUPPORTED_EMULATIONS}")?;
+            writeln!(
+                stdout,
+                "wild: supported emulations: {}",
+                super::super::supported_emulations()
+            )?;
 
             std::process::exit(0);
         });
@@ -84,7 +88,7 @@ pub(crate) fn add_info_and_script_flags(parser: &mut ArgumentParser<ElfArgs>) {
         .long("dynamic-linker")
         .help("Set dynamic linker path")
         .execute(|args, _modifier_stack, value| {
-            args.dynamic_linker = Some(Box::from(Path::new(value)));
+            args.dynamic_linker = DynamicLinker::Explicit(Box::from(Path::new(value)));
             Ok(())
         });
 
@@ -93,7 +97,7 @@ pub(crate) fn add_info_and_script_flags(parser: &mut ArgumentParser<ElfArgs>) {
         .long("no-dynamic-linker")
         .help("Omit the load-time dynamic linker request")
         .execute(|args, _modifier_stack| {
-            args.dynamic_linker = None;
+            args.dynamic_linker = DynamicLinker::Omit;
             Ok(())
         });
 

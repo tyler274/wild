@@ -1,6 +1,5 @@
 use super::super::*;
 use crate::alignment::Alignment;
-use crate::arch::Architecture;
 use crate::args::ArgumentParser;
 use crate::args::CopyRelocations;
 use crate::args::CopyRelocationsDisabledReason;
@@ -18,6 +17,7 @@ use object::elf::GNU_PROPERTY_X86_ISA_1_V4;
 use std::num::NonZero;
 use std::path::Path;
 use std::sync::Arc;
+use strum::EnumMessage as _;
 
 pub(crate) fn add_search_and_output_flags(parser: &mut ArgumentParser<ElfArgs>) {
     parser
@@ -92,52 +92,22 @@ pub(crate) fn add_search_and_output_flags(parser: &mut ArgumentParser<ElfArgs>) 
             Ok(())
         });
 
-    parser
+    let mut emulation_option = parser
         .declare_with_param()
         .prefix("m")
-        .help("Set target architecture")
-        .sub_option("elf_x86_64", "x86-64 ELF target", |args, _| {
-            args.arch = Architecture::X86_64;
-            Ok(())
-        })
-        .sub_option(
-            "elf_x86_64_sol2",
-            "x86-64 ELF target (Solaris)",
-            |args, _| {
-                if args.dynamic_linker.is_none() {
-                    args.dynamic_linker = Some(Path::new("/lib/amd64/ld.so.1").into());
-                }
-                args.arch = Architecture::X86_64;
-                Ok(())
-            },
-        )
-        .sub_option("aarch64elf", "AArch64 ELF target", |args, _| {
-            args.arch = Architecture::AArch64;
-            Ok(())
-        })
-        .sub_option("aarch64linux", "AArch64 ELF target (Linux)", |args, _| {
-            args.arch = Architecture::AArch64;
-            Ok(())
-        })
-        .sub_option("elf64lriscv", "RISC-V 64-bit ELF target", |args, _| {
-            args.arch = Architecture::RiscV64;
-            Ok(())
-        })
-        .sub_option(
-            "elf64loongarch",
-            "LoongArch 64-bit ELF target",
-            |args, _| {
-                args.arch = Architecture::LoongArch64;
-                Ok(())
-            },
-        )
-        .sub_option("elf64lppc", "PowerPC64 LE ELF target", |args, _| {
-            args.arch = Architecture::Ppc64;
-            Ok(())
-        })
-        .execute(|_args, _modifier_stack, value| {
-            bail!("-m {value} is not yet supported");
-        });
+        .help("Select linker emulation");
+
+    for (emulation, name) in super::super::emulations() {
+        emulation_option = emulation_option.sub_option_with_name(
+            name,
+            emulation.get_message().unwrap(),
+            super::super::set_command_line_emulation,
+        );
+    }
+
+    emulation_option.execute(|_args, _modifier_stack, value| {
+        bail!("-m {value} is not yet supported");
+    });
 
     parser
         .declare_with_param()

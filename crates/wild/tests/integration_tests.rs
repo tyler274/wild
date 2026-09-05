@@ -499,7 +499,7 @@ fn collect_tests(tests: &mut Vec<Trial>, filter: &Filter, test_config: &TestConf
                     ),
                 )?;
 
-                let program_inputs = ProgramInputs::new(primary_source_file.clone())?;
+                let program_inputs = ProgramInputs::new(primary_source_file);
 
                 for config in configs {
                     if config.should_skip(arch) {
@@ -583,7 +583,7 @@ struct WasmModuleInfo {
     memories: Vec<wasmparser::MemoryType>,
 }
 
-fn i32_const_from_expr(expr: wasmparser::ConstExpr<'_>) -> Option<i32> {
+fn i32_const_from_expr(expr: &wasmparser::ConstExpr<'_>) -> Option<i32> {
     let mut reader = expr.get_operators_reader();
     match reader.read().ok()? {
         wasmparser::Operator::I32Const { value } => Some(value),
@@ -665,7 +665,7 @@ impl WasmModuleInfo {
                         let global = global.with_context(|| {
                             format!("Invalid global entry in {}", path.display())
                         })?;
-                        defined_global_i32.push(i32_const_from_expr(global.init_expr));
+                        defined_global_i32.push(i32_const_from_expr(&global.init_expr));
                     }
                 }
                 Payload::ExportSection(section) => {
@@ -963,12 +963,7 @@ fn base_dir() -> &'static Path {
 }
 
 fn repo_root() -> PathBuf {
-    base_dir()
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .to_path_buf()
+    base_dir().parent().unwrap().parent().unwrap().to_path_buf()
 }
 
 fn build_dir() -> PathBuf {
@@ -1182,7 +1177,7 @@ const ALL_ARCHITECTURES: &[Architecture] = &[
 ];
 
 impl Architecture {
-    fn emulation_name(&self) -> &'static str {
+    fn emulation_name(self) -> &'static str {
         match self {
             Architecture::X86_64 => "elf_x86_64",
             Architecture::AArch64 => "aarch64elf",
@@ -1195,21 +1190,21 @@ impl Architecture {
 
     /// The architecture prefix used in target triples / cross-toolchain names. This differs from
     /// the short name (`Display`) for ppc64le, whose triple prefix is `powerpc64le`.
-    fn triple_arch(&self) -> String {
+    fn triple_arch(self) -> String {
         match self {
             Architecture::Ppc64 => "powerpc64le".to_owned(),
             _ => self.to_string(),
         }
     }
 
-    fn darwin_arch_name(&self) -> &'static str {
+    fn darwin_arch_name(self) -> &'static str {
         match self {
             Architecture::AArch64 => "arm64",
             _ => panic!("Unsupported architecture {self} for darwin"),
         }
     }
 
-    fn default_target_triple(&self, platform: PlatformKind) -> String {
+    fn default_target_triple(self, platform: PlatformKind) -> String {
         match platform {
             PlatformKind::Elf => {
                 if cfg!(target_os = "freebsd") {
@@ -1223,7 +1218,7 @@ impl Architecture {
         }
     }
 
-    fn default_target_triple_rustc(&self, platform: PlatformKind) -> String {
+    fn default_target_triple_rustc(self, platform: PlatformKind) -> String {
         match (platform, self) {
             (PlatformKind::Elf, Architecture::RiscV64) => "riscv64gc-unknown-linux-gnu".to_string(),
             (PlatformKind::Wasm, _) => "wasm32-wasip1".to_string(),
@@ -1231,7 +1226,7 @@ impl Architecture {
         }
     }
 
-    fn cross_triplet(&self) -> String {
+    fn cross_triplet(self) -> String {
         let arch = self.triple_arch();
         let suse_triplet = format!("{arch}-suse-linux");
         if std::path::Path::new(&format!("/usr/{suse_triplet}/sys-root")).exists() {
@@ -1240,7 +1235,7 @@ impl Architecture {
         format!("{arch}-linux-gnu")
     }
 
-    fn get_cross_sysroot_path(&self) -> String {
+    fn get_cross_sysroot_path(self) -> String {
         let triplet = self.cross_triplet();
         if triplet.ends_with("-suse-linux") {
             format!("/usr/{triplet}/sys-root")
@@ -1251,7 +1246,7 @@ impl Architecture {
 
     /// Returns extra library directories that should be added to `LD_LIBRARY_PATH` when running
     /// binaries under qemu.
-    fn qemu_extra_lib_paths(&self) -> Vec<String> {
+    fn qemu_extra_lib_paths(self) -> Vec<String> {
         let triplet = self.cross_triplet();
         let gcc_base = format!("/usr/lib64/gcc/{triplet}");
         let Ok(entries) = std::fs::read_dir(&gcc_base) else {
@@ -1326,7 +1321,7 @@ fn get_dynamic_linker(path: impl AsRef<Path>) -> Option<String> {
     // Remove null terminator.
     interp_data.pop();
 
-    String::from_utf8(interp_data.to_owned()).ok()
+    String::from_utf8(interp_data.clone()).ok()
 }
 
 #[allow(unreachable_code)]
@@ -1693,15 +1688,14 @@ fn check_sframe_support_for_arch(arch: Architecture) -> bool {
 ///
 /// TODO: This should be unnecessary once more various distributions have updated glibc.
 fn run_sframe_backtrace_test(arch: Architecture) -> bool {
-    let temp_dir = match tempfile::tempdir() {
-        Ok(d) => d,
-        Err(_) => return false,
+    let Ok(temp_dir) = tempfile::tempdir() else {
+        return false;
     };
 
     let source_path = temp_dir.path().join("sframe_test.c");
     let obj_path = temp_dir.path().join("sframe_test.o");
     let binary_path = temp_dir.path().join("sframe_test");
-    let test_code = r#"
+    let test_code = r"
 #define _GNU_SOURCE
 #include <execinfo.h>
 #include <stdlib.h>
@@ -1723,7 +1717,7 @@ __attribute__((noinline)) int inner(void) {
 int main(void) {
     return inner();
 }
-"#;
+";
 
     if std::fs::write(&source_path, test_code).is_err() {
         return false;
@@ -1751,14 +1745,10 @@ int main(void) {
         .arg(&obj_path);
 
     if let Some(ref sysroot) = sysroot {
-        compile_cmd.arg(format!("--sysroot={}", sysroot));
+        compile_cmd.arg(format!("--sysroot={sysroot}"));
     }
 
-    if !compile_cmd
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-    {
+    if !compile_cmd.output().is_ok_and(|o| o.status.success()) {
         return false;
     }
 
@@ -1766,20 +1756,16 @@ int main(void) {
     link_cmd.arg(&obj_path).arg("-o").arg(&binary_path);
 
     if let Some(ref sysroot) = sysroot {
-        link_cmd.arg(format!("--sysroot={}", sysroot));
+        link_cmd.arg(format!("--sysroot={sysroot}"));
     }
 
-    if !link_cmd
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-    {
+    if !link_cmd.output().is_ok_and(|o| o.status.success()) {
         return false;
     }
 
     // Remove .eh_frame and .eh_frame_hdr sections to force SFrame-only unwinding
     let objcopy = if is_cross {
-        format!("{}-linux-gnu-objcopy", arch)
+        format!("{arch}-linux-gnu-objcopy")
     } else {
         "objcopy".to_string()
     };
@@ -1790,7 +1776,7 @@ int main(void) {
         .arg(&binary_path)
         .output();
 
-    if !objcopy_result.map(|o| o.status.success()).unwrap_or(false) {
+    if !objcopy_result.is_ok_and(|o| o.status.success()) {
         return false;
     }
 
@@ -2157,14 +2143,14 @@ struct ArgumentSet {
 }
 
 impl ArgumentSet {
-    fn parse(s: &str) -> Result<ArgumentSet> {
-        Ok(ArgumentSet {
+    fn parse(s: &str) -> ArgumentSet {
+        ArgumentSet {
             args: s
                 .split(' ')
                 .map(str::to_owned)
                 .filter(|s| !s.is_empty())
                 .collect(),
-        })
+        }
     }
 
     fn default_for_compiling() -> Self {
@@ -2290,7 +2276,7 @@ fn parse_configs(src_filename: &Path, default_config: &Config) -> Result<Vec<Con
                 &mut configs,
                 is_rust,
             )
-            .with_context(|| format!("problematic directive line: '{}'", rest))
+            .with_context(|| format!("problematic directive line: '{rest}'"))
             .with_context(|| {
                 format!(
                     "Failed to process test directive {}:{}",
@@ -2454,7 +2440,7 @@ fn process_directive(
             if config.variant_num.is_some() {
                 bail!("Variant can only be specified once per config");
             }
-            config.variant_num = Some(arg.parse()?)
+            config.variant_num = Some(arg.parse()?);
         }
         "LinkArgs" => {
             if is_rust {
@@ -2467,9 +2453,9 @@ fn process_directive(
                 config.tracked_files.push(src_path.clone());
                 let with_replaced_path =
                     arg.replace(&format!("./{filename}"), &src_path.display().to_string());
-                config.linker_args = ArgumentSet::parse(&with_replaced_path)?
+                config.linker_args = ArgumentSet::parse(&with_replaced_path);
             } else {
-                config.linker_args = ArgumentSet::parse(&arg)?
+                config.linker_args = ArgumentSet::parse(&arg);
             }
         }
         "PostLinkArgs" => {
@@ -2477,7 +2463,7 @@ fn process_directive(
                 bail!("PostLinkArgs is not used when building Rust code");
             }
             let arg = expand_test_arg_placeholders(arg, config);
-            config.post_linker_args = ArgumentSet::parse(&arg)?
+            config.post_linker_args = ArgumentSet::parse(&arg);
         }
         "LinkSoArgs" => {
             if is_rust {
@@ -2490,9 +2476,9 @@ fn process_directive(
                 config.tracked_files.push(src_path.clone());
                 let with_replaced_path =
                     arg.replace(&format!("./{filename}"), &src_path.display().to_string());
-                config.linker_so_args = ArgumentSet::parse(&with_replaced_path)?
+                config.linker_so_args = ArgumentSet::parse(&with_replaced_path)
             } else {
-                config.linker_so_args = ArgumentSet::parse(&arg)?
+                config.linker_so_args = ArgumentSet::parse(&arg)
             }
         }
         "SoSingleLinker" => {
@@ -2505,14 +2491,14 @@ fn process_directive(
         "LinkerDriver" => {
             config.linker_driver = LinkerDriver::parse(arg)?;
         }
-        "WildExtraLinkArgs" => config.wild_extra_linker_args = ArgumentSet::parse(arg)?,
+        "WildExtraLinkArgs" => config.wild_extra_linker_args = ArgumentSet::parse(arg),
         "CompArgs" => {
             let arg = expand_test_arg_placeholders(arg, config);
-            config.compiler_args = ArgumentSet::parse(&arg)?
+            config.compiler_args = ArgumentSet::parse(&arg);
         }
         "CompSoArgs" => {
             let arg = expand_test_arg_placeholders(arg, config);
-            config.compiler_so_args = ArgumentSet::parse(&arg)?
+            config.compiler_so_args = ArgumentSet::parse(&arg);
         }
         "ExpectSym" => config
             .assertions
@@ -2629,7 +2615,7 @@ fn process_directive(
             .absent_dynamic_entries
             .push(arg.to_owned()),
         "ExpectLoadAlignment" => {
-            let alignment_strs = arg.split(" ").map(str::trim);
+            let alignment_strs = arg.split(' ').map(str::trim);
             let alignments = alignment_strs.map(parse_number);
             config.assertions.expected_load_alignments =
                 alignments.collect::<Result<Vec<u64>>>()?;
@@ -2700,7 +2686,7 @@ fn process_directive(
         }
         "Cross" => config.cross_enabled = arg.parse()?,
         "SkipOverlapSegmentsCheck" => {
-            config.assertions.skip_overlap_segments_check = arg.parse()?
+            config.assertions.skip_overlap_segments_check = arg.parse()?;
         }
         "ExpectError" => {
             config.expect_stderr.push(ErrorMatcher::new(arg)?);
@@ -2768,12 +2754,12 @@ fn process_directive(
             }
 
             let files = arg
-                .split(",")
+                .split(',')
                 .map(|arg| {
-                    let (filename, comp_args) = arg.split_once(":").unwrap_or((arg, ""));
+                    let (filename, comp_args) = arg.split_once(':').unwrap_or((arg, ""));
                     Ok(FilenameArgumentPair::new(
                         &config.source_path(filename),
-                        ArgumentSet::parse(comp_args)?,
+                        ArgumentSet::parse(comp_args),
                     ))
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -2784,7 +2770,7 @@ fn process_directive(
                 template,
                 output_path,
                 auto_add,
-            })
+            });
         }
         "RemoveSection" => config.remove_sections.push(arg.to_owned()),
         "AssertOutputFileMatches" => {
@@ -2797,14 +2783,14 @@ fn process_directive(
         "Arch" => {
             config.support_architectures = arg
                 .trim()
-                .split(",")
+                .split(',')
                 .map(|arch| Architecture::parse(arch.trim()))
                 .collect::<Result<Vec<_>, _>>()?;
         }
         "SkipArch" => {
             let skipped = arg
                 .trim()
-                .split(",")
+                .split(',')
                 .map(|arch| Architecture::parse(arch.trim()))
                 .collect::<Result<Vec<_>, _>>()?;
             config.support_architectures = ALL_ARCHITECTURES
@@ -2816,7 +2802,7 @@ fn process_directive(
         "RequiresGlibc" => config.requires_glibc = arg.parse()?,
         "RequiresGlibcVersion" => {
             config.requires_glibc = true;
-            config.requires_glibc_version = Some(arg.to_owned())
+            config.requires_glibc_version = Some(arg.to_owned());
         }
         "RequiresSFrameBacktrace" => {
             config.requires_sframe_backtrace = arg.parse()?;
@@ -2882,8 +2868,8 @@ fn process_directive(
 }
 
 impl ProgramInputs {
-    fn new(source_file: PathBuf) -> Result<Self> {
-        Ok(Self { source_file })
+    fn new(source_file: PathBuf) -> Self {
+        Self { source_file }
     }
 
     fn build<'a>(
@@ -3316,7 +3302,7 @@ fn remove_sections(
     cross_arch: Option<Architecture>,
 ) -> Result {
     let objcopy = match cross_arch {
-        Some(arch) => format!("{}-linux-gnu-objcopy", arch),
+        Some(arch) => format!("{arch}-linux-gnu-objcopy"),
         None => "objcopy".to_owned(),
     };
 
@@ -3473,12 +3459,11 @@ impl LinkOutput {
                 let _ = recv.read_to_end(&mut output);
             });
 
-            match child.wait_timeout(TEST_BINARY_TIMEOUT)? {
-                Some(s) => Ok(s),
-                None => {
-                    child.kill()?;
-                    bail!("Binary ran for too long");
-                }
+            if let Some(s) = child.wait_timeout(TEST_BINARY_TIMEOUT)? {
+                Ok(s)
+            } else {
+                child.kill()?;
+                bail!("Binary ran for too long");
             }
         })?;
 
@@ -3734,10 +3719,10 @@ fn build_linker_input(
 
                 match fat_kind {
                     FatKind::Bit32 => {
-                        make_macho_fat_file::<object::read::macho::FatArch32>(&fat_path, &path)?
+                        make_macho_fat_file::<object::read::macho::FatArch32>(&fat_path, &path)?;
                     }
                     FatKind::Bit64 => {
-                        make_macho_fat_file::<object::read::macho::FatArch64>(&fat_path, &path)?
+                        make_macho_fat_file::<object::read::macho::FatArch64>(&fat_path, &path)?;
                     }
                 }
 
@@ -3783,10 +3768,14 @@ fn build_linker_input(
 
                 match fat_kind {
                     FatKind::Bit32 => {
-                        make_macho_fat_file::<object::read::macho::FatArch32>(&fat_path, &obj_path)?
+                        make_macho_fat_file::<object::read::macho::FatArch32>(
+                            &fat_path, &obj_path,
+                        )?;
                     }
                     FatKind::Bit64 => {
-                        make_macho_fat_file::<object::read::macho::FatArch64>(&fat_path, &obj_path)?
+                        make_macho_fat_file::<object::read::macho::FatArch64>(
+                            &fat_path, &obj_path,
+                        )?;
                     }
                 }
 
@@ -4004,7 +3993,7 @@ fn build_obj(
 
     // If we haven't run previously or we're compiling rust code, there won't be a deps file. In
     // that case, our deps is just the source file.
-    let deps = parse_deps_file(&deps_path).unwrap_or_else(|_| vec![src_path.to_owned()]);
+    let deps = parse_deps_file(&deps_path).unwrap_or_else(|_| vec![src_path.clone()]);
 
     command.arg(&src_path);
 
@@ -4194,7 +4183,7 @@ fn add_rustc_compile_args(
                 "--target={}",
                 arch.default_target_triple_rustc(config.platform)
             ));
-            arch.default_target_triple(config.platform).to_owned()
+            arch.default_target_triple(config.platform)
         });
         if config.platform != PlatformKind::Wasm {
             let target_underscore = target.replace('-', "_");
@@ -4259,8 +4248,8 @@ fn add_cross_args(
 
     if !platform.is_host() || cross_arch.is_some() {
         let arch = cross_arch.unwrap_or_else(get_host_architecture);
-        let target = get_target(compiler_args)
-            .unwrap_or_else(|_| arch.default_target_triple(platform).to_owned());
+        let target =
+            get_target(compiler_args).unwrap_or_else(|_| arch.default_target_triple(platform));
         command.arg(format!("--target={target}"));
 
         // Debian sets sysroot to `/` and uses real paths for libraries in linker scripts.
@@ -4272,7 +4261,7 @@ fn add_cross_args(
 }
 
 impl RustcChannel {
-    fn as_arg(&self) -> Option<&'static str> {
+    fn as_arg(self) -> Option<&'static str> {
         match self {
             RustcChannel::Stable => Some("+stable"),
             RustcChannel::Beta => Some("+beta"),
@@ -4482,15 +4471,13 @@ fn parse_deps_file(depfile: &Path) -> std::io::Result<Vec<PathBuf>> {
         }
         let line = buf.trim_end_matches(['\r', '\n']);
 
-        let frag = if !started {
-            if let Some(i) = line.find(':') {
-                started = true;
-                &line[i + 1..]
-            } else {
-                continue;
-            }
-        } else {
+        let frag = if started {
             line
+        } else if let Some(i) = line.find(':') {
+            started = true;
+            &line[i + 1..]
+        } else {
+            continue;
         };
 
         let (frag, cont) = if frag.ends_with('\\') {
@@ -4815,7 +4802,7 @@ impl LinkCommand {
             inputs: inputs.to_vec(),
             input_commands: inputs
                 .iter()
-                .filter_map(|input| input.command.as_ref().cloned())
+                .filter_map(|input| input.command.clone())
                 .collect(),
             linker: linker.clone(),
             config: config.clone(),
@@ -5364,11 +5351,11 @@ impl Assertions {
             "dynsym",
         )?;
         self.verify_elf_entry(&obj)?;
-        self.verify_symbols_absent(&self.no_sym, obj.symbols(), "symtab")?;
+        Self::verify_symbols_absent(&self.no_sym, obj.symbols(), "symtab")?;
         self.verify_expected_sections(&obj)?;
         self.verify_absent_sections(&obj)?;
         self.verify_section_bytes(&obj)?;
-        self.verify_eh_frame_terminator(&obj, linker_used)?;
+        Self::verify_eh_frame_terminator(&obj, linker_used)?;
         self.verify_relr_count(&obj)?;
         self.verify_gdb_index_cu_count(&obj)?;
         self.verify_gdb_index_symbols(&obj)?;
@@ -5384,8 +5371,8 @@ impl Assertions {
                 self.verify_comment_section(&elf_obj, linker_used)?;
                 self.verify_load_alignment(&elf_obj)?;
                 self.verify_dynamic_entries(&elf_obj)?;
-                self.verify_symbols_absent(&self.no_sym, elf_obj.dynamic_symbols(), "dynsym")?;
-                self.verify_symbols_absent(&self.no_dynsym, elf_obj.dynamic_symbols(), "dynsym")?;
+                Self::verify_symbols_absent(&self.no_sym, elf_obj.dynamic_symbols(), "dynsym")?;
+                Self::verify_symbols_absent(&self.no_dynsym, elf_obj.dynamic_symbols(), "dynsym")?;
                 self.verify_program_headers(&elf_obj)?;
                 self.verify_section_max_entries(&elf_obj)?;
             }
@@ -5440,7 +5427,7 @@ impl Assertions {
         }
 
         self.verify_macho_entry(obj)?;
-        self.verify_symbols_absent(&self.no_sym, obj.symbols(), "symtab")?;
+        Self::verify_symbols_absent(&self.no_sym, obj.symbols(), "symtab")?;
         self.verify_expected_sections(obj)?;
         self.verify_absent_sections(obj)?;
         self.verify_section_bytes(obj)?;
@@ -5749,7 +5736,7 @@ impl Assertions {
             distinct_cus.len(),
             {
                 let mut v: Vec<_> = distinct_cus.iter().copied().collect();
-                v.sort();
+                v.sort_unstable();
                 v
             }
         );
@@ -5777,7 +5764,7 @@ impl Assertions {
         Ok(())
     }
 
-    fn verify_eh_frame_terminator(&self, obj: &object::File, linker: &Linker) -> Result {
+    fn verify_eh_frame_terminator(obj: &object::File, linker: &Linker) -> Result {
         // BFD fails this check for at least one of our tests.
         if linker.is_bfd() {
             return Ok(());
@@ -5827,7 +5814,7 @@ impl Assertions {
                 count += 1;
             } else {
                 // Bitmap entry - count set bits excluding LSB marker.
-                count += (val >> 1).count_ones() as u64;
+                count += u64::from((val >> 1).count_ones());
             }
             i += 8;
         }
@@ -5932,7 +5919,7 @@ impl Assertions {
         {
             bail!("Wild identity missing from .comment");
         }
-        for expected in self.expected_comments.iter() {
+        for expected in &self.expected_comments {
             if let Some(expected) = expected.strip_suffix('*') {
                 if !actual_comments
                     .iter()
@@ -5990,7 +5977,6 @@ impl Assertions {
     }
 
     fn verify_symbols_absent<'a, I>(
-        &self,
         absent_syms: &HashSet<String>,
         symbols: I,
         table_name: &str,
@@ -6095,7 +6081,7 @@ impl Assertions {
         let mut header_sections = Vec::with_capacity(headers.len());
         let mut header_types = HashSet::new();
         for header in headers {
-            header_sections.push(self.get_sections_in_segment(obj, header));
+            header_sections.push(Self::get_sections_in_segment(obj, header));
             header_types.insert(header.p_type(endian).0);
         }
 
@@ -6142,7 +6128,10 @@ impl Assertions {
                         continue;
                     }
 
-                    if !expected_sections.is_empty() {
+                    if expected_sections.is_empty() {
+                        found = true;
+                        break;
+                    } else {
                         let mut has_wildcard = false;
                         let mut sections_found = 0;
 
@@ -6163,9 +6152,6 @@ impl Assertions {
                             found = true;
                             break;
                         }
-                    } else {
-                        found = true;
-                        break;
                     }
                 }
             }
@@ -6193,7 +6179,6 @@ impl Assertions {
     }
 
     fn get_sections_in_segment<'data>(
-        &self,
         obj: &object::read::elf::ElfFile64<'data, object::Endianness>,
         header: &object::elf::ProgramHeader64<object::Endianness>,
     ) -> HashSet<&'data str> {
@@ -6582,8 +6567,7 @@ fn verify_macho_tlv_template_layout(obj: &object::File) -> Result {
     ensure!(
         matches!(
             types.as_slice(),
-            [S_THREAD_LOCAL_REGULAR]
-                | [S_THREAD_LOCAL_ZEROFILL]
+            [S_THREAD_LOCAL_REGULAR | S_THREAD_LOCAL_ZEROFILL]
                 | [S_THREAD_LOCAL_REGULAR, S_THREAD_LOCAL_ZEROFILL]
         ),
         "Mach-O TLV template sections must be contiguous: {}",
@@ -6772,6 +6756,7 @@ fn verify_uuid(obj: &object::File, bytes: &[u8]) -> Result {
     Ok(())
 }
 
+#[allow(clippy::wildcard_imports)]
 fn dynamic_tag_name(tag: object::elf::DynamicTag) -> Option<&'static str> {
     use object::elf::*;
     Some(match tag {
@@ -6832,7 +6817,7 @@ fn lookup_line_for_symbol(obj: &object::File, sym_address: u64) -> Result<Option
         match obj.section_by_name(id.name()) {
             Some(section) => section
                 .uncompressed_data()
-                .map_err(|e| libwild::error::Error::from(format!("Failed to read section: {}", e))),
+                .map_err(|e| libwild::error::Error::from(format!("Failed to read section: {e}"))),
             None => Ok(std::borrow::Cow::Borrowed(&[])),
         }
     };
@@ -7058,7 +7043,7 @@ where
             "Missing expected symbol(s) in {context_name}: {}",
             missing.join(", ")
         );
-    };
+    }
 
     Ok(())
 }
@@ -7121,9 +7106,9 @@ impl Compiler {
         }
     }
 
-    fn c_language(&self) -> CLanguage {
+    fn c_language(self) -> CLanguage {
         match self {
-            Compiler::Gcc(lang) | Compiler::Clang(lang) => *lang,
+            Compiler::Gcc(lang) | Compiler::Clang(lang) => lang,
         }
     }
 }
@@ -7261,7 +7246,7 @@ impl Clone for LinkCommand {
     fn clone(&self) -> Self {
         Self {
             command: clone_command(&self.command),
-            input_commands: self.input_commands.to_vec(),
+            input_commands: self.input_commands.clone(),
             linker: self.linker.clone(),
             invocation_mode: self.invocation_mode,
             opt_save_dir: self.opt_save_dir.clone(),
@@ -7447,7 +7432,7 @@ fn create_diff_config(config: &Config, files: Vec<PathBuf>) -> Result<linker_dif
         .equiv
         .extend(config.section_equiv.iter().cloned());
     diff_config.match_any = config.diff_match_any;
-    diff_config.references = files.clone();
+    diff_config.references = files;
     diff_config.file = diff_config
         .references
         .pop()
@@ -7483,7 +7468,7 @@ fn setup_wild_ld_symlink() -> Result {
                 wild_ld_path.display(),
                 wild.display()
             )
-        })?
+        })?;
     }
     Ok(())
 }
@@ -7578,7 +7563,7 @@ fn should_print_timing() -> bool {
 }
 
 impl LinkerInvocationMode {
-    fn format_arg(&self, arg: &str) -> String {
+    fn format_arg(self, arg: &str) -> String {
         match self {
             LinkerInvocationMode::Direct | LinkerInvocationMode::Script => arg.to_owned(),
             LinkerInvocationMode::Cc => {
@@ -7721,7 +7706,7 @@ fn available_linkers_for_mac() -> Result<LinkerCatalog> {
     })
 }
 
-fn available_linkers_for_wasm() -> Result<Vec<Linker>> {
+fn available_linkers_for_wasm() -> Vec<Linker> {
     let mut linkers = Vec::new();
 
     if let Ok(path) = find_bin(&["wasm-ld"]) {
@@ -7737,7 +7722,7 @@ fn available_linkers_for_wasm() -> Result<Vec<Linker>> {
 
     linkers.push(Linker::Wild);
 
-    Ok(linkers)
+    linkers
 }
 
 fn run_with_config(
@@ -8184,7 +8169,7 @@ fn verify_linker_plugin_requirements(
                     .output()
                     .context("Can't execute compiler with -dumpversion")?;
                 let compiler_version = String::from_utf8_lossy(&output.stdout)
-                    .split_once(".")
+                    .split_once('.')
                     .and_then(|version| version.0.parse::<u64>().ok())
                     .context("Can't parse compiler version")?;
 
@@ -8267,7 +8252,7 @@ fn read_test_config() -> Result<TestConfig> {
         })?;
 
         toml::from_str(&config_content)
-            .with_context(|| format!("Unable to load config from {config_path:?}"))?
+            .with_context(|| format!("Unable to load config from `{}`", config_path.display()))?
     } else if config_path == config_default_path {
         TestConfig::default()
     } else {
@@ -8337,7 +8322,7 @@ impl PlatformKind {
             PlatformKind::Elf => available_linkers_for_linux(),
             PlatformKind::MachO => available_linkers_for_mac(),
             PlatformKind::Wasm => Ok(LinkerCatalog {
-                available: available_linkers_for_wasm()?,
+                available: available_linkers_for_wasm(),
                 unavailable: Vec::new(),
             }),
         }
@@ -8377,7 +8362,7 @@ impl PlatformKind {
         })
     }
 
-    fn intermediate_extension(&self, kind: IntermediateKind) -> Result<&'static str> {
+    fn intermediate_extension(self, kind: IntermediateKind) -> Result<&'static str> {
         Ok(match (self, kind) {
             (PlatformKind::Elf, IntermediateKind::Shared) => "so",
             (PlatformKind::Elf, IntermediateKind::Partial) => "o",

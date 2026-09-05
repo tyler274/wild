@@ -36,7 +36,7 @@ pub(crate) fn link_for_arch<'data, F: FileSystem>(
     linker: &'data crate::Linker<F>,
     args: &'data ElfArgs,
 ) -> Result<crate::LinkerOutput<'data>> {
-    match args.arch {
+    match args.architecture() {
         crate::arch::Architecture::X86_64 => {
             linker.link_for_arch::<Elf64, crate::elf_x86_64::ElfX86_64>(args)
         }

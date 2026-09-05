@@ -105,12 +105,12 @@ impl<'data, C: ElfClass> platform::ObjectFile<'data> for File<'data, C> {
 
         let file = Self::parse_bytes(input.data, is_dynamic)?;
 
-        if file.arch != args.arch {
+        if file.arch != args.architecture() {
             bail!(
                 "`{}` has incompatible architecture: {}, expecting {}",
                 input,
                 file.arch,
-                args.arch,
+                args.architecture(),
             )
         }
 
