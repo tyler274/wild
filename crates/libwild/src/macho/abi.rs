@@ -182,6 +182,13 @@ impl platform::Platform for MachO {
     type LayoutRulesBuilder<'data> = crate::layout_rules::LayoutRulesBuilder<'data>;
     type InternalSymbolsBuilder<'data> = crate::parsing::InternalSymbolsBuilder<'data, Self>;
     type InternalSymDefInfo<'data> = crate::parsing::InternalSymDefInfo<'data, Self>;
+    type OutputSections<'data> = crate::output_section_id::OutputSections<'data, Self>;
+    type OutputOrder<'data> = crate::output_section_id::OutputOrder<'data>;
+    type CustomSectionIds = crate::output_section_id::CustomSectionIds;
+    type FileWriterOutput<F: crate::fs::FileSystem> = crate::file_writer::Output<F>;
+    type LocationCounter<'data> = crate::layout_rules::LocationCounter<'data>;
+    type SectionOutputInfo<'data> = crate::output_section_id::SectionOutputInfo<'data, Self>;
+    type FileKind = crate::file_kind::FileKind;
 
     /// Mach-O sections are associated with a SegmentName, while synthetic regions (FILE_HEADER,
     /// LOAD_COMMANDS, etc.) are not.
@@ -882,15 +889,15 @@ impl platform::Platform for MachO {
     }
 
     fn build_output_order_and_program_segments<'data>(
-        custom: &crate::output_section_id::CustomSectionIds,
+        custom: &Self::CustomSectionIds,
         output_kind: OutputKind,
-        output_sections: &crate::output_section_id::OutputSections<'data, Self>,
+        output_sections: &Self::OutputSections<'data>,
         secondary: &crate::output_section_map::OutputSectionMap<
             Vec<crate::output_section_id::OutputSectionId>,
         >,
-        _location_counters: &[crate::layout_rules::LocationCounter<'data>],
+        _location_counters: &[Self::LocationCounter<'data>],
     ) -> (
-        crate::output_section_id::OutputOrder<'data>,
+        Self::OutputOrder<'data>,
         crate::program_segments::ProgramSegments<Self::ProgramSegmentDef>,
     ) {
         // TODO: Order sections within each segment according to Mach-O conventions.

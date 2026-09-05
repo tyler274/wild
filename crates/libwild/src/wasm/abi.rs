@@ -587,6 +587,13 @@ impl platform::Platform for Wasm {
     type LayoutRulesBuilder<'data> = crate::layout_rules::LayoutRulesBuilder<'data>;
     type InternalSymbolsBuilder<'data> = crate::parsing::InternalSymbolsBuilder<'data, Self>;
     type InternalSymDefInfo<'data> = crate::parsing::InternalSymDefInfo<'data, Self>;
+    type OutputSections<'data> = crate::output_section_id::OutputSections<'data, Self>;
+    type OutputOrder<'data> = crate::output_section_id::OutputOrder<'data>;
+    type CustomSectionIds = crate::output_section_id::CustomSectionIds;
+    type FileWriterOutput<F: crate::fs::FileSystem> = crate::file_writer::Output<F>;
+    type LocationCounter<'data> = crate::layout_rules::LocationCounter<'data>;
+    type SectionOutputInfo<'data> = crate::output_section_id::SectionOutputInfo<'data, Self>;
+    type FileKind = crate::file_kind::FileKind;
 
     fn write_output_file<'data, A: platform::Arch<Platform = Self>, F: FileSystem>(
         output: &crate::file_writer::Output<F>,
@@ -1101,15 +1108,15 @@ impl platform::Platform for Wasm {
     }
 
     fn build_output_order_and_program_segments<'data>(
-        _custom: &crate::output_section_id::CustomSectionIds,
+        _custom: &Self::CustomSectionIds,
         output_kind: crate::output_kind::OutputKind,
-        output_sections: &crate::output_section_id::OutputSections<'data, Self>,
+        output_sections: &Self::OutputSections<'data>,
         secondary: &crate::output_section_map::OutputSectionMap<
             Vec<crate::output_section_id::OutputSectionId>,
         >,
-        _location_counters: &[crate::layout_rules::LocationCounter<'data>],
+        _location_counters: &[Self::LocationCounter<'data>],
     ) -> (
-        crate::output_section_id::OutputOrder<'data>,
+        Self::OutputOrder<'data>,
         crate::program_segments::ProgramSegments<Self::ProgramSegmentDef>,
     ) {
         use crate::wasm::output_section_id as osid;

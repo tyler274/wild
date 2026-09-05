@@ -22,7 +22,6 @@ use crate::timing_phase;
 use jobserver::Acquired;
 use jobserver::Client;
 use rayon::ThreadPoolBuilder;
-use std::fmt::Display;
 use std::num::NonZeroUsize;
 use std::path::Path;
 use std::sync::Arc;
@@ -110,11 +109,7 @@ pub enum CounterKind {
     L1dMiss,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RelocationModel {
-    Fixed,
-    PositionIndependent,
-}
+pub(crate) use crate::platform::RelocationModel;
 
 impl Default for CommonArgs {
     fn default() -> Self {
@@ -359,34 +354,8 @@ impl std::fmt::Debug for Args {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum CopyRelocations {
-    Allowed,
-    Disallowed(CopyRelocationsDisabledReason),
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum CopyRelocationsDisabledReason {
-    Unsupported,
-    Flag,
-    SharedObject,
-}
-
-impl Display for CopyRelocationsDisabledReason {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Reason should make sense after the word "because".
-        let reason = match self {
-            CopyRelocationsDisabledReason::Unsupported => {
-                "target platform doesn't support copy relocations"
-            }
-            CopyRelocationsDisabledReason::Flag => "the flag -z nocopyreloc was supplied",
-            CopyRelocationsDisabledReason::SharedObject => "output is a shared object",
-        };
-
-        Display::fmt(&reason, f)
-    }
-}
-
+pub(crate) use crate::platform::CopyRelocations;
+pub(crate) use crate::platform::CopyRelocationsDisabledReason;
 pub(crate) use wild_scripts::Input;
 pub(crate) use wild_scripts::InputSpec;
 pub use wild_scripts::Modifiers;
@@ -400,20 +369,7 @@ pub(crate) enum BSymbolicKind {
     NonWeak,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum UnresolvedSymbols {
-    /// Report all unresolved symbols.
-    ReportAll,
-
-    /// Ignore unresolved symbols in shared libraries.
-    IgnoreInSharedLibs,
-
-    /// Ignore unresolved symbols in object files.
-    IgnoreInObjectFiles,
-
-    /// Ignore all unresolved symbols.
-    IgnoreAll,
-}
+pub(crate) use crate::platform::UnresolvedSymbols;
 
 pub(crate) fn parse_time_phase_options(input: &str) -> Result<Vec<CounterKind>> {
     input.split(',').map(|s| s.parse()).collect()

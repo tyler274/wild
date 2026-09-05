@@ -284,7 +284,9 @@ impl<F: FileSystem> Linker<F> {
         args: &'data P::Args,
     ) -> error::Result<LinkerOutput<'data>>
     where
-        P: EnginePlatform + Platform<FileLoader<'data, F> = input_data::FileLoader<'data, F>>,
+        P: EnginePlatform
+            + Platform<FileLoader<'data, F> = input_data::FileLoader<'data, F>>
+            + Platform<FileWriterOutput<F> = file_writer::Output<F>>,
         A: Arch<Platform = P>,
     {
         let mut file_loader = input_data::FileLoader::new(
@@ -335,7 +337,9 @@ impl<F: FileSystem> Linker<F> {
         args: &'data P::Args,
     ) -> error::Result<LinkerOutput<'data>>
     where
-        P: EnginePlatform + Platform<FileLoader<'data, F> = input_data::FileLoader<'data, F>>,
+        P: EnginePlatform
+            + Platform<FileLoader<'data, F> = input_data::FileLoader<'data, F>>
+            + Platform<FileWriterOutput<F> = file_writer::Output<F>>,
         A: Arch<Platform = P>,
     {
         let mut plugin = P::maybe_init_linker_plugin(args, &self.linker_plugin_arena, &self.herd)?;

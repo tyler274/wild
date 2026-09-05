@@ -11,10 +11,7 @@ use crate::fs::FileReplacementMode;
 use crate::layout_rules::SectionRule;
 use crate::layout_rules::SectionRuleOutcome;
 use crate::linker_script;
-use crate::output_section_id::CustomSectionIds;
-use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::OutputSections;
 use crate::output_section_id::SectionIdentity;
 use crate::output_section_id::SectionName;
 use crate::output_section_map::OutputSectionMap;
@@ -192,9 +189,16 @@ pub(crate) trait Platform:
     type LayoutRulesBuilder<'data>;
     type InternalSymbolsBuilder<'data>;
     type InternalSymDefInfo<'data>;
+    type OutputSections<'data>;
+    type OutputOrder<'data>;
+    type CustomSectionIds;
+    type FileWriterOutput<F: crate::fs::FileSystem>;
+    type LocationCounter<'data>;
+    type SectionOutputInfo<'data>;
+    type FileKind;
 
     fn write_output_file<'data, A: Arch<Platform = Self>, F: FileSystem>(
-        output: &crate::file_writer::Output<F>,
+        output: &Self::FileWriterOutput<F>,
         layout: &Self::Layout<'data>,
     ) -> Result;
 
@@ -221,7 +225,7 @@ pub(crate) trait Platform:
         _resolver: &mut Self::Resolver<'data>,
         _file_loader: &mut Self::FileLoader<'data, F>,
         _per_symbol_flags: &mut PerSymbolFlags,
-        _output_sections: &mut OutputSections<'data, Self>,
+        _output_sections: &mut Self::OutputSections<'data>,
         _layout_rules_builder: &mut Self::LayoutRulesBuilder<'data>,
     ) -> Result {
         // Platforms that implement maybe_init_linker_plugin must implement this method too.
@@ -239,7 +243,7 @@ pub(crate) trait Platform:
     }
 
     /// Returns whether the supplied file kind is permitted in archives.
-    fn is_allowed_in_archive(_kind: crate::file_kind::FileKind) -> bool {
+    fn is_allowed_in_archive(_kind: Self::FileKind) -> bool {
         false
     }
 
@@ -426,11 +430,11 @@ pub(crate) trait Platform:
     }
 
     fn validate_section<'data>(
-        _section_info: &crate::output_section_id::SectionOutputInfo<Self>,
+        _section_info: &Self::SectionOutputInfo<'data>,
         _section_flags: Self::SectionFlags,
         _section_layout: &Self::OutputRecordLayout,
         _merge_target: OutputSectionId,
-        _output_sections: &OutputSections<'data, Self>,
+        _output_sections: &Self::OutputSections<'data>,
         _section_id: OutputSectionId,
     ) -> Result {
         Ok(())
@@ -439,8 +443,8 @@ pub(crate) trait Platform:
     /// Called when we detect an internal error with allocation in order to try and help determine
     /// what we did wrong. Can optionally return a more helpful error.
     fn verify_resolution_allocation<A: Arch<Platform = Self>>(
-        _output_sections: &OutputSections<Self>,
-        _output_order: &OutputOrder<'_>,
+        _output_sections: &Self::OutputSections<'_>,
+        _output_order: &Self::OutputOrder<'_>,
         _output_kind: OutputKind,
         _mem_sizes: &OutputSectionPartMap<u64>,
         _resolution: &Self::Resolution,
@@ -469,7 +473,7 @@ pub(crate) trait Platform:
     /// Returns whether the specified section should be included in the specified segment.
     fn program_segment_should_include_section(
         segment_def: Self::ProgramSegmentDef,
-        section_info: &crate::output_section_id::SectionOutputInfo<Self>,
+        section_info: &Self::SectionOutputInfo<'_>,
         section_id: OutputSectionId,
         rosegment: bool,
     ) -> bool;
@@ -480,8 +484,7 @@ pub(crate) trait Platform:
         args: &Self::Args,
     );
 
-    fn built_in_section_infos<'data>()
-    -> Vec<crate::output_section_id::SectionOutputInfo<'data, Self>>;
+    fn built_in_section_infos<'data>() -> Vec<Self::SectionOutputInfo<'data>>;
 
     fn create_finalise_sizes_ext<'data, 'states, 'files, A: Arch<Platform = Self>>(
         args: &Self::Args,
@@ -614,7 +617,7 @@ pub(crate) trait Platform:
         sizes: &mut OutputSectionPartMap<u64>,
         header_info: &Self::HeaderInfo,
         program_segments: &ProgramSegments<Self::ProgramSegmentDef>,
-        output_sections: &OutputSections<Self>,
+        output_sections: &Self::OutputSections<'_>,
         resources: &Self::FinaliseSizesResources<'data, '_>,
         args: &Self::Args,
     );
@@ -755,21 +758,27 @@ pub(crate) trait Platform:
     }
 
     fn build_output_order_and_program_segments<'data>(
-        custom: &CustomSectionIds,
+        custom: &Self::CustomSectionIds,
         output_kind: OutputKind,
-        output_sections: &OutputSections<'data, Self>,
+        output_sections: &Self::OutputSections<'data>,
         secondary: &OutputSectionMap<Vec<OutputSectionId>>,
-        location_counters: &[crate::layout_rules::LocationCounter<'data>],
-    ) -> (OutputOrder<'data>, ProgramSegments<Self::ProgramSegmentDef>);
+        location_counters: &[Self::LocationCounter<'data>],
+    ) -> (
+        Self::OutputOrder<'data>,
+        ProgramSegments<Self::ProgramSegmentDef>,
+    );
 
     fn build_custom_output_order_and_program_segments<'data>(
-        custom: &CustomSectionIds,
+        custom: &Self::CustomSectionIds,
         output_kind: OutputKind,
-        output_sections: &OutputSections<'data, Self>,
+        output_sections: &Self::OutputSections<'data>,
         secondary: &OutputSectionMap<Vec<OutputSectionId>>,
         _linker_scripts: &[&Self::SequencedLinkerScript<'data>],
-        location_counters: &[crate::layout_rules::LocationCounter<'data>],
-    ) -> Result<(OutputOrder<'data>, ProgramSegments<Self::ProgramSegmentDef>)> {
+        location_counters: &[Self::LocationCounter<'data>],
+    ) -> Result<(
+        Self::OutputOrder<'data>,
+        ProgramSegments<Self::ProgramSegmentDef>,
+    )> {
         Ok(Self::build_output_order_and_program_segments(
             custom,
             output_kind,
@@ -781,7 +790,7 @@ pub(crate) trait Platform:
 
     /// Whether this output section gets a `STT_SECTION` symbol (`-r` and `--emit-relocs`).
     fn will_emit_section_symbol_for_partial_objects(
-        _output_sections: &OutputSections<Self>,
+        _output_sections: &Self::OutputSections<'_>,
         _section_id: OutputSectionId,
     ) -> bool {
         false
@@ -886,7 +895,7 @@ pub(crate) trait Platform:
 
     fn finalise_output_section_alignments(
         _sizes: &OutputSectionPartMap<u64>,
-        _output_sections: &mut OutputSections<'_, Self>,
+        _output_sections: &mut Self::OutputSections<'_>,
     ) {
     }
 }

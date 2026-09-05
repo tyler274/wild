@@ -35,6 +35,57 @@ pub(crate) enum OrphanHandling {
     Discard,
 }
 
+pub const WILD_UNSUPPORTED_ENV: &str = "WILD_UNSUPPORTED";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RelocationModel {
+    Fixed,
+    PositionIndependent,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum CopyRelocations {
+    Allowed,
+    Disallowed(CopyRelocationsDisabledReason),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum CopyRelocationsDisabledReason {
+    Unsupported,
+    Flag,
+    SharedObject,
+}
+
+impl std::fmt::Display for CopyRelocationsDisabledReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Reason should make sense after the word "because".
+        let reason = match self {
+            CopyRelocationsDisabledReason::Unsupported => {
+                "target platform doesn't support copy relocations"
+            }
+            CopyRelocationsDisabledReason::Flag => "the flag -z nocopyreloc was supplied",
+            CopyRelocationsDisabledReason::SharedObject => "output is a shared object",
+        };
+
+        std::fmt::Display::fmt(&reason, f)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum UnresolvedSymbols {
+    /// Report all unresolved symbols.
+    ReportAll,
+
+    /// Ignore unresolved symbols in shared libraries.
+    IgnoreInSharedLibs,
+
+    /// Ignore unresolved symbols in object files.
+    IgnoreInObjectFiles,
+
+    /// Ignore all unresolved symbols.
+    IgnoreAll,
+}
+
 pub(crate) trait Args: std::fmt::Debug + Send + Sync + 'static {
     fn parse<S, I>(&mut self, input: I) -> Result
     where
@@ -139,8 +190,8 @@ pub(crate) trait Args: std::fmt::Debug + Send + Sync + 'static {
         false
     }
 
-    fn unresolved_symbols_behaviour(&self) -> crate::args::UnresolvedSymbols {
-        crate::args::UnresolvedSymbols::ReportAll
+    fn unresolved_symbols_behaviour(&self) -> UnresolvedSymbols {
+        UnresolvedSymbols::ReportAll
     }
 
     fn defsym(&self) -> &[(String, String)] {
@@ -151,10 +202,8 @@ pub(crate) trait Args: std::fmt::Debug + Send + Sync + 'static {
         None
     }
 
-    fn copy_relocations_enabled(&self) -> crate::args::CopyRelocations {
-        crate::args::CopyRelocations::Disallowed(
-            crate::args::CopyRelocationsDisabledReason::Unsupported,
-        )
+    fn copy_relocations_enabled(&self) -> CopyRelocations {
+        CopyRelocations::Disallowed(CopyRelocationsDisabledReason::Unsupported)
     }
 
     fn should_error_on_unresolved_symbols(&self) -> bool {
@@ -179,7 +228,7 @@ pub(crate) trait Args: std::fmt::Debug + Send + Sync + 'static {
     /// Returns the address override for a `SEGMENT_START` segment name, as set via
     /// `-Ttext`, `-Tdata` or `-Tbss` on the command line. Returns `None` if no override
     /// was provided, in which case `SEGMENT_START` should return its default value.
-    fn segment_start_override(&self, _name: crate::parsing::SegmentName) -> Option<u64> {
+    fn segment_start_override(&self, _name: crate::linker_script::SegmentName) -> Option<u64> {
         None
     }
 
@@ -205,7 +254,7 @@ pub(crate) trait Args: std::fmt::Debug + Send + Sync + 'static {
         false
     }
 
-    fn relocation_model(&self) -> crate::args::RelocationModel {
+    fn relocation_model(&self) -> RelocationModel {
         self.common().relocation_model
     }
 
@@ -222,8 +271,6 @@ pub(crate) trait Args: std::fmt::Debug + Send + Sync + 'static {
     }
 
     fn warn_unsupported(&self, opt: &str) -> Result {
-        use crate::args::WILD_UNSUPPORTED_ENV;
-
         let message = format!("{opt} is not yet supported");
 
         match env::var(WILD_UNSUPPORTED_ENV).unwrap_or_default().as_str() {

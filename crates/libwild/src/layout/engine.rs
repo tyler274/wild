@@ -57,6 +57,10 @@ pub(crate) trait EnginePlatform:
         LayoutRulesBuilder<'data> = LayoutRulesBuilder<'data>,
         InternalSymbolsBuilder<'data> = InternalSymbolsBuilder<'data, Self>,
         InternalSymDefInfo<'data> = InternalSymDefInfo<'data, Self>,
+        OutputSections<'data> = crate::output_section_id::OutputSections<'data, Self>,
+        OutputOrder<'data> = crate::output_section_id::OutputOrder<'data>,
+        LocationCounter<'data> = crate::layout_rules::LocationCounter<'data>,
+        SectionOutputInfo<'data> = crate::output_section_id::SectionOutputInfo<'data, Self>,
     > + Platform<
         LocalWorkQueue = LocalWorkQueue<Self>,
         OutputRecordLayout = OutputRecordLayout,
@@ -67,6 +71,8 @@ pub(crate) trait EnginePlatform:
         UnloadedSection = UnloadedSection,
         LoadedMetrics = LoadedMetrics,
         LoadedPlugin = LoadedPlugin,
+        CustomSectionIds = crate::output_section_id::CustomSectionIds,
+        FileKind = crate::file_kind::FileKind,
     >
 {
 }

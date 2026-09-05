@@ -109,7 +109,10 @@ impl<'data, P: Platform> OutputSections<'data, P> {
         &self,
         section_id: OutputSectionId,
         segment_def: P::ProgramSegmentDef,
-    ) -> bool {
+    ) -> bool
+    where
+        P: EnginePlatform,
+    {
         let info = self.output_info(section_id);
         P::program_segment_should_include_section(segment_def, info, section_id, self.rosegment)
     }
@@ -285,7 +288,10 @@ impl<'data, P: Platform> OutputSections<'data, P> {
         self.section_infos.get(sid).input_order
     }
 
-    pub(crate) fn with_base_address(base_address: u64, output_kind: OutputKind) -> Self {
+    pub(crate) fn with_base_address(base_address: u64, output_kind: OutputKind) -> Self
+    where
+        P: EnginePlatform,
+    {
         let section_infos = P::built_in_section_infos();
         let base_address = Expression::Number(base_address);
 
@@ -658,7 +664,10 @@ impl<'data, P: Platform> OutputSections<'data, P> {
     pub(crate) fn will_emit_section_symbol_for_partial_objects(
         &self,
         section_id: OutputSectionId,
-    ) -> bool {
+    ) -> bool
+    where
+        P: EnginePlatform,
+    {
         P::will_emit_section_symbol_for_partial_objects(self, section_id)
     }
 

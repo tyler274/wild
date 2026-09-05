@@ -28,7 +28,6 @@ use crate::error::Result;
 use crate::expression_eval;
 use crate::file_kind::FileKind;
 use crate::gdb_index::InputDebugIndexSection;
-use crate::grouping::SequencedLinkerScript;
 use crate::layout;
 use crate::layout::CommonGroupState;
 use crate::layout::DynamicSymbolDefinition;
@@ -273,6 +272,13 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     type LayoutRulesBuilder<'data> = crate::layout_rules::LayoutRulesBuilder<'data>;
     type InternalSymbolsBuilder<'data> = crate::parsing::InternalSymbolsBuilder<'data, Self>;
     type InternalSymDefInfo<'data> = crate::parsing::InternalSymDefInfo<'data, Self>;
+    type OutputSections<'data> = crate::output_section_id::OutputSections<'data, Self>;
+    type OutputOrder<'data> = crate::output_section_id::OutputOrder<'data>;
+    type CustomSectionIds = crate::output_section_id::CustomSectionIds;
+    type FileWriterOutput<F: crate::fs::FileSystem> = crate::file_writer::Output<F>;
+    type LocationCounter<'data> = crate::layout_rules::LocationCounter<'data>;
+    type SectionOutputInfo<'data> = crate::output_section_id::SectionOutputInfo<'data, Self>;
+    type FileKind = crate::file_kind::FileKind;
 
     fn write_output_file<'data, A: Arch<Platform = Self>, F: FileSystem>(
         output: &crate::file_writer::Output<F>,
@@ -2113,12 +2119,15 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     }
 
     fn build_output_order_and_program_segments<'data>(
-        custom: &CustomSectionIds,
+        custom: &Self::CustomSectionIds,
         output_kind: OutputKind,
-        output_sections: &OutputSections<'data, Self>,
+        output_sections: &Self::OutputSections<'data>,
         secondary: &OutputSectionMap<Vec<OutputSectionId>>,
-        location_counters: &[crate::layout_rules::LocationCounter<'data>],
-    ) -> (OutputOrder<'data>, ProgramSegments<Self::ProgramSegmentDef>) {
+        location_counters: &[Self::LocationCounter<'data>],
+    ) -> (
+        Self::OutputOrder<'data>,
+        ProgramSegments<Self::ProgramSegmentDef>,
+    ) {
         let mut builder = OutputOrderBuilder::<Self>::new(
             Self::program_segment_defs().to_vec(),
             output_kind,
@@ -2195,13 +2204,16 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     }
 
     fn build_custom_output_order_and_program_segments<'data>(
-        custom: &CustomSectionIds,
+        custom: &Self::CustomSectionIds,
         output_kind: OutputKind,
-        output_sections: &OutputSections<'data, Self>,
+        output_sections: &Self::OutputSections<'data>,
         secondary: &OutputSectionMap<Vec<OutputSectionId>>,
-        linker_scripts: &[&SequencedLinkerScript<'data, Self>],
-        location_counters: &[crate::layout_rules::LocationCounter<'data>],
-    ) -> Result<(OutputOrder<'data>, ProgramSegments<Self::ProgramSegmentDef>)> {
+        linker_scripts: &[&Self::SequencedLinkerScript<'data>],
+        location_counters: &[Self::LocationCounter<'data>],
+    ) -> Result<(
+        Self::OutputOrder<'data>,
+        ProgramSegments<Self::ProgramSegmentDef>,
+    )> {
         let mut builder = OutputOrderBuilder::<Self>::new(
             Self::program_segment_defs().to_vec(),
             output_kind,

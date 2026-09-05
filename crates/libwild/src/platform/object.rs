@@ -3,7 +3,6 @@ use crate::Result;
 use crate::input_data::InputBytes;
 use crate::input_data::InputRef;
 use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::OutputSections;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
 use std::borrow::Cow;
@@ -398,7 +397,7 @@ pub(crate) trait SectionAttributes:
 
     fn apply(
         &self,
-        output_sections: &mut OutputSections<Self::Platform>,
+        output_sections: &mut <Self::Platform as Platform>::OutputSections<'_>,
         section_id: OutputSectionId,
     );
 
