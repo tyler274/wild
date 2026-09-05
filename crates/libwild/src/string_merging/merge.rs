@@ -319,7 +319,7 @@ pub(crate) fn merge_strings<'data, P: EnginePlatform>(
     let mut output_string_sections = output_sections.new_section_map::<MergedStringsSection>();
 
     let num_threads = rayon::current_num_threads();
-    let split_parallelism = args.common().numeric_experiment(
+    let split_parallelism = args.numeric_experiment(
         Experiment::MergeStringSplitParallelism,
         (num_threads as u64).min(MAX_SPLIT_PARALLELISM),
     ) as usize;

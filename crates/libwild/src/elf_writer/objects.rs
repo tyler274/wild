@@ -30,7 +30,7 @@ pub(crate) fn write_object<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     verbose_timing_phase!("Write object", file_id = object.file_id.as_u32());
 
     let _span = debug_span!("write_file", filename = %object.input).entered();
-    let _file_span = layout.args().common().trace_span_for_file(object.file_id);
+    let _file_span = crate::debug_trace::span_for_file(layout.args(), object.file_id);
 
     for (i, sec) in object.sections.iter().enumerate() {
         let section_index = object::SectionIndex(i);

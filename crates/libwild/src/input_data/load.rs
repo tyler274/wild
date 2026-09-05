@@ -396,7 +396,7 @@ fn load_included_linker_script<'data, F: FileSystem>(
     for candidate in &candidates {
         if file_system.file_type(candidate).is_ok() {
             let (data, _) = file_system
-                .open_input(candidate, args.common().prepopulate_maps)
+                .open_input(candidate, args.prepopulate_maps())
                 .with_context(|| {
                     format!("Failed to read INCLUDE file `{}`", candidate.display())
                 })?;
@@ -487,7 +487,7 @@ fn process_thin_archive<'data, P: EnginePlatform, F: FileSystem>(
         .map(|entry_path| {
             let (input, file) = state
                 .file_system
-                .open_input(&entry_path, state.args.common().prepopulate_maps)
+                .open_input(&entry_path, state.args.prepopulate_maps())
                 .with_context(|| {
                     format!("Failed to open file referenced by thin archive `{archive_display}`")
                 })?;
@@ -584,7 +584,7 @@ impl<'data, P: EnginePlatform, F: FileSystem> TemporaryState<'data, P, F> {
 
         let result = self
             .file_system
-            .open_input(absolute_path.as_path(), self.args.common().prepopulate_maps);
+            .open_input(absolute_path.as_path(), self.args.prepopulate_maps());
         let (data, file) = match request.referenced_by.as_ref() {
             Some(referenced_by) => {
                 result.with_context(|| format!("Failed to process `{}`", referenced_by.display()))

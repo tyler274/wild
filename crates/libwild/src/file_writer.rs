@@ -102,11 +102,11 @@ impl<F: FileSystem> Output<F> {
         output_kind: OutputKind,
         file_system: Arc<F>,
     ) -> Output<F> {
-        let file_replacement_mode = args.common().file_replacement_mode.unwrap_or_else(|| {
+        let file_replacement_mode = args.file_replacement_mode().unwrap_or_else(|| {
             default_file_replacement_mode::<P>(args, output_kind, file_system.as_ref())
         });
 
-        let creator = if args.common().available_threads.get() > 1 {
+        let creator = if args.available_threads().get() > 1 {
             let (sized_output_sender, sized_output_recv) = std::sync::mpsc::channel();
             FileCreator::Background {
                 sized_output_sender: Some(sized_output_sender),
@@ -122,10 +122,10 @@ impl<F: FileSystem> Output<F> {
             creator,
             config: OutputConfig {
                 file_replacement_mode,
-                should_write_trace: args.common().write_trace,
-                file_write_mode: args.common().file_write_mode,
-                fallocate: args.common().fallocate_output_file,
-                madvise_huge_pages: args.common().madvise_huge_pages,
+                should_write_trace: args.write_trace(),
+                file_write_mode: args.file_write_mode(),
+                fallocate: args.fallocate_output_file(),
+                madvise_huge_pages: args.madvise_huge_pages(),
             },
         }
     }
@@ -189,7 +189,7 @@ impl<F: FileSystem> Output<F> {
         write_fn: impl FnOnce(&mut SizedOutput<F::Output>, &'layout Layout<'data, P>) -> Result,
     ) -> Result {
         timing_phase!("Write output file");
-        if layout.args().common().write_layout {
+        if layout.args().write_layout() {
             write_layout(layout, self.file_system.as_ref())?;
         }
         let mut sized_output = match &self.creator {
@@ -231,7 +231,7 @@ fn default_file_replacement_mode<P: EnginePlatform>(
     output_kind: OutputKind,
     file_system: &impl FileSystem,
 ) -> FileReplacementMode {
-    if args.common().incremental {
+    if args.incremental() {
         let dir = crate::incremental::incremental_state_dir(args.output());
         if dir.join("inputs.txt").is_file() {
             return FileReplacementMode::UpdateInPlace;

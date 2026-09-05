@@ -3,6 +3,7 @@ use crate::alignment::Alignment;
 use crate::args::ArgumentParser;
 use crate::args::CopyRelocations;
 use crate::args::CopyRelocationsDisabledReason;
+use crate::args::HasCommonArgs as _;
 use crate::args::Input;
 use crate::args::InputSpec;
 use crate::args::RelocationModel;

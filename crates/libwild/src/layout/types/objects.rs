@@ -336,7 +336,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
         symbol_db: &SymbolDb<'data, P>,
         per_symbol_flags: &AtomicPerSymbolFlags,
     ) -> Result {
-        let _file_span = symbol_db.args.common().trace_span_for_file(self.file_id());
+        let _file_span = crate::debug_trace::span_for_file(symbol_db.args, self.file_id());
         P::allocate_object_symtab_space(self, common, symbol_db, per_symbol_flags)
     }
 
@@ -346,11 +346,8 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
         resolutions_out: &mut ResolutionWriter<P>,
         resources: &FinaliseLayoutResources<'_, 'data, P>,
     ) -> Result<ObjectLayout<'data, P>> {
-        let _file_span = resources
-            .symbol_db
-            .args
-            .common()
-            .trace_span_for_file(self.file_id());
+        let _file_span =
+            crate::debug_trace::span_for_file(resources.symbol_db.args, self.file_id());
         let symbol_id_range = self.symbol_id_range();
 
         let sframe_section_id = P::SFRAME_SECTION_ID;

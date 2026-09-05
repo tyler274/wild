@@ -207,7 +207,7 @@ where
     // Spare room at the end of allocated sections so a later update can grow in place. Linker
     // scripts (kernel `vmlinux.lds`) size-check output sections (`ASSERT`); padding those
     // sections fails the script.
-    if symbol_db.args.common().incremental && linker_scripts.is_empty() {
+    if symbol_db.args.incremental() && linker_scripts.is_empty() {
         for (section_id, _) in output_sections.ids_with_info() {
             if !section_id.is_regular::<P>() || !output_sections.has_data_in_file(section_id) {
                 continue;

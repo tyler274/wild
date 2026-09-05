@@ -55,7 +55,7 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
                 start_symbol_id: SymbolId::zero(),
             },
             entry_symbol_id: None,
-            identity: format!("Linker: {}\0", args.common().linker_identity()),
+            identity: format!("Linker: {}\0", args.linker_identity()),
             header_info: None,
             dynamic_linker: None,
             format_specific: Default::default(),

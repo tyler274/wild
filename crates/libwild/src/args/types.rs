@@ -109,7 +109,12 @@ pub enum CounterKind {
     L1dMiss,
 }
 
-pub(crate) use crate::platform::RelocationModel;
+use crate::platform::RelocationModel;
+
+pub(crate) trait HasCommonArgs {
+    fn common(&self) -> &CommonArgs;
+    fn common_mut(&mut self) -> &mut CommonArgs;
+}
 
 impl Default for CommonArgs {
     fn default() -> Self {
@@ -167,14 +172,6 @@ impl CommonArgs {
         }
 
         Ok(())
-    }
-
-    pub(crate) fn trace_span_for_file(
-        &self,
-        file_id: FileId,
-    ) -> Option<tracing::span::EnteredSpan> {
-        let should_trace = self.print_allocations == Some(file_id);
-        should_trace.then(|| tracing::trace_span!(crate::debug_trace::TRACE_SPAN_NAME).entered())
     }
 
     /// Builds up the thread pool, using the explicit number of threads if specified,
@@ -272,7 +269,7 @@ impl CommonArgs {
         self.should_fork
     }
 
-    pub(crate) fn numeric_experiment(&self, exp: Experiment, default: u64) -> u64 {
+    pub(crate) fn numeric_experiment(&self, exp: crate::platform::Experiment, default: u64) -> u64 {
         self.numeric_experiments
             .get(exp as usize)
             .copied()
@@ -314,19 +311,6 @@ impl CommonArgs {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub(crate) enum Experiment {
-    /// How much parallelism to allow when splitting string-merge sections.
-    MergeStringSplitParallelism = 0,
-
-    /// Number of bytes of string-merge sections before we'll break to a new group.
-    MergeStringMinGroupBytes = 1,
-
-    GroupsPerThread = 2,
-
-    MinGroups = 3,
-}
-
 /// The thread pool used by the linker. If a jobserver is being used, dropping this instance will
 /// release jobserver tokens.
 pub struct ThreadPool {
@@ -354,8 +338,6 @@ impl std::fmt::Debug for Args {
     }
 }
 
-pub(crate) use crate::platform::CopyRelocations;
-pub(crate) use crate::platform::CopyRelocationsDisabledReason;
 pub(crate) use wild_scripts::Input;
 pub(crate) use wild_scripts::InputSpec;
 pub use wild_scripts::Modifiers;
@@ -368,8 +350,6 @@ pub(crate) enum BSymbolicKind {
     NonWeakFunctions,
     NonWeak,
 }
-
-pub(crate) use crate::platform::UnresolvedSymbols;
 
 pub(crate) fn parse_time_phase_options(input: &str) -> Result<Vec<CounterKind>> {
     input.split(',').map(|s| s.parse()).collect()

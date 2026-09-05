@@ -1,13 +1,16 @@
 use super::OutputKind;
+use super::file_id::FileId;
 use super::section_identity::SectionName;
 use crate::Result;
 use crate::alignment::Alignment;
 use crate::arch::Architecture;
 use crate::bail;
 use crate::env;
-use crate::error::Warning;
+use crate::fs::FileReplacementMode;
+use crate::fs::FileWriteMode;
 use object::Endianness;
 use std::num::NonZeroU64;
+use std::num::NonZeroUsize;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -69,6 +72,20 @@ impl std::fmt::Display for CopyRelocationsDisabledReason {
 
         std::fmt::Display::fmt(&reason, f)
     }
+}
+
+/// Indices into `--wild-experiments` for internal tunables.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Experiment {
+    /// How much parallelism to allow when splitting string-merge sections.
+    MergeStringSplitParallelism = 0,
+
+    /// Number of bytes of string-merge sections before we'll break to a new group.
+    MergeStringMinGroupBytes = 1,
+
+    GroupsPerThread = 2,
+
+    MinGroups = 3,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -135,13 +152,7 @@ pub(crate) trait Args: std::fmt::Debug + Send + Sync + 'static {
 
     fn lib_search_path(&self) -> &[Box<Path>];
 
-    fn output(&self) -> &Arc<Path> {
-        &self.common().output
-    }
-
-    fn common(&self) -> &crate::args::CommonArgs;
-
-    fn common_mut(&mut self) -> &mut crate::args::CommonArgs;
+    fn output(&self) -> &Arc<Path>;
 
     fn sysroot(&self) -> Option<&Path> {
         None
@@ -254,9 +265,7 @@ pub(crate) trait Args: std::fmt::Debug + Send + Sync + 'static {
         false
     }
 
-    fn relocation_model(&self) -> RelocationModel {
-        self.common().relocation_model
-    }
+    fn relocation_model(&self) -> RelocationModel;
 
     fn should_write_gdb_index(&self) -> bool {
         false
@@ -266,8 +275,78 @@ pub(crate) trait Args: std::fmt::Debug + Send + Sync + 'static {
 
     fn is_ignored_flag(&self, _flag: &str) -> bool;
 
-    fn warning(&self, message: impl Into<String>) {
-        (self.common().warning_callback)(Warning::new(message.into()));
+    fn warning(&self, message: impl Into<String>);
+
+    fn incremental(&self) -> bool {
+        false
+    }
+
+    fn available_threads(&self) -> NonZeroUsize {
+        NonZeroUsize::MIN
+    }
+
+    fn demangle(&self) -> bool {
+        true
+    }
+
+    fn validate_output(&self) -> bool {
+        false
+    }
+
+    fn write_layout(&self) -> bool {
+        false
+    }
+
+    fn write_trace(&self) -> bool {
+        false
+    }
+
+    fn experimental_platforms(&self) -> bool {
+        false
+    }
+
+    fn prepopulate_maps(&self) -> bool {
+        false
+    }
+
+    fn verify_allocation_consistency(&self) -> bool {
+        false
+    }
+
+    fn files_per_group(&self) -> Option<u32> {
+        None
+    }
+
+    fn file_replacement_mode(&self) -> Option<FileReplacementMode> {
+        None
+    }
+
+    fn file_write_mode(&self) -> Option<FileWriteMode> {
+        None
+    }
+
+    fn fallocate_output_file(&self) -> Option<bool> {
+        None
+    }
+
+    fn madvise_huge_pages(&self) -> Option<bool> {
+        None
+    }
+
+    fn linker_identity(&self) -> String {
+        String::from("Wild")
+    }
+
+    fn numeric_experiment(&self, _exp: Experiment, default: u64) -> u64 {
+        default
+    }
+
+    fn symbol_info_query(&self) -> Option<&str> {
+        None
+    }
+
+    fn should_trace_file(&self, _file_id: FileId) -> bool {
+        false
     }
 
     fn warn_unsupported(&self, opt: &str) -> Result {

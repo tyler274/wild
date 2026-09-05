@@ -1,6 +1,7 @@
 use crate::alignment::Alignment;
 use crate::args::ArgumentParser;
 use crate::args::CommonArgs;
+use crate::args::HasCommonArgs as _;
 use crate::args::Input;
 use crate::args::InputSpec;
 use crate::args::Modifiers;
@@ -92,6 +93,16 @@ impl Default for WasmArgs {
     }
 }
 
+impl crate::args::HasCommonArgs for WasmArgs {
+    fn common(&self) -> &crate::args::CommonArgs {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut crate::args::CommonArgs {
+        &mut self.common
+    }
+}
+
 impl platform::Args for WasmArgs {
     fn parse<S, I>(&mut self, input: I) -> Result
     where
@@ -100,6 +111,8 @@ impl platform::Args for WasmArgs {
     {
         parse(self, input)
     }
+
+    crate::args::impl_platform_args_from_common!();
 
     fn should_strip_debug(&self) -> bool {
         todo!()
@@ -126,14 +139,6 @@ impl platform::Args for WasmArgs {
 
     fn lib_search_path(&self) -> &[Box<std::path::Path>] {
         &self.lib_search_path
-    }
-
-    fn common(&self) -> &crate::args::CommonArgs {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut crate::args::CommonArgs {
-        &mut self.common
     }
 
     fn should_export_all_dynamic_symbols(&self) -> bool {

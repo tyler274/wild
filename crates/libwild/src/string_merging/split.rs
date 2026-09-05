@@ -157,7 +157,6 @@ pub(super) fn create_split_resources<'data, 'offsets, 'scope>(
     let mut offset_writer = string_offsets.start_sharded_write(input_size.0);
 
     let target_group_size = args
-        .common()
         .numeric_experiment(
             Experiment::MergeStringMinGroupBytes,
             TARGET_GROUP_SIZE_BYTES,

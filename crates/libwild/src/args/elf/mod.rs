@@ -9,6 +9,7 @@ use crate::arch::Architecture;
 use crate::args::CommonArgs;
 use crate::args::CopyRelocations;
 use crate::args::CopyRelocationsDisabledReason;
+use crate::args::HasCommonArgs as _;
 use crate::args::Modifiers;
 use crate::args::UnresolvedSymbols;
 use crate::args::parse_number;
@@ -484,6 +485,16 @@ pub(crate) fn parse<S: AsRef<str>, I: Iterator<Item = S>>(
     Ok(())
 }
 
+impl crate::args::HasCommonArgs for ElfArgs {
+    fn common(&self) -> &crate::args::CommonArgs {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut crate::args::CommonArgs {
+        &mut self.common
+    }
+}
+
 impl platform::Args for ElfArgs {
     fn parse<S, I>(&mut self, input: I) -> Result
     where
@@ -492,6 +503,8 @@ impl platform::Args for ElfArgs {
     {
         parse(self, input)
     }
+
+    crate::args::impl_platform_args_from_common!();
 
     fn gc_stats_output_file(&self) -> Option<&Path> {
         self.write_gc_stats.as_deref()
@@ -507,14 +520,6 @@ impl platform::Args for ElfArgs {
 
     fn rosegment(&self) -> bool {
         self.rosegment
-    }
-
-    fn common(&self) -> &crate::args::CommonArgs {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut crate::args::CommonArgs {
-        &mut self.common
     }
 
     // TODO: Some linkers like ld and mold cleanup debug symbols when linking with -r. For now, we

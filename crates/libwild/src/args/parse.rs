@@ -68,13 +68,13 @@ pub(crate) struct ArgumentParser<T> {
     syntax: OptionSyntax,
 }
 
-impl<T: platform::Args> Default for ArgumentParser<T> {
+impl<T: platform::Args + super::HasCommonArgs> Default for ArgumentParser<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T: platform::Args> ArgumentParser<T> {
+impl<T: platform::Args + super::HasCommonArgs> ArgumentParser<T> {
     #[must_use]
     pub(crate) fn new() -> Self {
         Self::with_syntax(OptionSyntax::default())

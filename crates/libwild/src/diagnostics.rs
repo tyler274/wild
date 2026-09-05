@@ -43,7 +43,7 @@ impl SymbolInfoPrinter {
         args: &P::Args,
         groups: &[ResolvedGroup<'data, P>],
     ) -> Self {
-        let Some(name) = args.common().sym_info.as_ref() else {
+        let Some(name) = args.symbol_info_query() else {
             return Self::Disabled;
         };
 

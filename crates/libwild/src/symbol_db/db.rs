@@ -537,7 +537,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
     pub(crate) fn symbol_name_for_display(&self, symbol_id: SymbolId) -> SymbolNameDisplay<'data> {
         SymbolNameDisplay {
             name: self.symbol_name(symbol_id).ok(),
-            demangle: self.args.common().demangle,
+            demangle: self.args.demangle(),
         }
     }
 

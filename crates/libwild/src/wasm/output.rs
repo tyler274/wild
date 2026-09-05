@@ -15,6 +15,7 @@ use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::part_id::PartId;
+use crate::platform::Args as _;
 use crate::symbol_db::SymbolDb;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
@@ -467,7 +468,7 @@ impl<'data> WasmLayout<'data> {
         symbol_db: &SymbolDb<'data, Wasm>,
     ) -> Result {
         timing_phase!("Encode Wasm metadata sections");
-        let demangle = symbol_db.args.common.demangle;
+        let demangle = symbol_db.args.demangle();
 
         {
             timing_phase!("Encode Wasm type section");

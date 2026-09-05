@@ -718,7 +718,7 @@ impl<'data, P: EnginePlatform> Layout<'data, P> {
         r_type: u32,
         file_id: FileId,
     ) {
-        if !self.args().common().incremental {
+        if !self.args().incremental() {
             return;
         }
         let Some(&owner) = self.incremental_atoms.get(&file_id) else {

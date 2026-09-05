@@ -61,6 +61,16 @@ impl Default for CoffArgs {
     }
 }
 
+impl crate::args::HasCommonArgs for CoffArgs {
+    fn common(&self) -> &CommonArgs {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut CommonArgs {
+        &mut self.common
+    }
+}
+
 impl platform::Args for CoffArgs {
     fn parse<S, I>(&mut self, input: I) -> Result
     where
@@ -69,6 +79,8 @@ impl platform::Args for CoffArgs {
     {
         parse(self, input)
     }
+
+    crate::args::impl_platform_args_from_common!();
 
     fn should_strip_debug(&self) -> bool {
         todo!()
@@ -91,14 +103,6 @@ impl platform::Args for CoffArgs {
 
     fn lib_search_path(&self) -> &[Box<Path>] {
         &self.lib_search_path
-    }
-
-    fn common(&self) -> &CommonArgs {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut CommonArgs {
-        &mut self.common
     }
 
     fn should_export_all_dynamic_symbols(&self) -> bool {

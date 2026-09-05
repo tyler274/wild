@@ -5,7 +5,9 @@ use crate::fs::FileWriteMode;
 use crate::platform;
 use std::num::NonZeroUsize;
 
-pub(crate) fn declare_common_args<T: platform::Args>(parser: &mut ArgumentParser<T>) {
+pub(crate) fn declare_common_args<T: platform::Args + super::HasCommonArgs>(
+    parser: &mut ArgumentParser<T>,
+) {
     parser
         .declare()
         .long("write-layout")

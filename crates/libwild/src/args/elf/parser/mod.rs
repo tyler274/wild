@@ -4,6 +4,7 @@ mod inputs;
 use super::*;
 use crate::args::ArgumentParser;
 use crate::args::FileReplacementMode;
+use crate::args::HasCommonArgs as _;
 use crate::bail;
 use crate::error::Context as _;
 use crate::linker_script::maybe_forced_sysroot;

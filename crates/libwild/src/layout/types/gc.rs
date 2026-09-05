@@ -52,7 +52,7 @@ pub(crate) trait SymbolRequestHandler<'data, P: EnginePlatform>:
     ) -> Result {
         let symbol_db = resources.symbol_db;
 
-        let _file_span = symbol_db.args.common().trace_span_for_file(self.file_id());
+        let _file_span = crate::debug_trace::span_for_file(symbol_db.args, self.file_id());
         let symbol_id_range = self.symbol_id_range();
 
         for (local_index, atomic_flags) in symbol_flags.range(symbol_id_range).iter().enumerate() {
@@ -71,7 +71,7 @@ pub(crate) trait SymbolRequestHandler<'data, P: EnginePlatform>:
                 symbol_db.args,
             );
 
-            if symbol_db.args.common().verify_allocation_consistency {
+            if symbol_db.args.verify_allocation_consistency() {
                 verify_consistent_allocation_handling::<P, A>(
                     flags,
                     symbol_db.output_kind,

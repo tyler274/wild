@@ -83,7 +83,7 @@ pub(crate) struct IncrementalSession {
 
 impl IncrementalSession {
     pub(crate) fn from_args(args: &impl crate::platform::Args) -> Option<Self> {
-        if !args.common().incremental {
+        if !args.incremental() {
             return None;
         }
         let state_dir = incremental_state_dir(args.output());
@@ -511,7 +511,7 @@ pub(crate) fn fallback_for_plugin_or_gc<P: EnginePlatform>(
     if plugin_active {
         return Some("LTO/plugin inputs");
     }
-    if args.should_gc_sections() && args.common().incremental {
+    if args.should_gc_sections() && args.incremental() {
         return Some("--gc-sections is ignored for incremental links");
     }
     None

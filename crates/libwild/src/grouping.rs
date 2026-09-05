@@ -415,7 +415,7 @@ pub(crate) fn fill_plugin_codegen_group<'data, P: Platform>(
 
 /// Decides after how many symbols, we should start a new group.
 fn determine_symbols_per_group(num_symbols: usize, args: &impl platform::Args) -> usize {
-    let num_threads = args.common().available_threads.get();
+    let num_threads = args.available_threads().get();
 
     // If we're running with a single thread, then we might as well put everything into a single
     // group.
@@ -426,14 +426,11 @@ fn determine_symbols_per_group(num_symbols: usize, args: &impl platform::Args) -
     // If we have lots of threads, then we might benefit from a few more groups in order to properly
     // take advantage of the available parallelism.
     let groups_per_thread =
-        args.common()
-            .numeric_experiment(crate::args::Experiment::GroupsPerThread, 5) as usize;
+        args.numeric_experiment(crate::args::Experiment::GroupsPerThread, 5) as usize;
 
     // If we don't have lots of threads, then we still want a reasonable number of groups. The need
     // for this was based on experimentation.
-    let min_groups = args
-        .common()
-        .numeric_experiment(crate::args::Experiment::MinGroups, 150) as usize;
+    let min_groups = args.numeric_experiment(crate::args::Experiment::MinGroups, 150) as usize;
 
     let target_num_groups = (num_threads * groups_per_thread).max(min_groups);
 
@@ -442,7 +439,7 @@ fn determine_symbols_per_group(num_symbols: usize, args: &impl platform::Args) -
 
 /// Decides the maximum number of files that we'll put into one group.
 fn determine_max_files_per_group(args: &impl platform::Args) -> usize {
-    if let Some(v) = args.common().files_per_group {
+    if let Some(v) = args.files_per_group() {
         return v as usize;
     }
 

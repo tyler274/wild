@@ -3,6 +3,7 @@ use crate::bail;
 use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
+use crate::platform::Args as _;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
 use crate::symbol_db::SymbolId;
@@ -549,7 +550,7 @@ pub(crate) fn scan_layout_relocations(
         needs_table |= scan.needs_table;
         for key in scan.undefined_data_errors {
             if seen_undefined_data.insert(key.clone()) {
-                let name = demangle_symbol_name(&key.1, symbol_db.args.common.demangle);
+                let name = demangle_symbol_name(&key.1, symbol_db.args.demangle());
                 undefined_data_errors.push(format!("{}: undefined symbol: {name}", key.0));
             }
         }

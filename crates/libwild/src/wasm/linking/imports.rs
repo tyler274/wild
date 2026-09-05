@@ -4,6 +4,7 @@ use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::input_data::PRELUDE_FILE_ID;
+use crate::platform::Args as _;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
 use crate::timing_phase;
@@ -70,7 +71,7 @@ pub(crate) fn report_disallowed_unresolved_imports<'data>(
             if !seen.insert((file_display.clone(), name.to_owned())) {
                 continue;
             }
-            let name = demangle_symbol_name(name, symbol_db.args.common.demangle);
+            let name = demangle_symbol_name(name, symbol_db.args.demangle());
             errors.push(format!("{file_display}: undefined symbol: {name}"));
         }
     }

@@ -100,6 +100,7 @@ pub(crate) mod wasm_wasm32;
 pub(crate) mod wasm_writer;
 pub(crate) mod writable_elf;
 
+use crate::args::HasCommonArgs as _;
 use crate::error::Context;
 use crate::error::Result;
 use crate::layout::EnginePlatform;
@@ -288,6 +289,7 @@ impl<F: FileSystem> Linker<F> {
             + Platform<FileLoader<'data, F> = input_data::FileLoader<'data, F>>
             + Platform<FileWriterOutput<F> = file_writer::Output<F>>,
         A: Arch<Platform = P>,
+        P::Args: crate::args::HasCommonArgs,
     {
         let mut file_loader = input_data::FileLoader::new(
             &self.inputs_arena,
@@ -341,6 +343,7 @@ impl<F: FileSystem> Linker<F> {
             + Platform<FileLoader<'data, F> = input_data::FileLoader<'data, F>>
             + Platform<FileWriterOutput<F> = file_writer::Output<F>>,
         A: Arch<Platform = P>,
+        P::Args: crate::args::HasCommonArgs,
     {
         let mut plugin = P::maybe_init_linker_plugin(args, &self.linker_plugin_arena, &self.herd)?;
 
@@ -426,7 +429,7 @@ impl<F: FileSystem> Linker<F> {
         )?;
 
         let plugin_active = plugin.as_ref().is_some_and(|p| p.is_initialised());
-        let mut incremental_session = if args.common().incremental {
+        let mut incremental_session = if args.incremental() {
             crate::incremental::IncrementalSession::from_args(args)
         } else {
             None

@@ -23,6 +23,95 @@ use crate::timing_phase;
 use std::io::Write;
 use std::path::Path;
 
+macro_rules! impl_platform_args_from_common {
+    () => {
+        fn output(&self) -> &std::sync::Arc<std::path::Path> {
+            &self.common.output
+        }
+
+        fn relocation_model(&self) -> crate::platform::RelocationModel {
+            self.common.relocation_model
+        }
+
+        fn warning(&self, message: impl Into<String>) {
+            (self.common.warning_callback)(crate::error::Warning::new(message.into()));
+        }
+
+        fn incremental(&self) -> bool {
+            self.common.incremental
+        }
+
+        fn available_threads(&self) -> std::num::NonZeroUsize {
+            self.common.available_threads
+        }
+
+        fn demangle(&self) -> bool {
+            self.common.demangle
+        }
+
+        fn validate_output(&self) -> bool {
+            self.common.validate_output
+        }
+
+        fn write_layout(&self) -> bool {
+            self.common.write_layout
+        }
+
+        fn write_trace(&self) -> bool {
+            self.common.write_trace
+        }
+
+        fn experimental_platforms(&self) -> bool {
+            self.common.experimental_platforms
+        }
+
+        fn prepopulate_maps(&self) -> bool {
+            self.common.prepopulate_maps
+        }
+
+        fn verify_allocation_consistency(&self) -> bool {
+            self.common.verify_allocation_consistency
+        }
+
+        fn files_per_group(&self) -> Option<u32> {
+            self.common.files_per_group
+        }
+
+        fn file_replacement_mode(&self) -> Option<crate::fs::FileReplacementMode> {
+            self.common.file_replacement_mode
+        }
+
+        fn file_write_mode(&self) -> Option<crate::fs::FileWriteMode> {
+            self.common.file_write_mode
+        }
+
+        fn fallocate_output_file(&self) -> Option<bool> {
+            self.common.fallocate_output_file
+        }
+
+        fn madvise_huge_pages(&self) -> Option<bool> {
+            self.common.madvise_huge_pages
+        }
+
+        fn linker_identity(&self) -> String {
+            self.common.linker_identity()
+        }
+
+        fn numeric_experiment(&self, exp: crate::platform::Experiment, default: u64) -> u64 {
+            self.common.numeric_experiment(exp, default)
+        }
+
+        fn symbol_info_query(&self) -> Option<&str> {
+            self.common.sym_info.as_deref()
+        }
+
+        fn should_trace_file(&self, file_id: crate::input_data::FileId) -> bool {
+            self.common.print_allocations == Some(file_id)
+        }
+    };
+}
+pub(crate) use impl_platform_args_from_common;
+
 pub mod coff;
 pub mod elf;
 pub mod macho;
@@ -32,6 +121,11 @@ mod declare;
 pub(crate) mod parse;
 pub(crate) mod types;
 
+pub(crate) use crate::platform::CopyRelocations;
+pub(crate) use crate::platform::CopyRelocationsDisabledReason;
+pub(crate) use crate::platform::Experiment;
+pub(crate) use crate::platform::RelocationModel;
+pub(crate) use crate::platform::UnresolvedSymbols;
 #[allow(unused_imports)]
 pub(crate) use declare::*;
 #[allow(unused_imports)]

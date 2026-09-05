@@ -5,6 +5,14 @@ use crate::error::AlreadyInitialised;
 /// All trace messages within a span with this name will be emitted.
 pub(crate) const TRACE_SPAN_NAME: &str = "trace_file";
 
+pub(crate) fn span_for_file(
+    args: &impl crate::platform::Args,
+    file_id: crate::input_data::FileId,
+) -> Option<tracing::span::EnteredSpan> {
+    args.should_trace_file(file_id)
+        .then(|| tracing::trace_span!(TRACE_SPAN_NAME).entered())
+}
+
 pub(crate) fn init() -> Result<(), AlreadyInitialised> {
     use tracing_subscriber::prelude::*;
 

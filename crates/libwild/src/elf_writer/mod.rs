@@ -57,7 +57,7 @@ pub(crate) fn write<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
 ) -> Result {
     write_file_contents::<C, A>(sized_output, layout)?;
     apply_incremental_reloc_patches::<C, A>(sized_output, layout)?;
-    if layout.args().common().validate_output {
+    if layout.args().validate_output() {
         crate::validation::validate_bytes(layout, &sized_output.out)?;
     }
 

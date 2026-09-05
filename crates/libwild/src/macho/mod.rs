@@ -31,7 +31,7 @@ pub(crate) fn link_for_arch<'data, F: FileSystem>(
     linker: &'data crate::Linker<F>,
     args: &'data MachOArgs,
 ) -> Result<crate::LinkerOutput<'data>> {
-    if !(cfg!(feature = "macho") || args.common().experimental_platforms) {
+    if !(cfg!(feature = "macho") || args.experimental_platforms()) {
         crate::bail!(
             "Mach-O support is still experimental. Rebuild with `--features macho` to enable it."
         );

@@ -587,7 +587,7 @@ impl<P: EnginePlatform> InternalSymDefInfo<'_, P> {
 }
 /// Decides how many buckets we should use for symbol names.
 pub(super) fn num_symbol_hash_buckets(args: &impl platform::Args) -> usize {
-    args.common().available_threads.get()
+    args.available_threads().get()
 }
 
 impl<'data> SymbolLoadOutputs<'data> {

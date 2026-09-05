@@ -201,7 +201,7 @@ pub(crate) fn apply_relocations<
             None => rel.offset(),
         };
 
-        if layout.args().common().incremental
+        if layout.args().incremental()
             && let Some(sym) = rel.symbol()
         {
             layout.record_reverse_reloc(
