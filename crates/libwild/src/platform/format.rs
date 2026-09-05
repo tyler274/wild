@@ -1,28 +1,28 @@
+use super::OutputKind;
 use super::cli::Args;
 use super::isa::Arch;
 use super::isa::ThunkConfig;
 use super::object::*;
+use super::output_section_id::OutputSectionId;
+use super::output_section_map::OutputSectionMap;
+use super::part_id;
+use super::part_id::PartId;
+use super::program_segments::ProgramSegments;
+use super::section_identity::SectionIdentity;
+use super::section_identity::SectionName;
+use super::section_rules::SectionRule;
+use super::section_rules::SectionRuleOutcome;
+use super::symbol_id::SymbolId;
+use super::value_flags::AtomicPerSymbolFlags;
+use super::value_flags::PerSymbolFlags;
+use super::value_flags::ValueFlags;
 use crate::FileSystem;
-use crate::OutputKind;
 use crate::Result;
 use crate::alignment::Alignment;
 use crate::bail;
 use crate::fs::FileReplacementMode;
-use crate::layout_rules::SectionRule;
-use crate::layout_rules::SectionRuleOutcome;
 use crate::linker_script;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::SectionIdentity;
-use crate::output_section_id::SectionName;
-use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
-use crate::part_id;
-use crate::part_id::PartId;
-use crate::program_segments::ProgramSegments;
-use crate::symbol_db::SymbolId;
-use crate::value_flags::AtomicPerSymbolFlags;
-use crate::value_flags::PerSymbolFlags;
-use crate::value_flags::ValueFlags;
 use rayon::Scope;
 use std::num::NonZeroU32;
 
@@ -73,7 +73,7 @@ pub(crate) trait Platform:
     const VERIFY_IGNORE_ALIGNMENT_SECTION_IDS: &'static [OutputSectionId] = &[];
 
     fn single_part_id(section_id: OutputSectionId) -> Option<PartId> {
-        (section_id.as_u32() < crate::output_section_id::regular_section_base::<Self>().as_u32())
+        (section_id.as_u32() < super::output_section_id::regular_section_base::<Self>().as_u32())
             .then(|| PartId::from_usize(section_id.as_usize()))
     }
 
@@ -847,8 +847,8 @@ pub(crate) trait Platform:
     }
 
     fn new_resolved_object_ext<'data>(
-        _symbol_id_range: crate::symbol_db::SymbolIdRange,
-        _file_id: crate::input_data::FileId,
+        _symbol_id_range: super::symbol_id::SymbolIdRange,
+        _file_id: super::file_id::FileId,
     ) -> Self::ResolvedObjectExt<'data> {
         Default::default()
     }

@@ -432,7 +432,7 @@ pub(crate) fn split_buffers_by_alignment<'out, 'data, P: EnginePlatform>(
                         layout
                             .output_sections
                             .section_debug(part_id.output_section_id::<P>()),
-                        part_id.alignment(&layout.output_sections),
+                        layout.output_sections.part_alignment::<P>(part_id),
                     )
                 })
                 .unwrap()

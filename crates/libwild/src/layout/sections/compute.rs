@@ -468,7 +468,9 @@ pub(crate) fn compute_layout_sections<'data, P: EnginePlatform>(
                     let alignment = if is_first_part {
                         max_alignment
                     } else {
-                        part_id.alignment(output_sections).min(max_alignment)
+                        output_sections
+                            .part_alignment::<P>(part_id)
+                            .min(max_alignment)
                     };
                     let aligned_mem_offset = alignment.align_up(mem_offset);
                     let mem_size = if Some(section_id) == P::RELRO_PADDING_SECTION_ID {

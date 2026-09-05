@@ -1,10 +1,10 @@
+use super::OutputKind;
 use super::format::Platform;
 use super::object::SourceInfo;
-use crate::OutputKind;
+use super::part_id::PartId;
+use super::value_flags::ValueFlags;
 use crate::Result;
 use crate::bail;
-use crate::part_id::PartId;
-use crate::value_flags::ValueFlags;
 use linker_utils::elf::DynamicRelocationKind;
 use linker_utils::elf::RelocationKindInfo;
 use linker_utils::relaxation::RelocationModifier;

@@ -407,6 +407,23 @@ impl<'data, P: Platform> OutputSections<'data, P> {
         info.min_alignment = core::cmp::max(info.min_alignment, a);
     }
 
+    pub(crate) fn min_alignment(&self, section_id: OutputSectionId) -> Alignment {
+        self.section_infos.get(section_id).min_alignment
+    }
+
+    pub(crate) fn part_alignment<Q: Platform>(&self, part_id: PartId) -> Alignment {
+        if let Some(offset) = part_id
+            .as_u32()
+            .checked_sub(crate::part_id::regular_part_base::<Q>().as_u32())
+        {
+            Alignment {
+                exponent: NUM_ALIGNMENTS as u8 - 1 - (offset % NUM_ALIGNMENTS as u32) as u8,
+            }
+        } else {
+            self.min_alignment(part_id.output_section_id::<Q>())
+        }
+    }
+
     pub(crate) fn get_or_create_init_fini_secondary(
         &mut self,
         primary: OutputSectionId,
@@ -635,7 +652,7 @@ impl<'data, P: Platform> OutputSections<'data, P> {
     }
 
     pub(crate) fn part_debug(&self, part_id: PartId) -> String {
-        let alignment = part_id.alignment(self);
+        let alignment = self.part_alignment::<P>(part_id);
         format!(
             "{} align={alignment}",
             self.section_debug(part_id.output_section_id::<P>())

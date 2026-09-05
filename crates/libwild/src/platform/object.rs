@@ -1,10 +1,10 @@
 use super::format::Platform;
+use super::output_section_id::OutputSectionId;
+use super::part_id::PartId;
 use crate::Result;
 use crate::input_data::InputBytes;
 use crate::input_data::InputRef;
-use crate::output_section_id::OutputSectionId;
 use crate::output_section_part_map::OutputSectionPartMap;
-use crate::part_id::PartId;
 use std::borrow::Cow;
 use std::fmt::Display;
 use std::num::NonZeroU32;

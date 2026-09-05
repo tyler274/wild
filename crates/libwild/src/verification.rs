@@ -47,7 +47,7 @@ impl OffsetVerifier {
 
         for (((part_id, exp), (_, act)), (_, size)) in expected.iter().zip(actual.iter()).zip(sizes)
         {
-            let alignment = part_id.alignment(output_sections);
+            let alignment = output_sections.part_alignment::<P>(*part_id);
             if exp != act {
                 let actual_bump = *act as i64 - (*exp as i64 - size as i64);
                 problems.push(format!(
@@ -56,7 +56,7 @@ impl OffsetVerifier {
                     output_sections.display_name(part_id.output_section_id::<P>())
                 ));
             }
-            if !size.is_multiple_of(part_id.alignment(output_sections).value())
+            if !size.is_multiple_of(output_sections.part_alignment::<P>(*part_id).value())
                 && !should_ignore_alignment::<P>(*part_id)
             {
                 problems.push(format!(
@@ -78,7 +78,7 @@ impl OffsetVerifier {
 
     fn alignments_ok<P: EnginePlatform>(&self, output_sections: &OutputSections<P>) -> bool {
         self.sizes.iter().all(|(part_id, size)| {
-            size.is_multiple_of(part_id.alignment(output_sections).value())
+            size.is_multiple_of(output_sections.part_alignment::<P>(part_id).value())
                 || should_ignore_alignment::<P>(part_id)
         })
     }

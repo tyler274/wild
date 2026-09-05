@@ -970,7 +970,9 @@ impl Section {
         if part_id.should_pack::<P>() {
             self.size
         } else {
-            part_id.alignment(output_sections).align_up(self.size)
+            output_sections
+                .part_alignment::<P>(part_id)
+                .align_up(self.size)
         }
     }
 

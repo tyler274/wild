@@ -1,11 +1,11 @@
-use crate::OutputKind;
+use super::OutputKind;
+use super::section_identity::SectionName;
 use crate::Result;
 use crate::alignment::Alignment;
 use crate::arch::Architecture;
 use crate::bail;
 use crate::env;
 use crate::error::Warning;
-use crate::output_section_id::SectionName;
 use object::Endianness;
 use std::num::NonZeroU64;
 use std::path::Path;

@@ -1,17 +1,17 @@
-use crate::platform;
+use super::ProgramSegmentDef;
 use std::fmt::Display;
 
 #[derive(Default, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash, Debug)]
 pub(crate) struct ProgramSegmentId(u8);
 
 #[derive(Debug)]
-pub(crate) struct ProgramSegments<T: platform::ProgramSegmentDef> {
+pub(crate) struct ProgramSegments<T: ProgramSegmentDef> {
     program_segment_details: Vec<T>,
     has_custom_phdrs: bool,
     at_lmas: Vec<Option<u64>>,
 }
 
-impl<T: platform::ProgramSegmentDef> ProgramSegments<T> {
+impl<T: ProgramSegmentDef> ProgramSegments<T> {
     pub(crate) fn empty(has_custom_phdrs: bool) -> ProgramSegments<T> {
         Self {
             program_segment_details: Vec::new(),
@@ -89,7 +89,7 @@ impl ProgramSegmentId {
         )
     }
 
-    pub(crate) fn display<T: platform::ProgramSegmentDef>(
+    pub(crate) fn display<T: ProgramSegmentDef>(
         self,
         program_segments: &ProgramSegments<T>,
     ) -> impl Display {
@@ -97,7 +97,7 @@ impl ProgramSegmentId {
     }
 }
 
-impl<'a, T: platform::ProgramSegmentDef> IntoIterator for &'a ProgramSegments<T> {
+impl<'a, T: ProgramSegmentDef> IntoIterator for &'a ProgramSegments<T> {
     type Item = &'a T;
 
     type IntoIter = std::slice::Iter<'a, T>;

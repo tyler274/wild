@@ -1,6 +1,6 @@
-use crate::platform;
-use crate::symbol_db::SymbolId;
-use crate::symbol_db::SymbolIdRange;
+use super::object::Symbol;
+use super::symbol_id::SymbolId;
+use super::symbol_id::SymbolIdRange;
 use bitflags::bitflags;
 use std::sync::atomic;
 use std::sync::atomic::AtomicU32;
@@ -190,7 +190,7 @@ impl ValueFlags {
     /// Returns true if a symbol should be treated as local in the symbol table.
     /// This includes both originally-local symbols and symbols downgraded by version scripts.
     #[must_use]
-    pub(crate) fn is_symtab_local<S: platform::Symbol>(self, sym: &S) -> bool {
+    pub(crate) fn is_symtab_local<S: Symbol>(self, sym: &S) -> bool {
         sym.is_local() || self.is_downgraded_to_local()
     }
 

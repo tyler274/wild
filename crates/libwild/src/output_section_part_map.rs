@@ -203,7 +203,9 @@ impl<T: Default + PartialEq> OutputSectionPartMap<T> {
             let max_alignment = self.max_alignment(part_id_range.clone(), output_sections);
 
             for (part_id, input) in self.in_range(part_id_range) {
-                let alignment = part_id.alignment(output_sections).min(max_alignment);
+                let alignment = output_sections
+                    .part_alignment::<P>(part_id)
+                    .min(max_alignment);
                 *output.get_mut(part_id) = cb(part_id, alignment, input);
             }
         }
@@ -222,14 +224,9 @@ impl<T: Default + PartialEq> OutputSectionPartMap<T> {
         self.in_range(range.clone())
             .find(|(_, value)| **value != T::default())
             .map_or(alignment::MIN, |(part_id, _)| {
-                part_id.alignment(output_sections)
+                output_sections.part_alignment::<P>(part_id)
             })
-            .max(
-                range
-                    .start
-                    .output_section_id::<P>()
-                    .min_alignment(output_sections),
-            )
+            .max(output_sections.min_alignment(range.start.output_section_id::<P>()))
     }
 
     /// Zip mutable references to values in `self` with shared references from `other` producing a

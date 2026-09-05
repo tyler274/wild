@@ -9,6 +9,8 @@ use crate::linker_script::LinkerScript;
 use crate::macho_stub_library::DefinedStubLibrary;
 use crate::parsing::ParsedInputObject;
 use crate::platform::Platform;
+#[allow(unused_imports)]
+pub(crate) use crate::platform::file_id::*;
 use colosseum::sync::Arena;
 use std::fmt::Display;
 use std::path::Path;
@@ -59,13 +61,6 @@ pub(crate) struct InputBytes<'data> {
 }
 
 pub(crate) use wild_scripts::ScriptData;
-
-/// Identifies an input file. IDs start from 0 which is reserved for our prelude file.
-#[derive(derive_more::Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-#[debug("file-{_0}")]
-pub(crate) struct FileId(u32);
-
-pub(crate) const PRELUDE_FILE_ID: FileId = FileId::new(0, 0);
 
 #[derive(Debug)]
 pub(crate) struct InputFile<D: InputFileData> {
@@ -144,31 +139,6 @@ pub(crate) struct AuxiliaryFiles<'data> {
     pub(crate) export_list_data: Option<ScriptData<'data>>,
 }
 
-const FILE_INDEX_BITS: u32 = 8;
-pub(crate) const MAX_FILES_PER_GROUP: u32 = 1 << FILE_INDEX_BITS;
-
-impl FileId {
-    pub(crate) const fn new(group: u32, file: u32) -> Self {
-        Self((group << FILE_INDEX_BITS) | file)
-    }
-
-    pub(crate) const fn from_encoded(v: u32) -> Self {
-        Self(v)
-    }
-
-    pub(crate) fn group(self) -> usize {
-        self.0 as usize >> FILE_INDEX_BITS
-    }
-
-    pub(crate) fn file(self) -> usize {
-        self.0 as usize & ((1 << FILE_INDEX_BITS) - 1)
-    }
-
-    pub(crate) fn as_u32(self) -> u32 {
-        self.0
-    }
-}
-
 impl std::fmt::Display for InputRef<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(&self.file.filename.display(), f)?;
@@ -183,12 +153,6 @@ impl std::fmt::Display for InputRef<'_> {
 impl std::fmt::Debug for InputRef<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self, f)
-    }
-}
-
-impl std::fmt::Display for FileId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} ({}/{})", self.0, self.group(), self.file())
     }
 }
 

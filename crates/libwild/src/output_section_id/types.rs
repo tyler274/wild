@@ -4,11 +4,10 @@ use crate::layout_rules::SectionKind;
 use crate::linker_script::Expression;
 use crate::linker_script::OnlyIf;
 use crate::platform::Platform;
-use crate::platform::SectionAttributes as _;
-use std::fmt::Debug;
-use std::fmt::Display;
-use std::hash::Hash;
-use std::hash::Hasher;
+#[allow(unused_imports)]
+pub(crate) use crate::platform::custom_section_ids::*;
+#[allow(unused_imports)]
+pub(crate) use crate::platform::section_identity::*;
 
 #[derive(Debug)]
 pub(crate) struct CustomSectionDetails<'data, P: Platform> {
@@ -71,66 +70,6 @@ impl<'data> OnlyIfSlots<'data> {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum OrphanClass {
-    Exec,
-    Ro,
-    Data,
-    Bss,
-    Tdata,
-    Tbss,
-    NonAlloc,
-}
-
-#[derive(Default, Clone)]
-pub(crate) struct CustomSectionIds {
-    pub(crate) ro: Vec<OutputSectionId>,
-    pub(crate) exec: Vec<OutputSectionId>,
-    pub(crate) data: Vec<OutputSectionId>,
-    pub(crate) bss: Vec<OutputSectionId>,
-    pub(crate) nonalloc: Vec<OutputSectionId>,
-    pub(crate) tdata: Vec<OutputSectionId>,
-    pub(crate) tbss: Vec<OutputSectionId>,
-    /// When a linker script is present, place unnamed (orphan) output sections
-    /// after the last section with the same flags, matching GNU ld.
-    pub(crate) place_after_similar: bool,
-}
-
-impl CustomSectionIds {
-    pub(crate) fn class_of<P: Platform>(attr: &P::SectionAttributes) -> OrphanClass {
-        if attr.is_executable() {
-            OrphanClass::Exec
-        } else if attr.is_tls() {
-            if attr.is_no_bits() {
-                OrphanClass::Tbss
-            } else {
-                OrphanClass::Tdata
-            }
-        } else if !attr.is_writable() {
-            if attr.is_alloc() {
-                OrphanClass::Ro
-            } else {
-                OrphanClass::NonAlloc
-            }
-        } else if attr.is_no_bits() {
-            OrphanClass::Bss
-        } else {
-            OrphanClass::Data
-        }
-    }
-
-    pub(crate) fn take_class(&mut self, class: OrphanClass) -> Vec<OutputSectionId> {
-        match class {
-            OrphanClass::Exec => core::mem::take(&mut self.exec),
-            OrphanClass::Ro => core::mem::take(&mut self.ro),
-            OrphanClass::Data => core::mem::take(&mut self.data),
-            OrphanClass::Bss => core::mem::take(&mut self.bss),
-            OrphanClass::Tdata => core::mem::take(&mut self.tdata),
-            OrphanClass::Tbss => core::mem::take(&mut self.tbss),
-            OrphanClass::NonAlloc => core::mem::take(&mut self.nonalloc),
-        }
-    }
-}
 // TODO: There's also a type with this name in layout_rules. Rename one of them to avoid confusion.
 #[derive(Debug)]
 pub(crate) struct SectionOutputInfo<'data, P: Platform> {
@@ -146,77 +85,12 @@ pub(crate) struct SectionOutputInfo<'data, P: Platform> {
     /// `sh_addralign` (GNU ld linker-script default). Alignment-bucket parts are not used.
     pub(crate) input_order: bool,
 }
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct SectionIdentity<'data, P: Platform> {
-    name: SectionName<'data>,
-    format_specific: P::SectionIdentityExt,
-}
-
-impl<'data, P: Platform> SectionIdentity<'data, P> {
-    pub(crate) const fn new(
-        name: SectionName<'data>,
-        format_specific: P::SectionIdentityExt,
-    ) -> Self {
-        Self {
-            name,
-            format_specific,
-        }
-    }
-
-    pub(crate) fn section_name(&self) -> SectionName<'data> {
-        self.name
-    }
-
-    pub(crate) fn format_specific(&self) -> P::SectionIdentityExt {
-        self.format_specific
-    }
-}
-
-impl<'data, P: Platform> PartialEq for SectionIdentity<'data, P> {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.format_specific == other.format_specific
-    }
-}
-
-impl<'data, P: Platform> Eq for SectionIdentity<'data, P> {}
-
-impl<'data, P: Platform> Hash for SectionIdentity<'data, P> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
-        self.format_specific.hash(state);
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct SectionName<'data>(pub(crate) &'data [u8]);
-
-impl SectionName<'_> {
-    pub(crate) fn bytes(&self) -> &[u8] {
-        self.0
-    }
-}
-
-impl Debug for SectionName<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{}", String::from_utf8_lossy(self.0)))
-    }
-}
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum SecondaryOrder {
     InitFini { priority: u16 },
 }
-impl<P: Platform> Display for SectionIdentity<'_, P> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        P::fmt_section_identity(self.name, &self.format_specific, f)
-    }
-}
 
-impl Display for SectionName<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", String::from_utf8_lossy(self.0))
-    }
-}
 pub(crate) type LocationCounterIndex = usize;
 
 #[derive(Debug)]
