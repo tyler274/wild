@@ -94,7 +94,7 @@ impl<C: ElfClass> Elf<C> {
         };
         defs[output_section_id::SECTION_HEADERS.as_usize()] = BuiltInSectionDetails {
             kind: Self::primary_section(SECTION_HEADERS_SECTION_NAME),
-            section_flags: shf::ALLOC,
+            min_alignment: C::SECTION_HEADER_ALIGNMENT,
             ..Self::DEFAULT_DEFS
         };
         defs[output_section_id::SHSTRTAB.as_usize()] = BuiltInSectionDetails {

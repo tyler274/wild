@@ -2173,7 +2173,6 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
 
         builder.add_section(wild_layout::output_section_id::FILE_HEADER);
         builder.add_section(output_section_id::PROGRAM_HEADERS);
-        builder.add_section(output_section_id::SECTION_HEADERS);
         builder.add_section(output_section_id::NOTE_GNU_PROPERTY);
         builder.add_section(output_section_id::NOTE_GNU_BUILD_ID);
         builder.add_section(output_section_id::INTERP);
@@ -2234,6 +2233,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         builder.add_section(output_section_id::SYMTAB_SHNDX_LOCAL);
         builder.add_section(output_section_id::STRTAB);
         builder.add_section(output_section_id::PARTIAL_LINKING_SINGLETONS);
+        builder.add_section(output_section_id::SECTION_HEADERS);
 
         builder.build()
     }
@@ -2461,7 +2461,6 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                 while let Some((_, seg_id)) = it.next_if(|&(cat, _)| cat == 3) {
                     builder.push_event(OrderEvent::SegmentEnd(seg_id));
                 }
-                builder.push_event(OrderEvent::Section(output_section_id::SECTION_HEADERS));
                 for (_, seg_id) in it {
                     builder.queue_segment_start(seg_id);
                 }
@@ -2554,6 +2553,8 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         builder.push_event(OrderEvent::SegmentStart(riscv_segment));
         builder.add_section(output_section_id::RISCV_ATTRIBUTES);
         builder.push_event(OrderEvent::SegmentEnd(riscv_segment));
+
+        builder.add_section(output_section_id::SECTION_HEADERS);
 
         let (order, mut program_segments) = builder.build();
         for entry in &segment_entries {

@@ -41,6 +41,7 @@ use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::symbol_db::SymbolId;
 use wild_platform as platform;
 use wild_platform::ObjectFile;
+use wild_platform::Relaxation;
 use wild_platform::program_segments::ProgramSegmentId;
 use wild_platform::value_flags::ValueFlags;
 use wild_util::alignment;
@@ -299,7 +300,23 @@ pub(super) fn process_relocation<'data, 'scope, A: platform::Arch<Platform = Mac
         let mut flags = resources.local_flags_for_symbol(symbol_id);
         flags.merge(resources.local_flags_for_symbol(local_symbol_id));
 
-        let relocation = A::relocation_from_raw(rel_info)?;
+        let relocation = if let Some(relaxation) = A::new_relaxation(
+            rel_info,
+            &[],
+            u64::from(rel_info.r_address),
+            flags,
+            symbol_db.output_kind,
+            SectionFlags::default(),
+            None,
+            1,
+            0,
+            0,
+            None,
+        ) {
+            relaxation.rel_info()
+        } else {
+            A::relocation_from_raw(rel_info)?
+        };
         let mut flags_to_add = layout::resolution_flags(relocation.kind);
         if is_dynamic_library(&symbol_db.file(symbol_db.file_id_for_symbol(symbol_id))) {
             flags_to_add |= ValueFlags::GOT;
