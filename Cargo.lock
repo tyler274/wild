@@ -876,6 +876,7 @@ dependencies = [
  "uuid",
  "wasm-encoder 0.258.0",
  "wasmparser 0.258.0",
+ "wild-args",
  "wild-error",
  "wild-fs",
  "wild-platform",
@@ -2157,6 +2158,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bae2f2b2b816647a1cab1acc91f5bd20812d53cb344382635ec2181940c8034f"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "wild-args"
+version = "0.10.0"
+dependencies = [
+ "derive_more",
+ "foldhash 0.2.0",
+ "hashbrown 0.17.1",
+ "hex",
+ "indexmap",
+ "itertools 0.15.0",
+ "jobserver",
+ "object 0.40.0",
+ "rayon",
+ "strum",
+ "tempfile",
+ "tracing",
+ "wild-error",
+ "wild-fs",
+ "wild-platform",
+ "wild-scripts",
+ "wild-util",
 ]
 
 [[package]]

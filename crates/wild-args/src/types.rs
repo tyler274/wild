@@ -9,82 +9,86 @@ use super::coff;
 use super::elf;
 use super::macho;
 use super::wasm;
-use crate::bail;
-use crate::ensure;
-use crate::env;
-use crate::error::Result;
-use crate::error::Warning;
-use crate::fs::FileReplacementMode;
-use crate::fs::FileWriteMode;
-use crate::input_data::FileId;
-use crate::save_dir::SaveDir;
-use crate::timing_phase;
+use foldhash::HashSet;
 use jobserver::Acquired;
 use jobserver::Client;
 use rayon::ThreadPoolBuilder;
 use std::num::NonZeroUsize;
 use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicI64;
+use wild_error::bail;
+use wild_error::ensure;
+use wild_error::env;
+use wild_error::error::Result;
+use wild_error::error::Warning;
+use wild_fs::fs::FileReplacementMode;
+use wild_fs::fs::FileWriteMode;
+use wild_platform::FileId;
 
 #[derive(derive_more::Debug)]
 pub struct CommonArgs {
-    pub(crate) unrecognized_options: Vec<String>,
+    pub unrecognized_options: Vec<String>,
 
-    pub(crate) output: Arc<Path>,
-    pub(crate) relocation_model: RelocationModel,
+    pub output: Arc<Path>,
+    pub relocation_model: RelocationModel,
 
     /// The number of actually available threads (considering jobserver)
-    pub(crate) available_threads: NonZeroUsize,
+    pub available_threads: NonZeroUsize,
     pub num_threads: Option<NonZeroUsize>,
-    pub(crate) files_per_group: Option<u32>,
+    pub files_per_group: Option<u32>,
 
     jobserver_client: Option<Client>,
-    pub(crate) inputs: Vec<Input>,
-    pub(crate) file_replacement_mode: Option<FileReplacementMode>,
-    pub(crate) file_write_mode: Option<FileWriteMode>,
-    pub(crate) fallocate_output_file: Option<bool>,
-    pub(crate) madvise_huge_pages: Option<bool>,
-    pub(crate) save_dir: SaveDir,
+    pub inputs: Vec<Input>,
+    pub file_replacement_mode: Option<FileReplacementMode>,
+    pub file_write_mode: Option<FileWriteMode>,
+    pub fallocate_output_file: Option<bool>,
+    pub madvise_huge_pages: Option<bool>,
+    /// Input paths observed while parsing, for `WILD_SAVE_DIR` / `WILD_SAVE_BASE`.
+    pub files_to_copy: HashSet<PathBuf>,
 
-    pub(crate) prepopulate_maps: bool,
-    pub(crate) debug_fuel: Option<AtomicI64>,
-    pub(crate) should_fork: bool,
-    pub(crate) demangle: bool,
-    pub(crate) validate_output: bool,
-    pub(crate) verify_allocation_consistency: bool,
-    pub(crate) write_layout: bool,
-    pub(crate) write_trace: bool,
-    pub(crate) experimental_platforms: bool,
-    pub(crate) print_allocations: Option<FileId>,
-    pub(crate) sym_info: Option<String>,
-    pub(crate) numeric_experiments: Vec<Option<u64>>,
-    pub(crate) version_mode: VersionMode,
+    /// Original CLI tokens after the program name, for save-dir replay scripts.
+    pub cli_args: Vec<String>,
+
+    pub prepopulate_maps: bool,
+    pub debug_fuel: Option<AtomicI64>,
+    pub should_fork: bool,
+    pub demangle: bool,
+    pub validate_output: bool,
+    pub verify_allocation_consistency: bool,
+    pub write_layout: bool,
+    pub write_trace: bool,
+    pub experimental_platforms: bool,
+    pub print_allocations: Option<FileId>,
+    pub sym_info: Option<String>,
+    pub numeric_experiments: Vec<Option<u64>>,
+    pub version_mode: VersionMode,
 
     /// If `Some`, then we'll time how long each phase takes. We'll also measure the specified
     /// counters, if any.
-    pub(crate) time_phase_options: Option<Vec<CounterKind>>,
+    pub time_phase_options: Option<Vec<CounterKind>>,
 
     /// Warnings that we encountered either during argument parsing, or during subsequent linker
     /// execution based on those arguments.
     #[debug(skip)]
-    pub(crate) warning_callback: Box<WarningCallback>,
+    pub warning_callback: Box<WarningCallback>,
 
     /// The version of the linker being used.
-    pub(crate) version: std::borrow::Cow<'static, str>,
+    pub version: std::borrow::Cow<'static, str>,
 
     pub(super) has_flavor: bool,
 
     /// When set, Wild writes a `{output}.incr` state directory and pads output sections so a later
     /// `--incremental` link can patch in place. Falls back to a full link when LTO, GC, or
     /// strict-order sections (`.init` / `.fini`) are involved.
-    pub(crate) incremental: bool,
+    pub incremental: bool,
 }
 
 pub type WarningCallback = dyn Fn(Warning) + Send + Sync + 'static;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum VersionMode {
+pub enum VersionMode {
     /// Don't print version
     None,
     /// Print version and continue linking if object files are specified (-v).
@@ -109,9 +113,9 @@ pub enum CounterKind {
     L1dMiss,
 }
 
-use crate::platform::RelocationModel;
+use wild_platform::RelocationModel;
 
-pub(crate) trait HasCommonArgs {
+pub trait HasCommonArgs {
     fn common(&self) -> &CommonArgs;
     fn common_mut(&mut self) -> &mut CommonArgs;
 }
@@ -128,7 +132,8 @@ impl Default for CommonArgs {
             inputs: Vec::new(),
             file_replacement_mode: None,
             unrecognized_options: Vec::new(),
-            save_dir: SaveDir::default(),
+            files_to_copy: HashSet::default(),
+            cli_args: Vec::new(),
             file_write_mode: None,
             fallocate_output_file: None,
             madvise_huge_pages: None,
@@ -165,7 +170,7 @@ fn default_warning_callback(warning: Warning) {
 }
 
 impl CommonArgs {
-    pub(crate) fn report_unrecognized(&self) -> Result {
+    pub fn report_unrecognized(&self) -> Result {
         if !self.unrecognized_options.is_empty() {
             let options_list = self.unrecognized_options.join(", ");
             bail!("unrecognized option(s): {}", options_list);
@@ -178,8 +183,8 @@ impl CommonArgs {
     /// or falling back to the jobserver protocol if available.
     ///
     /// <https://www.gnu.org/software/make/manual/html_node/POSIX-Jobserver.html>
-    pub(crate) fn build_thread_pool(&mut self) -> Result<ThreadPool> {
-        timing_phase!("Build thread pool");
+    pub fn build_thread_pool(&mut self) -> Result<ThreadPool> {
+        let _span = tracing::info_span!("Build thread pool").entered();
 
         let mut tokens = Vec::new();
         self.available_threads = self.num_threads.unwrap_or_else(|| {
@@ -211,18 +216,18 @@ impl CommonArgs {
     /// Binutils feature level advertised in `--version`. Glibc `configure`, the
     /// kernel's `scripts/ld-version.sh`, and GCC all require a `GNU ld` line with
     /// a dotted version; 2.39 is glibc's minimum.
-    pub(crate) const GNU_LD_COMPAT_VERSION: &str = "2.44";
+    pub const GNU_LD_COMPAT_VERSION: &str = "2.44";
 
     /// Returns a string that identifies this linker. This is written into the .comment
     /// section which usually also contains the versions of compilers that were used.
-    pub(crate) fn linker_identity(&self) -> String {
+    pub fn linker_identity(&self) -> String {
         format!("Wild {} (compatible with GNU linkers)", self.version)
     }
 
     /// `--version` / `-v` / `-V` text. First line matches GNU ld so glibc and the
     /// kernel accept Wild. The parenthetical must not contain a `x.y` version or
     /// glibc's `sed` captures that instead of `GNU_LD_COMPAT_VERSION`.
-    pub(crate) fn version_message(&self) -> String {
+    pub fn version_message(&self) -> String {
         format!(
             "GNU ld (Wild) {}\n{}",
             Self::GNU_LD_COMPAT_VERSION,
@@ -230,9 +235,14 @@ impl CommonArgs {
         )
     }
 
+    /// Records an input path for later `WILD_SAVE_DIR` / `WILD_SAVE_BASE` copying.
+    pub fn handle_file(&mut self, arg: &str) {
+        self.files_to_copy.insert(Path::new(arg).to_path_buf());
+    }
+
     /// Adds a linker script to our outputs. Note, this is only called for scripts specified via
     /// flags like -T. Where a linker script is just listed as an argument, this won't be called.
-    pub(crate) fn add_script(&mut self, path: &str) {
+    pub fn add_script(&mut self, path: &str) {
         self.inputs.push(Input {
             spec: InputSpec::File(Box::from(Path::new(path))),
             search_first: None,
@@ -244,7 +254,7 @@ impl CommonArgs {
     /// debugging certain kinds of bugs, so this function isn't normally referenced. To use it, the
     /// caller should take a different branch depending on whether the value is still positive. You
     /// can then do a binary search.
-    pub(crate) fn use_debug_fuel(&self) -> i64 {
+    pub fn use_debug_fuel(&self) -> i64 {
         let Some(fuel) = self.debug_fuel.as_ref() else {
             return i64::MAX;
         };
@@ -254,7 +264,7 @@ impl CommonArgs {
     /// Returns whether there was sufficient fuel. If the last bit of fuel was used, then calls
     /// `last_cb`.
     #[allow(unused)]
-    pub(crate) fn use_debug_fuel_on_last(&self, last_cb: impl FnOnce()) -> bool {
+    pub fn use_debug_fuel_on_last(&self, last_cb: impl FnOnce()) -> bool {
         match self.use_debug_fuel() {
             1.. => true,
             0 => {
@@ -269,7 +279,7 @@ impl CommonArgs {
         self.should_fork
     }
 
-    pub(crate) fn numeric_experiment(&self, exp: crate::platform::Experiment, default: u64) -> u64 {
+    pub fn numeric_experiment(&self, exp: wild_platform::Experiment, default: u64) -> u64 {
         self.numeric_experiments
             .get(exp as usize)
             .copied()
@@ -277,8 +287,8 @@ impl CommonArgs {
             .unwrap_or(default)
     }
 
-    pub(crate) fn from_env() -> Result<Self> {
-        use crate::input_data::MAX_FILES_PER_GROUP;
+    pub fn from_env() -> Result<Self> {
+        use wild_platform::MAX_FILES_PER_GROUP;
 
         // SAFETY: Should be called early before other descriptors are opened and
         // so we open it before the arguments are parsed (can open a file).
@@ -314,7 +324,7 @@ impl CommonArgs {
 /// The thread pool used by the linker. If a jobserver is being used, dropping this instance will
 /// release jobserver tokens.
 pub struct ThreadPool {
-    pub(crate) pool: rayon::ThreadPool,
+    pub pool: rayon::ThreadPool,
     _jobserver_tokens: Vec<Acquired>,
 }
 
@@ -338,12 +348,12 @@ impl std::fmt::Debug for Args {
     }
 }
 
-pub(crate) use wild_scripts::Input;
-pub(crate) use wild_scripts::InputSpec;
+pub use wild_scripts::Input;
+pub use wild_scripts::InputSpec;
 pub use wild_scripts::Modifiers;
 
 #[derive(Debug, Eq, PartialEq)]
-pub(crate) enum BSymbolicKind {
+pub enum BSymbolicKind {
     None,
     All,
     Functions,
@@ -351,12 +361,12 @@ pub(crate) enum BSymbolicKind {
     NonWeak,
 }
 
-pub(crate) fn parse_time_phase_options(input: &str) -> Result<Vec<CounterKind>> {
+pub fn parse_time_phase_options(input: &str) -> Result<Vec<CounterKind>> {
     input.split(',').map(|s| s.parse()).collect()
 }
 
 impl std::str::FromStr for CounterKind {
-    type Err = crate::error::Error;
+    type Err = wild_error::error::Error;
 
     fn from_str(s: &str) -> Result<Self> {
         Ok(match s {

@@ -1,70 +1,70 @@
-use crate::alignment::Alignment;
-use crate::args::ArgumentParser;
-use crate::args::CommonArgs;
-use crate::args::HasCommonArgs as _;
-use crate::args::Input;
-use crate::args::InputSpec;
-use crate::args::Modifiers;
-use crate::args::VersionMode;
-use crate::args::parse_number;
-use crate::bail;
-use crate::error::Result;
-use crate::platform;
-use crate::platform::Args as _;
+use crate::ArgumentParser;
+use crate::CommonArgs;
+use crate::HasCommonArgs as _;
+use crate::Input;
+use crate::InputSpec;
+use crate::Modifiers;
+use crate::VersionMode;
+use crate::parse_number;
 use std::path::Path;
 use std::sync::Arc;
+use wild_error::bail;
+use wild_error::error::Result;
+use wild_platform as platform;
+use wild_platform::Args as _;
+use wild_util::alignment::Alignment;
 
 /// Loadable segment alignment for wasm. Wasm doesn't really have program
 /// segments in the ELF sense, but we still need to provide a value for the
 /// `Args` trait.
-pub(crate) const WASM_PAGE_ALIGNMENT: Alignment = Alignment { exponent: 16 };
+pub const WASM_PAGE_ALIGNMENT: Alignment = Alignment { exponent: 16 };
 
 /// Default page size (in bytes) for a wasm linear memory page.
-pub(crate) const WASM_PAGE_SIZE: u64 = WASM_PAGE_ALIGNMENT.value();
+pub const WASM_PAGE_SIZE: u64 = WASM_PAGE_ALIGNMENT.value();
 
 /// Default main stack size.
-pub(crate) const DEFAULT_STACK_SIZE: u32 = 64 * 1024;
+pub const DEFAULT_STACK_SIZE: u32 = 64 * 1024;
 
 /// Default entry symbol for Wasm command modules.
-pub(crate) const DEFAULT_ENTRY: &str = "_start";
+pub const DEFAULT_ENTRY: &str = "_start";
 
 /// Default export name for the module's linear memory.
-pub(crate) const DEFAULT_MEMORY_EXPORT_NAME: &str = "memory";
+pub const DEFAULT_MEMORY_EXPORT_NAME: &str = "memory";
 
 #[derive(Debug)]
 pub struct WasmArgs {
-    pub(crate) common: super::CommonArgs,
-    pub(crate) lib_search_path: Vec<Box<Path>>,
-    pub(crate) export_symbols: Vec<String>,
-    pub(crate) required_export_symbols: Vec<String>,
-    pub(crate) extra_features: Vec<String>,
-    pub(crate) export_memory: Option<String>,
-    pub(crate) z_stack_size: u32,
+    pub common: super::CommonArgs,
+    pub lib_search_path: Vec<Box<Path>>,
+    pub export_symbols: Vec<String>,
+    pub required_export_symbols: Vec<String>,
+    pub extra_features: Vec<String>,
+    pub export_memory: Option<String>,
+    pub z_stack_size: u32,
     // Since LLVM 22, the default option is true.
-    pub(crate) stack_first: bool,
+    pub stack_first: bool,
     // Entry symbol name. Defaults to `DEFAULT_ENTRY`.
-    pub(crate) entry: Option<String>,
+    pub entry: Option<String>,
     // When set, the output `memory.initial` is raised to at least this many bytes (must be
     // page-aligned). `None` means size is derived from data / stack layout only.
-    pub(crate) initial_memory: Option<u64>,
-    pub(crate) max_memory: Option<u64>,
+    pub initial_memory: Option<u64>,
+    pub max_memory: Option<u64>,
     // Emit a shared linear memory (`memory.shared`). Requires the `atomics` and `bulk-memory`
     // target features.
-    pub(crate) shared_memory: bool,
-    pub(crate) gc_sections: bool,
-    pub(crate) allow_undefined: bool,
-    pub(crate) allow_multiple_definition: bool,
+    pub shared_memory: bool,
+    pub gc_sections: bool,
+    pub allow_undefined: bool,
+    pub allow_multiple_definition: bool,
 }
 
 impl WasmArgs {
-    pub(crate) fn new() -> Result<Self> {
+    pub fn new() -> Result<Self> {
         Ok(Self {
             common: CommonArgs::from_env()?,
             ..Default::default()
         })
     }
 
-    pub(crate) fn memory_export_name(&self) -> &str {
+    pub fn memory_export_name(&self) -> &str {
         self.export_memory
             .as_deref()
             .unwrap_or(DEFAULT_MEMORY_EXPORT_NAME)
@@ -93,12 +93,12 @@ impl Default for WasmArgs {
     }
 }
 
-impl crate::args::HasCommonArgs for WasmArgs {
-    fn common(&self) -> &crate::args::CommonArgs {
+impl crate::HasCommonArgs for WasmArgs {
+    fn common(&self) -> &crate::CommonArgs {
         &self.common
     }
 
-    fn common_mut(&mut self) -> &mut crate::args::CommonArgs {
+    fn common_mut(&mut self) -> &mut crate::CommonArgs {
         &mut self.common
     }
 }
@@ -112,7 +112,7 @@ impl platform::Args for WasmArgs {
         parse(self, input)
     }
 
-    crate::args::impl_platform_args_from_common!();
+    crate::impl_platform_args_from_common!();
 
     fn should_strip_debug(&self) -> bool {
         todo!()
@@ -149,7 +149,7 @@ impl platform::Args for WasmArgs {
         todo!()
     }
 
-    fn loadable_segment_alignment(&self) -> crate::alignment::Alignment {
+    fn loadable_segment_alignment(&self) -> wild_util::alignment::Alignment {
         WASM_PAGE_ALIGNMENT
     }
 
@@ -176,10 +176,7 @@ impl platform::Args for WasmArgs {
     }
 }
 
-pub(crate) fn parse<S: AsRef<str>, I: Iterator<Item = S>>(
-    args: &mut WasmArgs,
-    mut input: I,
-) -> Result {
+pub fn parse<S: AsRef<str>, I: Iterator<Item = S>>(args: &mut WasmArgs, mut input: I) -> Result {
     let mut modifier_stack = vec![Modifiers::default()];
 
     let arg_parser = setup_argument_parser();
@@ -212,7 +209,7 @@ fn setup_argument_parser() -> ArgumentParser<WasmArgs> {
         .prefix("L")
         .help("Add directory to library search path")
         .execute(|args, _modifier_stack, value| {
-            args.common.save_dir.handle_file(value);
+            args.common.handle_file(value);
             args.lib_search_path.push(Box::from(Path::new(value)));
             Ok(())
         });
@@ -345,8 +342,9 @@ fn setup_argument_parser() -> ArgumentParser<WasmArgs> {
             "Set the main stack size in linear memory",
             |args, _, value| {
                 let size = parse_number(value)?;
-                args.z_stack_size = u32::try_from(size)
-                    .map_err(|_| crate::error!("-z stack-size is too large for Wasm32: {size}"))?;
+                args.z_stack_size = u32::try_from(size).map_err(|_| {
+                    wild_error::error!("-z stack-size is too large for Wasm32: {size}")
+                })?;
                 Ok(())
             },
         )
@@ -507,7 +505,7 @@ fn setup_argument_parser() -> ArgumentParser<WasmArgs> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::Args;
+    use wild_platform::Args;
 
     fn parse_args<'a>(args: impl IntoIterator<Item = &'a str>) -> WasmArgs {
         let mut wasm_args = WasmArgs::new().unwrap();

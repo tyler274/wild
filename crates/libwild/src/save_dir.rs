@@ -37,18 +37,16 @@ struct SaveDirState {
 }
 
 impl SaveDir {
-    pub(crate) fn new<S: AsRef<str>, I: Iterator<Item = S>>(mut args: I) -> Result<Self> {
+    pub(crate) fn from_common(common: &crate::args::CommonArgs) -> Result<Self> {
         let Some(dir) = save_dir_from_env()? else {
             return Ok(Self(None));
         };
 
-        // Skip program name.
-        args.next();
-
-        Ok(Self(Some(SaveDirState::new(
+        Ok(Self(Some(SaveDirState {
             dir,
-            args.map(|s| s.as_ref().to_owned()).collect(),
-        ))))
+            args: common.cli_args.clone(),
+            files_to_copy: common.files_to_copy.clone(),
+        })))
     }
 
     pub(crate) fn finish(
@@ -67,12 +65,6 @@ impl SaveDir {
             state.finish(files_to_copy.iter(), parsed_args)?;
         }
         Ok(())
-    }
-
-    pub(crate) fn handle_file(&mut self, arg: &str) {
-        if let Some(state) = self.0.as_mut() {
-            state.files_to_copy.insert(Path::new(arg).to_path_buf());
-        }
     }
 }
 
@@ -125,14 +117,6 @@ fn save_dir_from_env() -> Result<Option<PathBuf>> {
 }
 
 impl SaveDirState {
-    fn new(dir: PathBuf, args: Vec<String>) -> Self {
-        SaveDirState {
-            dir,
-            args,
-            files_to_copy: Default::default(),
-        }
-    }
-
     /// Finalise the save directory. Makes sure that all `filenames` have been copied, writes the
     /// `run-with` file and if the environment variable is set to indicate that we should skip
     /// linking, then exit.

@@ -14,6 +14,7 @@ linker-utils = { path = "../linker-utils", version = "0.10.0" }
 wild-error = { path = "../wild-error", version = "0.10.0" }
 wild-fs = { path = "../wild-fs", version = "0.10.0" }
 wild-platform = { path = "../wild-platform", version = "0.10.0" }
+wild-args = { path = "../wild-args", version = "0.10.0" }
 wild-scripts = { path = "../wild-scripts", version = "0.10.0" }
 wild-util = { path = "../wild-util", version = "0.10.0" }
 anyhow.workspace = true

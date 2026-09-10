@@ -1,37 +1,37 @@
-use crate::alignment::MACHO_PAGE_ALIGNMENT;
-use crate::args::ArgumentParser;
-use crate::args::CommonArgs;
-use crate::args::HasCommonArgs as _;
-use crate::args::Input;
-use crate::args::InputSpec;
-use crate::args::Modifiers;
-use crate::bail;
-use crate::ensure;
-use crate::error::Context;
-use crate::error::Result;
-use crate::platform;
-use crate::platform::Args;
+use crate::ArgumentParser;
+use crate::CommonArgs;
+use crate::HasCommonArgs as _;
+use crate::Input;
+use crate::InputSpec;
+use crate::Modifiers;
 use itertools::Itertools;
 use itertools::repeat_n;
 use object::macho::Version;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use wild_error::bail;
+use wild_error::ensure;
+use wild_error::error::Context;
+use wild_error::error::Result;
+use wild_platform as platform;
+use wild_platform::Args;
+use wild_util::alignment::MACHO_PAGE_ALIGNMENT;
 
 #[derive(Debug)]
 pub struct MachOArgs {
-    pub(crate) common: super::CommonArgs,
+    pub common: super::CommonArgs,
 
-    pub(crate) platform_version: Option<PlatformVersion>,
-    pub(crate) sysroot: Option<Box<Path>>,
-    pub(crate) lib_search_path: Vec<Box<Path>>,
-    pub(crate) plugin_path: Option<String>,
-    pub(crate) dead_strip_dylibs: bool,
-    pub(crate) entry: String,
+    pub platform_version: Option<PlatformVersion>,
+    pub sysroot: Option<Box<Path>>,
+    pub lib_search_path: Vec<Box<Path>>,
+    pub plugin_path: Option<String>,
+    pub dead_strip_dylibs: bool,
+    pub entry: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct SemanticVersion(Version);
+pub struct SemanticVersion(Version);
 impl SemanticVersion {
     fn try_from(value: &str) -> Result<Self> {
         let mut parts = value.split('.').collect_vec();
@@ -49,16 +49,16 @@ impl SemanticVersion {
         )))
     }
 
-    pub(crate) fn get(&self) -> Version {
+    pub fn get(&self) -> Version {
         self.0
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PlatformVersion {
-    pub(crate) platform: String,
-    pub(crate) minimum_version: SemanticVersion,
-    pub(crate) sdk_version: SemanticVersion,
+pub struct PlatformVersion {
+    pub platform: String,
+    pub minimum_version: SemanticVersion,
+    pub sdk_version: SemanticVersion,
 }
 
 const SILENTLY_IGNORED_FLAGS: &[&str] = &[
@@ -71,7 +71,7 @@ const SILENTLY_IGNORED_FLAGS: &[&str] = &[
 const IGNORED_FLAGS: &[&str] = &[];
 
 impl MachOArgs {
-    pub(crate) fn new() -> Result<Self> {
+    pub fn new() -> Result<Self> {
         Ok(Self {
             common: CommonArgs::from_env()?,
             ..Default::default()
@@ -93,12 +93,12 @@ impl Default for MachOArgs {
     }
 }
 
-impl crate::args::HasCommonArgs for MachOArgs {
-    fn common(&self) -> &crate::args::CommonArgs {
+impl crate::HasCommonArgs for MachOArgs {
+    fn common(&self) -> &crate::CommonArgs {
         &self.common
     }
 
-    fn common_mut(&mut self) -> &mut crate::args::CommonArgs {
+    fn common_mut(&mut self) -> &mut crate::CommonArgs {
         &mut self.common
     }
 }
@@ -112,7 +112,7 @@ impl platform::Args for MachOArgs {
         parse(self, input)
     }
 
-    crate::args::impl_platform_args_from_common!();
+    crate::impl_platform_args_from_common!();
 
     fn should_strip_debug(&self) -> bool {
         todo!()
@@ -150,7 +150,7 @@ impl platform::Args for MachOArgs {
         todo!()
     }
 
-    fn loadable_segment_alignment(&self) -> crate::alignment::Alignment {
+    fn loadable_segment_alignment(&self) -> wild_util::alignment::Alignment {
         MACHO_PAGE_ALIGNMENT
     }
 
@@ -170,10 +170,7 @@ impl platform::Args for MachOArgs {
 }
 
 // Parse the supplied input arguments, which should not include the program name.
-pub(crate) fn parse<S: AsRef<str>, I: Iterator<Item = S>>(
-    args: &mut MachOArgs,
-    mut input: I,
-) -> Result {
+pub fn parse<S: AsRef<str>, I: Iterator<Item = S>>(args: &mut MachOArgs, mut input: I) -> Result {
     let mut modifier_stack = vec![Modifiers::default()];
 
     let arg_parser = setup_argument_parser();
@@ -235,7 +232,7 @@ fn setup_argument_parser() -> ArgumentParser<MachOArgs> {
         .long("syslibroot")
         .help("Set system root")
         .execute(|args, _modifier_stack, value| {
-            args.common_mut().save_dir.handle_file(value);
+            args.common_mut().handle_file(value);
             let sysroot = std::fs::canonicalize(value).unwrap_or_else(|_| PathBuf::from(value));
             // TODO: handle properly
             args.lib_search_path = vec![sysroot.join("usr/lib").into_boxed_path()];
@@ -263,7 +260,7 @@ fn setup_argument_parser() -> ArgumentParser<MachOArgs> {
         .prefix("L")
         .help("Add directory to library search path")
         .execute(|args, _modifier_stack, value| {
-            args.common_mut().save_dir.handle_file(value);
+            args.common_mut().handle_file(value);
             args.lib_search_path.push(Box::from(Path::new(value)));
             Ok(())
         });
@@ -351,13 +348,13 @@ fn add_silently_ignored_flags(parser: &mut ArgumentParser<MachOArgs>) {
 mod tests {
     use super::MachOArgs;
     use super::PlatformVersion;
-    use crate::args::InputSpec;
-    use crate::args::macho::SemanticVersion;
-    use crate::platform::Args as _;
+    use crate::InputSpec;
+    use crate::macho::SemanticVersion;
     use object::macho::Version;
     use std::path::Path;
     use std::sync::Arc;
     use std::sync::Mutex;
+    use wild_platform::Args as _;
 
     const INPUT1: &[&str] = &[
         "-arch",

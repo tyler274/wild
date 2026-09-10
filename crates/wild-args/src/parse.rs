@@ -1,31 +1,31 @@
 use super::types::*;
-use crate::bail;
-use crate::ensure;
-use crate::error::Context;
-use crate::error::Result;
-use crate::platform;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 use itertools::Itertools;
 use std::borrow::Cow;
 use std::path::Path;
+use wild_error::bail;
+use wild_error::ensure;
+use wild_error::error::Context;
+use wild_error::error::Result;
+use wild_platform as platform;
 
 /// Describes how a platform spells its options. GNU-style platforms use the default, whereas
 /// link.exe-style platforms accept a `/` prefix, ignore case and attach values with `:`.
 #[derive(Clone, Copy)]
-pub(crate) struct OptionSyntax {
+pub struct OptionSyntax {
     /// Prefixes that introduce an option. Matched in order, so longer prefixes must come first.
-    pub(crate) prefixes: &'static [&'static str],
+    pub prefixes: &'static [&'static str],
 
     /// The character that attaches a value to an option name, e.g. `=` in `--foo=bar`.
-    pub(crate) value_separator: char,
+    pub value_separator: char,
 
-    pub(crate) case_insensitive: bool,
+    pub case_insensitive: bool,
 
     /// Whether an option that takes a value may instead take it from the following token. When
     /// false, as for link.exe, the value must be attached to the option name, so a missing value
     /// is an error, as is a value supplied to an option that doesn't take one.
-    pub(crate) allows_separate_value: bool,
+    pub allows_separate_value: bool,
 }
 
 impl Default for OptionSyntax {
@@ -61,7 +61,7 @@ impl OptionSyntax {
     }
 }
 
-pub(crate) struct ArgumentParser<T> {
+pub struct ArgumentParser<T> {
     options: HashMap<&'static str, OptionHandler<T>>, // Long option lookup
     short_options: HashMap<&'static str, OptionHandler<T>>, // Short option lookup
     prefix_options: HashMap<&'static str, PrefixOptionHandler<T>>, // For options like -L, -l, etc.
@@ -76,12 +76,12 @@ impl<T: platform::Args + super::HasCommonArgs> Default for ArgumentParser<T> {
 
 impl<T: platform::Args + super::HasCommonArgs> ArgumentParser<T> {
     #[must_use]
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self::with_syntax(OptionSyntax::default())
     }
 
     #[must_use]
-    pub(crate) fn with_syntax(syntax: OptionSyntax) -> Self {
+    pub fn with_syntax(syntax: OptionSyntax) -> Self {
         Self {
             options: HashMap::new(),
             short_options: HashMap::new(),
@@ -90,7 +90,7 @@ impl<T: platform::Args + super::HasCommonArgs> ArgumentParser<T> {
         }
     }
 
-    pub(crate) fn declare(&mut self) -> OptionDeclaration<'_, T, NoParam> {
+    pub fn declare(&mut self) -> OptionDeclaration<'_, T, NoParam> {
         OptionDeclaration {
             parser: self,
             long_names: Vec::new(),
@@ -102,7 +102,7 @@ impl<T: platform::Args + super::HasCommonArgs> ArgumentParser<T> {
         }
     }
 
-    pub(crate) fn declare_with_param(&mut self) -> OptionDeclaration<'_, T, WithParam> {
+    pub fn declare_with_param(&mut self) -> OptionDeclaration<'_, T, WithParam> {
         OptionDeclaration {
             parser: self,
             long_names: Vec::new(),
@@ -114,9 +114,7 @@ impl<T: platform::Args + super::HasCommonArgs> ArgumentParser<T> {
         }
     }
 
-    pub(crate) fn declare_with_three_params(
-        &mut self,
-    ) -> OptionDeclaration<'_, T, WithThreeParams> {
+    pub fn declare_with_three_params(&mut self) -> OptionDeclaration<'_, T, WithThreeParams> {
         OptionDeclaration {
             parser: self,
             long_names: Vec::new(),
@@ -128,9 +126,7 @@ impl<T: platform::Args + super::HasCommonArgs> ArgumentParser<T> {
         }
     }
 
-    pub(crate) fn declare_with_optional_param(
-        &mut self,
-    ) -> OptionDeclaration<'_, T, WithOptionalParam> {
+    pub fn declare_with_optional_param(&mut self) -> OptionDeclaration<'_, T, WithOptionalParam> {
         OptionDeclaration {
             parser: self,
             long_names: Vec::new(),
@@ -142,7 +138,7 @@ impl<T: platform::Args + super::HasCommonArgs> ArgumentParser<T> {
         }
     }
 
-    pub(crate) fn handle_argument<S: AsRef<str>, I: Iterator<Item = S>>(
+    pub fn handle_argument<S: AsRef<str>, I: Iterator<Item = S>>(
         &self,
         args: &mut T,
         modifier_stack: &mut Vec<Modifiers>,
@@ -283,7 +279,7 @@ impl<T: platform::Args + super::HasCommonArgs> ArgumentParser<T> {
         }
 
         let common = args.common_mut();
-        common.save_dir.handle_file(arg);
+        common.handle_file(arg);
         common.inputs.push(Input {
             spec: InputSpec::File(Box::from(Path::new(arg))),
             search_first: None,
@@ -347,7 +343,7 @@ impl<T: platform::Args + super::HasCommonArgs> ArgumentParser<T> {
     }
 
     #[must_use]
-    pub(crate) fn generate_help(&self) -> String {
+    pub fn generate_help(&self) -> String {
         const HELP_COL1_WIDTH: usize = 30;
         let mut help = String::new();
         help.push_str("USAGE:\n    wild [OPTIONS] [FILES...]\n\nOPTIONS:\n");
@@ -502,10 +498,8 @@ struct PrefixOptionHandler<T> {
     sub_options: HashMap<&'static str, SubOption<T>>,
 }
 
-pub(crate) type OptionalParamHandler<T> =
-    fn(&mut T, &mut Vec<Modifiers>, Option<&str>) -> Result<()>;
-pub(crate) type ThreeParamHandler<T> =
-    fn(&mut T, &mut Vec<Modifiers>, &str, &str, &str) -> Result<()>;
+pub type OptionalParamHandler<T> = fn(&mut T, &mut Vec<Modifiers>, Option<&str>) -> Result<()>;
+pub type ThreeParamHandler<T> = fn(&mut T, &mut Vec<Modifiers>, &str, &str, &str) -> Result<()>;
 
 enum OptionHandlerFn<T> {
     NoParam(fn(&mut T, &mut Vec<Modifiers>) -> Result<()>),
@@ -542,7 +536,7 @@ impl<T> OptionHandlerFn<T> {
     }
 }
 
-pub(crate) struct OptionDeclaration<'a, T, S> {
+pub struct OptionDeclaration<'a, T, S> {
     parser: &'a mut ArgumentParser<T>,
     long_names: Vec<&'static str>,
     short_names: Vec<&'static str>,
@@ -552,10 +546,10 @@ pub(crate) struct OptionDeclaration<'a, T, S> {
     _phantom: std::marker::PhantomData<S>,
 }
 
-pub(crate) struct NoParam;
-pub(crate) struct WithParam;
-pub(crate) struct WithThreeParams;
-pub(crate) struct WithOptionalParam;
+pub struct NoParam;
+pub struct WithParam;
+pub struct WithThreeParams;
+pub struct WithOptionalParam;
 
 enum SubOptionHandler<T> {
     /// Handler without value parameter (exact match)
@@ -595,30 +589,30 @@ impl<T> SubOption<T> {
 
 impl<'a, T, S> OptionDeclaration<'a, T, S> {
     #[must_use]
-    pub(crate) fn long(mut self, name: &'static str) -> Self {
+    pub fn long(mut self, name: &'static str) -> Self {
         self.long_names.push(name);
         self
     }
 
     #[must_use]
-    pub(crate) fn short(mut self, option: &'static str) -> Self {
+    pub fn short(mut self, option: &'static str) -> Self {
         self.short_names.push(option);
         self
     }
 
     #[must_use]
-    pub(crate) fn help(mut self, text: &'static str) -> Self {
+    pub fn help(mut self, text: &'static str) -> Self {
         self.help_text = text;
         self
     }
 
-    pub(crate) fn prefix(mut self, prefix: &'static str) -> Self {
+    pub fn prefix(mut self, prefix: &'static str) -> Self {
         self.prefixes.push(prefix);
         self
     }
 
     #[must_use]
-    pub(crate) fn sub_option(
+    pub fn sub_option(
         mut self,
         name: &'static str,
         help: &'static str,
@@ -635,7 +629,7 @@ impl<'a, T, S> OptionDeclaration<'a, T, S> {
     }
 
     #[must_use]
-    pub(crate) fn sub_option_with_name(
+    pub fn sub_option_with_name(
         mut self,
         name: &'static str,
         help: &'static str,
@@ -652,7 +646,7 @@ impl<'a, T, S> OptionDeclaration<'a, T, S> {
     }
 
     #[must_use]
-    pub(crate) fn sub_option_with_value(
+    pub fn sub_option_with_value(
         mut self,
         name: &'static str,
         help: &'static str,
@@ -670,7 +664,7 @@ impl<'a, T, S> OptionDeclaration<'a, T, S> {
 }
 
 impl<'a, T> OptionDeclaration<'a, T, NoParam> {
-    pub(crate) fn execute(self, handler: fn(&mut T, &mut Vec<Modifiers>) -> Result<()>) {
+    pub fn execute(self, handler: fn(&mut T, &mut Vec<Modifiers>) -> Result<()>) {
         let option_handler = OptionHandler {
             help_text: self.help_text,
             handler: OptionHandlerFn::NoParam(handler),
@@ -689,7 +683,7 @@ impl<'a, T> OptionDeclaration<'a, T, NoParam> {
 }
 
 impl<'a, T> OptionDeclaration<'a, T, WithParam> {
-    pub(crate) fn execute(self, handler: fn(&mut T, &mut Vec<Modifiers>, &str) -> Result<()>) {
+    pub fn execute(self, handler: fn(&mut T, &mut Vec<Modifiers>, &str) -> Result<()>) {
         let mut short_names = self.short_names.clone();
         short_names.extend_from_slice(&self.prefixes);
 
@@ -721,7 +715,7 @@ impl<'a, T> OptionDeclaration<'a, T, WithParam> {
 }
 
 impl<'a, T> OptionDeclaration<'a, T, WithThreeParams> {
-    pub(crate) fn execute(self, handler: ThreeParamHandler<T>) {
+    pub fn execute(self, handler: ThreeParamHandler<T>) {
         let option_handler = OptionHandler {
             help_text: self.help_text,
             handler: OptionHandlerFn::WithThreeParams(handler),
@@ -740,7 +734,7 @@ impl<'a, T> OptionDeclaration<'a, T, WithThreeParams> {
 }
 
 impl<'a, T> OptionDeclaration<'a, T, WithOptionalParam> {
-    pub(crate) fn execute(self, handler: OptionalParamHandler<T>) {
+    pub fn execute(self, handler: OptionalParamHandler<T>) {
         let option_handler = OptionHandler {
             help_text: self.help_text,
             handler: OptionHandlerFn::OptionalParam(handler),
@@ -758,11 +752,16 @@ impl<'a, T> OptionDeclaration<'a, T, WithOptionalParam> {
     }
 }
 
-pub(crate) fn parse_number(s: &str) -> Result<u64> {
-    crate::parsing::parse_number(s).map_err(|()| crate::error!("Invalid number: {s}"))
+pub fn parse_number(s: &str) -> Result<u64> {
+    let parsed = if let Some(hex) = s.strip_prefix("0x") {
+        u64::from_str_radix(hex, 16)
+    } else {
+        s.parse::<u64>()
+    };
+    parsed.map_err(|_| wild_error::error!("Invalid number: {s}"))
 }
 
-pub(crate) fn read_args_from_file(path: &Path) -> Result<Vec<String>> {
+pub fn read_args_from_file(path: &Path) -> Result<Vec<String>> {
     let contents = std::fs::read_to_string(path)
         .with_context(|| format!("Failed to read arguments from file `{}`", path.display()))?;
     arguments_from_string(&contents)
@@ -770,7 +769,7 @@ pub(crate) fn read_args_from_file(path: &Path) -> Result<Vec<String>> {
 
 /// Parses arguments from a string, handling quoting, escapes etc.
 /// All arguments must be surrounded by a white space.
-pub(crate) fn arguments_from_string(input: &str) -> Result<Vec<String>> {
+pub fn arguments_from_string(input: &str) -> Result<Vec<String>> {
     const QUOTES: [char; 2] = ['\'', '"'];
 
     let mut out = Vec::new();

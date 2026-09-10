@@ -2,20 +2,20 @@ mod info;
 mod inputs;
 
 use super::*;
-use crate::args::ArgumentParser;
-use crate::args::FileReplacementMode;
-use crate::args::HasCommonArgs as _;
-use crate::bail;
-use crate::error::Context as _;
-use crate::linker_script::maybe_forced_sysroot;
-use crate::platform::Args as _;
+use crate::ArgumentParser;
+use crate::FileReplacementMode;
+use crate::HasCommonArgs as _;
 #[allow(unused_imports)]
-pub(crate) use info::*;
+pub use info::*;
 #[allow(unused_imports)]
-pub(crate) use inputs::*;
+pub use inputs::*;
 use object::Endianness;
 use std::ffi::CString;
 use std::path::PathBuf;
+use wild_error::bail;
+use wild_error::error::Context as _;
+use wild_platform::Args as _;
+use wild_scripts::linker_script::maybe_forced_sysroot;
 
 pub(super) const SILENTLY_IGNORED_FLAGS: &[&str] = &[
     // Just like other modern linkers, we don't need groups in order to resolve cycles.
@@ -190,10 +190,10 @@ pub(super) fn setup_argument_parser() -> ArgumentParser<ElfArgs> {
         .help("Control how input sections not mentioned in a linker script are handled")
         .execute(|args, _modifier_stack, value| {
             args.orphan_handling = match value {
-                "place" => crate::platform::OrphanHandling::Place,
-                "discard" => crate::platform::OrphanHandling::Discard,
-                "warn" => crate::platform::OrphanHandling::Warn,
-                "error" => crate::platform::OrphanHandling::Error,
+                "place" => wild_platform::OrphanHandling::Place,
+                "discard" => wild_platform::OrphanHandling::Discard,
+                "warn" => wild_platform::OrphanHandling::Warn,
+                "error" => wild_platform::OrphanHandling::Error,
                 other => bail!(
                     "Invalid --orphan-handling `{other}`, expected place, discard, warn, or error"
                 ),
@@ -206,7 +206,7 @@ pub(super) fn setup_argument_parser() -> ArgumentParser<ElfArgs> {
         .long("sysroot")
         .help("Set system root")
         .execute(|args, _modifier_stack, value| {
-            args.common_mut().save_dir.handle_file(value);
+            args.common_mut().handle_file(value);
             let sysroot = std::fs::canonicalize(value).unwrap_or_else(|_| PathBuf::from(value));
             args.sysroot = Some(Box::from(sysroot.as_path()));
             for path in &mut args.lib_search_path {
@@ -446,7 +446,7 @@ pub(super) fn setup_argument_parser() -> ArgumentParser<ElfArgs> {
             Ok(())
         });
 
-    crate::args::declare_common_args(&mut parser);
+    crate::declare_common_args(&mut parser);
 
     add_silently_ignored_flags(&mut parser);
     add_default_flags(&mut parser);

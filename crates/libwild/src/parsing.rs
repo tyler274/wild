@@ -149,17 +149,6 @@ pub(crate) enum RedirectKind {
     Script,
 }
 
-pub(crate) use crate::linker_script::SegmentName;
-
-/// Parse a number. Interprets 0x prefix as hex, otherwise as decimal.
-pub(crate) fn parse_number(s: &str) -> Result<u64, ()> {
-    if let Some(hex) = s.strip_prefix("0x") {
-        u64::from_str_radix(hex, 16).map_err(|_| ())
-    } else {
-        s.parse::<u64>().map_err(|_| ())
-    }
-}
-
 impl<'data, P: Platform> InternalSymDefInfo<'data, P> {
     pub(crate) fn new(placement: SymbolPlacement<'data, P>, name: &'data [u8]) -> Self {
         Self {

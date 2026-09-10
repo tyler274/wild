@@ -4,21 +4,13 @@
 mod parser;
 
 use super::BSymbolicKind;
-use crate::alignment::Alignment;
-use crate::arch::Architecture;
-use crate::args::CommonArgs;
-use crate::args::CopyRelocations;
-use crate::args::CopyRelocationsDisabledReason;
-use crate::args::HasCommonArgs as _;
-use crate::args::Modifiers;
-use crate::args::UnresolvedSymbols;
-use crate::args::parse_number;
-use crate::bail;
-use crate::error::Result;
-use crate::output_kind::OutputKind;
-use crate::output_section_id::SectionName;
-use crate::platform;
-use crate::platform::Args as _;
+use crate::CommonArgs;
+use crate::CopyRelocations;
+use crate::CopyRelocationsDisabledReason;
+use crate::HasCommonArgs as _;
+use crate::Modifiers;
+use crate::UnresolvedSymbols;
+use crate::parse_number;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 use indexmap::IndexSet;
@@ -33,115 +25,123 @@ use std::path::Path;
 use std::path::PathBuf;
 use strum::EnumMessage as _;
 use strum::IntoEnumIterator as _;
+use wild_error::bail;
+use wild_error::error::Result;
+use wild_platform as platform;
+use wild_platform::Args as _;
+use wild_platform::OutputKind;
+use wild_platform::SectionName;
+use wild_util::alignment::Alignment;
+use wild_util::arch::Architecture;
 
 #[derive(Debug)]
 pub struct ElfArgs {
-    pub(crate) common: super::CommonArgs,
+    pub common: super::CommonArgs,
 
     emulation: Emulation,
-    pub(crate) lib_search_path: Vec<Box<Path>>,
+    pub lib_search_path: Vec<Box<Path>>,
     dynamic_linker: DynamicLinker,
-    pub(crate) strip: Strip,
-    pub(crate) merge_sections: bool,
-    pub(crate) version_script_path: Option<PathBuf>,
-    pub(crate) should_write_eh_frame_hdr: bool,
-    pub(crate) wrap: Vec<String>,
-    pub(crate) rpath: Option<String>,
-    pub(crate) soname: Option<String>,
-    pub(crate) exclude_libs: ExcludeLibs,
-    pub(crate) gc_sections: bool,
-    pub(crate) build_id: BuildIdOption,
+    pub strip: Strip,
+    pub merge_sections: bool,
+    pub version_script_path: Option<PathBuf>,
+    pub should_write_eh_frame_hdr: bool,
+    pub wrap: Vec<String>,
+    pub rpath: Option<String>,
+    pub soname: Option<String>,
+    pub exclude_libs: ExcludeLibs,
+    pub gc_sections: bool,
+    pub build_id: BuildIdOption,
 
     // Whether to emit errors if our input objects have undefined symbols that we can't resolve. If
     // not specified, then the behaviour depends on whether we're emitting a shared object or an
     // executable.
-    pub(crate) no_undefined: Option<bool>,
+    pub no_undefined: Option<bool>,
 
-    pub(crate) allow_shlib_undefined: bool,
-    pub(crate) needs_origin_handling: bool,
-    pub(crate) needs_nodelete_handling: bool,
-    pub(crate) copy_relocations: CopyRelocations,
-    pub(crate) sysroot: Option<Box<Path>>,
-    pub(crate) undefined: Vec<String>,
-    pub(crate) relro: bool,
-    pub(crate) entry: Option<String>,
-    pub(crate) export_all_dynamic_symbols: bool,
-    pub(crate) export_list: Vec<String>,
-    pub(crate) export_list_path: Option<PathBuf>,
-    pub(crate) auxiliary: Vec<String>,
-    pub(crate) enable_new_dtags: bool,
-    pub(crate) plugin_path: Option<String>,
-    pub(crate) plugin_args: Vec<CString>,
+    pub allow_shlib_undefined: bool,
+    pub needs_origin_handling: bool,
+    pub needs_nodelete_handling: bool,
+    pub copy_relocations: CopyRelocations,
+    pub sysroot: Option<Box<Path>>,
+    pub undefined: Vec<String>,
+    pub relro: bool,
+    pub entry: Option<String>,
+    pub export_all_dynamic_symbols: bool,
+    pub export_list: Vec<String>,
+    pub export_list_path: Option<PathBuf>,
+    pub auxiliary: Vec<String>,
+    pub enable_new_dtags: bool,
+    pub plugin_path: Option<String>,
+    pub plugin_args: Vec<CString>,
 
     /// Symbol definitions from `--defsym` options. Each entry is (symbol_name, value_or_symbol).
-    pub(crate) defsym: Vec<(String, String)>,
+    pub defsym: Vec<(String, String)>,
 
     /// Section start addresses from `--section-start` options. Maps section name to address.
-    pub(crate) section_start: HashMap<Vec<u8>, u64>,
+    pub section_start: HashMap<Vec<u8>, u64>,
 
     /// Segment start address overrides from `-Ttext`, `-Tdata`, `-Tbss`.
     /// Used to implement `SEGMENT_START("name", default)` per GNU ld behaviour.
-    pub(crate) ttext: Option<u64>,
-    pub(crate) tdata: Option<u64>,
-    pub(crate) tbss: Option<u64>,
+    pub ttext: Option<u64>,
+    pub tdata: Option<u64>,
+    pub tbss: Option<u64>,
 
     /// If set, GC stats will be written to the specified filename.
-    pub(crate) write_gc_stats: Option<PathBuf>,
+    pub write_gc_stats: Option<PathBuf>,
 
     /// If set, and we're writing GC stats, then ignore any input files that contain any of the
     /// specified substrings.
-    pub(crate) gc_stats_ignore: Vec<String>,
+    pub gc_stats_ignore: Vec<String>,
 
-    pub(crate) verbose_gc_stats: bool,
+    pub verbose_gc_stats: bool,
 
-    pub(crate) dependency_file: Option<PathBuf>,
-    pub(crate) execstack: bool,
-    pub(crate) got_plt_syms: bool,
-    pub(crate) b_symbolic: BSymbolicKind,
-    pub(crate) relax: bool,
-    pub(crate) should_write_linker_identity: bool,
-    pub(crate) hash_style: HashStyle,
-    pub(crate) unresolved_symbols: UnresolvedSymbols,
-    pub(crate) error_unresolved_symbols: bool,
-    pub(crate) allow_multiple_definitions: bool,
-    pub(crate) z_interpose: bool,
-    pub(crate) z_isa: Option<NonZeroU32>,
-    pub(crate) z_stack_size: Option<NonZeroU64>,
-    pub(crate) z_pack_relative_relocs: bool,
-    pub(crate) max_page_size: Option<Alignment>,
-    pub(crate) common_page_size: Option<Alignment>,
-    pub(crate) trace: bool,
-    pub(crate) pack_dyn_relocs: PackDynRelocs,
-    pub(crate) use_android_relr_tags: bool,
-    pub(crate) discard_sframe: bool,
+    pub dependency_file: Option<PathBuf>,
+    pub execstack: bool,
+    pub got_plt_syms: bool,
+    pub b_symbolic: BSymbolicKind,
+    pub relax: bool,
+    pub should_write_linker_identity: bool,
+    pub hash_style: HashStyle,
+    pub unresolved_symbols: UnresolvedSymbols,
+    pub error_unresolved_symbols: bool,
+    pub allow_multiple_definitions: bool,
+    pub z_interpose: bool,
+    pub z_isa: Option<NonZeroU32>,
+    pub z_stack_size: Option<NonZeroU64>,
+    pub z_pack_relative_relocs: bool,
+    pub max_page_size: Option<Alignment>,
+    pub common_page_size: Option<Alignment>,
+    pub trace: bool,
+    pub pack_dyn_relocs: PackDynRelocs,
+    pub use_android_relr_tags: bool,
+    pub discard_sframe: bool,
 
-    pub(crate) should_output_executable: bool,
-    pub(crate) should_output_partial_object: bool,
-    pub(crate) emit_relocs: bool,
-    pub(crate) discard_none: bool,
+    pub should_output_executable: bool,
+    pub should_output_partial_object: bool,
+    pub emit_relocs: bool,
+    pub discard_none: bool,
 
-    pub(crate) nmagic: bool,
-    pub(crate) rosegment: bool,
-    pub(crate) gdb_index: bool,
+    pub nmagic: bool,
+    pub rosegment: bool,
+    pub gdb_index: bool,
 
-    pub(crate) rpath_set: IndexSet<String>,
+    pub rpath_set: IndexSet<String>,
 
-    pub(crate) experimental_sframe: bool,
+    pub experimental_sframe: bool,
 
-    pub(crate) debug_compression_kind: Option<CompressionKind>,
-    pub(crate) sort_section: Option<SortSectionMode>,
-    pub(crate) output_format_endian: Option<Endianness>,
-    pub(crate) orphan_handling: crate::platform::OrphanHandling,
+    pub debug_compression_kind: Option<CompressionKind>,
+    pub sort_section: Option<SortSectionMode>,
+    pub output_format_endian: Option<Endianness>,
+    pub orphan_handling: wild_platform::OrphanHandling,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SortSectionMode {
+pub enum SortSectionMode {
     Name,
     Alignment,
 }
 
 #[derive(Debug)]
-pub(crate) enum Strip {
+pub enum Strip {
     Nothing,
     Debug,
     All,
@@ -149,7 +149,7 @@ pub(crate) enum Strip {
 }
 
 #[derive(Debug)]
-pub(crate) enum BuildIdOption {
+pub enum BuildIdOption {
     None,
     Fast,
     Hex(Vec<u8>),
@@ -157,21 +157,21 @@ pub(crate) enum BuildIdOption {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum HashStyle {
+pub enum HashStyle {
     Gnu,
     Sysv,
     Both,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ExcludeLibs {
+pub enum ExcludeLibs {
     None,
     All,
     Some(HashSet<Box<str>>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PackDynRelocs {
+pub enum PackDynRelocs {
     None,
     Android,
     AndroidRelr,
@@ -179,13 +179,13 @@ pub(crate) enum PackDynRelocs {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CompressionKind {
+pub enum CompressionKind {
     Zlib,
     Zstd,
 }
 
 impl ExcludeLibs {
-    pub(crate) fn should_exclude(&self, lib_path: &[u8]) -> bool {
+    pub fn should_exclude(&self, lib_path: &[u8]) -> bool {
         match self {
             ExcludeLibs::None => false,
             ExcludeLibs::All => true,
@@ -200,11 +200,11 @@ impl ExcludeLibs {
 }
 
 impl HashStyle {
-    pub(crate) const fn includes_gnu(self) -> bool {
+    pub const fn includes_gnu(self) -> bool {
         matches!(self, HashStyle::Gnu | HashStyle::Both)
     }
 
-    pub(crate) const fn includes_sysv(self) -> bool {
+    pub const fn includes_sysv(self) -> bool {
         matches!(self, HashStyle::Sysv | HashStyle::Both)
     }
 }
@@ -343,7 +343,7 @@ impl Default for ElfArgs {
             sort_section: None,
             gdb_index: false,
             output_format_endian: None,
-            orphan_handling: crate::platform::OrphanHandling::Place,
+            orphan_handling: wild_platform::OrphanHandling::Place,
         }
     }
 }
@@ -377,25 +377,24 @@ const fn default_emulation() -> Emulation {
 }
 
 impl ElfArgs {
-    pub(crate) fn new() -> Result<Self> {
+    pub fn new() -> Result<Self> {
         Ok(Self {
             common: CommonArgs::from_env()?,
             ..Default::default()
         })
     }
 
-    pub(crate) fn is_relr_enabled(&self) -> bool {
+    pub fn is_relr_enabled(&self) -> bool {
         self.z_pack_relative_relocs
             || self.pack_dyn_relocs == PackDynRelocs::Relr
             || self.pack_dyn_relocs == PackDynRelocs::AndroidRelr
     }
 
-    pub(crate) fn architecture(&self) -> Architecture {
+    pub fn architecture(&self) -> Architecture {
         self.emulation.architecture()
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_architecture(&mut self, architecture: Architecture) {
+    pub fn set_architecture(&mut self, architecture: Architecture) {
         self.emulation = match architecture {
             Architecture::X86_64 => Emulation::ElfX86_64,
             Architecture::AArch64 => Emulation::AArch64,
@@ -426,15 +425,12 @@ fn emulations() -> impl Iterator<Item = (Emulation, &'static str)> {
     })
 }
 
-pub(crate) fn supported_emulations() -> String {
+pub fn supported_emulations() -> String {
     emulations().map(|(_, name)| name).join(" ")
 }
 
 // Parse the supplied input arguments, which should not include the program name.
-pub(crate) fn parse<S: AsRef<str>, I: Iterator<Item = S>>(
-    args: &mut ElfArgs,
-    mut input: I,
-) -> Result {
+pub fn parse<S: AsRef<str>, I: Iterator<Item = S>>(args: &mut ElfArgs, mut input: I) -> Result {
     let mut modifier_stack = vec![Modifiers::default()];
 
     let arg_parser = setup_argument_parser();
@@ -485,12 +481,12 @@ pub(crate) fn parse<S: AsRef<str>, I: Iterator<Item = S>>(
     Ok(())
 }
 
-impl crate::args::HasCommonArgs for ElfArgs {
-    fn common(&self) -> &crate::args::CommonArgs {
+impl crate::HasCommonArgs for ElfArgs {
+    fn common(&self) -> &crate::CommonArgs {
         &self.common
     }
 
-    fn common_mut(&mut self) -> &mut crate::args::CommonArgs {
+    fn common_mut(&mut self) -> &mut crate::CommonArgs {
         &mut self.common
     }
 }
@@ -504,7 +500,7 @@ impl platform::Args for ElfArgs {
         parse(self, input)
     }
 
-    crate::args::impl_platform_args_from_common!();
+    crate::impl_platform_args_from_common!();
 
     fn gc_stats_output_file(&self) -> Option<&Path> {
         self.write_gc_stats.as_deref()
@@ -555,7 +551,7 @@ impl platform::Args for ElfArgs {
         self.gc_sections && !self.common.incremental
     }
 
-    fn orphan_handling(&self) -> crate::platform::OrphanHandling {
+    fn orphan_handling(&self) -> wild_platform::OrphanHandling {
         self.orphan_handling
     }
 
@@ -599,12 +595,16 @@ impl platform::Args for ElfArgs {
         }
     }
 
-    fn segment_start_override(&self, name: crate::parsing::SegmentName) -> Option<u64> {
+    fn segment_start_override(
+        &self,
+        name: wild_scripts::linker_script::SegmentName,
+    ) -> Option<u64> {
         match name {
-            crate::parsing::SegmentName::Text => self.ttext,
-            crate::parsing::SegmentName::Data => self.tdata,
-            crate::parsing::SegmentName::Bss => self.tbss,
-            crate::parsing::SegmentName::Rodata | crate::parsing::SegmentName::Other => None,
+            wild_scripts::linker_script::SegmentName::Text => self.ttext,
+            wild_scripts::linker_script::SegmentName::Data => self.tdata,
+            wild_scripts::linker_script::SegmentName::Bss => self.tbss,
+            wild_scripts::linker_script::SegmentName::Rodata
+            | wild_scripts::linker_script::SegmentName::Other => None,
         }
     }
 
@@ -632,7 +632,7 @@ impl platform::Args for ElfArgs {
         self.got_plt_syms
     }
 
-    fn copy_relocations_enabled(&self) -> crate::args::CopyRelocations {
+    fn copy_relocations_enabled(&self) -> crate::CopyRelocations {
         self.copy_relocations
     }
 
@@ -664,7 +664,7 @@ impl platform::Args for ElfArgs {
         self.z_stack_size
     }
 
-    fn unresolved_symbols_behaviour(&self) -> crate::args::UnresolvedSymbols {
+    fn unresolved_symbols_behaviour(&self) -> crate::UnresolvedSymbols {
         self.unresolved_symbols
     }
 
@@ -753,9 +753,8 @@ impl platform::Args for ElfArgs {
 mod tests {
     use super::ElfArgs;
     use super::parser::SILENTLY_IGNORED_FLAGS;
-    use crate::args::InputSpec;
-    use crate::args::VersionMode;
-    use crate::platform::Args as _;
+    use crate::InputSpec;
+    use crate::VersionMode;
     use itertools::Itertools;
     use std::fs::File;
     use std::io::BufWriter;
@@ -765,6 +764,7 @@ mod tests {
     use std::path::PathBuf;
     use std::str::FromStr;
     use tempfile::NamedTempFile;
+    use wild_platform::Args as _;
 
     const INPUT1: &[&str] = &[
         "-pie",
@@ -1032,7 +1032,7 @@ mod tests {
 
     #[test]
     fn test_arguments_from_string() {
-        use crate::args::arguments_from_string;
+        use crate::arguments_from_string;
 
         assert_eq!(arguments_from_string("").unwrap(), Vec::<String>::new());
         assert_eq!(arguments_from_string("''").unwrap(), Vec::<String>::new());
@@ -1084,14 +1084,14 @@ mod tests {
     }
 
     // Helper: parse args and expect a parse error.
-    fn parse_args_err<'a>(args: impl IntoIterator<Item = &'a str>) -> crate::error::Error {
+    fn parse_args_err<'a>(args: impl IntoIterator<Item = &'a str>) -> wild_error::error::Error {
         let mut elf_args = ElfArgs::new().unwrap();
         elf_args.parse(args.into_iter()).unwrap_err()
     }
 
     #[test]
     fn test_ttext_hex_round_trip() {
-        use crate::output_section_id::SectionName;
+        use wild_platform::SectionName;
         let args = parse_args(["-Ttext=0x700000"]);
         assert_eq!(
             args.start_address_for_section(SectionName(b".text")),
@@ -1101,7 +1101,7 @@ mod tests {
 
     #[test]
     fn test_ttext_decimal_round_trip() {
-        use crate::output_section_id::SectionName;
+        use wild_platform::SectionName;
         // 7340032 == 0x700000
         let args = parse_args(["-Ttext=7340032"]);
         assert_eq!(
@@ -1112,7 +1112,7 @@ mod tests {
 
     #[test]
     fn test_tdata_hex_round_trip() {
-        use crate::output_section_id::SectionName;
+        use wild_platform::SectionName;
         let args = parse_args(["-Tdata=0x800000"]);
         assert_eq!(
             args.start_address_for_section(SectionName(b".data")),
@@ -1122,7 +1122,7 @@ mod tests {
 
     #[test]
     fn test_tdata_decimal_round_trip() {
-        use crate::output_section_id::SectionName;
+        use wild_platform::SectionName;
         // 8388608 == 0x800000
         let args = parse_args(["-Tdata=8388608"]);
         assert_eq!(
@@ -1133,7 +1133,7 @@ mod tests {
 
     #[test]
     fn test_tbss_hex_round_trip() {
-        use crate::output_section_id::SectionName;
+        use wild_platform::SectionName;
         let args = parse_args(["-Tbss=0x900000"]);
         assert_eq!(
             args.start_address_for_section(SectionName(b".bss")),
@@ -1143,7 +1143,7 @@ mod tests {
 
     #[test]
     fn test_tbss_decimal_round_trip() {
-        use crate::output_section_id::SectionName;
+        use wild_platform::SectionName;
         // 9437184 == 0x900000
         let args = parse_args(["-Tbss=9437184"]);
         assert_eq!(
@@ -1160,7 +1160,7 @@ mod tests {
 
     #[test]
     fn test_section_start_takes_precedence_over_ttext() {
-        use crate::output_section_id::SectionName;
+        use wild_platform::SectionName;
         // --section-start=.text=0x600000 should win over -Ttext=0x700000
         let args = parse_args(["--section-start=.text=0x600000", "-Ttext=0x700000"]);
         assert_eq!(
@@ -1171,7 +1171,7 @@ mod tests {
 
     #[test]
     fn test_version_message_matches_gnu_ld_probes() {
-        use crate::args::CommonArgs;
+        use crate::CommonArgs;
         let args = ElfArgs::new().unwrap();
         let msg = args.common.version_message();
         let mut lines = msg.lines();

@@ -1,43 +1,43 @@
-use crate::args::ArgumentParser;
-use crate::args::CommonArgs;
-use crate::args::Modifiers;
-use crate::args::OptionSyntax;
-use crate::bail;
-use crate::error::Result;
-use crate::platform;
-use crate::platform::Args as _;
+use crate::ArgumentParser;
+use crate::CommonArgs;
+use crate::Modifiers;
+use crate::OptionSyntax;
 use std::path::Path;
 use std::sync::Arc;
+use wild_error::bail;
+use wild_error::error::Result;
+use wild_platform as platform;
+use wild_platform::Args as _;
 
 /// The only machine type we currently support.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CoffMachine {
+pub enum CoffMachine {
     X86_64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Subsystem {
+pub enum Subsystem {
     Console,
     Windows,
 }
 
 #[derive(Debug)]
 pub struct CoffArgs {
-    pub(crate) common: CommonArgs,
-    pub(crate) entry: Option<String>,
-    pub(crate) subsystem: Option<Subsystem>,
-    pub(crate) is_dll: bool,
-    pub(crate) machine: CoffMachine,
-    pub(crate) lib_search_path: Vec<Box<Path>>,
-    pub(crate) default_libraries: Vec<String>,
+    pub common: CommonArgs,
+    pub entry: Option<String>,
+    pub subsystem: Option<Subsystem>,
+    pub is_dll: bool,
+    pub machine: CoffMachine,
+    pub lib_search_path: Vec<Box<Path>>,
+    pub default_libraries: Vec<String>,
     /// Libraries named by `/NODEFAULTLIB:name`.
-    pub(crate) excluded_default_libraries: Vec<String>,
+    pub excluded_default_libraries: Vec<String>,
     /// Set by a bare `/NODEFAULTLIB`, which ignores every default library.
-    pub(crate) no_default_libraries: bool,
+    pub no_default_libraries: bool,
 }
 
 impl CoffArgs {
-    pub(crate) fn new() -> Result<Self> {
+    pub fn new() -> Result<Self> {
         Ok(Self {
             common: CommonArgs::from_env()?,
             ..Default::default()
@@ -61,7 +61,7 @@ impl Default for CoffArgs {
     }
 }
 
-impl crate::args::HasCommonArgs for CoffArgs {
+impl crate::HasCommonArgs for CoffArgs {
     fn common(&self) -> &CommonArgs {
         &self.common
     }
@@ -80,7 +80,7 @@ impl platform::Args for CoffArgs {
         parse(self, input)
     }
 
-    crate::args::impl_platform_args_from_common!();
+    crate::impl_platform_args_from_common!();
 
     fn should_strip_debug(&self) -> bool {
         todo!()
@@ -113,7 +113,7 @@ impl platform::Args for CoffArgs {
         todo!()
     }
 
-    fn loadable_segment_alignment(&self) -> crate::alignment::Alignment {
+    fn loadable_segment_alignment(&self) -> wild_util::alignment::Alignment {
         todo!()
     }
 
@@ -137,10 +137,7 @@ impl platform::Args for CoffArgs {
 }
 
 // Parse the supplied input arguments, which should not include the program name.
-pub(crate) fn parse<S: AsRef<str>, I: Iterator<Item = S>>(
-    args: &mut CoffArgs,
-    mut input: I,
-) -> Result {
+pub fn parse<S: AsRef<str>, I: Iterator<Item = S>>(args: &mut CoffArgs, mut input: I) -> Result {
     let mut modifier_stack = vec![Modifiers::default()];
 
     let arg_parser = setup_argument_parser();
@@ -263,7 +260,7 @@ fn setup_argument_parser() -> ArgumentParser<CoffArgs> {
         .long("libpath")
         .help("Add directory to library search path")
         .execute(|args, _modifier_stack, value| {
-            args.common.save_dir.handle_file(value);
+            args.common.handle_file(value);
             args.lib_search_path.push(Box::from(Path::new(value)));
             Ok(())
         });
@@ -361,7 +358,7 @@ mod tests {
     use super::CoffArgs;
     use super::Subsystem;
     use super::parse;
-    use crate::args::InputSpec;
+    use crate::InputSpec;
     use std::path::Path;
     use std::sync::Arc;
     use std::sync::Mutex;

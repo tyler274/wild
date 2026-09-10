@@ -1,22 +1,22 @@
 use super::super::DynamicLinker;
 use super::super::*;
-use crate::arch::SUPPORTED_TARGETS;
-use crate::args::ArgumentParser;
-use crate::args::BSymbolicKind;
-use crate::args::HasCommonArgs as _;
-use crate::args::UnresolvedSymbols;
-use crate::args::VersionMode;
-use crate::args::parse_number;
-use crate::bail;
-use crate::error::Context as _;
-use crate::error::Result;
+use crate::ArgumentParser;
+use crate::BSymbolicKind;
+use crate::HasCommonArgs as _;
+use crate::UnresolvedSymbols;
+use crate::VersionMode;
+use crate::parse_number;
 use hashbrown::HashSet;
 use std::num::NonZeroUsize;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicI64;
+use wild_error::bail;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
+use wild_util::arch::SUPPORTED_TARGETS;
 
-pub(crate) fn add_info_and_script_flags(parser: &mut ArgumentParser<ElfArgs>) {
+pub fn add_info_and_script_flags(parser: &mut ArgumentParser<ElfArgs>) {
     parser
         .declare()
         .long("help")
@@ -418,7 +418,7 @@ pub(crate) fn add_info_and_script_flags(parser: &mut ArgumentParser<ElfArgs>) {
         .long("version-script")
         .help("Use version script")
         .execute(|args, _modifier_stack, value| {
-            args.common_mut().save_dir.handle_file(value);
+            args.common_mut().handle_file(value);
             args.version_script_path = Some(PathBuf::from(value));
             Ok(())
         });
@@ -455,7 +455,7 @@ pub(crate) fn add_info_and_script_flags(parser: &mut ArgumentParser<ElfArgs>) {
                 );
                 return Ok(());
             }
-            args.common_mut().save_dir.handle_file(value);
+            args.common_mut().handle_file(value);
             args.common_mut().add_script(value);
             Ok(())
         });

@@ -12,16 +12,14 @@
 //! Basically, we need to be able to parse arguments in the same way as the other linkers on the
 //! platform that we're targeting.
 
-use crate::bail;
-use crate::error::Context;
-use crate::error::Result;
-#[allow(unused_imports)]
-pub(crate) use crate::fs::FileReplacementMode;
-use crate::platform::Args as _;
-use crate::save_dir::SaveDir;
-use crate::timing_phase;
 use std::io::Write;
 use std::path::Path;
+use wild_error::bail;
+use wild_error::error::Context;
+use wild_error::error::Result;
+#[allow(unused_imports)]
+pub use wild_fs::fs::FileReplacementMode;
+use wild_platform::Args as _;
 
 macro_rules! impl_platform_args_from_common {
     () => {
@@ -29,12 +27,12 @@ macro_rules! impl_platform_args_from_common {
             &self.common.output
         }
 
-        fn relocation_model(&self) -> crate::platform::RelocationModel {
+        fn relocation_model(&self) -> wild_platform::RelocationModel {
             self.common.relocation_model
         }
 
         fn warning(&self, message: impl Into<String>) {
-            (self.common.warning_callback)(crate::error::Warning::new(message.into()));
+            (self.common.warning_callback)(wild_error::error::Warning::new(message.into()));
         }
 
         fn incremental(&self) -> bool {
@@ -77,11 +75,11 @@ macro_rules! impl_platform_args_from_common {
             self.common.files_per_group
         }
 
-        fn file_replacement_mode(&self) -> Option<crate::fs::FileReplacementMode> {
+        fn file_replacement_mode(&self) -> Option<wild_fs::fs::FileReplacementMode> {
             self.common.file_replacement_mode
         }
 
-        fn file_write_mode(&self) -> Option<crate::fs::FileWriteMode> {
+        fn file_write_mode(&self) -> Option<wild_fs::fs::FileWriteMode> {
             self.common.file_write_mode
         }
 
@@ -97,7 +95,7 @@ macro_rules! impl_platform_args_from_common {
             self.common.linker_identity()
         }
 
-        fn numeric_experiment(&self, exp: crate::platform::Experiment, default: u64) -> u64 {
+        fn numeric_experiment(&self, exp: wild_platform::Experiment, default: u64) -> u64 {
             self.common.numeric_experiment(exp, default)
         }
 
@@ -105,7 +103,7 @@ macro_rules! impl_platform_args_from_common {
             self.common.sym_info.as_deref()
         }
 
-        fn should_trace_file(&self, file_id: crate::input_data::FileId) -> bool {
+        fn should_trace_file(&self, file_id: wild_platform::FileId) -> bool {
             self.common.print_allocations == Some(file_id)
         }
     };
@@ -118,25 +116,25 @@ pub mod macho;
 pub mod wasm;
 
 mod declare;
-pub(crate) mod parse;
-pub(crate) mod types;
+pub mod parse;
+pub mod types;
 
-pub(crate) use crate::platform::CopyRelocations;
-pub(crate) use crate::platform::CopyRelocationsDisabledReason;
-pub(crate) use crate::platform::Experiment;
-pub(crate) use crate::platform::RelocationModel;
-pub(crate) use crate::platform::UnresolvedSymbols;
 #[allow(unused_imports)]
-pub(crate) use declare::*;
+pub use declare::*;
 #[allow(unused_imports)]
-pub(crate) use parse::*;
+pub use parse::*;
 #[allow(unused_imports)]
 pub use types::*;
+pub use wild_platform::CopyRelocations;
+pub use wild_platform::CopyRelocationsDisabledReason;
+pub use wild_platform::Experiment;
+pub use wild_platform::RelocationModel;
+pub use wild_platform::UnresolvedSymbols;
 
-pub(crate) const FILES_PER_GROUP_ENV: &str = "WILD_FILES_PER_GROUP";
+pub const FILES_PER_GROUP_ENV: &str = "WILD_FILES_PER_GROUP";
 pub const REFERENCE_LINKER_ENV: &str = "WILD_REFERENCE_LINKER";
 pub const VALIDATE_ENV: &str = "WILD_VALIDATE_OUTPUT";
-pub const WILD_UNSUPPORTED_ENV: &str = crate::platform::WILD_UNSUPPORTED_ENV;
+pub const WILD_UNSUPPORTED_ENV: &str = wild_platform::WILD_UNSUPPORTED_ENV;
 pub const WRITE_LAYOUT_ENV: &str = "WILD_WRITE_LAYOUT";
 pub const WRITE_TRACE_ENV: &str = "WILD_WRITE_TRACE";
 pub const EXPERIMENTAL_PLATFORMS: &str = "WILD_EXPERIMENTAL_PLATFORMS";
@@ -146,7 +144,7 @@ pub const EXPERIMENTAL_PLATFORMS: &str = "WILD_EXPERIMENTAL_PLATFORMS";
 /// check that what we're doing is consistent with writing and fail in a more easy to debug way. i.e
 /// we'll report the particular combination of value flags, resolution flags etc that triggered the
 /// inconsistency.
-pub(crate) const WRITE_VERIFY_ALLOCATIONS_ENV: &str = "WILD_VERIFY_ALLOCATIONS";
+pub const WRITE_VERIFY_ALLOCATIONS_ENV: &str = "WILD_VERIFY_ALLOCATIONS";
 
 impl Args {
     /// Construct a new instance, but doesn't yet parse the arguments. The supplied arguments are
@@ -197,9 +195,11 @@ impl Args {
         &mut self,
         input: F,
     ) -> Result {
-        timing_phase!("Parse args");
+        let _span = tracing::info_span!("Parse args").entered();
 
-        self.common_mut().save_dir = SaveDir::new(input())?;
+        let mut raw = input();
+        raw.next();
+        self.common_mut().cli_args = raw.map(|s| s.as_ref().to_owned()).collect();
 
         let mut input = input();
 
@@ -233,7 +233,7 @@ impl Args {
         self.common_mut().warning_callback = Box::new(warning_callback);
     }
 
-    pub(crate) fn common(&self) -> &CommonArgs {
+    pub fn common(&self) -> &CommonArgs {
         match self {
             Args::Coff(coff_args) => &coff_args.common,
             Args::Elf(elf_args) => &elf_args.common,
@@ -242,7 +242,7 @@ impl Args {
         }
     }
 
-    pub(crate) fn common_mut(&mut self) -> &mut CommonArgs {
+    pub fn common_mut(&mut self) -> &mut CommonArgs {
         match self {
             Args::Coff(coff_args) => &mut coff_args.common,
             Args::Elf(elf_args) => &mut elf_args.common,
@@ -251,7 +251,7 @@ impl Args {
         }
     }
 
-    pub(crate) fn print_emulation_info(&self, stdout: &mut dyn Write) -> Result<()> {
+    pub fn print_emulation_info(&self, stdout: &mut dyn Write) -> Result<()> {
         match self {
             Args::Elf(_) => {
                 writeln!(

@@ -1,16 +1,12 @@
 use super::super::*;
-use crate::alignment::Alignment;
-use crate::args::ArgumentParser;
-use crate::args::CopyRelocations;
-use crate::args::CopyRelocationsDisabledReason;
-use crate::args::HasCommonArgs as _;
-use crate::args::Input;
-use crate::args::InputSpec;
-use crate::args::RelocationModel;
-use crate::args::parse_number;
-use crate::bail;
-use crate::linker_script::maybe_forced_sysroot;
-use crate::platform::Args as _;
+use crate::ArgumentParser;
+use crate::CopyRelocations;
+use crate::CopyRelocationsDisabledReason;
+use crate::HasCommonArgs as _;
+use crate::Input;
+use crate::InputSpec;
+use crate::RelocationModel;
+use crate::parse_number;
 use object::elf::GNU_PROPERTY_X86_ISA_1_BASELINE;
 use object::elf::GNU_PROPERTY_X86_ISA_1_V2;
 use object::elf::GNU_PROPERTY_X86_ISA_1_V3;
@@ -19,8 +15,12 @@ use std::num::NonZero;
 use std::path::Path;
 use std::sync::Arc;
 use strum::EnumMessage as _;
+use wild_error::bail;
+use wild_platform::Args as _;
+use wild_scripts::linker_script::maybe_forced_sysroot;
+use wild_util::alignment::Alignment;
 
-pub(crate) fn add_search_and_output_flags(parser: &mut ArgumentParser<ElfArgs>) {
+pub fn add_search_and_output_flags(parser: &mut ArgumentParser<ElfArgs>) {
     parser
         .declare_with_param()
         .prefix("L")
@@ -34,7 +34,7 @@ pub(crate) fn add_search_and_output_flags(parser: &mut ArgumentParser<ElfArgs>) 
             };
 
             let dir = handle_sysroot(Path::new(value));
-            args.common_mut().save_dir.handle_file(value);
+            args.common_mut().handle_file(value);
             args.lib_search_path.push(dir);
             Ok(())
         });

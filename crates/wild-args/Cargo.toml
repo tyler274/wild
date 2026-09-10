@@ -1,0 +1,32 @@
+[package]
+name = "wild-args"
+description = "Command-line argument parsing for the Wild linker"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+
+[dependencies]
+derive_more.workspace = true
+foldhash.workspace = true
+hashbrown.workspace = true
+hex.workspace = true
+indexmap.workspace = true
+itertools.workspace = true
+jobserver.workspace = true
+object.workspace = true
+rayon.workspace = true
+strum.workspace = true
+tracing.workspace = true
+wild-error = { path = "../wild-error", version = "0.10.0" }
+wild-fs = { path = "../wild-fs", version = "0.10.0" }
+wild-platform = { path = "../wild-platform", version = "0.10.0" }
+wild-scripts = { path = "../wild-scripts", version = "0.10.0" }
+wild-util = { path = "../wild-util", version = "0.10.0" }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

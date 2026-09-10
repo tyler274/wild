@@ -1,11 +1,11 @@
 use super::parse::ArgumentParser;
 use super::types::*;
-use crate::fs::FileReplacementMode;
-use crate::fs::FileWriteMode;
-use crate::platform;
 use std::num::NonZeroUsize;
+use wild_fs::fs::FileReplacementMode;
+use wild_fs::fs::FileWriteMode;
+use wild_platform as platform;
 
-pub(crate) fn declare_common_args<T: platform::Args + super::HasCommonArgs>(
+pub fn declare_common_args<T: platform::Args + super::HasCommonArgs>(
     parser: &mut ArgumentParser<T>,
 ) {
     parser

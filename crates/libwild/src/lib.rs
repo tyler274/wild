@@ -1,9 +1,9 @@
-pub use args::Args;
+pub use wild_args as args;
+pub use wild_args::Args;
 pub(crate) use wild_fs::archive;
 pub(crate) use wild_platform as platform;
 pub(crate) use wild_util::alignment;
 pub(crate) use wild_util::arch;
-pub mod args;
 pub(crate) mod compression;
 pub(crate) mod debug_trace;
 pub(crate) mod diagnostics;
@@ -348,7 +348,7 @@ impl<F: FileSystem> Linker<F> {
 
         let loaded = file_loader.load_inputs::<P>(&args.common().inputs, args, &mut plugin);
 
-        args.common().save_dir.finish(file_loader, args)?;
+        crate::save_dir::SaveDir::from_common(args.common())?.finish(file_loader, args)?;
 
         let loaded = loaded?;
 
