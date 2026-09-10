@@ -182,6 +182,10 @@ pub trait Args: std::fmt::Debug + Send + Sync + 'static {
         true
     }
 
+    fn image_base(&self) -> Option<u64> {
+        None
+    }
+
     fn should_emit_got_plt_syms(&self) -> bool {
         false
     }

@@ -24,9 +24,9 @@ pub(crate) struct File<'data> {
     #[debug(skip)]
     pub(crate) symbols: Vec<WasmSymbol>,
 
-    /// Per-data-segment alignments from the linking `SegmentInfo` subsection.
+    /// Per-data-segment metadata from the linking `SegmentInfo` subsection.
     #[debug(skip)]
-    pub(crate) segment_alignments: Vec<Alignment>,
+    pub(crate) segment_infos: Vec<WasmSegmentInfo<'data>>,
 
     /// Init functions from the linking section (`InitFuncs`), in input order.
     #[debug(skip)]
@@ -44,6 +44,23 @@ pub(crate) struct File<'data> {
     pub(crate) num_defined_functions: u32,
     pub(crate) num_defined_globals: u32,
     pub(crate) num_data_segments: u32,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[expect(unused)]
+pub(crate) struct WasmSegmentInfo<'data> {
+    pub(crate) name: &'data str,
+    pub(crate) alignment: Alignment,
+    pub(crate) flags: wasmparser::SegmentFlags,
+}
+
+impl WasmSegmentInfo<'_> {
+    #[expect(unused)]
+    fn is_tls(self) -> bool {
+        self.flags.contains(wasmparser::SegmentFlags::TLS)
+            || self.name.starts_with(".tdata")
+            || self.name.starts_with(".tbss")
+    }
 }
 
 /// One entry of the Wasm tool-conventions `target_features` custom section.

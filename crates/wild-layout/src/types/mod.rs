@@ -32,8 +32,11 @@ pub use gc::*;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 use linker_utils::relaxation::RelaxDeltaMap;
+use object::SectionIndex;
 #[allow(unused_imports)]
 pub use objects::*;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
 use smallvec::SmallVec;
 use std::collections::BTreeMap;
 use std::ffi::CString;
@@ -130,6 +133,161 @@ pub struct Layout<'data, P: Platform> {
     pub incremental_reverse_relocs: Mutex<crate::incremental::ReverseRelocIndex>,
     /// Loaded previous reverse-reloc index + resolutions for patching skipped objects.
     pub incremental_patch: Option<crate::incremental::IncrementalPatchJob>,
+
+    pub partial_link: PartialLinkSingletons,
+}
+
+#[derive(Debug, Default)]
+pub struct PartialLinkSingletons {
+    output_indexes: std::ops::Range<u32>,
+    groups: Vec<SingletonGroupPlan>,
+}
+
+#[derive(Debug)]
+pub struct PartialLinkPlan {
+    pub groups: Vec<SingletonGroupPlan>,
+    pub singleton_count: u32,
+    pub section_name_bytes: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct SingletonGroupPlan {
+    pub ordinals: std::ops::Range<u32>,
+    pub section_name_bytes: u64,
+}
+
+impl PartialLinkPlan {
+    pub fn build<P: EnginePlatform>(
+        group_states: &[GroupState<P>],
+        section_part_ids: &[PartId],
+        args: &P::Args,
+    ) -> Result<Option<Self>> {
+        if !args.should_output_partial_object() {
+            return Ok(None);
+        }
+
+        let singleton_id = P::PARTIAL_SINGLETONS_ID
+            .context("Partial linking is not supported for this output format")?;
+
+        let group_counts = group_states
+            .par_iter()
+            .map(|group| {
+                let mut singleton_count = 0u32;
+                let mut section_name_bytes = 0u64;
+
+                for file in &group.files {
+                    let FileLayoutState::Object(object) = file else {
+                        continue;
+                    };
+
+                    let object_part_ids = &section_part_ids[object.section_id_range.as_usize()];
+
+                    for (raw_index, (slot, &part_id)) in
+                        object.sections.iter().zip(object_part_ids).enumerate()
+                    {
+                        if part_id.output_section_id::<P>() != singleton_id {
+                            continue;
+                        }
+                        // Partial-link custom sections use ordinary loading, including debug sections.
+                        match slot {
+                            SectionSlot::Loaded(_) => {}
+                            SectionSlot::Discard | SectionSlot::Unloaded(_) => continue,
+                            _ => bail!(
+                                "Internal error: partial-link singleton {} in {} has unexpected state {slot:?}",
+                                object.object.section_display_name(SectionIndex(raw_index)),
+                                object.input,
+                            ),
+                        }
+
+                        singleton_count = singleton_count
+                            .checked_add(1)
+                            .context("Too many partial-link singleton sections")?;
+                        section_name_bytes +=
+                            object.object.section_name(SectionIndex(raw_index))?.len() as u64 + 1;
+                    }
+                }
+
+                Ok((singleton_count, section_name_bytes))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let mut singleton_count = 0u32;
+        let mut section_name_bytes = 0u64;
+        let groups = group_counts
+            .into_iter()
+            .map(|(count, name_bytes)| {
+                let start = singleton_count;
+                singleton_count = singleton_count
+                    .checked_add(count)
+                    .context("Too many partial-link singleton sections")?;
+                section_name_bytes += name_bytes;
+                Ok(SingletonGroupPlan {
+                    ordinals: start..singleton_count,
+                    section_name_bytes: name_bytes,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Some(Self {
+            groups,
+            singleton_count,
+            section_name_bytes,
+        }))
+    }
+}
+
+impl PartialLinkSingletons {
+    pub fn group_sizes(&self) -> impl Iterator<Item = (usize, usize)> {
+        self.groups
+            .iter()
+            .map(|group| (group.ordinals.len(), group.section_name_bytes as usize))
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.output_indexes.is_empty()
+    }
+
+    pub fn output_index_range(&self) -> std::ops::Range<u32> {
+        self.output_indexes.clone()
+    }
+
+    pub fn output_index(&self, singleton: &PartialLinkSingleton) -> u32 {
+        self.output_indexes.start + singleton.ordinal
+    }
+}
+
+impl SingletonGroupPlan {
+    pub fn finalise<P: EnginePlatform>(
+        &self,
+        layout: &mut GroupLayout<P>,
+        section_part_ids: &[PartId],
+    ) {
+        if self.ordinals.is_empty() {
+            return;
+        }
+        let singleton_id = P::PARTIAL_SINGLETONS_ID.unwrap();
+        let mut ordinal = self.ordinals.start;
+        for file in &mut layout.files {
+            let FileLayout::Object(object) = file else {
+                continue;
+            };
+            let part_ids = &section_part_ids[object.section_id_range.as_usize()];
+            for (slot, &part_id) in object.sections.iter_mut().zip(part_ids) {
+                if part_id.output_section_id::<P>() != singleton_id {
+                    continue;
+                }
+                let section = match *slot {
+                    SectionSlot::Loaded(section) => section,
+                    SectionSlot::Discard | SectionSlot::Unloaded(_) => continue,
+                    _ => unreachable!("Singleton section changed state after planning: {slot:?}"),
+                };
+                *slot =
+                    SectionSlot::PartialLinkSingleton(PartialLinkSingleton { section, ordinal });
+                ordinal += 1;
+            }
+        }
+        assert_eq!(ordinal, self.ordinals.end);
+    }
 }
 
 #[derive(Debug, Default)]
@@ -433,6 +591,14 @@ pub struct Section {
 pub struct SortedSection {
     pub address: u64,
     pub section: Section,
+}
+
+/// A section with a unique name that is passed through from input to output without merging
+/// with other input sections. Created after group layout finalisation.
+#[derive(Debug, Clone, Copy)]
+pub struct PartialLinkSingleton {
+    pub section: Section,
+    pub ordinal: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -970,6 +1136,7 @@ pub struct GroupActivationInputs<'data, P: Platform> {
 #[derive(Debug)]
 pub struct HeaderInfo {
     pub num_output_sections_with_content: u32,
+    pub partial_link_section_name_bytes: u64,
     pub active_segment_ids: Vec<ProgramSegmentId>,
 }
 

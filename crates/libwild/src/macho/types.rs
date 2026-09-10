@@ -53,6 +53,7 @@ pub(crate) const CHAINED_FIXUP_IMPORT_SIZE: u64 = size_of::<u32>() as u64;
 pub(crate) const CHAINED_FIXUP_PAGE_START_SIZE: u64 = size_of::<u16>() as u64;
 pub(crate) const GOT_ENTRY_SIZE: u64 = 8;
 pub(crate) const PLT_ENTRY_SIZE: u64 = 12;
+pub(crate) const INIT_OFFSET_ENTRY_SIZE: u64 = size_of::<u32>() as u64;
 
 pub(super) type SectionHeader = Section64<crate::macho::Endianness>;
 pub(super) type SectionTable<'data> = &'data [Section64<crate::macho::Endianness>];
@@ -145,12 +146,20 @@ impl std::fmt::Display for SegmentName {
 pub(crate) struct LayoutExt {
     /// Imported STUB library symbols, sorted by GOT.
     pub(crate) imported_symbols: Vec<ImportedSymbolWithResolution>,
+    /// Final addresses of initializer functions, in input relocation order.
+    pub(crate) init_function_addresses: Vec<u64>,
 }
 
 #[derive(Debug, Default)]
 pub(crate) struct FinaliseSizesExt {
     pub(super) imported_libraries: Vec<FileId>,
     pub(super) imported_symbols: Vec<SymbolId>,
+    pub(super) init_functions: Vec<SymbolId>,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct ObjectLayoutStateExt {
+    pub(super) init_functions: Vec<SymbolId>,
 }
 
 #[derive(Debug, Default, Clone)]

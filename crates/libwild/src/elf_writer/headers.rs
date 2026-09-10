@@ -8,7 +8,9 @@ use crate::ensure;
 use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
+use crate::file_writer::insufficient_allocation;
 use crate::malfunction;
+use crate::verbose_timing_phase;
 use crate::writable_elf::WritableFileHeader as _;
 use crate::writable_elf::WritableProgramHeader as _;
 use crate::writable_elf::WritableSectionHeader as _;
@@ -16,12 +18,20 @@ use linker_utils::elf::pf;
 use linker_utils::elf::shf;
 use linker_utils::elf::sht;
 use linker_utils::utils::slice_from_all_bytes_mut;
+use object::LittleEndian;
+use object::read::elf::SectionHeader as _;
+use rayon::iter::IntoParallelIterator as _;
+use rayon::iter::ParallelIterator as _;
+use wild_layout::FileLayout;
 use wild_layout::HeaderInfo;
+use wild_layout::ObjectLayout;
+use wild_layout::PartialLinkSingleton;
 use wild_layout::output_section_id::OutputSections;
 use wild_layout::output_section_id::SectionName;
 use wild_platform::Arch;
 use wild_platform::Args as _;
 use wild_platform::EntryPoint;
+use wild_platform::ObjectFile;
 use wild_platform::OutputKind;
 use wild_platform::output_section_map::OutputSectionMap;
 use wild_util::alignment;
@@ -165,8 +175,12 @@ pub(crate) fn elf_entry_address<C: ElfClass>(layout: &ElfLayout<C>) -> Result<u6
     Ok(text_layout.mem_offset)
 }
 
-pub(crate) fn write_section_headers<C: ElfClass>(out: &mut [u8], layout: &ElfLayout<C>) -> Result {
-    let entries: &mut [elf::SectionHeader<C>] = slice_from_all_bytes_mut(out);
+pub(crate) fn write_section_headers<C: ElfClass>(
+    headers_out: &mut [u8],
+    shstrtab_out: &mut [u8],
+    layout: &ElfLayout<C>,
+) -> Result {
+    let entries: &mut [elf::SectionHeader<C>] = slice_from_all_bytes_mut(headers_out);
     let output_sections = &layout.output_sections;
     let mut entries = entries.iter_mut();
     let shstrtab = elf::shstrtab_from_sections(output_sections);
@@ -285,11 +299,15 @@ pub(crate) fn write_section_headers<C: ElfClass>(out: &mut [u8], layout: &ElfLay
         entry.set_alignment(alignment)?;
         entry.set_entry_size(entsize)?;
     }
-    ensure!(
-        entries.next().is_none(),
-        "Allocated section entries that weren't used (leftover section headers)"
-    );
 
+    let leftover_headers = entries.into_slice();
+    let singleton_names = write_section_header_strings(shstrtab_out, output_sections)?;
+    write_partial_link_singleton_headers(
+        leftover_headers,
+        singleton_names,
+        layout,
+        shstrtab.bytes.len() as u32,
+    )?;
     Ok(())
 }
 
@@ -323,19 +341,223 @@ pub(crate) fn compute_info_values<C: ElfClass>(layout: &ElfLayout<C>) -> OutputS
     infos
 }
 
-pub(crate) fn write_section_header_strings<C: ElfClass>(
-    out: &mut [u8],
+pub(crate) fn write_section_header_strings<'out, C: ElfClass>(
+    out: &'out mut [u8],
     sections: &OutputSections<elf::Elf<C>>,
-) -> Result {
+) -> Result<&'out mut [u8]> {
     let tab = elf::shstrtab_from_sections(sections);
     ensure!(
-        out.len() == tab.bytes.len(),
+        out.len() >= tab.bytes.len(),
         "Allocated {} bytes for .shstrtab, but suffix-merged table is {} bytes",
         out.len(),
         tab.bytes.len()
     );
-    out.copy_from_slice(&tab.bytes);
+    let (merged, rest) = out.split_at_mut(tab.bytes.len());
+    merged.copy_from_slice(&tab.bytes);
+    Ok(rest)
+}
+
+fn write_partial_link_singleton_headers<C: ElfClass>(
+    mut headers: &mut [elf::SectionHeader<C>],
+    mut names: &mut [u8],
+    layout: &ElfLayout<C>,
+    mut name_offset: u32,
+) -> Result {
+    if layout.partial_link.is_empty() {
+        ensure!(
+            headers.is_empty(),
+            "Allocated section entries that weren't used (leftover section headers)"
+        );
+        ensure!(
+            names.is_empty(),
+            "Allocated extra .shstrtab bytes with no partial-link singleton names"
+        );
+        return Ok(());
+    }
+
+    verbose_timing_phase!("Write partial link singleton headers");
+
+    let mut work = Vec::with_capacity(layout.group_layouts.len());
+    for (group, (header_count, name_bytes)) in layout
+        .group_layouts
+        .iter()
+        .zip(layout.partial_link.group_sizes())
+    {
+        let group_headers = headers
+            .split_off_mut(..header_count)
+            .ok_or_else(|| insufficient_allocation("section headers"))?;
+        let group_names = names
+            .split_off_mut(..name_bytes)
+            .ok_or_else(|| insufficient_allocation(".shstrtab"))?;
+        if header_count != 0 {
+            work.push((group, group_headers, group_names, name_offset));
+        }
+        name_offset += name_bytes as u32;
+    }
+
+    ensure!(
+        headers.is_empty(),
+        "Allocated section entries that weren't used (leftover section headers)"
+    );
+    ensure!(
+        names.is_empty(),
+        "Excess partial-link singleton name allocation"
+    );
+
+    work.into_par_iter().try_for_each(
+        |(group, mut headers, mut names, mut name_offset)| -> Result {
+            for file in &group.files {
+                let FileLayout::Object(object) = file else {
+                    continue;
+                };
+
+                for (raw_index, slot) in object.sections.iter().enumerate() {
+                    let section_index = object::SectionIndex(raw_index);
+                    let Some(singleton) = slot.singleton() else {
+                        continue;
+                    };
+
+                    let header_out = headers
+                        .split_off_first_mut()
+                        .ok_or_else(|| insufficient_allocation("section headers"))?;
+                    write_partial_link_singleton_header(
+                        header_out,
+                        layout,
+                        object,
+                        section_index,
+                        singleton,
+                        name_offset,
+                    )
+                    .with_context(|| {
+                        format!(
+                            "Failed to write partial-link singleton header for {} in {}",
+                            object.object.section_display_name(section_index),
+                            object.input,
+                        )
+                    })?;
+
+                    let name = object.object.section_name(section_index)?;
+                    let out = names
+                        .split_off_mut(..=name.len())
+                        .ok_or_else(|| insufficient_allocation(".shstrtab"))?;
+                    out[..name.len()].copy_from_slice(name);
+                    out[name.len()] = 0;
+                    name_offset += name.len() as u32 + 1;
+                }
+            }
+            ensure!(
+                headers.is_empty(),
+                "Excess partial-link singleton header allocation"
+            );
+            ensure!(
+                names.is_empty(),
+                "Excess partial-link singleton name allocation"
+            );
+            Ok(())
+        },
+    )?;
+
     Ok(())
+}
+
+fn write_partial_link_singleton_header<C: ElfClass>(
+    header_out: &mut elf::SectionHeader<C>,
+    layout: &ElfLayout<C>,
+    object: &ObjectLayout<elf::Elf<C>>,
+    section_index: object::SectionIndex,
+    singleton: &PartialLinkSingleton,
+    name_offset: u32,
+) -> Result {
+    let e = LittleEndian;
+
+    let input_header = object.object.section(section_index)?;
+    let part_id = object.section_part_id(section_index, &layout.symbol_db.section_part_ids);
+    let part_layout = layout.section_part_layouts.get(part_id);
+
+    let section_address = object.section_resolutions[section_index.0]
+        .address()
+        .context("Missing address for partial-link singleton section")?;
+
+    let offset_in_part = section_address
+        .checked_sub(part_layout.mem_offset)
+        .context("Partial-link singleton precedes its output section part")?;
+
+    header_out.set_address(0)?;
+    header_out.set_size(singleton.section.size)?;
+    let section_type = input_header.sh_type(e);
+
+    let section_flags = input_header
+        .sh_flags(e)
+        .without(shf::COMPRESSED | shf::GROUP);
+
+    header_out.set_type(section_type);
+    header_out.set_flags(section_flags)?;
+    header_out.set_alignment(object.object.section_alignment(input_header)?)?;
+
+    let is_relocation_section =
+        section_type == object::elf::SHT_RELA || section_type == object::elf::SHT_REL;
+    let output_link = if is_relocation_section {
+        layout
+            .output_sections
+            .output_index_of_section(output_section_id::SYMTAB_LOCAL)
+            .context("Missing symbol table for partial-link relocation section")?
+    } else {
+        let input_link = object::SectionIndex(input_header.sh_link(e) as usize);
+
+        partial_link_output_index_for_input_section(object, input_link, layout)
+            .context("Missing linked section for partial-link singleton")?
+    };
+    header_out.set_link(output_link);
+
+    let input_info = input_header.sh_info(e);
+    let output_info = if is_relocation_section || section_flags.contains(shf::INFO_LINK) {
+        partial_link_output_index_for_input_section(
+            object,
+            object::SectionIndex(input_info as usize),
+            layout,
+        )
+        .context("Missing sh_info target for partial-link singleton")?
+    } else {
+        input_info
+    };
+    header_out.set_info(output_info);
+
+    header_out.set_offset(part_layout.file_offset as u64 + offset_in_part)?;
+    header_out.set_entry_size(input_header.sh_entsize(e).into())?;
+    header_out.set_name(name_offset);
+
+    Ok(())
+}
+
+fn partial_link_output_index_for_input_section<C: ElfClass>(
+    object: &ObjectLayout<elf::Elf<C>>,
+    section_index: object::SectionIndex,
+    layout: &ElfLayout<C>,
+) -> Option<u32> {
+    if section_index.0 == 0 {
+        return Some(0);
+    }
+    if let Some(singleton) = object.sections.get(section_index.0)?.singleton() {
+        return Some(layout.partial_link.output_index(singleton));
+    }
+
+    let input_header = object.object.section(section_index).ok()?;
+    if input_header.sh_type(LittleEndian) == object::elf::SHT_SYMTAB {
+        return layout
+            .output_sections
+            .output_index_of_section(output_section_id::SYMTAB_LOCAL);
+    }
+
+    let part_id = object.section_part_id(section_index, &layout.symbol_db.section_part_ids);
+    if part_id == wild_layout::part_id::UNMAPPED {
+        return None;
+    }
+
+    let section_id = layout
+        .output_sections
+        .primary_output_section(part_id.output_section_id::<elf::Elf<C>>());
+
+    layout.output_sections.output_index_of_section(section_id)
 }
 
 pub(crate) struct ProgramHeaderWriter<'out, C: ElfClass> {

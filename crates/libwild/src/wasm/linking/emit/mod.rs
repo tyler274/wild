@@ -74,11 +74,6 @@ where
     let has_init_funcs = layout_inputs
         .iter()
         .any(|input| !input.init_funcs.is_empty());
-    // Like wasm-ld, wrap only when InitFuncs exist and crt does not already call
-    // `__wasm_call_ctors`.
-    let wrap_entry = has_init_funcs
-        && !call_ctors_used_in_objects(&layout_inputs)
-        && entry_is_defined_function(&layout_inputs, symbol_db, &file_id_to_index);
 
     let (indices, reloc_scan, shared_imports) = setup_got_mem_and_indices(
         &layout_inputs,
@@ -86,7 +81,6 @@ where
         symbol_db,
         &file_id_to_index,
         has_init_funcs,
-        wrap_entry,
     )?;
     let got_mem = &reloc_scan.got_mem;
     let got_func = &reloc_scan.got_func;
@@ -242,22 +236,10 @@ where
         symbol_db,
         &file_id_to_index,
     )?;
-    let entry_wrapper_body = match (indices.entry_wrapper_func, indices.call_ctors_func, &entry) {
-        (Some(_), Some(ctors), Some(entry)) => Some(encode_call_sequence_body(&[
-            (ctors, 0),
-            (entry.function_index, 0),
-        ])),
-        _ => None,
-    };
 
     {
         timing_phase!("Wasm linker-defined symbols and data addresses");
-        emit_reserved_linker_definitions(
-            &mut layout,
-            &indices,
-            call_ctors_body,
-            entry_wrapper_body,
-        );
+        emit_reserved_linker_definitions(&mut layout, &indices, call_ctors_body);
         deduplicate_output_types(&mut layout);
 
         // wasm-ld always defines a linear memory for executables.
@@ -318,20 +300,20 @@ where
             stack_first,
         )?;
         fill_stack_pointer_init(&mut layout, &indices, stack_size, stack_first)?;
-        ensure_entry_export(
-            &mut layout.exports,
-            entry.as_ref(),
-            indices.entry_wrapper_func,
-        );
+        ensure_entry_export(&mut layout.exports, entry.as_ref());
         ensure_force_exports(
             &mut layout.exports,
             &layout_inputs,
             &layout.object_index_maps,
             symbol_db,
-            entry.as_ref(),
             &indices,
             &file_id_to_index,
         )?;
+        if should_wrap_command_exports(has_init_funcs, &layout_inputs, &layout.exports)
+            && let Some(ctors) = indices.call_ctors_func
+        {
+            wrap_command_exports(&mut layout, ctors)?;
+        }
     }
     {
         timing_phase!("Finalize Wasm indirect function table");

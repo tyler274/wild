@@ -194,6 +194,9 @@ where
         &finalise_sizes_resources,
     )?;
 
+    let partial_link_plan =
+        PartialLinkPlan::build(&group_states, &symbol_db.section_part_ids, symbol_db.args)?;
+
     // Dropping `symbol_info_printer` will cause it to print. So we'll either print now, or, if we
     // got an error or panic, then we'll have printed at that point.
     symbol_info_printer.update(&symbol_db, &atomic_per_symbol_flags);
@@ -202,6 +205,10 @@ where
     let non_addressable_counts = apply_non_addressable_indexes(&mut group_states, &symbol_db)?;
 
     propagate_section_attributes(&group_states, &mut output_sections);
+
+    if symbol_db.args.should_output_partial_object() {
+        clear_singleton_attributes::<P>(&mut output_sections);
+    }
 
     let linker_scripts: Vec<&SequencedLinkerScript<P>> = symbol_db
         .groups
@@ -226,7 +233,11 @@ where
         output_order.display::<A::Platform>(&output_sections, &program_segments)
     );
 
-    let (mut section_part_sizes, gdb_index_data) = compute_total_section_part_sizes(
+    let TotalSectionSizes {
+        mut section_part_sizes,
+        gdb_index_data,
+        partial_link,
+    } = compute_total_section_part_sizes(
         &mut group_states,
         &mut output_sections,
         &output_order,
@@ -234,6 +245,7 @@ where
         &mut per_symbol_flags,
         gc_outputs.must_keep_sections,
         &finalise_sizes_resources,
+        partial_link_plan.as_ref(),
     )?;
     drop(finalise_sizes_resources);
 
@@ -487,7 +499,9 @@ where
         starting_mem_offsets_by_group,
         &mut per_group_res_writers,
         &resources,
+        partial_link_plan.as_ref(),
     )?;
+    drop(partial_link_plan);
 
     for shard in per_group_res_writers {
         res_writer
@@ -548,6 +562,7 @@ where
         compressed_debug_sections: OutputSectionMap::with_size(num_sections),
         gdb_index_data,
         script_sorted_sections,
+        partial_link,
         resolved_location_counters,
         incremental_skip_payloads: HashSet::new(),
         incremental_atoms: HashMap::new(),

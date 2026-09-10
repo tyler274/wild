@@ -14,6 +14,7 @@ colored.workspace = true
 crossbeam-queue.workspace = true
 crossbeam-utils.workspace = true
 derive_more.workspace = true
+foldhash.workspace = true
 hashbrown.workspace = true
 itertools.workspace = true
 linker-layout = { path = "../linker-layout", version = "0.10.0" }

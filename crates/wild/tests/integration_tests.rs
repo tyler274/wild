@@ -35,6 +35,8 @@
 //!
 //! WildExtraLinkArgs:... Extra linker arguments that should only be passed to the Wild linker.
 //!
+//! Env:NAME=value Adds an environment variable to linker invocations.
+//!
 //! CompArgs:... Arguments to be passed to the compiler when building object files.
 //!
 //! CompSoArgs:... Arguments to be passed to the compiler when building shared objects.
@@ -130,7 +132,8 @@
 //! RunDynSym:{string} If set and RunEnabled:true, then, instead of executing the binary normally,
 //! the binary is loaded as a shared library and the function specified by the string is called. The
 //! function must return an integer to indicate status (status != 42 is an error). Such run is
-//! currently skipped if the shared library is cross compiled.
+//! currently skipped if the shared library is cross compiled. For Wasm, wasmtime is invoked with
+//! `--invoke` on the named export.
 //!
 //! ReferenceLinkers:{linker-names} List of reference linkers to run this test with.
 //!   `bfd,lld,mold` is a four-way diff (GNU ld, LLD, Mold, Wild). Tests that omit
@@ -901,10 +904,14 @@ fn validate_wasm(wasm_file: &Path, linker_name: &str) -> Result {
     Ok(())
 }
 
-fn run_wasm_with_wasmtime(wasm_file: &Path, linker_name: &str) -> Result {
-    let output = Command::new("wasmtime")
-        .arg("run")
-        .args(["-W", "threads,shared-memory"])
+fn run_wasm_with_wasmtime(wasm_file: &Path, linker_name: &str, invoke: Option<&str>) -> Result {
+    let mut command = Command::new("wasmtime");
+    command.arg("run");
+    command.args(["-W", "threads,shared-memory"]);
+    if let Some(func) = invoke {
+        command.arg("--invoke").arg(func);
+    }
+    let output = command
         .arg(wasm_file)
         .output()
         .context("Failed to run wasmtime")?;
@@ -1375,6 +1382,7 @@ struct Config {
     post_linker_args: ArgumentSet,
     linker_so_args: ArgumentSet,
     wild_extra_linker_args: ArgumentSet,
+    linker_env: HashMap<String, String>,
     compiler_args: ArgumentSet,
     compiler_so_args: ArgumentSet,
     diff_ignore: Vec<String>,
@@ -1859,7 +1867,8 @@ impl Config {
     }
 
     fn can_use_wild_in_process(&self) -> bool {
-        !self.test_update_in_place
+        self.linker_env.is_empty()
+            && !self.test_update_in_place
             && !self.test_incremental
             && self.expect_stderr.is_empty()
             && self.expect_stdout.is_empty()
@@ -2186,6 +2195,7 @@ impl Config {
             compiler_args: ArgumentSet::default_for_compiling(),
             compiler_so_args: ArgumentSet::default_for_compiling(),
             wild_extra_linker_args: ArgumentSet::empty(),
+            linker_env: Default::default(),
             diff_ignore: Default::default(),
             reference_linkers: None,
             skip_linkers: Default::default(),
@@ -2492,6 +2502,18 @@ fn process_directive(
             config.linker_driver = LinkerDriver::parse(arg)?;
         }
         "WildExtraLinkArgs" => config.wild_extra_linker_args = ArgumentSet::parse(arg),
+        "Env" => {
+            let (name, value) = arg
+                .split_once('=')
+                .context("Env requires an argument of the form NAME=value")?;
+
+            ensure!(
+                !name.is_empty(),
+                "Environment variable name cannot be empty"
+            );
+
+            config.linker_env.insert(name.to_owned(), value.to_owned());
+        }
         "CompArgs" => {
             let arg = expand_test_arg_placeholders(arg, config);
             config.compiler_args = ArgumentSet::parse(&arg);
@@ -3413,7 +3435,11 @@ impl LinkOutput {
 
     fn run_expecting(&self, cross_arch: Option<Architecture>, expected_exit: i32) -> Result {
         if self.command.config.platform == PlatformKind::Wasm {
-            return run_wasm_with_wasmtime(&self.binary, self.linker_used.name());
+            return run_wasm_with_wasmtime(
+                &self.binary,
+                self.linker_used.name(),
+                self.command.config.run_dyn_sym.as_deref(),
+            );
         }
 
         let mut command = if let Some(arch) = cross_arch {
@@ -4796,6 +4822,8 @@ impl LinkCommand {
                 }
             }
         }
+
+        command.envs(&config.linker_env);
 
         let mut link_command = LinkCommand {
             command,
@@ -7115,14 +7143,20 @@ impl Compiler {
 
 impl Display for LinkCommand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let build_features = match self.config.platform {
+            PlatformKind::MachO => "--features macho",
+            PlatformKind::Wasm => "--features wasm",
+            PlatformKind::Elf => "",
+        };
+
         if let Some(save_dir) = self.opt_save_dir.as_ref()
             && save_dir.exists()
             && self.linker == Linker::Wild
         {
             write!(
                 f,
-                "WILD_WRITE_LAYOUT=1 WILD_WRITE_TRACE=1 OUT={} {}/run-with cargo run \
-                     --bin wild -- --",
+                "WILD_WRITE_LAYOUT=1 WILD_WRITE_TRACE=1 OUT={} \
+                    {}/run-with cargo run {build_features} --bin wild -- --",
                 self.output_path.display(),
                 save_dir.display()
             )?;
@@ -7136,6 +7170,15 @@ impl Display for LinkCommand {
         // A bit of indentation makes it easier to see the start of the command, especially when it
         // wraps over several lines and there are multiple commands.
         write!(f, "        ")?;
+
+        for (key, value) in self.command.get_envs() {
+            write!(
+                f,
+                "{}={} ",
+                key.to_str().unwrap_or("??"),
+                value.and_then(|value| value.to_str()).unwrap_or_default(),
+            )?;
+        }
 
         let mut command_str = self.command.get_program().to_string_lossy();
 
@@ -7151,27 +7194,27 @@ impl Display for LinkCommand {
 
         match (self.invocation_mode, &self.linker) {
             (LinkerInvocationMode::Cc, Linker::Wild) => {
-                write!(f, "cargo build; {} {}", command_str, args.join(" "))
+                write!(
+                    f,
+                    "cargo build {build_features}; {} {}",
+                    command_str,
+                    args.join(" ")
+                )
             }
             (LinkerInvocationMode::Direct, Linker::Wild) => {
-                write!(f, "cargo run --bin wild -- {}", args.join(" "))
+                write!(
+                    f,
+                    "cargo run {build_features} --bin wild -- {}",
+                    args.join(" ")
+                )
             }
             (LinkerInvocationMode::Script, Linker::Wild) => {
-                for (k, v) in self.command.get_envs() {
-                    write!(
-                        f,
-                        "{}={} ",
-                        k.to_str().unwrap_or("??"),
-                        v.and_then(|v| v.to_str()).unwrap_or_default(),
-                    )?;
-                }
-
                 // The first argument is the linker, which we're replacing with `cargo run --`.
                 args.remove(0);
 
                 write!(
                     f,
-                    "{} cargo run --bin wild -- -- {}",
+                    "{} cargo run {build_features} --bin wild -- -- {}",
                     command_str,
                     args.join(" ")
                 )
@@ -7808,14 +7851,20 @@ fn run_with_config(
             // If RunDynSym is set, execute our binary by loading it dynamically and calling the
             // configured function.
             if let Some(func) = config.run_dyn_sym.as_ref() {
-                // As we are loading the library directly into our process, our binary cannot be
-                // cross compiled. Also, if we are on a musl libc system, we cannot
-                // use dlopen() as the integration test is a statically linked binary.
-                // In those cases test execution is skipped.
+                // Wasm: `run` already passes `--invoke` to wasmtime.
+                if config.platform == PlatformKind::Wasm {
+                    program
+                        .link_output
+                        .run(cross_arch)
+                        .with_context(|| format!("Failed to run program. {program}"))?;
+                } else if cross_arch.is_none() && !is_musl_used() {
+                    // As we are loading the library directly into our process, our binary cannot be
+                    // cross compiled. Also, if we are on a musl libc system, we cannot
+                    // use dlopen() as the integration test is a statically linked binary.
+                    // In those cases test execution is skipped.
 
-                // TODO: To support those other cases: a small "wrapper executable" can be cross
-                // compiled and dynamically linked to load the shared library instead.
-                if cross_arch.is_none() && !is_musl_used() {
+                    // TODO: To support those other cases: a small "wrapper executable" can be cross
+                    // compiled and dynamically linked to load the shared library instead.
                     program
                         .link_output
                         .run_as_dynlib(func)

@@ -153,6 +153,8 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     const SFRAME_SECTION_ID: Option<OutputSectionId> = Some(output_section_id::SFRAME);
     const RELRO_PADDING_SECTION_ID: Option<OutputSectionId> =
         Some(output_section_id::RELRO_PADDING);
+    const PARTIAL_SINGLETONS_ID: Option<OutputSectionId> =
+        Some(output_section_id::PARTIAL_LINKING_SINGLETONS);
 
     const CUSTOM_PHDR_EXCLUDED_SECTION_IDS: &'static [OutputSectionId] = &[
         output_section_id::PROGRAM_HEADERS,
@@ -965,7 +967,13 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             )
             .hide();
 
-        symbols.section_start(output_section_id::GOT, "_GLOBAL_OFFSET_TABLE_");
+        symbols
+            .section_start(wild_layout::output_section_id::FILE_HEADER, "__dso_handle")
+            .hide();
+
+        symbols
+            .section_start(output_section_id::GOT, "_GLOBAL_OFFSET_TABLE_")
+            .hide();
 
         // Don't emit .rela.plt start/stop symbols for static PIE executables. Doing so causes glibc
         // to call the resolver functions without taking into account that the binary has been
@@ -2089,7 +2097,8 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         );
         prelude.format_specific.shstrtab_size = crate::elf::shstrtab_from_sections(output_sections)
             .bytes
-            .len() as u64;
+            .len() as u64
+            + header_info.partial_link_section_name_bytes;
         sizes.increment(part_id::SHSTRTAB, prelude.format_specific.shstrtab_size);
     }
 
@@ -2224,6 +2233,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         builder.add_section(output_section_id::SYMTAB_LOCAL);
         builder.add_section(output_section_id::SYMTAB_SHNDX_LOCAL);
         builder.add_section(output_section_id::STRTAB);
+        builder.add_section(output_section_id::PARTIAL_LINKING_SINGLETONS);
 
         builder.build()
     }

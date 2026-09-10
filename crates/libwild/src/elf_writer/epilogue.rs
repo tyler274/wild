@@ -213,9 +213,11 @@ pub(crate) fn write_prelude_except_gdb_index<
         ProgramHeaderWriter::<C>::new(buffers.get_mut(part_id::PROGRAM_HEADERS));
     write_program_headers(&mut program_headers, layout)?;
 
-    write_section_headers(buffers.get_mut(part_id::SECTION_HEADERS), layout)?;
-
-    write_section_header_strings(buffers.get_mut(part_id::SHSTRTAB), &layout.output_sections)?;
+    write_section_headers(
+        std::mem::take(buffers.get_mut(part_id::SECTION_HEADERS)),
+        std::mem::take(buffers.get_mut(part_id::SHSTRTAB)),
+        layout,
+    )?;
 
     write_plt_got_entries::<C, A>(prelude, layout, table_writer)?;
 

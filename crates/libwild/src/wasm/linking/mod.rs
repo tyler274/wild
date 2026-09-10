@@ -3,7 +3,6 @@ mod got;
 mod imports;
 
 use super::LINKER_MEMORY_BASE;
-use super::Wasm;
 use super::gc::*;
 use super::output::*;
 use super::symbols::*;
@@ -12,11 +11,8 @@ use crate::error::Result;
 pub(crate) use emit::*;
 #[allow(unused_imports)]
 pub(crate) use got::*;
-use hashbrown::HashMap;
 #[allow(unused_imports)]
 pub(crate) use imports::*;
-use wild_layout::symbol::UnversionedSymbolName;
-use wild_layout::symbol_db::SymbolDb;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct LinkerDefinedIndices {
@@ -28,7 +24,6 @@ pub(crate) struct LinkerDefinedIndices {
     /// `emit_reserved_linker_definitions` (not the Wasm module global index).
     pub(crate) stack_pointer_defined_slot: Option<u32>,
     pub(crate) call_ctors_func: Option<u32>,
-    pub(crate) entry_wrapper_func: Option<u32>,
     pub(crate) weak_undef_stubs: Vec<WeakUndefFunctionStub>,
     /// Linker-defined globals including GOT.mem.
     pub(crate) num_defined_globals: u32,
@@ -65,34 +60,11 @@ pub(crate) fn call_ctors_used_in_objects(inputs: &[WasmObjectLayoutInput<'_>]) -
     })
 }
 
-pub(crate) fn entry_is_defined_function(
-    layout_inputs: &[WasmObjectLayoutInput<'_>],
-    symbol_db: &SymbolDb<'_, Wasm>,
-    file_id_to_index: &HashMap<crate::input_data::FileId, usize>,
-) -> bool {
-    let Some(entry_name) = symbol_db.entry_symbol_name() else {
-        return false;
-    };
-    let Some(symbol_id) = symbol_db.get_unversioned(&UnversionedSymbolName::prehashed(entry_name))
-    else {
-        return false;
-    };
-    let def_id = symbol_db.definition(symbol_id);
-    let def_file_id = symbol_db.file_id_for_symbol(def_id);
-    let Some(&obj_idx) = file_id_to_index.get(&def_file_id) else {
-        return false;
-    };
-    let input = &layout_inputs[obj_idx];
-    let sym = &input.symbols[input.symbol_id_range.id_to_offset(def_id)];
-    !sym.is_undefined() && sym.kind == WasmSymbolKind::Func
-}
-
 pub(crate) struct LinkerDefinedIndexRequest {
     pub(crate) has_init_funcs: bool,
     // Linker symbols named by `--export` / `--export-if-defined`.
     pub(crate) export_symbols: Vec<WasmLinkerSymbol>,
     pub(crate) has_memory: bool,
-    pub(crate) wrap_entry: bool,
     pub(crate) got_mem_count: u32,
     pub(crate) got_func_count: u32,
     pub(crate) needs_memory_base: bool,
@@ -209,11 +181,6 @@ impl LinkerDefinedIndices {
             next_func += 1;
             idx
         });
-        let entry_wrapper_func = request.wrap_entry.then(|| {
-            let idx = next_func;
-            next_func += 1;
-            idx
-        });
         for stub in &mut weak_undef_stubs {
             stub.function_index = next_func;
             next_func = next_func
@@ -229,7 +196,6 @@ impl LinkerDefinedIndices {
             tls_base_global,
             stack_pointer_defined_slot,
             call_ctors_func,
-            entry_wrapper_func,
             weak_undef_stubs,
             num_defined_globals,
             num_defined_functions,

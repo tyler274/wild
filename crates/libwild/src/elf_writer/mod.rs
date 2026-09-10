@@ -25,8 +25,6 @@ use rayon::slice::ParallelSliceMut as _;
 use uuid::Uuid;
 use wild_platform::Arch;
 use wild_platform::Args as _;
-use wild_platform::SectionAttributes as _;
-use wild_platform::SectionType as _;
 
 pub(crate) mod dynamic;
 pub(crate) mod headers;

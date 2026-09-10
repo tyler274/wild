@@ -34,7 +34,7 @@ pub(crate) fn parse_wasm_module<'data>(input: &'data [u8]) -> Result<File<'data>
 
     let mut sections: Vec<SectionHeader> = Vec::new();
     let mut symbols: Vec<WasmSymbol> = Vec::new();
-    let mut segment_alignments: Vec<Alignment> = Vec::new();
+    let mut segment_infos: Vec<WasmSegmentInfo<'data>> = Vec::new();
     let mut init_funcs: Vec<WasmInitFunc> = Vec::new();
     let mut reloc_sections: Vec<WasmRelocSection> = Vec::new();
     let mut target_features: Vec<WasmTargetFeature<'data>> = Vec::new();
@@ -60,7 +60,7 @@ pub(crate) fn parse_wasm_module<'data>(input: &'data [u8]) -> Result<File<'data>
                         input,
                         &linking,
                         &mut symbols,
-                        &mut segment_alignments,
+                        &mut segment_infos,
                         &mut init_funcs,
                     )?;
                 }
@@ -112,7 +112,7 @@ pub(crate) fn parse_wasm_module<'data>(input: &'data [u8]) -> Result<File<'data>
         sections,
         standard_section_index,
         symbols,
-        segment_alignments,
+        segment_infos,
         init_funcs,
         reloc_sections,
         target_features,
@@ -184,7 +184,7 @@ pub(crate) fn parse_linking_subsections<'data>(
     data: &'data [u8],
     linking: &wasmparser::LinkingSectionReader<'data>,
     symbols: &mut Vec<WasmSymbol>,
-    segment_alignments: &mut Vec<Alignment>,
+    segment_infos: &mut Vec<WasmSegmentInfo<'data>>,
     init_funcs: &mut Vec<WasmInitFunc>,
 ) -> Result {
     let data_start = data.as_ptr() as usize;
@@ -203,7 +203,11 @@ pub(crate) fn parse_linking_subsections<'data>(
             Linking::SegmentInfo(map) => {
                 for seg in map {
                     let seg = seg?;
-                    segment_alignments.push(Alignment::from_exponent(seg.alignment)?);
+                    segment_infos.push(WasmSegmentInfo {
+                        name: seg.name,
+                        alignment: Alignment::from_exponent(seg.alignment)?,
+                        flags: seg.flags,
+                    });
                 }
             }
             Linking::InitFuncs(map) => {

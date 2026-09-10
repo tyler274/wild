@@ -194,13 +194,14 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
         program_segments: &ProgramSegments<P::ProgramSegmentDef>,
         per_symbol_flags: &mut PerSymbolFlags,
         resources: &FinaliseSizesResources<'data, 'scope, P>,
-    ) -> Result {
+        partial_link_plan: Option<&PartialLinkPlan>,
+    ) -> Result<PartialLinkSingletons> {
         // Total section  sizes have already been computed. So any allocations we do need to update
         // both `total_sizes` and the size records in `common`. We track the extra sizes in
         // `extra_sizes` which we can then later add to both.
         let mut extra_sizes = common.mem_sizes.new_empty_like();
 
-        self.determine_header_sizes(
+        let partial_link = self.determine_header_sizes(
             total_sizes,
             &mut extra_sizes,
             must_keep_sections,
@@ -209,6 +210,7 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
             output_order,
             resources,
             per_symbol_flags,
+            partial_link_plan,
         );
 
         P::apply_late_size_adjustments_prelude(
@@ -229,12 +231,15 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
         let entry_size = size_of::<P::SymtabEntry>() as u64;
 
         if resources.symbol_db.args.should_copy_input_relocs() {
-            let mut num_section_syms = 0;
+            let mut num_section_syms =
+                partial_link_plan.map_or(0, |plan| u64::from(plan.singleton_count));
+
             for (id, _) in output_sections.ids_with_info() {
                 if output_sections.will_emit_section_symbol_for_partial_objects(id) {
                     num_section_syms += 1;
                 }
             }
+
             extra_sizes.increment(
                 P::SYMTAB_LOCAL_SECTION_ID
                     .expect("copying input relocs requires a local symbol table")
@@ -248,7 +253,7 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
         common.mem_sizes.merge(&extra_sizes);
         total_sizes.merge(&extra_sizes);
 
-        Ok(())
+        Ok(partial_link)
     }
 
     /// Allocates space for our internal symbols. For unreferenced symbols, we also update the
@@ -325,7 +330,8 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
         output_order: &OutputOrder<'data>,
         resources: &FinaliseSizesResources<'data, 'scope, P>,
         symbol_flags: &PerSymbolFlags,
-    ) {
+        partial_link_plan: Option<&PartialLinkPlan>,
+    ) -> PartialLinkSingletons {
         use output_section_id::OrderEvent;
 
         // Empty object sections with symbols must still be emitted
@@ -451,7 +457,8 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
             }
         }
 
-        let num_keep = keep_sections.values_iter().filter(|p| **p).count();
+        let singleton_count = partial_link_plan.map_or(0, |plan| plan.singleton_count as usize);
+        let num_keep = keep_sections.values_iter().filter(|p| **p).count() + singleton_count;
         if P::requires_symtab_shndx(num_keep) {
             *keep_sections.get_mut(
                 P::SYMTAB_SHNDX_LOCAL_SECTION_ID
@@ -475,6 +482,14 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
             }
         }
         output_sections.output_section_indexes = output_section_indexes;
+
+        let partial_link = partial_link_plan.map_or_else(PartialLinkSingletons::default, |plan| {
+            PartialLinkSingletons {
+                output_indexes: next_output_index..next_output_index + plan.singleton_count,
+                groups: plan.groups.clone(),
+            }
+        });
+
         // Only sections that appear in the output order receive a section header. Custom
         // PHDRS order can omit some kept builtins; size the table from the indexes we assigned.
         let num_sections = next_output_index;
@@ -531,9 +546,12 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
         };
 
         let header_info = HeaderInfo {
-            num_output_sections_with_content: num_sections
+            num_output_sections_with_content: (num_sections as usize + singleton_count)
                 .try_into()
                 .expect("output section count must fit in a u32"),
+
+            partial_link_section_name_bytes: partial_link_plan
+                .map_or(0, |plan| plan.section_name_bytes),
 
             active_segment_ids,
         };
@@ -550,6 +568,7 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
         );
 
         self.header_info = Some(header_info);
+        partial_link
     }
 
     pub fn finalise_layout<'scope, 'writer, 'out>(

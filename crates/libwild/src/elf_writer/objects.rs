@@ -7,9 +7,11 @@ use crate::output_trace::TraceOutput;
 use crate::verbose_timing_phase;
 use object::LittleEndian;
 use object::read::elf::Crel;
+use object::read::elf::SectionHeader as _;
 use std::collections::BTreeMap;
 use tracing::debug_span;
 use wild_layout::ObjectLayout;
+use wild_layout::PartialLinkSingleton;
 use wild_layout::Section;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::part_id::PartId;
@@ -36,17 +38,33 @@ pub(crate) fn write_object<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
         let section_index = object::SectionIndex(i);
 
         match sec {
-            SectionSlot::Loaded(sec) => {
+            SectionSlot::Loaded(sec)
+            | SectionSlot::PartialLinkSingleton(PartialLinkSingleton { section: sec, .. }) => {
                 table_writer.reset_relr_run();
-                write_object_section::<C, A>(
-                    object,
-                    layout,
-                    *sec,
-                    section_index,
-                    buffers,
-                    table_writer,
-                    trace,
-                )?;
+                let input_header = object.object.section(section_index)?;
+
+                if layout.args().should_output_partial_object()
+                    && input_header.sh_type(LittleEndian) == object::elf::SHT_RELA
+                {
+                    write_rela_section(
+                        object,
+                        *sec,
+                        section_index,
+                        buffers,
+                        layout,
+                        sym_index_map,
+                    )?;
+                } else {
+                    write_object_section::<C, A>(
+                        object,
+                        layout,
+                        *sec,
+                        section_index,
+                        buffers,
+                        table_writer,
+                        trace,
+                    )?;
+                }
             }
             SectionSlot::LoadedDebugInfo(sec) => {
                 write_debug_section::<C, A>(object, layout, *sec, section_index, buffers)?;
@@ -57,6 +75,7 @@ pub(crate) fn write_object<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
             _ => (),
         }
     }
+
     for (symbol_id, resolution) in layout.resolutions_in_range(object.symbol_id_range) {
         let _span = tracing::trace_span!("Symbol", %symbol_id).entered();
         if let Some(res) = resolution {
@@ -93,16 +112,11 @@ pub(crate) fn write_object<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
         }
     }
 
-    if layout.args().should_output_partial_object() {
+    if !layout.args().should_strip_all() || layout.args().should_output_partial_object() {
         write_symbols(object, &mut table_writer.debug_symbol_writer, layout)?;
+    }
+    if layout.args().emit_relocs() && !layout.args().should_output_partial_object() {
         write_rela_sections(object, buffers, layout, sym_index_map)?;
-    } else if layout.args().emit_relocs() {
-        if !layout.args().should_strip_all() {
-            write_symbols(object, &mut table_writer.debug_symbol_writer, layout)?;
-        }
-        write_rela_sections(object, buffers, layout, sym_index_map)?;
-    } else if !layout.args().should_strip_all() {
-        write_symbols(object, &mut table_writer.debug_symbol_writer, layout)?;
     }
     if object.owns_thunk_block
         && let Some(addresses) = layout
@@ -116,6 +130,7 @@ pub(crate) fn write_object<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
             &mut table_writer.debug_symbol_writer,
         )?;
     }
+
     Ok(())
 }
 
@@ -198,12 +213,9 @@ pub(crate) fn write_object_section<'data, C: ElfClass, A: Arch<Platform = elf::E
 ) -> Result {
     let part_id = object.section_part_id(section_index, &layout.symbol_db.section_part_ids);
     if layout.args().should_copy_input_relocs() {
-        let section_type = layout
-            .output_sections
-            .output_info(part_id.output_section_id::<elf::Elf<C>>())
-            .section_attributes
-            .ty();
-        if section_type.is_rela() || section_type.is_rel() {
+        let input_header = object.object.section(section_index)?;
+        let input_type = input_header.sh_type(LittleEndian);
+        if input_type == object::elf::SHT_RELA || input_type == object::elf::SHT_REL {
             return Ok(());
         }
     }

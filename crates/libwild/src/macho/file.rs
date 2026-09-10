@@ -7,6 +7,7 @@ use super::output::*;
 use super::types::DynamicTagValues;
 use super::types::LE;
 use super::types::NonAddressableIndexes;
+use super::types::ObjectLayoutStateExt;
 use super::types::RawSymbolName;
 use super::types::RelocationList;
 use super::types::SectionHeader;
@@ -309,7 +310,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
 
     fn process_gnu_note_section(
         &self,
-        _state: &mut (),
+        _state: &mut ObjectLayoutStateExt,
         _section_index: object::SectionIndex,
     ) -> Result {
         todo!()

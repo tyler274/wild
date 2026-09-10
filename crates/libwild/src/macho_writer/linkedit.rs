@@ -46,6 +46,7 @@ use rayon::slice::ParallelSlice;
 use sha2::Digest;
 use sha2::Sha256;
 use wild_layout::FileLayout;
+use wild_layout::SegmentLayout;
 use wild_layout::symbol_db::SymbolId;
 use wild_platform::ObjectFile;
 use wild_platform::Symbol;
@@ -57,13 +58,7 @@ pub(crate) fn build_exports_trie(layout: &MachOLayout<'_>) -> Result<Vec<u8>> {
         return Ok(Vec::new());
     }
 
-    let text_segment = layout
-        .segment_layouts
-        .segments
-        .iter()
-        .find(|segment| layout.program_segments.segment_def(segment.id).name == SegmentName::TEXT)
-        .context("Missing Mach-O __TEXT segment")?;
-
+    let text_segment = get_text_segment_layout(layout)?;
     let image_base = text_segment.sizes.mem_offset;
 
     let mut symbols = layout
@@ -318,12 +313,7 @@ pub(crate) fn write_code_signature_metadata(
         "Unexpected code directory size"
     );
 
-    let text_segment = layout
-        .segment_layouts
-        .segments
-        .iter()
-        .find(|segment| layout.program_segments.segment_def(segment.id).name == SegmentName::TEXT)
-        .ok_or_else(|| error!("__TEXT segment is mandatory"))?;
+    let text_segment = get_text_segment_layout(layout)?;
 
     let code_directory = CodeDirectory {
         length: (code_signature_section.file_size - CS_BLOB_HEADERS_SIZE as usize) as u32,
@@ -393,4 +383,15 @@ pub(crate) fn write_code_signature_hashes(
         .invalidate(code_signature_section.file_offset + code_signature_section.file_size);
 
     Ok(())
+}
+
+pub(crate) fn get_text_segment_layout<'a>(
+    layout: &'a MachOLayout<'_>,
+) -> Result<&'a SegmentLayout> {
+    layout
+        .segment_layouts
+        .segments
+        .iter()
+        .find(|segment| layout.program_segments.segment_def(segment.id).name == SegmentName::TEXT)
+        .context("Missing Mach-O __TEXT segment")
 }

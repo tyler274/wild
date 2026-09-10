@@ -230,30 +230,21 @@ pub(crate) fn resolve_entry_function<'data>(
     }))
 }
 
-/// Export the command entry (default `_start`). With a wrapper, retarget any existing export.
+/// Export the command entry (default `_start`).
 pub(crate) fn ensure_entry_export<'data>(
     exports: &mut Vec<OutputExport<'data>>,
     entry: Option<&ResolvedEntry<'data>>,
-    entry_wrapper_func: Option<u32>,
 ) {
     let Some(entry) = entry else {
         return;
     };
-    let index = entry_wrapper_func.unwrap_or(entry.function_index);
-    if let Some(existing) = exports
-        .iter_mut()
-        .find(|export| export.name == entry.export_name)
-    {
-        if entry_wrapper_func.is_some() {
-            existing.kind = wasmparser::ExternalKind::Func;
-            existing.index = index;
-        }
+    if export_name_exists(exports, entry.export_name) {
         return;
     }
     exports.push(OutputExport {
         name: entry.export_name,
         kind: wasmparser::ExternalKind::Func,
-        index,
+        index: entry.function_index,
     });
 }
 
@@ -300,7 +291,6 @@ pub(crate) fn ensure_force_exports<'data>(
     layout_inputs: &[WasmObjectLayoutInput<'data>],
     object_index_maps: &[WasmObjectIndexMap],
     symbol_db: &SymbolDb<'data, Wasm>,
-    entry: Option<&ResolvedEntry<'data>>,
     indices: &LinkerDefinedIndices,
     file_id_to_index: &HashMap<crate::input_data::FileId, usize>,
 ) -> Result<()> {
@@ -358,14 +348,8 @@ pub(crate) fn ensure_force_exports<'data>(
 
         match def_sym.kind {
             WasmSymbolKind::Func => {
-                let mut index =
+                let index =
                     remap_wasm_index(&index_map.function_indices, def_sym.index, "function")?;
-                // If this is the entry and we wrap it, export the wrapper.
-                if let (Some(entry), Some(wrapper)) = (entry, indices.entry_wrapper_func)
-                    && export_name == entry.export_name
-                {
-                    index = wrapper;
-                }
                 push_export(exports, export_name, wasmparser::ExternalKind::Func, index);
             }
             WasmSymbolKind::Global => {

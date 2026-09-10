@@ -31,6 +31,7 @@ use wild_layout::OutputRecordLayout;
 use wild_layout::grouping::SequencedInput;
 use wild_layout::layout_rules::SectionKind;
 use wild_layout::layout_rules::SectionRule;
+use wild_layout::layout_rules::SectionRuleOutcome;
 use wild_layout::output_section_id::OrderEvent;
 use wild_layout::output_section_id::OutputOrderBuilder;
 use wild_layout::output_section_id::OutputSectionId;
@@ -146,6 +147,14 @@ pub(super) const SECTION_DEFINITIONS: [BuiltInSectionDetails; NUM_BUILT_IN_SECTI
         min_alignment: Alignment { exponent: 2 },
         ..DEFAULT_DEFS
     };
+    defs[output_section_id::INIT_OFFSETS.as_usize()] = BuiltInSectionDetails {
+        kind: SectionKind::Primary(SectionIdentity::new(
+            SectionName(b"__init_offsets"),
+            Some(SegmentName::TEXT),
+        )),
+        section_flags: macho::S_INIT_FUNC_OFFSETS.to_flags(),
+        min_alignment: Alignment { exponent: 2 },
+    };
 
     defs
 };
@@ -185,6 +194,7 @@ pub(super) fn allocate_plt(memory_offsets: &mut OutputSectionPartMap<u64>) -> No
 }
 
 pub(super) const DEFAULT_SECTION_RULES: &[SectionRule<'static>] = &[
+    SectionRule::exact(b"__mod_init_func", SectionRuleOutcome::InitFunc),
     // TODO: Add a Mach-O output section ID and rule for `__compact_unwind`.
 ];
 

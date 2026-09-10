@@ -103,7 +103,6 @@ pub(crate) fn setup_got_mem_and_indices<'data>(
     symbol_db: &SymbolDb<'data, Wasm>,
     file_id_to_index: &HashMap<crate::input_data::FileId, usize>,
     has_init_funcs: bool,
-    wrap_entry: bool,
 ) -> Result<(
     LinkerDefinedIndices,
     LayoutRelocScan,
@@ -153,7 +152,6 @@ pub(crate) fn setup_got_mem_and_indices<'data>(
                     export_symbols: requested_linker_export_symbols(symbol_db.args),
                     // Executables always get a defined linear memory.
                     has_memory: true,
-                    wrap_entry,
                     got_mem_count: scan.got_mem.len(),
                     got_func_count: scan.got_func.len(),
                     needs_memory_base: scan.needs_memory_base,

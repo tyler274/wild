@@ -1,5 +1,6 @@
 use super::super::types::*;
 use super::*;
+use crate::bail;
 use crate::elf;
 use crate::elf::ElfClass;
 use crate::error;
@@ -19,6 +20,7 @@ use object::read::elf::SectionHeader as _;
 use object::read::elf::Sym as _;
 use std::sync::atomic::Ordering::Relaxed;
 use wild_layout::ObjectLayout;
+use wild_layout::Section;
 use wild_layout::output_section_id::SectionName;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::resolution::SectionSlot;
@@ -143,6 +145,109 @@ pub(crate) fn write_rela_sections<'data, C: ElfClass>(
             }
         }
     }
+    Ok(())
+}
+
+pub(crate) fn write_rela_section<'data, C: ElfClass>(
+    object: &ObjectLayout<'data, elf::Elf<C>>,
+    section: Section,
+    sec_idx: object::SectionIndex,
+    buffers: &mut OutputSectionPartMap<&mut [u8]>,
+    layout: &ElfLayout<'data, C>,
+    sym_index_map: &[Option<u32>],
+) -> Result {
+    let e = LittleEndian;
+    let header = object.object.section(sec_idx)?;
+    let section_name = object.object.section_name(sec_idx).unwrap_or_default();
+    let part_id = object.section_part_id(sec_idx, &layout.symbol_db.section_part_ids);
+
+    let target_sec_idx = object::SectionIndex(header.sh_info(e) as usize);
+    let target_is_singleton = object.sections[target_sec_idx.0].singleton().is_some();
+
+    let section_address = if target_is_singleton {
+        0
+    } else {
+        object.section_resolutions[target_sec_idx.0]
+            .address()
+            .unwrap_or(0)
+    };
+
+    let relocations = object.relocations(target_sec_idx).with_context(|| {
+        format!(
+            "Failed to get relocations from rela section {:?} in {}",
+            SectionName(section_name),
+            object.input
+        )
+    })?;
+
+    let num_bytes = relocations.num_relocations() * C::RELA_ENTRY_SIZE as usize;
+    let elf::RelocationList::Rela(relocations) = relocations else {
+        bail!(
+            "Expected RELA relocations for section {:?} in {}",
+            SectionName(section_name),
+            object.input
+        );
+    };
+
+    let allocation_size = section.capacity(part_id, &layout.output_sections) as usize;
+    let part_buf = buffers.get_mut(part_id);
+
+    let out_buf = part_buf
+        .split_off_mut(..allocation_size)
+        .with_context(|| format!("Insufficient buffer for rela section {sec_idx:?}"))?;
+
+    let (out_buf, padding) = out_buf
+        .split_at_mut_checked(num_bytes)
+        .with_context(|| format!("Insufficient allocation for rela section {sec_idx:?}"))?;
+
+    padding.fill(0);
+    let out_relas: &mut [elf::Rela<C>] = slice_from_all_bytes_mut(out_buf);
+
+    for (out, raw) in out_relas.iter_mut().zip(relocations) {
+        let rel = elf::ElfRela::<C>::new(*raw);
+        let sym = rel.symbol();
+        let addend = rel.addend();
+
+        let sym_idx = sym
+            .and_then(|s| {
+                let symbol_id = object.symbol_id_range.input_to_id(s);
+
+                if let Some(idx) = sym_index_map.get(symbol_id.as_usize()).copied().flatten() {
+                    return Some(idx);
+                }
+
+                let canonical_id = layout.symbol_db.definition(symbol_id);
+
+                sym_index_map
+                    .get(canonical_id.as_usize())
+                    .copied()
+                    .flatten()
+            })
+            .unwrap_or(0);
+
+        let addend = sym
+            .and_then(|s| {
+                let sym_entry = object.object.symbol(s).ok()?;
+
+                if sym_entry.st_type() != object::elf::STT_SECTION {
+                    return None;
+                }
+
+                let sec_idx = object.object.symbol_section(sym_entry, s).ok()??;
+
+                if object.sections[sec_idx.0].singleton().is_some() {
+                    Some(0)
+                } else {
+                    object.section_resolutions[sec_idx.0].address()
+                }
+            })
+            .map_or(addend, |offset| addend + offset as i64);
+
+        out.set_offset(section_address + rel.offset())?;
+        out.set_addend(addend)?;
+        out.set_info(sym_idx, rel.raw_type())?;
+    }
+
     Ok(())
 }
 

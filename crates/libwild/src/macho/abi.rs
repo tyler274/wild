@@ -24,12 +24,14 @@ use super::types::EntryPointCommand;
 use super::types::FileHeader;
 use super::types::FinaliseSizesExt;
 use super::types::GOT_ENTRY_SIZE;
+use super::types::INIT_OFFSET_ENTRY_SIZE;
 use super::types::ImportedSymbolWithResolution;
 use super::types::LE;
 use super::types::LayoutExt;
 use super::types::MACHO_COMMAND_ALIGNMENT;
 use super::types::MachOSegmentType;
 use super::types::NonAddressableIndexes;
+use super::types::ObjectLayoutStateExt;
 use super::types::PLT_ENTRY_SIZE;
 use super::types::PreludeLayoutExt;
 use super::types::ProgramSegmentDef;
@@ -164,7 +166,7 @@ impl platform::Platform for MachO {
     type LayoutResourcesExt<'data> = ();
     type PreludeLayoutStateExt = PreludeLayoutExt;
     type PreludeLayoutExt = PreludeLayoutExt;
-    type ObjectLayoutStateExt<'data> = ();
+    type ObjectLayoutStateExt<'data> = ObjectLayoutStateExt;
     type RawSymbolName<'data> = RawSymbolName<'data>;
     type VersionNames<'data> = ();
     type VerneedTable<'data> = VerneedTable<'data>;
@@ -460,10 +462,12 @@ impl platform::Platform for MachO {
     }
 
     fn create_linker_defined_symbols(
-        _symbols: &mut wild_layout::parsing::InternalSymbolsBuilder<Self>,
+        symbols: &mut wild_layout::parsing::InternalSymbolsBuilder<Self>,
         _output_kind: wild_platform::OutputKind,
         _args: &Self::Args,
     ) {
+        // Mach-O object symbol names include the C ABI's leading underscore.
+        symbols.section_start(FILE_HEADER, "___dso_handle").hide();
     }
 
     fn built_in_section_infos<'data>()
@@ -493,7 +497,7 @@ impl platform::Platform for MachO {
     fn create_finalise_sizes_ext<'data, 'states, 'files, A: platform::Arch<Platform = Self>>(
         _args: &Self::Args,
         groups: &'files mut [layout::GroupState<'data, Self>],
-        _symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Self>,
+        symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Self>,
     ) -> Result<Self::FinaliseSizesExt<'data>>
     where
         'data: 'files,
@@ -501,10 +505,20 @@ impl platform::Platform for MachO {
     {
         let mut imported_libraries = Vec::new();
         let mut imported_symbols = Vec::new();
+        let mut init_functions = Vec::new();
 
         for group in groups {
             for file in &group.files {
                 match file {
+                    layout::FileLayoutState::Object(state) => {
+                        init_functions.extend(
+                            state
+                                .format_specific
+                                .init_functions
+                                .iter()
+                                .map(|local_symbol_id| symbol_db.definition(*local_symbol_id)),
+                        );
+                    }
                     layout::FileLayoutState::StubLibrary(state) => {
                         if state.format_specific.loaded {
                             imported_libraries.push(state.file_id());
@@ -527,6 +541,7 @@ impl platform::Platform for MachO {
         Ok(FinaliseSizesExt {
             imported_libraries,
             imported_symbols,
+            init_functions,
         })
     }
 
@@ -561,6 +576,18 @@ impl platform::Platform for MachO {
             .into_iter()
             .sorted_by_key(|symbol| symbol.got_address)
             .collect();
+        layout_ext.init_function_addresses = finalise_sizes_ext
+            .init_functions
+            .iter()
+            .map(|&symbol_id| {
+                resolutions
+                    .get(symbol_id)
+                    .map(|resolution| resolution.raw_value)
+                    .ok_or_else(|| {
+                        error!("missing resolution for Mach-O initializer {symbol_id:?}")
+                    })
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(layout_ext)
     }
@@ -574,6 +601,45 @@ impl platform::Platform for MachO {
         _scope: &rayon::Scope<'scope>,
     ) -> Result {
         todo!()
+    }
+
+    fn process_init_func_section<'data, 'scope, A: platform::Arch<Platform = Self>>(
+        object: &mut wild_layout::ObjectLayoutState<'data, Self>,
+        _common: &mut wild_layout::CommonGroupState<'data, Self>,
+        section_index: object::SectionIndex,
+        resources: &'scope wild_layout::GraphResources<'data, '_, Self>,
+        queue: &mut wild_layout::LocalWorkQueue<Self>,
+        scope: &rayon::Scope<'scope>,
+    ) -> Result {
+        let header = object.object.section(section_index)?;
+        ensure!(
+            header.flags.get(LE).typ() == macho::S_MOD_INIT_FUNC_POINTERS,
+            "Mach-O __mod_init_func section has an unexpected section type"
+        );
+
+        for rel in object
+            .relocations(section_index)?
+            .relocations
+            .iter()
+            .sorted_unstable_by_key(|rel| rel.info(LE).r_address)
+        {
+            let info = rel.info(LE);
+            ensure!(
+                info.r_extern
+                    && !info.r_pcrel
+                    && info.r_length == 3
+                    && info.r_type == macho::ARM64_RELOC_UNSIGNED,
+                "unsupported Mach-O initializer relocation"
+            );
+            object.format_specific.init_functions.push(
+                object
+                    .symbol_id_range
+                    .input_to_id(object::SymbolIndex(info.r_symbolnum as usize)),
+            );
+            process_relocation::<A>(object, rel, section_index, resources, queue, scope)?;
+        }
+
+        Ok(())
     }
 
     fn non_empty_section_loaded<'data, 'scope, A: platform::Arch<Platform = Self>>(
@@ -633,7 +699,7 @@ impl platform::Platform for MachO {
         state: &mut Self::EpilogueLayoutExt,
         mem_sizes: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
         dynamic_symbol_definitions: &[wild_layout::DynamicSymbolDefinition<'data, Self>],
-        _format_specific: &Self::FinaliseSizesExt<'data>,
+        format_specific: &Self::FinaliseSizesExt<'data>,
         symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Self>,
     ) {
         let mut fixup_table_size = CHAINED_FIXUP_TABLE_BASE_SIZE;
@@ -678,6 +744,11 @@ impl platform::Platform for MachO {
             part_id::EXPORTS_TRIE,
             wild_util::trie::build(&mut exports).len() as u64,
         );
+
+        mem_sizes.increment(
+            part_id::INIT_OFFSETS,
+            format_specific.init_functions.len() as u64 * INIT_OFFSET_ENTRY_SIZE,
+        );
     }
 
     fn finalise_sizes_all<'data>(
@@ -688,12 +759,16 @@ impl platform::Platform for MachO {
 
     fn finalise_layout_epilogue<'data>(
         _epilogue_state: &mut Self::EpilogueLayoutExt,
-        _memory_offsets: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
+        memory_offsets: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
         _symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Self>,
-        _format_specific: &Self::FinaliseSizesExt<'data>,
+        format_specific: &Self::FinaliseSizesExt<'data>,
         _dynsym_start_index: u32,
         _dynamic_symbol_defs: &[wild_layout::DynamicSymbolDefinition<Self>],
     ) -> Result {
+        memory_offsets.increment(
+            part_id::INIT_OFFSETS,
+            format_specific.init_functions.len() as u64 * INIT_OFFSET_ENTRY_SIZE,
+        );
         Ok(())
     }
 
@@ -996,6 +1071,7 @@ impl platform::Platform for MachO {
             &custom.exec,
             SegmentName::TEXT,
         );
+        builder.add_section(output_section_id::INIT_OFFSETS);
 
         builder.add_section(output_section_id::PLT_GOT);
         add_sections_in_segment(&mut builder, output_sections, &custom.ro, SegmentName::TEXT);

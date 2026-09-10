@@ -52,6 +52,7 @@ pub(crate) enum SinglePartSectionId {
     CodeSignature,
     ChainedFixupTable,
     ExportsTrie,
+    InitOffsets,
 
     // Must be last.
     Count,
@@ -69,6 +70,7 @@ pub(crate) mod part_id {
     pub(crate) const CODE_SIGNATURE: PartId = SinglePartSectionId::CodeSignature.part_id();
     pub(crate) const CHAINED_FIXUP_TABLE: PartId = SinglePartSectionId::ChainedFixupTable.part_id();
     pub(crate) const EXPORTS_TRIE: PartId = SinglePartSectionId::ExportsTrie.part_id();
+    pub(crate) const INIT_OFFSETS: PartId = SinglePartSectionId::InitOffsets.part_id();
 }
 
 pub(crate) mod output_section_id {
@@ -90,6 +92,8 @@ pub(crate) mod output_section_id {
         SinglePartSectionId::ChainedFixupTable.output_section_id();
     pub(crate) const EXPORTS_TRIE: OutputSectionId =
         SinglePartSectionId::ExportsTrie.output_section_id();
+    pub(crate) const INIT_OFFSETS: OutputSectionId =
+        SinglePartSectionId::InitOffsets.output_section_id();
 }
 
 impl SinglePartSectionId {

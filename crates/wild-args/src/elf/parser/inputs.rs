@@ -99,15 +99,12 @@ pub fn add_search_and_output_flags(parser: &mut ArgumentParser<ElfArgs>) {
         .help("Select linker emulation");
 
     for (emulation, name) in super::super::emulations() {
-        emulation_option = emulation_option.sub_option_with_name(
-            name,
-            emulation.get_message().unwrap(),
-            super::super::set_command_line_emulation,
-        );
+        emulation_option = emulation_option.value_help(name, emulation.get_message().unwrap());
     }
 
-    emulation_option.execute(|_args, _modifier_stack, value| {
-        bail!("-m {value} is not yet supported");
+    emulation_option.execute(|args, _modifier_stack, value| {
+        args.set_emulation_str(value, "-m");
+        Ok(())
     });
 
     parser

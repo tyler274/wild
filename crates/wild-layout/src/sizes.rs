@@ -7,6 +7,8 @@ use super::types::GroupLayout;
 use super::types::GroupState;
 use super::types::MemoryRegion;
 use super::types::OutputRecordLayout;
+use super::types::PartialLinkPlan;
+use super::types::PartialLinkSingletons;
 use super::types::Resolution;
 use crate::EnginePlatform;
 use crate::expression_eval::ResolvedLocationCounter;
@@ -358,6 +360,12 @@ pub fn compute_allocations<P: EnginePlatform>(
     sizes
 }
 
+pub struct TotalSectionSizes<'data, P: EnginePlatform> {
+    pub section_part_sizes: OutputSectionPartMap<u64>,
+    pub gdb_index_data: Option<P::GdbIndexScanResult<'data>>,
+    pub partial_link: PartialLinkSingletons,
+}
+
 pub fn compute_total_section_part_sizes<'data, 'scope, P: EnginePlatform>(
     group_states: &mut [GroupState<'data, P>],
     output_sections: &mut OutputSections<P>,
@@ -366,10 +374,8 @@ pub fn compute_total_section_part_sizes<'data, 'scope, P: EnginePlatform>(
     per_symbol_flags: &mut PerSymbolFlags,
     must_keep_sections: OutputSectionMap<bool>,
     resources: &FinaliseSizesResources<'data, 'scope, P>,
-) -> Result<(
-    OutputSectionPartMap<u64>,
-    Option<P::GdbIndexScanResult<'data>>,
-)> {
+    partial_link_plan: Option<&PartialLinkPlan>,
+) -> Result<TotalSectionSizes<'data, P>> {
     timing_phase!("Compute total section sizes");
 
     let mut total_sizes: OutputSectionPartMap<u64> = output_sections.new_part_map();
@@ -414,7 +420,7 @@ pub fn compute_total_section_part_sizes<'data, 'scope, P: EnginePlatform>(
         unreachable!();
     };
 
-    prelude.apply_late_size_adjustments(
+    let partial_link = prelude.apply_late_size_adjustments(
         &mut first_group.common,
         &mut total_sizes,
         must_keep_sections,
@@ -423,6 +429,7 @@ pub fn compute_total_section_part_sizes<'data, 'scope, P: EnginePlatform>(
         program_segments,
         per_symbol_flags,
         resources,
+        partial_link_plan,
     )?;
 
     let num_sections = prelude
@@ -437,7 +444,11 @@ pub fn compute_total_section_part_sizes<'data, 'scope, P: EnginePlatform>(
         }
     }
 
-    Ok((total_sizes, gdb_index_data))
+    Ok(TotalSectionSizes {
+        section_part_sizes: total_sizes,
+        gdb_index_data,
+        partial_link,
+    })
 }
 
 /// Move the generated GNU build-id note into the script section that matches
@@ -545,6 +556,14 @@ pub fn allocate_thunk_block_space<P: EnginePlatform>(
         group_state.common.mem_sizes.merge(&extra_thunk_sizes);
         total_sizes.merge(&extra_thunk_sizes);
     }
+}
+
+pub fn clear_singleton_attributes<P: EnginePlatform>(output_sections: &mut OutputSections<P>) {
+    let section_id = P::PARTIAL_SINGLETONS_ID.unwrap();
+    output_sections
+        .section_infos
+        .get_mut(section_id)
+        .section_attributes = Default::default();
 }
 
 /// Propagates attributes from input sections to the output sections into which they were placed.

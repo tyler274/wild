@@ -26,6 +26,9 @@ use std::path::PathBuf;
 use strum::EnumMessage as _;
 use strum::IntoEnumIterator as _;
 use wild_error::bail;
+use wild_error::env;
+use wild_error::error;
+use wild_error::error::Error;
 use wild_error::error::Result;
 use wild_platform as platform;
 use wild_platform::Args as _;
@@ -41,6 +44,7 @@ pub struct ElfArgs {
     pub common: super::CommonArgs,
 
     emulation: Emulation,
+    emulation_error: Option<Error>,
     pub lib_search_path: Vec<Box<Path>>,
     dynamic_linker: DynamicLinker,
     pub strip: Strip,
@@ -86,6 +90,9 @@ pub struct ElfArgs {
     pub ttext: Option<u64>,
     pub tdata: Option<u64>,
     pub tbss: Option<u64>,
+
+    /// Base address for the output binary from --image-base.
+    pub image_base: Option<u64>,
 
     /// If set, GC stats will be written to the specified filename.
     pub write_gc_stats: Option<PathBuf>,
@@ -267,6 +274,7 @@ impl Default for ElfArgs {
             common: CommonArgs::default(),
 
             emulation: default_emulation(),
+            emulation_error: None,
 
             lib_search_path: Vec::new(),
             should_output_executable: true,
@@ -313,6 +321,7 @@ impl Default for ElfArgs {
             defsym: Vec::new(),
             section_start: HashMap::new(),
             ttext: None,
+            image_base: None,
             tdata: None,
             tbss: None,
             got_plt_syms: false,
@@ -378,12 +387,36 @@ const fn default_emulation() -> Emulation {
     Emulation::Unsupported
 }
 
+pub const LDEMULATION_ENV: &str = "LDEMULATION";
+
 impl ElfArgs {
     pub fn new() -> Result<Self> {
-        Ok(Self {
+        let mut args = Self {
             common: CommonArgs::from_env()?,
             ..Default::default()
-        })
+        };
+
+        if let Ok(value) = env::var(LDEMULATION_ENV) {
+            args.set_emulation_str(&value, LDEMULATION_ENV);
+        }
+
+        Ok(args)
+    }
+
+    fn set_emulation_str(&mut self, value: &str, source: &'static str) {
+        match value.parse() {
+            Ok(emulation) => self.set_emulation(emulation),
+            Err(_) => {
+                self.emulation_error = Some(error!(
+                    "Emulation '{value}' is not yet supported (from {source})"
+                ));
+            }
+        }
+    }
+
+    fn set_emulation(&mut self, emulation: Emulation) {
+        self.emulation = emulation;
+        self.emulation_error = None;
     }
 
     pub fn is_relr_enabled(&self) -> bool {
@@ -397,25 +430,15 @@ impl ElfArgs {
     }
 
     pub fn set_architecture(&mut self, architecture: Architecture) {
-        self.emulation = match architecture {
+        self.set_emulation(match architecture {
             Architecture::X86_64 => Emulation::ElfX86_64,
             Architecture::AArch64 => Emulation::AArch64,
             Architecture::RiscV64 => Emulation::RiscV64,
             Architecture::LoongArch64 => Emulation::LoongArch64,
             Architecture::Ppc64 => Emulation::Ppc64,
             Architecture::Unsupported => Emulation::Unsupported,
-        };
+        });
     }
-}
-
-fn set_command_line_emulation(
-    args: &mut ElfArgs,
-    _modifier_stack: &mut Vec<Modifiers>,
-    emulation: &str,
-) {
-    args.emulation = emulation
-        .parse()
-        .expect("registered emulation should always parse");
 }
 
 fn emulations() -> impl Iterator<Item = (Emulation, &'static str)> {
@@ -440,6 +463,10 @@ pub fn parse<S: AsRef<str>, I: Iterator<Item = S>>(args: &mut ElfArgs, mut input
         let arg = arg.as_ref();
 
         arg_parser.handle_argument(args, &mut modifier_stack, arg, &mut input)?;
+    }
+
+    if let Some(error) = args.emulation_error.take() {
+        return Err(error);
     }
 
     // Copy relocations are only permitted when building executables.
@@ -518,6 +545,10 @@ impl platform::Args for ElfArgs {
 
     fn rosegment(&self) -> bool {
         self.rosegment
+    }
+
+    fn image_base(&self) -> Option<u64> {
+        self.image_base
     }
 
     // TODO: Some linkers like ld and mold cleanup debug symbols when linking with -r. For now, we

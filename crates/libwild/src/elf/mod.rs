@@ -119,6 +119,7 @@ pub(crate) enum RegularSectionId {
     GccExceptTable,
     NoteAbiTag,
     DataRelRo,
+    PartialLinkingSingletons,
 
     // Must be last.
     Count,
@@ -237,6 +238,8 @@ pub(crate) mod output_section_id {
     pub(crate) const NOTE_ABI_TAG: OutputSectionId =
         RegularSectionId::NoteAbiTag.output_section_id();
     pub(crate) const DATA_REL_RO: OutputSectionId = RegularSectionId::DataRelRo.output_section_id();
+    pub(crate) const PARTIAL_LINKING_SINGLETONS: OutputSectionId =
+        RegularSectionId::PartialLinkingSingletons.output_section_id();
 }
 
 impl SinglePartSectionId {

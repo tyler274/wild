@@ -2204,6 +2204,7 @@ dependencies = [
  "crossbeam-queue",
  "crossbeam-utils",
  "derive_more",
+ "foldhash 0.2.0",
  "hashbrown 0.17.1",
  "itertools 0.15.0",
  "linker-layout",

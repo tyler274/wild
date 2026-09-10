@@ -6,6 +6,7 @@ use super::types::GroupLayout;
 use super::types::GroupState;
 use super::types::HeaderInfo;
 use super::types::OutputRecordLayout;
+use super::types::PartialLinkPlan;
 use super::types::Resolution;
 use super::types::SegmentLayout;
 use super::types::SegmentLayouts;
@@ -148,6 +149,7 @@ pub fn compute_symbols_and_layouts<'data, P: EnginePlatform>(
     starting_mem_offsets_by_group: Vec<OutputSectionPartMap<u64>>,
     per_group_res_writers: &mut [sharded_vec_writer::Shard<Option<Resolution<P>>>],
     resources: &FinaliseLayoutResources<'_, 'data, P>,
+    partial_link_plan: Option<&PartialLinkPlan>,
 ) -> Result<Vec<GroupLayout<'data, P>>> {
     timing_phase!("Assign symbol addresses");
 
@@ -155,32 +157,42 @@ pub fn compute_symbols_and_layouts<'data, P: EnginePlatform>(
         .into_par_iter()
         .zip(starting_mem_offsets_by_group)
         .zip(per_group_res_writers)
-        .map(|((state, mut memory_offsets), symbols_out)| {
-            verbose_timing_phase!("Assign addresses for group");
+        .enumerate()
+        .map(
+            |(group_index, ((state, mut memory_offsets), symbols_out))| {
+                verbose_timing_phase!("Assign addresses for group");
 
-            if cfg!(debug_assertions) {
-                let offset_verifier = crate::verification::OffsetVerifier::new::<P>(
-                    &memory_offsets,
-                    &state.common.mem_sizes,
-                );
+                let mut layout = if cfg!(debug_assertions) {
+                    let offset_verifier = crate::verification::OffsetVerifier::new::<P>(
+                        &memory_offsets,
+                        &state.common.mem_sizes,
+                    );
 
-                // Make sure that ignored offsets really aren't used by `finalise_layout` by setting
-                // them to an arbitrary value. If they are used, we'll quickly notice.
-                crate::verification::clear_ignored::<P>(&mut memory_offsets);
+                    // Make sure that ignored offsets really aren't used by `finalise_layout` by
+                    // setting them to an arbitrary value. If they are used,
+                    // we'll quickly notice.
+                    crate::verification::clear_ignored::<P>(&mut memory_offsets);
 
-                let layout = state.finalise_layout(&mut memory_offsets, symbols_out, resources)?;
+                    let layout =
+                        state.finalise_layout(&mut memory_offsets, symbols_out, resources)?;
 
-                offset_verifier.verify(
-                    &memory_offsets,
-                    resources.output_sections,
-                    resources.output_order,
-                    &layout.files,
-                )?;
+                    offset_verifier.verify(
+                        &memory_offsets,
+                        resources.output_sections,
+                        resources.output_order,
+                        &layout.files,
+                    )?;
+                    layout
+                } else {
+                    state.finalise_layout(&mut memory_offsets, symbols_out, resources)?
+                };
+                if let Some(plan) = partial_link_plan {
+                    plan.groups[group_index]
+                        .finalise(&mut layout, &resources.symbol_db.section_part_ids);
+                }
                 Ok(layout)
-            } else {
-                state.finalise_layout(&mut memory_offsets, symbols_out, resources)
-            }
-        })
+            },
+        )
         .collect()
 }
 

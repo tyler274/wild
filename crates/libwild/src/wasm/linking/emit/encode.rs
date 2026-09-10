@@ -1,5 +1,7 @@
 use super::super::*;
+use super::memory::export_name_exists;
 use crate::ensure;
+use crate::error::Context as _;
 use crate::error::Result;
 use crate::wasm::DEFAULT_TABLE_BASE_INIT_EXPR;
 use crate::wasm::EMPTY_FUNCTION_BODY;
@@ -11,6 +13,7 @@ use crate::wasm::file::*;
 use crate::wasm::gc::*;
 use crate::wasm::output::*;
 use crate::wasm::symbols::*;
+use crate::wasm_writer::OutputExport;
 use crate::wasm_writer::OutputGlobal;
 use crate::wasm_writer::OutputImportEntity;
 use hashbrown::HashMap;
@@ -147,6 +150,114 @@ pub(crate) fn encode_call_sequence_body(calls: &[(u32, usize)]) -> Vec<u8> {
     bytes
 }
 
+fn encode_command_export_wrapper_body(call_ctors: u32, original: u32, n_params: usize) -> Vec<u8> {
+    let mut bytes = vec![0x00]; // 0 locals
+    bytes.push(0x10); // call
+    leb128::write::unsigned(&mut bytes, u64::from(call_ctors))
+        .expect("leb128 write to Vec cannot fail");
+    for i in 0..n_params {
+        bytes.push(0x20); // local.get
+        leb128::write::unsigned(&mut bytes, i as u64).expect("leb128 write to Vec cannot fail");
+    }
+    bytes.push(0x10); // call
+    leb128::write::unsigned(&mut bytes, u64::from(original))
+        .expect("leb128 write to Vec cannot fail");
+    bytes.push(0x0b); // end
+    bytes
+}
+
+/// Like wasm-ld, wrap defined function exports when InitFuncs exist and crt / `--export` does not
+/// already take care of `__wasm_call_ctors`.
+pub(crate) fn should_wrap_command_exports(
+    has_init_funcs: bool,
+    layout_inputs: &[WasmObjectLayoutInput<'_>],
+    exports: &[OutputExport<'_>],
+) -> bool {
+    has_init_funcs
+        && !call_ctors_used_in_objects(layout_inputs)
+        && !export_name_exists(exports, "__wasm_call_ctors")
+}
+
+pub(crate) fn wrap_command_exports(layout: &mut WasmLayout<'_>, call_ctors: u32) -> Result<()> {
+    let (n_func_imports, _) = count_output_imports(layout);
+    let n_func_imports = u32::try_from(n_func_imports).context("too many Wasm function imports")?;
+
+    struct PendingWrap {
+        export_index: usize,
+        original: u32,
+        type_index: u32,
+        n_params: usize,
+        export_name: String,
+    }
+
+    let mut pending = Vec::new();
+    for (export_index, export) in layout.exports.iter().enumerate() {
+        if !matches!(
+            export.kind,
+            wasmparser::ExternalKind::Func | wasmparser::ExternalKind::FuncExact
+        ) {
+            continue;
+        }
+        if export.name == "__wasm_call_ctors" {
+            continue;
+        }
+        if export.index < n_func_imports {
+            continue;
+        }
+        let defined_idx = (export.index - n_func_imports) as usize;
+        let type_index = *layout
+            .function_type_indices
+            .get(defined_idx)
+            .ok_or_else(|| {
+                crate::error!(
+                    "export `{}` function index {} has no type",
+                    export.name,
+                    export.index
+                )
+            })?;
+        let n_params = layout
+            .output_types
+            .get(type_index as usize)
+            .ok_or_else(|| crate::error!("missing Wasm type {type_index}"))?
+            .params()
+            .len();
+        pending.push(PendingWrap {
+            export_index,
+            original: export.index,
+            type_index,
+            n_params,
+            export_name: export.name.to_owned(),
+        });
+    }
+
+    if pending.is_empty() {
+        return Ok(());
+    }
+
+    layout.function_type_indices.reserve(pending.len());
+    layout.function_bodies.reserve(pending.len());
+    layout.command_export_wrapper_names.reserve(pending.len());
+
+    for wrap in pending {
+        let wrapper_index = n_func_imports
+            .checked_add(
+                u32::try_from(layout.function_type_indices.len())
+                    .context("too many Wasm functions")?,
+            )
+            .ok_or_else(|| crate::error!("Wasm function index overflow"))?;
+        layout.function_type_indices.push(wrap.type_index);
+        layout.function_bodies.push(owned_linker_function_body(
+            encode_command_export_wrapper_body(call_ctors, wrap.original, wrap.n_params),
+        ));
+        layout.command_export_wrapper_names.push((
+            wrapper_index,
+            format!("{}.command_export", wrap.export_name),
+        ));
+        layout.exports[wrap.export_index].index = wrapper_index;
+    }
+    Ok(())
+}
+
 pub(crate) fn function_type_for_symbol<'a>(
     input: &'a WasmObjectLayoutInput<'_>,
     sym: &WasmSymbol,
@@ -231,7 +342,6 @@ pub(crate) fn emit_reserved_linker_definitions(
     layout: &mut WasmLayout<'_>,
     indices: &LinkerDefinedIndices,
     call_ctors_body: Option<Vec<u8>>,
-    entry_wrapper_body: Option<Vec<u8>>,
 ) {
     let mut linker_globals = Vec::with_capacity(indices.num_defined_globals as usize);
     if indices.memory_base_global.is_some() {
@@ -299,13 +409,6 @@ pub(crate) fn emit_reserved_linker_definitions(
         if indices.call_ctors_func.is_some() {
             type_indices.push(void_ty);
             bodies.push(match call_ctors_body {
-                Some(bytes) => owned_linker_function_body(bytes),
-                None => empty_linker_function_body(),
-            });
-        }
-        if indices.entry_wrapper_func.is_some() {
-            type_indices.push(void_ty);
-            bodies.push(match entry_wrapper_body {
                 Some(bytes) => owned_linker_function_body(bytes),
                 None => empty_linker_function_body(),
             });

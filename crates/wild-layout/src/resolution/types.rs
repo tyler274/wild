@@ -97,6 +97,9 @@ pub enum SectionSlot {
     /// The section contains frame data, e.g. .eh_frame or equivalent.
     FrameData(object::SectionIndex),
 
+    /// The section contains initializer function pointers that are processed by the platform.
+    InitFunc(object::SectionIndex),
+
     /// The section is a string-merge section.
     MergeStrings(StringMergeSectionSlot),
 
@@ -105,6 +108,10 @@ pub enum SectionSlot {
 
     // Loaded section with debug info content.
     LoadedDebugInfo(crate::Section),
+
+    /// A section with a unique name that is passed through from input to output without merging
+    /// with other input sections. Created after group layout finalisation.
+    PartialLinkSingleton(crate::PartialLinkSingleton),
 
     // GNU property section (.note.gnu.property)
     NoteGnuProperty(object::SectionIndex),
@@ -374,10 +381,28 @@ impl<'data, P: Platform> std::fmt::Display for ResolvedFile<'data, P> {
 }
 
 impl SectionSlot {
+    pub fn singleton(&self) -> Option<&crate::PartialLinkSingleton> {
+        match self {
+            Self::PartialLinkSingleton(singleton) => Some(singleton),
+            _ => None,
+        }
+    }
+
+    pub fn loaded_section(&self) -> Option<&crate::Section> {
+        match self {
+            Self::Loaded(section) => Some(section),
+            Self::PartialLinkSingleton(singleton) => Some(&singleton.section),
+            _ => None,
+        }
+    }
+
     pub fn is_loaded(&self) -> bool {
         !matches!(
             self,
-            SectionSlot::Discard | SectionSlot::Unloaded(..) | SectionSlot::NoteGnuProperty(..)
+            SectionSlot::Discard
+                | SectionSlot::Unloaded(..)
+                | SectionSlot::InitFunc(..)
+                | SectionSlot::NoteGnuProperty(..)
         )
     }
 

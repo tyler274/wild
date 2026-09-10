@@ -60,6 +60,8 @@ pub(crate) struct WasmLayout<'data> {
     pub(crate) encoded_sections: WasmEncodedSections,
     pub(crate) code_section_size: u64,
     pub(crate) data_section_size: u64,
+    /// Linker-synthesized `{export}.command_export` wrappers and their name-section names.
+    pub(crate) command_export_wrapper_names: Vec<(u32, String)>,
 }
 
 #[derive(Debug, Default)]
@@ -260,6 +262,12 @@ pub(crate) fn build_name_section<'data>(
         for (out_idx, name) in entries.globals {
             set_name_first_wins(&mut global_names, out_idx, name);
         }
+    }
+
+    // Named after object symbols so first-wins keeps `{export}.command_export` rather than the
+    // export name that is retargeted onto the wrapper.
+    for (idx, name) in &layout.command_export_wrapper_names {
+        set_name_first_wins(&mut function_names, *idx, name.as_str());
     }
 
     for export in &layout.exports {
@@ -743,10 +751,9 @@ pub(crate) fn layout_object_data<'data>(
             .unwrap_or(filtered_idx as u32);
         // Linking `SegmentInfo.alignment` is a power-of-two exponent.
         let align = input
-            .segment_alignments
+            .segment_infos
             .get(original_index as usize)
-            .copied()
-            .unwrap_or(wild_util::alignment::MIN);
+            .map_or(wild_util::alignment::MIN, |info| info.alignment);
         *memory_cursor = u32::try_from(align.align_up(u64::from(*memory_cursor)))
             .map_err(|_| crate::error!("Wasm data segment alignment overflow"))?;
         let output_memory_offset = *memory_cursor;

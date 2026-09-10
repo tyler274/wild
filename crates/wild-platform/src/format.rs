@@ -64,6 +64,7 @@ pub trait Platform: Copy + Send + Sync + Sized + Default + std::fmt::Debug + 'st
     const INTERP_SECTION_ID: Option<OutputSectionId> = None;
     const SFRAME_SECTION_ID: Option<OutputSectionId> = None;
     const RELRO_PADDING_SECTION_ID: Option<OutputSectionId> = None;
+    const PARTIAL_SINGLETONS_ID: Option<OutputSectionId> = None;
 
     const CUSTOM_PHDR_EXCLUDED_SECTION_IDS: &'static [OutputSectionId] = &[];
     const PACKED_SECTION_IDS: &'static [OutputSectionId] = &[];
@@ -506,6 +507,18 @@ pub trait Platform: Copy + Send + Sync + Sized + Default + std::fmt::Debug + 'st
         queue: &mut Self::LocalWorkQueue,
         scope: &Scope<'scope>,
     ) -> Result;
+
+    /// Processes an input section containing initializer function pointers (Mach-O specific).
+    fn process_init_func_section<'data, 'scope, A: Arch<Platform = Self>>(
+        _object: &mut Self::ObjectLayoutState<'data>,
+        _common: &mut Self::CommonGroupState<'data>,
+        _section_index: object::SectionIndex,
+        _resources: &'scope Self::GraphResources<'data, '_>,
+        _queue: &mut Self::LocalWorkQueue,
+        _scope: &Scope<'scope>,
+    ) -> Result {
+        Ok(())
+    }
 
     /// Called when a section is loaded (not GCed). Implementations should process any exception
     /// frame data related to the loaded section.

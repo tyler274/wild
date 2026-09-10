@@ -220,7 +220,7 @@ mod tests {
             code_relocations: Vec::new(),
             data_segments: Vec::new(),
             data_segment_original_indices: Vec::new(),
-            segment_alignments: &[],
+            segment_infos: &[],
             data_relocations: Vec::new(),
             symbols: &[],
             init_funcs: &[],

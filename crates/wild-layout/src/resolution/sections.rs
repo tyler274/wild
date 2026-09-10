@@ -27,9 +27,12 @@ use crate::verbose_timing_phase;
 use hashbrown::HashSet;
 use object::SectionIndex;
 use rayon::iter::IndexedParallelIterator;
+use rayon::iter::IntoParallelIterator;
+use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
 use std::borrow::Cow;
+use std::hash::BuildHasher as _;
 use wild_error::bail;
 use wild_error::error::Result;
 use wild_platform::Args as _;
@@ -38,6 +41,8 @@ use wild_platform::OrphanHandling;
 use wild_platform::Platform;
 use wild_platform::SectionHeader as _;
 use wild_util::alignment::Alignment;
+use wild_util::hash::PassThroughHashMap;
+use wild_util::hash::PreHashed;
 
 pub(super) fn resolve_sections<'data, P: EnginePlatform>(
     groups: &mut [ResolvedGroup<'data, P>],
@@ -180,6 +185,20 @@ pub(super) fn assign_section_ids<'data, P: EnginePlatform>(
 ) {
     timing_phase!("Assign section IDs");
 
+    // An optimised path for partial linking to avoid allocating too many OutputSectionIds. We skip
+    // this if there are any linker scripts, since there are too many ways they could mess up our
+    // assumptions.
+    if args.should_output_partial_object()
+        && !resolved.iter().any(|group| {
+            group
+                .files
+                .iter()
+                .any(|file| matches!(file, ResolvedFile::LinkerScript(_)))
+        })
+    {
+        return assign_section_ids_partial(resolved, section_part_ids, output_sections, args);
+    }
+
     // Most custom inputs map to a handful of output sections. Probe a small ring of recent
     // identities before the shared map (mold's MergedSection worker cache).
     let mut recent = CustomSectionCache::<P>::new();
@@ -251,6 +270,116 @@ fn part_id_for_custom_section<'data, P: EnginePlatform>(
     recent.insert(custom.identity, section_id);
     OutputSections::<P>::part_id_for_custom_section(section_id, custom.alignment)
 }
+
+fn assign_section_ids_partial<'data, P: EnginePlatform>(
+    resolved: &mut [ResolvedGroup<'data, P>],
+    section_part_ids: &mut [PartId],
+    output_sections: &mut OutputSections<'data, P>,
+    args: &P::Args,
+) {
+    // Where two or more input sections have the same name, we assign OutputSectionIds as per normal
+    // so that those input sections can be correctly merged. For input sections with unique names,
+    // no merging is needed, so we handle those separately so as to avoid the overheads associated
+    // with an extra OutputSectionId.
+
+    let singletons_id: OutputSectionId = P::PARTIAL_SINGLETONS_ID
+        .expect("Tried to do partial linking on platform that doesn't support it");
+
+    let num_buckets = args.available_threads().get();
+    let per_group_buckets = resolved
+        .par_iter()
+        .map(|group| {
+            let mut buckets = vec![Vec::new(); num_buckets];
+            let hasher = foldhash::fast::FixedState::default();
+            for file in &group.files {
+                let ResolvedFile::Object(object) = file else {
+                    continue;
+                };
+                for custom in &object.custom_sections {
+                    if !is_partial_link_singleton_candidate(object, custom.index) {
+                        continue;
+                    }
+                    let hash = hasher.hash_one(custom.identity);
+                    buckets[hash as usize % num_buckets].push((
+                        PreHashed::new(custom.identity, hash),
+                        object.section_id_range.input_to_id(custom.index),
+                        singletons_id.part_id_with_alignment::<P>(custom.alignment),
+                    ));
+                }
+            }
+            buckets
+        })
+        .collect::<Vec<_>>();
+
+    let singletons = (0..num_buckets)
+        .into_par_iter()
+        .map(|bucket| {
+            let mut first_sections: PassThroughHashMap<SectionIdentity<'data, P>, _> =
+                Default::default();
+            first_sections.reserve(
+                per_group_buckets
+                    .iter()
+                    .map(|group| group[bucket].len())
+                    .sum(),
+            );
+            for group in &per_group_buckets {
+                for &(identity, section_id, part_id) in &group[bucket] {
+                    first_sections
+                        .entry(identity)
+                        .and_modify(|first| *first = None)
+                        .or_insert(Some((section_id, part_id)));
+                }
+            }
+            first_sections.into_values().flatten().collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    for bucket in singletons {
+        for (section_id, part_id) in bucket {
+            section_part_ids[section_id.as_usize()] = part_id;
+        }
+    }
+
+    // Allocate non-singleton sections.
+    let mut recent = CustomSectionCache::<P>::new();
+    for group in resolved {
+        for file in &group.files {
+            if let ResolvedFile::Object(object) = file {
+                let obj_part_ids = &mut section_part_ids[object.section_id_range.as_usize()];
+                for custom in &object.custom_sections {
+                    let part_id = &mut obj_part_ids[custom.index.0];
+                    if *part_id != singletons_id.part_id_with_alignment::<P>(custom.alignment) {
+                        *part_id =
+                            part_id_for_custom_section(output_sections, args, custom, &mut recent);
+                    }
+                }
+                apply_init_fini_secondaries(
+                    &object.init_fini_sections,
+                    object.sections.as_slice(),
+                    obj_part_ids,
+                    output_sections,
+                );
+            }
+        }
+    }
+}
+
+fn is_partial_link_singleton_candidate<P: EnginePlatform>(
+    object: &ResolvedObject<P>,
+    section_index: SectionIndex,
+) -> bool {
+    // String merge sections and no-bits sections require special handling, so aren't eligible.
+    !matches!(
+        object.sections[section_index.0],
+        SectionSlot::MergeStrings(_)
+    ) && !object
+        .common
+        .object
+        .section(section_index)
+        .unwrap()
+        .is_no_bits()
+}
+
 fn apply_init_fini_secondaries<'data, P: EnginePlatform>(
     details: &[InitFiniSectionDetail],
     sections: &[SectionSlot],
@@ -429,6 +558,12 @@ fn resolve_section<'data, P: EnginePlatform>(
         SectionRuleOutcome::EhFrame => {
             return Ok((
                 SectionSlot::FrameData(input_section_index),
+                crate::part_id::UNMAPPED,
+            ));
+        }
+        SectionRuleOutcome::InitFunc => {
+            return Ok((
+                SectionSlot::InitFunc(input_section_index),
                 crate::part_id::UNMAPPED,
             ));
         }

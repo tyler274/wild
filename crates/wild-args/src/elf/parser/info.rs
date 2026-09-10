@@ -595,4 +595,16 @@ pub fn add_info_and_script_flags(parser: &mut ArgumentParser<ElfArgs>) {
 
             Ok(())
         });
+
+    parser
+        .declare_with_param()
+        .long("image-base")
+        .help("Set the base address of the output binary")
+        .execute(|args, _modifier_stack, value| {
+            args.image_base = Some(
+                parse_number(value)
+                    .with_context(|| format!("Invalid address `{value}` in --image-base"))?,
+            );
+            Ok(())
+        });
 }

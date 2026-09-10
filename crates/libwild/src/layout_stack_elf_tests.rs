@@ -164,6 +164,7 @@ mod no_disallowed_overlaps {
 
         let header_info = HeaderInfo {
             num_output_sections_with_content: 0,
+            partial_link_section_name_bytes: 0,
             active_segment_ids: (0..program_segments.len())
                 .map(ProgramSegmentId::new)
                 .collect(),

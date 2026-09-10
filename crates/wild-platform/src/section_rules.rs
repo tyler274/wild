@@ -45,6 +45,7 @@ pub enum SectionRuleOutcome {
     DebugIndex,
     RiscVAttribute,
     SortedSection(SectionOutputInfo),
+    InitFunc,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

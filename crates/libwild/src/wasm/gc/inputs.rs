@@ -16,7 +16,6 @@ use std::borrow::Cow;
 use wasmparser::DataKind;
 use wasmparser::MemoryType;
 use wasmparser::TypeRef;
-use wild_util::alignment::Alignment;
 
 #[derive(Debug)]
 pub(crate) struct WasmObjectLayoutInput<'data> {
@@ -38,7 +37,7 @@ pub(crate) struct WasmObjectLayoutInput<'data> {
     pub(crate) code_relocations: Vec<WasmRelocation>,
     pub(crate) data_segments: Vec<WasmDataSegment<'data>>,
     pub(crate) data_segment_original_indices: Vec<u32>,
-    pub(crate) segment_alignments: &'data [Alignment],
+    pub(crate) segment_infos: &'data [WasmSegmentInfo<'data>],
     pub(crate) data_relocations: Vec<WasmRelocation>,
     pub(crate) symbols: &'data [WasmSymbol],
     pub(crate) init_funcs: &'data [WasmInitFunc],
@@ -316,7 +315,7 @@ impl<'data> WasmObjectLayoutInput<'data> {
             code_relocations,
             data_segments,
             data_segment_original_indices,
-            segment_alignments: file.segment_alignments.as_slice(),
+            segment_infos: file.segment_infos.as_slice(),
             data_relocations,
             symbols: file.symbols.as_slice(),
             init_funcs: file.init_funcs.as_slice(),
