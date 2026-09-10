@@ -285,7 +285,10 @@ impl AtomicValueFlags {
     }
 
     pub fn or_assign(&self, flags: ValueFlags) {
-        self.0.fetch_or(flags.bits(), Ordering::Relaxed);
+        // Same skip as `fetch_or`: relocation scanning and resolution request the same GOT/PLT/TLS
+        // bits repeatedly, and an unconditional `fetch_or` takes exclusive ownership of the cache
+        // line even when nothing changes.
+        self.fetch_or(flags);
     }
 
     pub fn remove(&self, flags_to_remove: ValueFlags) {

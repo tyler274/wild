@@ -6,7 +6,6 @@ mod types;
 use crate::hash::hash_bytes;
 use crate::layout::EnginePlatform;
 use crate::output_section_id::OutputSectionId;
-use crate::platform::Platform;
 use crate::platform::SectionHeader;
 #[allow(unused_imports)]
 pub(crate) use crate::platform::SectionRule;
@@ -29,7 +28,7 @@ pub(crate) use types::*;
 const RULE_TABLE_CAPACITY_MULTIPLIER: usize = 2;
 
 impl<'data> SectionRules<'data> {
-    fn from_rules(rules: &[SectionRule<'data>]) -> Self {
+    pub(crate) fn from_rules(rules: &[SectionRule<'data>]) -> Self {
         let mut map = SectionRules {
             rules: HashTable::with_capacity(rules.len() * RULE_TABLE_CAPACITY_MULTIPLIER),
         };
@@ -145,58 +144,6 @@ fn regular_section_or_discard(section_id: Option<OutputSectionId>) -> SectionRul
     section_id.map_or(SectionRuleOutcome::Discard, |section_id| {
         SectionRuleOutcome::Section(SectionOutputInfo::regular(section_id))
     })
-}
-
-#[test]
-fn test_section_mapping() {
-    let rules = SectionRules::from_rules(&crate::elf::Elf64::default_layout_rules(
-        &crate::args::elf::ElfArgs::new().unwrap(),
-    ));
-    let header = object::elf::SectionHeader64::<object::LittleEndian> {
-        sh_name: Default::default(),
-        sh_type: Default::default(),
-        sh_flags: Default::default(),
-        sh_addr: Default::default(),
-        sh_offset: Default::default(),
-        sh_size: Default::default(),
-        sh_link: Default::default(),
-        sh_info: Default::default(),
-        sh_addralign: Default::default(),
-        sh_entsize: Default::default(),
-    };
-    let lookup_name = |name: &str| {
-        rules.lookup::<crate::elf::Elf64>(name.as_bytes(), None, &header, &HashSet::new())
-    };
-
-    assert_eq!(
-        lookup_name(".comment"),
-        SectionRuleOutcome::Section(SectionOutputInfo {
-            section_id: crate::elf::output_section_id::COMMENT,
-            must_keep: true,
-            sorted: false,
-            sort_by_init_priority: false,
-            sort_by_alignment: false,
-            input_order: false,
-        })
-    );
-
-    let rela_header = object::elf::SectionHeader64::<object::LittleEndian> {
-        sh_type: object::U32::new(object::LittleEndian, object::elf::SHT_RELA),
-        ..header
-    };
-    assert_eq!(
-        rules.lookup::<crate::elf::Elf64>(b".rela.data", None, &rela_header, &HashSet::new()),
-        SectionRuleOutcome::Discard
-    );
-
-    let symtab_header = object::elf::SectionHeader64::<object::LittleEndian> {
-        sh_type: object::U32::new(object::LittleEndian, object::elf::SHT_SYMTAB),
-        ..header
-    };
-    assert_eq!(
-        rules.lookup::<crate::elf::Elf64>(b".symtab", None, &symtab_header, &HashSet::new()),
-        SectionRuleOutcome::Discard
-    );
 }
 
 #[test]

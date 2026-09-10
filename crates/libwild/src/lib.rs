@@ -79,6 +79,8 @@ pub(crate) mod resolution;
 pub(crate) mod save_dir;
 pub(crate) mod sframe;
 pub(crate) use wild_util::sharding;
+#[cfg(test)]
+mod layout_stack_elf_tests;
 pub(crate) mod string_merging;
 #[cfg(all(feature = "fork", unix))]
 pub(crate) mod subprocess;

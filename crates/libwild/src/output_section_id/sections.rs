@@ -121,11 +121,11 @@ impl<'data, P: Platform> OutputSections<'data, P> {
     pub(crate) fn secondary_order(&self, id: OutputSectionId) -> Option<SecondaryOrder> {
         self.section_infos.get(id).secondary_order
     }
-    pub(crate) fn get_or_create_custom_section_part(
+    pub(crate) fn get_or_create_custom_section(
         &mut self,
         args: &<P as Platform>::Args,
         custom: &CustomSectionDetails<'data, P>,
-    ) -> PartId {
+    ) -> OutputSectionId {
         let location = args
             .start_address_for_section(custom.identity.section_name())
             .map(linker_script::Expression::Number);
@@ -137,7 +137,7 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             is_top_level: true,
             overlay: None,
         });
-        let section_id = self.add_named_section(
+        self.add_named_section(
             custom.identity,
             custom.alignment,
             None,
@@ -145,10 +145,15 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             None,
             Vec::new(),
             None,
-        );
+        )
+    }
 
+    pub(crate) fn part_id_for_custom_section(
+        section_id: OutputSectionId,
+        alignment: Alignment,
+    ) -> PartId {
         if section_id.is_regular::<P>() {
-            section_id.part_id_with_alignment::<P>(custom.alignment)
+            section_id.part_id_with_alignment::<P>(alignment)
         } else {
             section_id.base_part_id::<P>()
         }
@@ -216,6 +221,21 @@ impl<'data, P: Platform> OutputSections<'data, P> {
         phdrs: Vec<&'data [u8]>,
         attributes: Option<&linker_script::SectionAttributes>,
     ) -> OutputSectionId {
+        // Repeated custom inputs (`.debug_*`, `.rodata.cst*`, …) hit this map. Check it before
+        // scanning built-in identities, which is linear in the number of regular sections.
+        if let Some(&output_id) = self.custom_by_identity.get(&identity) {
+            self.merge_named_section_info(
+                output_id,
+                min_alignment,
+                region_name,
+                location_info,
+                fill,
+                phdrs,
+                attributes,
+            );
+            return output_id;
+        }
+
         let mut resolved_id = None;
         if !self.output_kind.is_partial_link() {
             if let Some(builtin_id) = (0..regular_section_base::<P>().as_usize())
@@ -256,6 +276,29 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             }
         };
 
+        self.merge_named_section_info(
+            output_id,
+            min_alignment,
+            region_name,
+            location_info,
+            fill,
+            phdrs,
+            attributes,
+        );
+
+        output_id
+    }
+
+    fn merge_named_section_info(
+        &mut self,
+        output_id: OutputSectionId,
+        min_alignment: Alignment,
+        region_name: Option<&'data [u8]>,
+        location_info: Option<&SectionLocationInfo<'data>>,
+        fill: Option<[u8; 4]>,
+        phdrs: Vec<&'data [u8]>,
+        attributes: Option<&linker_script::SectionAttributes>,
+    ) {
         let info = self.section_infos.get_mut(output_id);
         info.min_alignment = info.min_alignment.max(min_alignment);
         info.region_name = region_name.or(info.region_name);
@@ -269,8 +312,6 @@ impl<'data, P: Platform> OutputSections<'data, P> {
         info.section_attributes = attributes.map_or(info.section_attributes, |attr| {
             P::apply_linker_script_attributes(attr, info.section_attributes)
         });
-
-        output_id
     }
 
     pub(crate) fn add_secondary_section(
@@ -709,16 +750,20 @@ impl<'data, P: Platform> OutputSections<'data, P> {
         self.base_address = base_address;
     }
 
-    #[cfg(test)]
-    pub(crate) fn for_testing() -> OutputSections<'static, crate::elf::Elf64> {
-        use crate::elf::Elf64;
-
+    pub(crate) fn for_testing() -> OutputSections<'static, P>
+    where
+        P: EnginePlatform,
+        P::SectionIdentityExt: Default,
+    {
         let output_kind =
             crate::output_kind::OutputKind::StaticExecutable(crate::args::RelocationModel::Fixed);
-        let mut output_sections = OutputSections::<Elf64>::with_base_address(0x1000, output_kind);
+        let mut output_sections = OutputSections::<P>::with_base_address(0x1000, output_kind);
         let mut add_name = |name: &'static str| {
             output_sections.add_named_section(
-                SectionIdentity::new(SectionName(name.as_bytes()), ()),
+                SectionIdentity::new(
+                    SectionName(name.as_bytes()),
+                    P::SectionIdentityExt::default(),
+                ),
                 crate::alignment::MIN,
                 None,
                 None,

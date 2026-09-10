@@ -11,13 +11,16 @@ use crate::layout_rules::SectionRuleOutcome;
 use crate::layout_rules::SectionRules;
 use crate::output_section_id::CustomSectionDetails;
 use crate::output_section_id::InitFiniSectionDetail;
+use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
+use crate::output_section_id::SectionIdentity;
 use crate::output_section_id::SectionName;
 use crate::part_id;
 use crate::part_id::PartId;
 use crate::platform::Args as _;
 use crate::platform::ObjectFile;
 use crate::platform::OrphanHandling;
+use crate::platform::Platform;
 use crate::platform::SectionHeader as _;
 use crate::string_merging::StringMergeSectionExtra;
 use crate::string_merging::StringMergeSectionSlot;
@@ -170,13 +173,17 @@ pub(super) fn assign_section_ids<'data, P: EnginePlatform>(
 ) {
     timing_phase!("Assign section IDs");
 
+    // Most custom inputs map to a handful of output sections. Probe a small ring of recent
+    // identities before the shared map (mold's MergedSection worker cache).
+    let mut recent = CustomSectionCache::<P>::new();
+
     for group in resolved {
         for file in &mut group.files {
             if let ResolvedFile::Object(s) = file {
                 let obj_part_ids = &mut section_part_ids[s.section_id_range.as_usize()];
                 for custom in &s.custom_sections {
                     obj_part_ids[custom.index.0] =
-                        output_sections.get_or_create_custom_section_part(args, custom);
+                        part_id_for_custom_section(output_sections, args, custom, &mut recent);
                 }
                 apply_init_fini_secondaries(
                     &s.init_fini_sections,
@@ -187,6 +194,55 @@ pub(super) fn assign_section_ids<'data, P: EnginePlatform>(
             }
         }
     }
+}
+
+/// How many recently resolved custom section identities to remember. Matches mold's per-worker
+/// merged-section cache; the assignment pass is single-threaded, so one cache covers all files.
+const CUSTOM_SECTION_CACHE_SIZE: usize = 32;
+
+struct CustomSectionCache<'data, P: Platform> {
+    entries: [Option<(SectionIdentity<'data, P>, OutputSectionId)>; CUSTOM_SECTION_CACHE_SIZE],
+    next: usize,
+}
+
+impl<'data, P: Platform> CustomSectionCache<'data, P> {
+    fn new() -> Self {
+        Self {
+            entries: [None; CUSTOM_SECTION_CACHE_SIZE],
+            next: 0,
+        }
+    }
+
+    fn get(&self, identity: SectionIdentity<'data, P>) -> Option<OutputSectionId> {
+        self.entries.iter().find_map(|entry| {
+            let (cached_identity, section_id) = (*entry)?;
+            (cached_identity == identity).then_some(section_id)
+        })
+    }
+
+    fn insert(&mut self, identity: SectionIdentity<'data, P>, section_id: OutputSectionId) {
+        self.entries[self.next] = Some((identity, section_id));
+        self.next += 1;
+        if self.next == CUSTOM_SECTION_CACHE_SIZE {
+            self.next = 0;
+        }
+    }
+}
+
+fn part_id_for_custom_section<'data, P: EnginePlatform>(
+    output_sections: &mut OutputSections<'data, P>,
+    args: &P::Args,
+    custom: &CustomSectionDetails<'data, P>,
+    recent: &mut CustomSectionCache<'data, P>,
+) -> PartId {
+    if let Some(section_id) = recent.get(custom.identity) {
+        output_sections.bump_min_alignment(section_id, custom.alignment);
+        return OutputSections::<P>::part_id_for_custom_section(section_id, custom.alignment);
+    }
+
+    let section_id = output_sections.get_or_create_custom_section(args, custom);
+    recent.insert(custom.identity, section_id);
+    OutputSections::<P>::part_id_for_custom_section(section_id, custom.alignment)
 }
 fn apply_init_fini_secondaries<'data, P: EnginePlatform>(
     details: &[InitFiniSectionDetail],
