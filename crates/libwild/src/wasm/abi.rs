@@ -583,7 +583,8 @@ impl platform::Platform for Wasm {
     type LtoInput<'data> = wild_layout::grouping::LtoInput<'data>;
     type Group<'data> = wild_layout::grouping::Group<'data, Self>;
     type SequencedLinkerScript<'data> = wild_layout::grouping::SequencedLinkerScript<'data, Self>;
-    type FileLoader<'data, F: wild_fs::fs::FileSystem> = crate::input_data::FileLoader<'data, F>;
+    type FileLoader<'data, F: wild_fs::fs::FileSystem> =
+        wild_layout::input_data::FileLoader<'data, F>;
     type LayoutRulesBuilder<'data> = wild_layout::layout_rules::LayoutRulesBuilder<'data>;
     type InternalSymbolsBuilder<'data> = wild_layout::parsing::InternalSymbolsBuilder<'data, Self>;
     type InternalSymDefInfo<'data> = wild_layout::parsing::InternalSymDefInfo<'data, Self>;

@@ -1,4 +1,7 @@
 //! Code to double-check that we did certain things correctly. Generally only used in debug builds.
+//!
+//! Output validation stays with the ELF write path (`elf_writer` calls this when
+//! `--validate-output` / `WILD_VALIDATE_OUTPUT=1` is set). Integration tests always enable that.
 
 use crate::elf;
 use crate::elf::ElfClass;

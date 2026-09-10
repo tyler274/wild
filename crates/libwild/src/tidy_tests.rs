@@ -221,8 +221,8 @@ fn check_text_files() -> Result {
 fn check_elf_specific_code() -> Result {
     let src_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
 
-    // Files and directories where we don't allow ELF-specific code. Paths that have
-    // moved into other crates are skipped so this test keeps compiling during extracts.
+    // Format-agnostic modules that remain in libwild after the layout extract. Layout itself is
+    // checked by `wild-layout::tidy_tests`.
     const DISALLOWED: &[&str] = &["input_data"];
 
     // Patterns that we still allow. These should probably be dealt with, either by renaming these

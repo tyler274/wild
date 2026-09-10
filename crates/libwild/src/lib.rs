@@ -74,6 +74,7 @@ use crossbeam_utils::atomic::AtomicCell;
 use error::AlreadyInitialised;
 use hashbrown::HashSet;
 use input_data::FileLoader;
+use input_data::FileLoaderExt as _;
 use input_data::InputFile as LoadedInputFile;
 use std::io::BufWriter;
 use std::io::IsTerminal;
@@ -250,7 +251,7 @@ impl<F: FileSystem> Linker<F> {
     ) -> error::Result<LinkerOutput<'data>>
     where
         P: EnginePlatform
-            + Platform<FileLoader<'data, F> = input_data::FileLoader<'data, F>>
+            + Platform<FileLoader<'data, F> = wild_layout::input_data::FileLoader<'data, F>>
             + Platform<FileWriterOutput<F> = file_writer::Output<F>>
             + Platform<LoadedPlugin = crate::linker_plugins::LoadedPlugin>
             + Platform<LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>>,
@@ -306,7 +307,7 @@ impl<F: FileSystem> Linker<F> {
     ) -> error::Result<LinkerOutput<'data>>
     where
         P: EnginePlatform
-            + Platform<FileLoader<'data, F> = input_data::FileLoader<'data, F>>
+            + Platform<FileLoader<'data, F> = wild_layout::input_data::FileLoader<'data, F>>
             + Platform<FileWriterOutput<F> = file_writer::Output<F>>
             + Platform<LoadedPlugin = crate::linker_plugins::LoadedPlugin>
             + Platform<LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>>,
@@ -341,7 +342,7 @@ impl<F: FileSystem> Linker<F> {
         let mut layout_rules_builder = LayoutRulesBuilder::default();
 
         let auxiliary =
-            input_data::AuxiliaryFiles::new(args, &self.inputs_arena, self.file_system.as_ref())?;
+            input_data::load_auxiliary_files(args, &self.inputs_arena, self.file_system.as_ref())?;
 
         let mut symbol_db = wild_layout::symbol_db::SymbolDb::new(
             args,

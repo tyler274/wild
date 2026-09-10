@@ -7,6 +7,7 @@ pub mod file_writer;
 pub mod gc_stats;
 pub mod grouping;
 pub mod incremental;
+pub mod input_data;
 pub mod layout_rules;
 pub mod output_section_id;
 pub mod output_section_part_map;
@@ -55,6 +56,9 @@ pub mod sections;
 pub mod sizes;
 pub mod types;
 pub mod verification;
+
+#[cfg(test)]
+mod tidy_tests;
 
 pub use addresses::*;
 pub use engine::EnginePlatform;

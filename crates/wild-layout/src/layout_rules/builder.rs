@@ -13,7 +13,6 @@ use crate::parsing::RedirectKind;
 use crate::parsing::SymbolLoc;
 use crate::parsing::SymbolPlacement;
 use hashbrown::HashMap;
-use linker_utils::elf::secnames::NOTE_GNU_BUILD_ID_SECTION_NAME;
 use wild_args::InputLinkerScript;
 use wild_args::InputRef;
 use wild_error::error::Context;
@@ -638,7 +637,7 @@ fn record_gnu_build_id_placement<P: EnginePlatform>(
         return;
     }
     // Linker-generated notes have no input filename; `*` still matches an empty name.
-    if rule.matches(NOTE_GNU_BUILD_ID_SECTION_NAME, Some(b"")) {
+    if rule.matches(b".note.gnu.build-id", Some(b"")) {
         output_sections.gnu_build_id_placement = placement;
     }
 }

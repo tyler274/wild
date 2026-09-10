@@ -2200,6 +2200,7 @@ dependencies = [
  "atomic-take",
  "bytesize",
  "colored",
+ "colosseum",
  "crossbeam-queue",
  "crossbeam-utils",
  "derive_more",

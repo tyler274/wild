@@ -22,6 +22,7 @@ use crate::error::Result;
 use crate::file_kind::FileKind;
 use crate::input_data::FileId;
 use crate::input_data::FileLoader;
+use crate::input_data::FileLoaderExt as _;
 use crate::input_data::InputRef;
 use crate::timing_phase;
 use crate::verbose_timing_phase;

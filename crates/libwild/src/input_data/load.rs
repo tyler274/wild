@@ -1,10 +1,10 @@
-use super::types::AuxiliaryFiles;
-use super::types::FileLoader;
-use super::types::InputFile;
-use super::types::InputLinkerScript;
-use super::types::InputPath;
-use super::types::InputRef;
-use super::types::ScriptData;
+use super::AuxiliaryFiles;
+use super::FileLoader;
+use super::InputFile;
+use super::InputLinkerScript;
+use super::InputPath;
+use super::InputRef;
+use super::ScriptData;
 use crate::FileSystem;
 use crate::InputFileData;
 use crate::args::Input;
@@ -122,51 +122,47 @@ struct LoadedLinkerScript<'data> {
     extra_inputs: Vec<Input>,
 }
 
-impl<'data> AuxiliaryFiles<'data> {
-    pub(crate) fn new<F: FileSystem>(
-        args: &'data impl platform::Args,
-        inputs_arena: &'data Arena<InputFile<F::Input>>,
-        file_system: &F,
-    ) -> Result<Self> {
-        let resolve_script_path = |path: &Path| -> PathBuf {
-            if file_system.file_type(path).is_ok() {
-                path.to_owned()
-            } else if let Some(found) =
-                search_for_file(file_system, args.lib_search_path(), None, path)
-            {
-                found
-            } else {
-                path.to_owned()
-            }
-        };
+pub(crate) fn load_auxiliary_files<'data, F: FileSystem>(
+    args: &'data impl platform::Args,
+    inputs_arena: &'data Arena<InputFile<F::Input>>,
+    file_system: &F,
+) -> Result<AuxiliaryFiles<'data>> {
+    let resolve_script_path = |path: &Path| -> PathBuf {
+        if file_system.file_type(path).is_ok() {
+            path.to_owned()
+        } else if let Some(found) = search_for_file(file_system, args.lib_search_path(), None, path)
+        {
+            found
+        } else {
+            path.to_owned()
+        }
+    };
 
-        Ok(Self {
-            version_script_data: args
-                .version_script_path()
-                .map(|path| read_script_data(&resolve_script_path(path), inputs_arena, file_system))
-                .transpose()?,
-            export_list_data: args
-                .export_list_path()
-                .map(|path| read_script_data(&resolve_script_path(path), inputs_arena, file_system))
-                .transpose()?,
-        })
-    }
+    Ok(AuxiliaryFiles {
+        version_script_data: args
+            .version_script_path()
+            .map(|path| read_script_data(&resolve_script_path(path), inputs_arena, file_system))
+            .transpose()?,
+        export_list_data: args
+            .export_list_path()
+            .map(|path| read_script_data(&resolve_script_path(path), inputs_arena, file_system))
+            .transpose()?,
+    })
 }
 
-impl<'data, F: FileSystem> FileLoader<'data, F> {
-    pub(crate) fn new(
-        inputs_arena: &'data Arena<InputFile<F::Input>>,
-        file_system: Arc<F>,
-    ) -> Self {
-        Self {
-            loaded_files: Vec::new(),
-            inputs_arena,
-            file_system,
-            has_dynamic: false,
-        }
-    }
+pub(crate) trait FileLoaderExt<'data, F: FileSystem> {
+    fn load_inputs<P: LoadPlatform>(
+        &mut self,
+        inputs: &[Input],
+        args: &'data P::Args,
+        plugin: &mut Option<LinkerPlugin<'data>>,
+    ) -> Result<LoadedInputs<'data, P>>;
 
-    pub(crate) fn load_inputs<P: LoadPlatform>(
+    fn verify_inputs_unchanged(&self) -> Result;
+}
+
+impl<'data, F: FileSystem> FileLoaderExt<'data, F> for FileLoader<'data, F> {
+    fn load_inputs<P: LoadPlatform>(
         &mut self,
         inputs: &[Input],
         args: &'data P::Args,
@@ -226,14 +222,14 @@ impl<'data, F: FileSystem> FileLoader<'data, F> {
             );
             *entry = Some(file.state);
         }
-        self.extract_all(&mut files_by_index, plugin)
+        extract_all(self, &mut files_by_index, plugin)
     }
 
     /// Checks that the modification timestamp on all our input files hasn't changed since we opened
     /// them. If they were modified while we were running, then we may fail with a SIGBUS if we try
     /// to access part of the file that's no longer there, however if we don't, then we may have
     /// read inconsistent data from the changed object, so we want to fail the link.
-    pub(crate) fn verify_inputs_unchanged(&self) -> Result {
+    fn verify_inputs_unchanged(&self) -> Result {
         timing_phase!("Verify inputs unchanged");
 
         self.loaded_files.par_iter().try_for_each(|file| {
@@ -253,88 +249,88 @@ impl<'data, F: FileSystem> FileLoader<'data, F> {
             Ok(())
         })
     }
+}
 
-    /// Extract all files and linker scripts from `files`. Extraction order is the same as the order
-    /// on the original command-line. This is roughly FileLoadIndex order, except that (a) if a file
-    /// is loaded multiple times, it will only appear the first time it's encountered and (b) when a
-    /// linker script is loaded, its files appear at the point at which the linker script appeared
-    /// on the command-line, even though the FileLoadIndex for files loaded by linker scripts is
-    /// later.
-    fn extract_all<P: LoadPlatform>(
-        &mut self,
-        files: &mut [Option<LoadedFileState<'data, P, F::Input>>],
-        plugin: &mut Option<LinkerPlugin<'data>>,
-    ) -> Result<LoadedInputs<'data, P>> {
-        let mut loaded = LoadedInputs {
-            objects: Vec::with_capacity(files.len()),
-            linker_scripts: Vec::new(),
-            stub_libraries: Vec::new(),
-            lto_objects: Vec::new(),
-            objects_before_first_lto: None,
-        };
+/// Extract all files and linker scripts from `files`. Extraction order is the same as the order
+/// on the original command-line. This is roughly FileLoadIndex order, except that (a) if a file
+/// is loaded multiple times, it will only appear the first time it's encountered and (b) when a
+/// linker script is loaded, its files appear at the point at which the linker script appeared
+/// on the command-line, even though the FileLoadIndex for files loaded by linker scripts is
+/// later.
+fn extract_all<'data, P: LoadPlatform, F: FileSystem>(
+    loader: &mut FileLoader<'data, F>,
+    files: &mut [Option<LoadedFileState<'data, P, F::Input>>],
+    plugin: &mut Option<LinkerPlugin<'data>>,
+) -> Result<LoadedInputs<'data, P>> {
+    let mut loaded = LoadedInputs {
+        objects: Vec::with_capacity(files.len()),
+        linker_scripts: Vec::new(),
+        stub_libraries: Vec::new(),
+        lto_objects: Vec::new(),
+        objects_before_first_lto: None,
+    };
 
-        for i in 0..files.len() {
-            self.extract_file(FileLoadIndex(i), files, &mut loaded, plugin)?;
-        }
-
-        Ok(loaded)
+    for i in 0..files.len() {
+        extract_file(loader, FileLoadIndex(i), files, &mut loaded, plugin)?;
     }
 
-    fn extract_file<P: LoadPlatform>(
-        &mut self,
-        index: FileLoadIndex,
-        files: &mut [Option<LoadedFileState<'data, P, F::Input>>],
-        loaded: &mut LoadedInputs<'data, P>,
-        plugin: &mut Option<LinkerPlugin<'data>>,
-    ) -> Result {
-        match core::mem::take(&mut files[index.0]) {
-            None => {}
-            Some(LoadedFileState::Loaded(input_file, parse_result)) => {
-                if parse_result.is_dynamic_object() {
-                    self.has_dynamic = true;
-                }
-                add_record(loaded, parse_result, plugin);
-                self.loaded_files.push(input_file);
-            }
-            Some(LoadedFileState::Archive(input_file, parsed_parts)) => {
-                add_records(loaded, parsed_parts, plugin);
-                self.loaded_files.push(input_file);
-            }
-            Some(LoadedFileState::ThinArchive(mut input_files, parsed_parts)) => {
-                add_records(loaded, parsed_parts, plugin);
-                self.loaded_files.append(&mut input_files);
-            }
-            Some(LoadedFileState::LinkerScript(input_file, loaded_linker_script_state)) => {
-                self.loaded_files.push(input_file);
+    Ok(loaded)
+}
 
-                loaded
-                    .linker_scripts
-                    .push(loaded_linker_script_state.script);
+fn extract_file<'data, P: LoadPlatform, F: FileSystem>(
+    loader: &mut FileLoader<'data, F>,
+    index: FileLoadIndex,
+    files: &mut [Option<LoadedFileState<'data, P, F::Input>>],
+    loaded: &mut LoadedInputs<'data, P>,
+    plugin: &mut Option<LinkerPlugin<'data>>,
+) -> Result {
+    match core::mem::take(&mut files[index.0]) {
+        None => {}
+        Some(LoadedFileState::Loaded(input_file, parse_result)) => {
+            if parse_result.is_dynamic_object() {
+                loader.has_dynamic = true;
+            }
+            add_record(loaded, parse_result, plugin);
+            loader.loaded_files.push(input_file);
+        }
+        Some(LoadedFileState::Archive(input_file, parsed_parts)) => {
+            add_records(loaded, parsed_parts, plugin);
+            loader.loaded_files.push(input_file);
+        }
+        Some(LoadedFileState::ThinArchive(mut input_files, parsed_parts)) => {
+            add_records(loaded, parsed_parts, plugin);
+            loader.loaded_files.append(&mut input_files);
+        }
+        Some(LoadedFileState::LinkerScript(input_file, loaded_linker_script_state)) => {
+            loader.loaded_files.push(input_file);
 
-                for i in loaded_linker_script_state.file_indexes {
-                    self.extract_file(i, files, loaded, plugin)?;
-                }
-            }
-            Some(LoadedFileState::StubLibrary(input_file, defined_stub_library)) => {
-                self.has_dynamic = true;
-                loaded.stub_libraries.push(LoadedStubLibrary {
-                    input: InputRef {
-                        file: input_file.as_ref(),
-                        data: input_file.data(),
-                        entry: None,
-                    },
-                    defined_symbols: defined_stub_library,
-                });
-                self.loaded_files.push(input_file);
-            }
-            Some(LoadedFileState::Error(error)) => {
-                // For now, we just report the first error that we come to.
-                return Err(error);
+            loaded
+                .linker_scripts
+                .push(loaded_linker_script_state.script);
+
+            for i in loaded_linker_script_state.file_indexes {
+                extract_file(loader, i, files, loaded, plugin)?;
             }
         }
-
-        Ok(())
+        Some(LoadedFileState::StubLibrary(input_file, defined_stub_library)) => {
+            loader.has_dynamic = true;
+            loaded.stub_libraries.push(LoadedStubLibrary {
+                input: InputRef {
+                    file: input_file.as_ref(),
+                    data: input_file.data(),
+                    entry: None,
+                },
+                defined_symbols: defined_stub_library,
+            });
+            loader.loaded_files.push(input_file);
+        }
+        Some(LoadedFileState::Error(error)) => {
+            // For now, we just report the first error that we come to.
+            return Err(error);
+        }
     }
+
+    Ok(())
 }
 
 fn process_linker_script<'data, F: FileSystem>(

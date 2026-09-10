@@ -10,6 +10,7 @@ edition.workspace = true
 [dependencies]
 atomic-take.workspace = true
 bytesize.workspace = true
+colosseum.workspace = true
 colored.workspace = true
 crossbeam-queue.workspace = true
 crossbeam-utils.workspace = true
