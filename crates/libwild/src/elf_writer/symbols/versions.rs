@@ -13,9 +13,9 @@ use crate::elf::part_id;
 use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::file_writer::excessive_allocation;
-use crate::file_writer::insufficient_allocation;
 use object::LittleEndian;
+use wild_layout::file_writer::excessive_allocation;
+use wild_layout::file_writer::insufficient_allocation;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 
 #[derive(Default)]

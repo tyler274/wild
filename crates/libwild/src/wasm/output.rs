@@ -14,8 +14,6 @@ use crate::bail;
 use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
 use crate::wasm_writer::OutputExport;
 use crate::wasm_writer::OutputGlobal;
 use crate::wasm_writer::OutputImport;
@@ -35,6 +33,8 @@ use wasmparser::MemoryType;
 use wasmparser::RelocationType;
 use wild_layout::part_id::PartId;
 use wild_layout::symbol_db::SymbolDb;
+use wild_layout::timing_phase;
+use wild_layout::verbose_timing_phase;
 use wild_platform::Args as _;
 
 #[derive(Debug, Default)]

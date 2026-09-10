@@ -4,20 +4,20 @@ use crate::elf;
 use crate::elf::ElfClass;
 use crate::elf::output_section_id;
 use crate::error::Result;
-use crate::file_writer::SizedOutput;
-use crate::file_writer::split_buffers_by_alignment;
-use crate::file_writer::split_output_by_group;
-use crate::file_writer::split_output_into_sections;
-use crate::output_trace::TraceOutput;
 use crate::sframe;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
 use rayon::iter::IndexedParallelIterator;
 use std::sync::atomic::Ordering::Relaxed;
 use wild_layout::FileLayout;
 use wild_layout::Layout;
+use wild_layout::file_writer::SizedOutput;
+use wild_layout::file_writer::split_buffers_by_alignment;
+use wild_layout::file_writer::split_output_by_group;
+use wild_layout::file_writer::split_output_into_sections;
 use wild_layout::output_section_id::OrderEvent;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::output_trace::TraceOutput;
+use wild_layout::timing_phase;
+use wild_layout::verbose_timing_phase;
 use wild_platform::Arch;
 use wild_platform::output_section_map::OutputSectionMap;
 use zerocopy::FromBytes;
@@ -94,7 +94,7 @@ pub(crate) fn write_file_contents<'data, C: ElfClass, A: Arch<Platform = elf::El
 
 pub(crate) fn fill_padding_for_sections<C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     layout: &Layout<'_, elf::Elf<C>>,
-    padding: crate::file_writer::PaddingSlices<'_>,
+    padding: wild_layout::file_writer::PaddingSlices<'_>,
 ) {
     timing_phase!("Fill padding for sections");
 

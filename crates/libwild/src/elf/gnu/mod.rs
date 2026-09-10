@@ -19,7 +19,6 @@ use super::types::Versym;
 use crate::bail;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::timing_phase;
 #[allow(unused_imports)]
 pub(crate) use ehframe::*;
 use foldhash::HashSet;
@@ -47,6 +46,7 @@ use wild_layout::output_section_id::OutputSectionId;
 use wild_layout::output_section_id::OutputSections;
 #[cfg(all(feature = "plugins", unix))]
 use wild_layout::symbol_db::Visibility;
+use wild_layout::timing_phase;
 use wild_platform as platform;
 use wild_platform::DynamicTagValues as _;
 use wild_platform::ObjectFile as _;

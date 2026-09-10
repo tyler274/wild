@@ -3,15 +3,8 @@
 use crate::error::AlreadyInitialised;
 
 /// All trace messages within a span with this name will be emitted.
+/// Must stay in sync with `wild_layout::span_for_file` (`trace_file`).
 pub(crate) const TRACE_SPAN_NAME: &str = "trace_file";
-
-pub(crate) fn span_for_file(
-    args: &impl wild_platform::Args,
-    file_id: wild_platform::FileId,
-) -> Option<tracing::span::EnteredSpan> {
-    args.should_trace_file(file_id)
-        .then(|| tracing::trace_span!(TRACE_SPAN_NAME).entered())
-}
 
 pub(crate) fn init() -> Result<(), AlreadyInitialised> {
     use tracing_subscriber::prelude::*;

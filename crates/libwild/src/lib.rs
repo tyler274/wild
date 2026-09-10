@@ -13,7 +13,6 @@ pub(crate) mod elf_writer;
 pub(crate) mod elf_x86_64;
 pub use wild_error::error;
 pub(crate) mod file_kind;
-pub(crate) mod file_writer;
 pub(crate) mod gdb_index;
 pub(crate) mod input_data;
 #[cfg_attr(
@@ -33,7 +32,6 @@ pub use wild_error::malfunction_point_ret;
 #[cfg(test)]
 mod layout_stack_elf_tests;
 pub(crate) mod output_kind;
-pub(crate) mod output_trace;
 #[cfg(all(
     target_os = "linux",
     any(target_arch = "x86_64", target_arch = "aarch64")
@@ -96,6 +94,7 @@ pub use wild_fs::fs::OutputFileData;
 pub use wild_fs::fs::OutputOptions;
 pub use wild_fs::fs::make_executable;
 use wild_layout::EnginePlatform;
+use wild_layout::file_writer;
 use wild_layout::layout_rules::LayoutRulesBuilder;
 use wild_layout::output_section_id::OutputSections;
 use wild_platform::Arch;
@@ -254,8 +253,7 @@ impl<F: FileSystem> Linker<F> {
             + Platform<FileLoader<'data, F> = input_data::FileLoader<'data, F>>
             + Platform<FileWriterOutput<F> = file_writer::Output<F>>
             + Platform<LoadedPlugin = crate::linker_plugins::LoadedPlugin>
-            + Platform<LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>>
-            + Platform<FileKind = crate::file_kind::FileKind>,
+            + Platform<LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>>,
         A: Arch<Platform = P>,
         P::Args: crate::args::HasCommonArgs,
     {
@@ -311,8 +309,7 @@ impl<F: FileSystem> Linker<F> {
             + Platform<FileLoader<'data, F> = input_data::FileLoader<'data, F>>
             + Platform<FileWriterOutput<F> = file_writer::Output<F>>
             + Platform<LoadedPlugin = crate::linker_plugins::LoadedPlugin>
-            + Platform<LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>>
-            + Platform<FileKind = crate::file_kind::FileKind>,
+            + Platform<LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>>,
         A: Arch<Platform = P>,
         P::Args: crate::args::HasCommonArgs,
     {

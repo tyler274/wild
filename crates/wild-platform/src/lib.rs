@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod custom_section_ids;
 pub mod file_id;
+pub mod file_kind;
 pub mod format;
 pub mod isa;
 pub mod object;
@@ -30,6 +31,8 @@ pub use file_id::FileId;
 pub use file_id::MAX_FILES_PER_GROUP;
 #[allow(unused_imports)]
 pub use file_id::PRELUDE_FILE_ID;
+#[allow(unused_imports)]
+pub use file_kind::FileKind;
 #[allow(unused_imports)]
 pub use format::*;
 #[allow(unused_imports)]

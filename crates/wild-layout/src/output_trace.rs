@@ -1,16 +1,16 @@
 //! Sets up a tracing layer for recording diagnostics associated with particular addresses in the
 //! output file.
 
-use crate::FileSystem;
-use crate::error::Result;
 use linker_trace::AddressTrace;
 use std::mem::take;
 use std::ops::DerefMut;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use wild_error::error::Result;
+use wild_fs::fs::FileSystem;
 
-pub(crate) struct TraceOutput {
+pub struct TraceOutput {
     state: Option<State>,
 }
 
@@ -20,7 +20,7 @@ struct State {
 }
 
 impl TraceOutput {
-    pub(crate) fn new(should_write_trace: bool, base_output: &Path) -> Self {
+    pub fn new(should_write_trace: bool, base_output: &Path) -> Self {
         if !should_write_trace {
             return TraceOutput { state: None };
         }
@@ -36,7 +36,7 @@ impl TraceOutput {
     }
 
     #[inline(always)]
-    pub(crate) fn emit(&self, address: u64, message_cb: impl Fn() -> String) {
+    pub fn emit(&self, address: u64, message_cb: impl Fn() -> String) {
         if let Some(state) = self.state.as_ref() {
             let message = message_cb();
             state.data.lock().unwrap().traces.push(AddressTrace {
@@ -46,7 +46,7 @@ impl TraceOutput {
         }
     }
 
-    pub(crate) fn close(&self, file_system: &impl FileSystem) -> Result {
+    pub fn close(&self, file_system: &impl FileSystem) -> Result {
         if let Some(state) = self.state.as_ref() {
             let mut bytes = Vec::new();
             let data = take(state.data.lock().unwrap().deref_mut());
@@ -58,12 +58,12 @@ impl TraceOutput {
     }
 }
 
-pub(crate) struct HexU64 {
+pub struct HexU64 {
     value: u64,
 }
 
 impl HexU64 {
-    pub(crate) fn new(value: u64) -> Self {
+    pub fn new(value: u64) -> Self {
         Self { value }
     }
 }

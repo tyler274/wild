@@ -3,8 +3,6 @@ use crate::elf;
 use crate::elf::ElfClass;
 use crate::ensure;
 use crate::error::Result;
-use crate::output_trace::TraceOutput;
-use crate::verbose_timing_phase;
 use object::LittleEndian;
 use object::read::elf::Crel;
 use object::read::elf::SectionHeader as _;
@@ -14,8 +12,10 @@ use wild_layout::ObjectLayout;
 use wild_layout::PartialLinkSingleton;
 use wild_layout::Section;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::output_trace::TraceOutput;
 use wild_layout::part_id::PartId;
 use wild_layout::resolution::SectionSlot;
+use wild_layout::verbose_timing_phase;
 use wild_platform::Arch;
 use wild_platform::ObjectFile;
 use wild_platform::value_flags::ValueFlags;
@@ -32,7 +32,7 @@ pub(crate) fn write_object<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     verbose_timing_phase!("Write object", file_id = object.file_id.as_u32());
 
     let _span = debug_span!("write_file", filename = %object.input).entered();
-    let _file_span = crate::debug_trace::span_for_file(layout.args(), object.file_id);
+    let _file_span = wild_layout::span_for_file(layout.args(), object.file_id);
 
     for (i, sec) in object.sections.iter().enumerate() {
         let section_index = object::SectionIndex(i);
@@ -174,9 +174,9 @@ pub(crate) fn write_thunks<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
         let target_address = elf::plt_address(res).unwrap_or(res.raw_value);
 
         let buf = buffers.get_mut(primary_part_id);
-        let thunk_buf = buf
-            .split_off_mut(..thunk_size)
-            .ok_or_else(|| crate::file_writer::insufficient_allocation("thunk space in .text"))?;
+        let thunk_buf = buf.split_off_mut(..thunk_size).ok_or_else(|| {
+            wild_layout::file_writer::insufficient_allocation("thunk space in .text")
+        })?;
 
         A::write_thunk(thunk_address, target_address, thunk_buf);
 

@@ -19,7 +19,6 @@ use crate::args::macho::MachOArgs;
 use crate::ensure;
 use crate::error;
 use crate::error::Result;
-use crate::file_writer::copy_section_data;
 use object::macho;
 use object::macho::N_SECT;
 use object::read::macho::MachHeader;
@@ -29,6 +28,7 @@ use object::read::macho::Segment;
 use std::borrow::Cow;
 use std::slice::Iter;
 use wild_layout as layout;
+use wild_layout::file_writer::copy_section_data;
 use wild_platform as platform;
 
 #[derive(derive_more::Debug)]

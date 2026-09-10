@@ -2,7 +2,6 @@ mod apply;
 mod eh_frame;
 mod rela;
 
-use self::elf::get_page_mask;
 use super::types::ElfLayout;
 use super::types::TableWriter;
 use crate::bail;
@@ -20,6 +19,7 @@ use linker_utils::elf::RelocationKind;
 use linker_utils::elf::RelocationKindInfo;
 use linker_utils::elf::RelocationSize;
 use linker_utils::elf::SectionFlags;
+use linker_utils::elf::get_page_mask;
 use linker_utils::relaxation::opt_input_to_output;
 use object::SymbolIndex;
 use object::read::elf::Sym as _;

@@ -3,12 +3,14 @@
 //! where in the output file then allocates addresses for each symbol.
 
 pub mod expression_eval;
+pub mod file_writer;
 pub mod gc_stats;
 pub mod grouping;
 pub mod incremental;
 pub mod layout_rules;
 pub mod output_section_id;
 pub mod output_section_part_map;
+pub mod output_trace;
 pub mod parsing;
 pub mod part_id;
 pub mod resolution;
@@ -70,6 +72,7 @@ pub use sections::*;
 pub use sizes::*;
 pub use types::*;
 
+#[macro_export]
 macro_rules! timing_phase {
     ($($args:tt)*) => {
         let _guard = (
@@ -78,14 +81,13 @@ macro_rules! timing_phase {
         );
     };
 }
-pub(crate) use timing_phase;
 
+#[macro_export]
 macro_rules! verbose_timing_phase {
     ($($args:tt)*) => {
         perfetto_recorder::scope!($($args)*);
     };
 }
-pub(crate) use verbose_timing_phase;
 
 /// Extra bytes reserved at the end of each allocated output section so a later incremental update
 /// can grow without shifting later sections.

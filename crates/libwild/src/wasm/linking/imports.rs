@@ -4,8 +4,6 @@ use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::input_data::PRELUDE_FILE_ID;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
 use crate::wasm::WASM_DEAD_INDEX;
 use crate::wasm::Wasm;
 use crate::wasm::gc::*;
@@ -16,6 +14,8 @@ use hashbrown::HashSet;
 use rayon::prelude::*;
 use wild_layout::symbol::UnversionedSymbolName;
 use wild_layout::symbol_db::SymbolDb;
+use wild_layout::timing_phase;
+use wild_layout::verbose_timing_phase;
 use wild_platform::Args as _;
 
 pub(crate) fn report_disallowed_unresolved_imports<'data>(

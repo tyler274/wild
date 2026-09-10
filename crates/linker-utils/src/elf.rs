@@ -1002,6 +1002,52 @@ pub enum PageMask {
     Position(u64),
 }
 
+pub struct PageMaskValue {
+    pub symbol_plus_addend: u64,
+    pub got_entry: u64,
+    pub place: u64,
+    pub got: u64,
+}
+
+impl Default for PageMaskValue {
+    fn default() -> Self {
+        Self {
+            symbol_plus_addend: u64::MAX,
+            got_entry: u64::MAX,
+            place: u64::MAX,
+            got: u64::MAX,
+        }
+    }
+}
+
+#[must_use]
+pub fn get_page_mask(mask: Option<PageMask>) -> PageMaskValue {
+    let Some(mask) = mask else {
+        return PageMaskValue::default();
+    };
+
+    match mask {
+        PageMask::SymbolPlusAddendAndPosition(mask) => PageMaskValue {
+            symbol_plus_addend: !mask,
+            place: !mask,
+            ..Default::default()
+        },
+        PageMask::GotEntryAndPosition(mask) => PageMaskValue {
+            got_entry: !mask,
+            place: !mask,
+            ..Default::default()
+        },
+        PageMask::GotBase(mask) => PageMaskValue {
+            got: !mask,
+            ..Default::default()
+        },
+        PageMask::Position(mask) => PageMaskValue {
+            place: !mask,
+            ..Default::default()
+        },
+    }
+}
+
 // Allow range (half-open) of a computed value of a relocation
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub struct AllowedRange {

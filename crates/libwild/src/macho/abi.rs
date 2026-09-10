@@ -60,7 +60,6 @@ use crate::macho::output_section_id::LOAD_COMMANDS;
 use crate::macho::output_section_id::STRTAB;
 use crate::macho::output_section_id::SYMTAB_GLOBAL;
 use crate::macho_writer;
-use crate::verbose_timing_phase;
 use anyhow::Context;
 use itertools::Itertools;
 use object::Endianness;
@@ -88,6 +87,7 @@ use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::part_id::PartId;
 use wild_layout::resolution;
 use wild_layout::symbol_db::SymbolId;
+use wild_layout::verbose_timing_phase;
 use wild_platform as platform;
 use wild_platform::ObjectFile;
 use wild_platform::OutputKind;
@@ -225,10 +225,9 @@ impl platform::Platform for MachO {
     type OutputSections<'data> = wild_layout::output_section_id::OutputSections<'data, Self>;
     type OutputOrder<'data> = wild_layout::output_section_id::OutputOrder<'data>;
     type CustomSectionIds = wild_layout::output_section_id::CustomSectionIds;
-    type FileWriterOutput<F: wild_fs::fs::FileSystem> = crate::file_writer::Output<F>;
+    type FileWriterOutput<F: wild_fs::fs::FileSystem> = wild_layout::file_writer::Output<F>;
     type LocationCounter<'data> = wild_layout::layout_rules::LocationCounter<'data>;
     type SectionOutputInfo<'data> = wild_layout::output_section_id::SectionOutputInfo<'data, Self>;
-    type FileKind = crate::file_kind::FileKind;
 
     /// Mach-O sections are associated with a SegmentName, while synthetic regions (FILE_HEADER,
     /// LOAD_COMMANDS, etc.) are not.
@@ -237,7 +236,7 @@ impl platform::Platform for MachO {
     const HAS_NULL_SYMBOL_ENTRY: bool = true;
 
     fn write_output_file<'data, A: platform::Arch<Platform = Self>, F: FileSystem>(
-        output: &crate::file_writer::Output<F>,
+        output: &wild_layout::file_writer::Output<F>,
         layout: &wild_layout::Layout<'data, Self>,
     ) -> Result {
         output.write(layout, macho_writer::write::<A>)
@@ -1142,8 +1141,8 @@ impl platform::Platform for MachO {
         Ok(record.file_offset.div_ceil(CS_BLOCK_SIZE) * CS_HASH_SIZE as usize)
     }
 
-    fn is_allowed_in_archive(kind: crate::file_kind::FileKind) -> bool {
-        kind == crate::file_kind::FileKind::MachOObject
+    fn is_allowed_in_archive(kind: wild_platform::FileKind) -> bool {
+        kind == wild_platform::FileKind::MachOObject
     }
 
     fn section_identity<'data>(

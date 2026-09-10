@@ -291,13 +291,12 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     type OutputSections<'data> = wild_layout::output_section_id::OutputSections<'data, Self>;
     type OutputOrder<'data> = wild_layout::output_section_id::OutputOrder<'data>;
     type CustomSectionIds = wild_layout::output_section_id::CustomSectionIds;
-    type FileWriterOutput<F: wild_fs::fs::FileSystem> = crate::file_writer::Output<F>;
+    type FileWriterOutput<F: wild_fs::fs::FileSystem> = wild_layout::file_writer::Output<F>;
     type LocationCounter<'data> = wild_layout::layout_rules::LocationCounter<'data>;
     type SectionOutputInfo<'data> = wild_layout::output_section_id::SectionOutputInfo<'data, Self>;
-    type FileKind = crate::file_kind::FileKind;
 
     fn write_output_file<'data, A: Arch<Platform = Self>, F: FileSystem>(
-        output: &crate::file_writer::Output<F>,
+        output: &wild_layout::file_writer::Output<F>,
         layout: &layout::Layout<'data, Self>,
     ) -> Result {
         output.write(layout, elf_writer::write::<C, A>)
@@ -1804,7 +1803,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         total_sizes: &mut OutputSectionPartMap<u64>,
         format_specific: &mut LayoutExt,
     ) {
-        crate::timing_phase!("Share .strtab suffixes");
+        wild_layout::timing_phase!("Share .strtab suffixes");
         let mut names = Vec::new();
         let mut unmerged = 0;
         for group in group_states.iter_mut() {
@@ -2719,7 +2718,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         }
     }
 
-    fn is_allowed_in_archive(kind: crate::file_kind::FileKind) -> bool {
+    fn is_allowed_in_archive(kind: wild_platform::FileKind) -> bool {
         kind == FileKind::ElfObject
     }
 

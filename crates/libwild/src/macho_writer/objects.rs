@@ -1,6 +1,5 @@
 use super::*;
 use crate::bail;
-use crate::elf::get_page_mask;
 use crate::error;
 use crate::error::Context;
 use crate::error::Result;
@@ -9,9 +8,8 @@ use crate::macho::MachO;
 use crate::macho::PLT_ENTRY_SIZE;
 use crate::macho::SectionFlags;
 use crate::macho::output_section_id;
-use crate::output_trace::HexU64;
-use crate::verbose_timing_phase;
 use linker_utils::elf::RelocationKind;
+use linker_utils::elf::get_page_mask;
 use object::SymbolIndex;
 use object::macho::ARM64_RELOC_TLVP_LOAD_PAGEOFF12;
 use object::macho::RelocationInfo;
@@ -24,8 +22,10 @@ use wild_layout::ObjectLayout;
 use wild_layout::Resolution;
 use wild_layout::Section;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::output_trace::HexU64;
 use wild_layout::resolution::SectionSlot;
 use wild_layout::symbol_db::SymbolId;
+use wild_layout::verbose_timing_phase;
 use wild_platform::Arch;
 use wild_platform::ObjectFile as _;
 use wild_platform::Relaxation as _;
@@ -100,7 +100,7 @@ pub(crate) fn write_object<'data, A: Arch<Platform = MachO>>(
     verbose_timing_phase!("Write object", file_id = object.file_id.as_u32());
 
     let _span = debug_span!("write_file", filename = %object.input).entered();
-    let _file_span = crate::debug_trace::span_for_file(layout.args(), object.file_id);
+    let _file_span = wild_layout::span_for_file(layout.args(), object.file_id);
     for (i, sec) in object.sections.iter().enumerate() {
         match sec {
             SectionSlot::Loaded(sec) => {

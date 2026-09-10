@@ -16,12 +16,10 @@ use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::gdb_index::InputDebugIndexSection;
-use crate::timing_phase;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use itertools::Itertools as _;
 use leb128::write::unsigned_len as uleb128_size;
-use linker_utils::elf::PageMask;
 use linker_utils::elf::RISCV_ATTRIBUTE_VENDOR_NAME;
 use linker_utils::elf::riscvattr::TAG_RISCV_ARCH;
 use linker_utils::elf::riscvattr::TAG_RISCV_ATOMIC_ABI;
@@ -41,6 +39,7 @@ use smallvec::SmallVec;
 use std::num::NonZeroU32;
 use wild_layout as layout;
 use wild_layout::objects_iter;
+use wild_layout::timing_phase;
 use wild_platform::Arch;
 use wild_platform::ObjectFile;
 use zerocopy::FromBytes;
@@ -67,51 +66,6 @@ pub(crate) struct NoteProperty {
     pub(crate) pr_type: u32,
     pub(crate) pr_datasz: u32,
     pub(crate) pr_data: u32,
-}
-
-pub(crate) struct PageMaskValue {
-    pub(crate) symbol_plus_addend: u64,
-    pub(crate) got_entry: u64,
-    pub(crate) place: u64,
-    pub(crate) got: u64,
-}
-
-impl Default for PageMaskValue {
-    fn default() -> Self {
-        Self {
-            symbol_plus_addend: u64::MAX,
-            got_entry: u64::MAX,
-            place: u64::MAX,
-            got: u64::MAX,
-        }
-    }
-}
-
-pub(crate) fn get_page_mask(mask: Option<PageMask>) -> PageMaskValue {
-    let Some(mask) = mask else {
-        return PageMaskValue::default();
-    };
-
-    match mask {
-        PageMask::SymbolPlusAddendAndPosition(mask) => PageMaskValue {
-            symbol_plus_addend: !mask,
-            place: !mask,
-            ..Default::default()
-        },
-        PageMask::GotEntryAndPosition(mask) => PageMaskValue {
-            got_entry: !mask,
-            place: !mask,
-            ..Default::default()
-        },
-        PageMask::GotBase(mask) => PageMaskValue {
-            got: !mask,
-            ..Default::default()
-        },
-        PageMask::Position(mask) => PageMaskValue {
-            place: !mask,
-            ..Default::default()
-        },
-    }
 }
 
 pub(crate) use wild_platform::PropertyClass;

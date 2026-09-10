@@ -26,7 +26,6 @@ use crate::macho::load_dylib_command_size;
 use crate::macho::output_section_id;
 use crate::macho::output_section_id::LOAD_COMMANDS;
 use crate::macho::part_id;
-use crate::verbose_timing_phase;
 use linker_utils::utils::slice_from_all_bytes_mut;
 use object::BigEndian;
 use object::macho;
@@ -52,6 +51,7 @@ use wild_layout::OutputRecordLayout;
 use wild_layout::PreludeLayout;
 use wild_layout::output_section_id::SectionName;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::verbose_timing_phase;
 use wild_platform::EntryPoint;
 use zerocopy::FromZeros;
 

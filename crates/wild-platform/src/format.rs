@@ -194,7 +194,6 @@ pub trait Platform: Copy + Send + Sync + Sized + Default + std::fmt::Debug + 'st
     type FileWriterOutput<F: wild_fs::fs::FileSystem>;
     type LocationCounter<'data>;
     type SectionOutputInfo<'data>;
-    type FileKind;
 
     fn write_output_file<'data, A: Arch<Platform = Self>, F: FileSystem>(
         output: &Self::FileWriterOutput<F>,
@@ -242,7 +241,7 @@ pub trait Platform: Copy + Send + Sync + Sized + Default + std::fmt::Debug + 'st
     }
 
     /// Returns whether the supplied file kind is permitted in archives.
-    fn is_allowed_in_archive(_kind: Self::FileKind) -> bool {
+    fn is_allowed_in_archive(_kind: crate::FileKind) -> bool {
         false
     }
 

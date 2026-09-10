@@ -1,14 +1,11 @@
-use crate::FileSystem;
-use crate::OutputFileData;
-use crate::OutputOptions;
-use crate::args::WRITE_VERIFY_ALLOCATIONS_ENV;
-use crate::error;
-use crate::error::Context as _;
-use crate::error::Result;
+use crate::EnginePlatform;
+use crate::GroupLayout;
+use crate::Layout;
+use crate::output_section_id::OutputSectionId;
+use crate::output_section_part_map::OutputSectionPartMap;
 use crate::output_trace::TraceOutput;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
-use anyhow::anyhow;
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::ParallelIterator;
 use rayon::slice::ParallelSlice;
@@ -19,15 +16,17 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
+use wild_args::WRITE_VERIFY_ALLOCATIONS_ENV;
 use wild_error::env;
+use wild_error::error::Context as _;
+use wild_error::error::Error;
+use wild_error::error::Result;
 use wild_fs::fs::FileReplacementMode;
+use wild_fs::fs::FileSystem;
 use wild_fs::fs::FileType;
 use wild_fs::fs::FileWriteMode;
-use wild_layout::EnginePlatform;
-use wild_layout::GroupLayout;
-use wild_layout::Layout;
-use wild_layout::output_section_id::OutputSectionId;
-use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_fs::fs::OutputFileData;
+use wild_fs::fs::OutputOptions;
 use wild_platform::Args;
 use wild_platform::OutputKind;
 use wild_platform::output_section_map::OutputSectionMap;
@@ -58,15 +57,15 @@ enum FileCreator<O: OutputFileData> {
     },
 }
 
-pub(crate) struct SizedOutput<O: OutputFileData> {
-    pub(crate) out: OutputBuffer<O>,
-    pub(crate) trace: TraceOutput,
+pub struct SizedOutput<O: OutputFileData> {
+    pub out: OutputBuffer<O>,
+    pub trace: TraceOutput,
 }
 
-pub(crate) struct OutputBuffer<O: OutputFileData>(O);
+pub struct OutputBuffer<O: OutputFileData>(O);
 
 impl<O: OutputFileData> OutputBuffer<O> {
-    pub(crate) fn invalidate(&mut self, len: usize) {
+    pub fn invalidate(&mut self, len: usize) {
         self.0.invalidate(len);
     }
 
@@ -97,7 +96,7 @@ struct SectionAllocation {
 }
 
 impl<F: FileSystem> Output<F> {
-    pub(crate) fn new<P: EnginePlatform>(
+    pub fn new<P: EnginePlatform>(
         args: &P::Args,
         output_kind: OutputKind,
         file_system: Arc<F>,
@@ -130,7 +129,7 @@ impl<F: FileSystem> Output<F> {
         }
     }
 
-    pub(crate) fn set_size(&mut self, size: u64) {
+    pub fn set_size(&mut self, size: u64) {
         match &mut self.creator {
             FileCreator::Background {
                 sized_output_sender,
@@ -232,7 +231,7 @@ fn default_file_replacement_mode<P: EnginePlatform>(
     file_system: &impl FileSystem,
 ) -> FileReplacementMode {
     if args.incremental() {
-        let dir = wild_layout::incremental::incremental_state_dir(args.output());
+        let dir = crate::incremental::incremental_state_dir(args.output());
         if dir.join("inputs.txt").is_file() {
             return FileReplacementMode::UpdateInPlace;
         }
@@ -295,19 +294,15 @@ impl<O: OutputFileData> SizedOutput<O> {
     }
 }
 
-pub(crate) fn insufficient_allocation(section_name: &str) -> crate::error::Error {
-    error!(
+pub fn insufficient_allocation(section_name: &str) -> Error {
+    wild_error::error!(
         "Insufficient {section_name} allocation. {}",
         verify_allocations_message()
     )
 }
 
-pub(crate) fn excessive_allocation(
-    section_name: &str,
-    remaining: u64,
-    allocated: u64,
-) -> crate::error::Error {
-    error!(
+pub fn excessive_allocation(section_name: &str, remaining: u64, allocated: u64) -> Error {
+    wild_error::error!(
         "Allocated too much space in {section_name}. {remaining} of {allocated} bytes remain. {}",
         verify_allocations_message()
     )
@@ -315,7 +310,7 @@ pub(crate) fn excessive_allocation(
 
 /// Returns a message suggesting to set an environment variable to help debug a failure, but only if
 /// it's not already set, since that would be confusing.
-pub(crate) fn verify_allocations_message() -> String {
+pub fn verify_allocations_message() -> String {
     if env::var(WRITE_VERIFY_ALLOCATIONS_ENV).is_ok_and(|v| v == "1") {
         String::new()
     } else {
@@ -323,7 +318,7 @@ pub(crate) fn verify_allocations_message() -> String {
     }
 }
 
-pub(crate) fn split_output_by_group<'layout, 'data, 'out, P: EnginePlatform>(
+pub fn split_output_by_group<'layout, 'data, 'out, P: EnginePlatform>(
     layout: &'layout Layout<'data, P>,
     writable_buckets: &'out mut OutputSectionPartMap<&mut [u8]>,
 ) -> Vec<(
@@ -345,19 +340,19 @@ pub(crate) fn split_output_by_group<'layout, 'data, 'out, P: EnginePlatform>(
     out.into_iter().map(|pair| pair.unwrap()).collect()
 }
 
-pub(crate) struct PaddingSlice<'out> {
-    pub(crate) slice: &'out mut [u8],
-    pub(crate) parent_section_id: Option<OutputSectionId>,
-    pub(crate) file_offset: usize,
+pub struct PaddingSlice<'out> {
+    pub slice: &'out mut [u8],
+    pub parent_section_id: Option<OutputSectionId>,
+    pub file_offset: usize,
 }
 
 #[derive(Default)]
-pub(crate) struct PaddingSlices<'out> {
-    pub(crate) slices: Vec<PaddingSlice<'out>>,
+pub struct PaddingSlices<'out> {
+    pub slices: Vec<PaddingSlice<'out>>,
 }
 
 impl PaddingSlices<'_> {
-    pub(crate) fn fill_zero(&mut self) {
+    pub fn fill_zero(&mut self) {
         verbose_timing_phase!("Fill padding bytes");
 
         for pslice in &mut self.slices {
@@ -366,7 +361,7 @@ impl PaddingSlices<'_> {
     }
 }
 
-pub(crate) fn split_output_into_sections<'out, 'data, P: EnginePlatform>(
+pub fn split_output_into_sections<'out, 'data, P: EnginePlatform>(
     layout: &Layout<'data, P>,
     mut data: &'out mut [u8],
 ) -> (OutputSectionMap<&'out mut [u8]>, PaddingSlices<'out>) {
@@ -412,13 +407,13 @@ pub(crate) fn split_output_into_sections<'out, 'data, P: EnginePlatform>(
 }
 
 /// Splits the writable buffers for each segment further into separate buffers for each alignment.
-pub(crate) fn split_buffers_by_alignment<'out, 'data, P: EnginePlatform>(
+pub fn split_buffers_by_alignment<'out, 'data, P: EnginePlatform>(
     section_buffers: &'out mut OutputSectionMap<&mut [u8]>,
     layout: &Layout<'data, P>,
 ) -> OutputSectionPartMap<&'out mut [u8]> {
     timing_phase!("Split buffers by alignment");
 
-    wild_layout::output_section_part_map::output_order_map(
+    crate::output_section_part_map::output_order_map(
         &layout.section_part_layouts,
         &layout.output_order,
         &layout.output_sections,
@@ -427,7 +422,7 @@ pub(crate) fn split_buffers_by_alignment<'out, 'data, P: EnginePlatform>(
                 .get_mut(part_id.output_section_id::<P>())
                 .split_off_mut(..rec.file_size)
                 .ok_or_else(|| {
-                    anyhow!(
+                    wild_error::error!(
                         "Failed to take {} bytes for section {} with alignment {}",
                         rec.file_size,
                         layout
@@ -461,9 +456,9 @@ fn write_layout_to<'data, P: EnginePlatform>(
 ///
 /// Small sections are copied with a single `copy_from_slice` call. Large sections may be split
 /// into chunks and copied in parallel on multiple threads.
-pub(crate) fn copy_section_data(data: &[u8], out: &mut [u8]) {
+pub fn copy_section_data(data: &[u8], out: &mut [u8]) {
     /// Threshold size for using parallel copy for section data copying.
-    pub(crate) const SECTION_PAR_COPY_SIZE_THRESHOLD: usize = 1_000_000;
+    const SECTION_PAR_COPY_SIZE_THRESHOLD: usize = 1_000_000;
 
     if data.len() >= SECTION_PAR_COPY_SIZE_THRESHOLD {
         let threads = rayon::current_num_threads();

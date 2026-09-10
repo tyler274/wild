@@ -3,8 +3,6 @@ use crate::bail;
 use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
 use crate::wasm::WASM_DEAD_INDEX;
 use crate::wasm::Wasm;
 use crate::wasm::gc::*;
@@ -19,6 +17,8 @@ use wasmparser::RelocationType;
 use wild_layout::symbol::UnversionedSymbolName;
 use wild_layout::symbol_db::SymbolDb;
 use wild_layout::symbol_db::SymbolId;
+use wild_layout::timing_phase;
+use wild_layout::verbose_timing_phase;
 use wild_platform::Args as _;
 
 /// Synthetic function produced for an unresolved weak function import.

@@ -3,10 +3,6 @@ use crate::bail;
 use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::file_writer::SizedOutput;
-use crate::file_writer::split_output_into_sections;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
 use crate::wasm::WASM_MAGIC;
 use crate::wasm::WASM_VERSION;
 use crate::wasm::Wasm;
@@ -37,6 +33,10 @@ use wasm_encoder::MemorySection;
 use wasm_encoder::TableSection;
 use wasm_encoder::TypeSection;
 use wild_layout::Layout;
+use wild_layout::file_writer::SizedOutput;
+use wild_layout::file_writer::split_output_into_sections;
+use wild_layout::timing_phase;
+use wild_layout::verbose_timing_phase;
 use wild_platform::Arch;
 
 fn apply_resolved_reloc(

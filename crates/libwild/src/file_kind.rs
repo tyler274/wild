@@ -1,4 +1,7 @@
-//! Code for identifying what sort of file we're dealing with based on the bytes of the file.
+//! Sniffs file bytes to identify what sort of file we're dealing with.
+//!
+//! The `FileKind` enum lives in `wild-platform` so format crates can name it without depending on
+//! this crate. Identification stays here because it parses ELF headers.
 
 use crate::bail;
 use crate::elf;
@@ -11,89 +14,64 @@ use object::macho;
 use object::read::elf::FileHeader;
 use object::read::elf::SectionHeader;
 use object::read::macho::MachHeader;
+pub(crate) use wild_platform::FileKind;
 use zerocopy::IntoBytes;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub(crate) enum FileKind {
-    ElfObject,
-    ElfDynamic,
-    MachOObject,
-    MachODylib,
-    FatMachOObject,
-    MachOStubLibrary,
-    WasmObject,
-    Archive,
-    ThinArchive,
-    Text,
-    LlvmIr,
-    GccIr,
-}
-
-impl FileKind {
-    pub(crate) fn identify_bytes(bytes: &[u8]) -> Result<FileKind> {
-        if bytes.starts_with(&object::archive::MAGIC) {
-            Ok(FileKind::Archive)
-        } else if bytes.starts_with(&object::archive::THIN_MAGIC) {
-            Ok(FileKind::ThinArchive)
-        } else if bytes.starts_with(&object::elf::ELFMAG) {
-            const HEADER_LEN: usize = size_of::<elf::FileHeader64>();
-            if bytes.len() < HEADER_LEN {
-                bail!("Invalid ELF file");
-            }
-            let header: &elf::FileHeader64 = object::from_bytes(&bytes[..HEADER_LEN]).unwrap().0;
-            ensure!(
-                header.e_ident.class == object::elf::ELFCLASS64,
-                "Only 64 bit ELF is currently supported"
-            );
-            ensure!(
-                header.e_ident.data == object::elf::ELFDATA2LSB,
-                "Only little endian is currently supported"
-            );
-
-            match header.e_type.get(LittleEndian) {
-                object::elf::ET_REL => {
-                    if is_gcc_bitcode(bytes, header).unwrap_or(false) {
-                        Ok(FileKind::GccIr)
-                    } else if is_llvm_bitcode(bytes, header).unwrap_or(false) {
-                        Ok(FileKind::LlvmIr)
-                    } else {
-                        Ok(FileKind::ElfObject)
-                    }
-                }
-                object::elf::ET_DYN => Ok(FileKind::ElfDynamic),
-                t => bail!("Unsupported ELF kind {t}"),
-            }
-        } else if bytes.starts_with(macho::MH_MAGIC_64.as_bytes())
-            || bytes.starts_with(&macho::MH_MAGIC_64.to_be_bytes())
-        {
-            determine_macho_kind(bytes)
-        } else if bytes.starts_with(b"\0asm") {
-            // Wasm binary magic number is `\0asm` followed by a 4-byte version.
-            ensure!(bytes.len() >= 8, "Invalid Wasm file (too short)");
-            Ok(FileKind::WasmObject)
-        } else if bytes.starts_with(&macho::FAT_MAGIC.to_be_bytes())
-            || bytes.starts_with(&macho::FAT_MAGIC_64.to_be_bytes())
-        {
-            Ok(FileKind::FatMachOObject)
-        } else if bytes.starts_with(b"--- !tapi-tbd") || bytes.starts_with(b"tbd-version:") {
-            Ok(FileKind::MachOStubLibrary)
-        } else if bytes.is_ascii() {
-            Ok(FileKind::Text)
-        } else if bytes.starts_with(b"BC") {
-            Ok(FileKind::LlvmIr)
-        } else if let Some(start) = bytes.get(..4) {
-            bail!("Couldn't identify file type starting with {start:x?}");
-        } else {
-            bail!("Input file is only {} bytes", bytes.len());
+pub(crate) fn identify_bytes(bytes: &[u8]) -> Result<FileKind> {
+    if bytes.starts_with(&object::archive::MAGIC) {
+        Ok(FileKind::Archive)
+    } else if bytes.starts_with(&object::archive::THIN_MAGIC) {
+        Ok(FileKind::ThinArchive)
+    } else if bytes.starts_with(&object::elf::ELFMAG) {
+        const HEADER_LEN: usize = size_of::<elf::FileHeader64>();
+        if bytes.len() < HEADER_LEN {
+            bail!("Invalid ELF file");
         }
-    }
+        let header: &elf::FileHeader64 = object::from_bytes(&bytes[..HEADER_LEN]).unwrap().0;
+        ensure!(
+            header.e_ident.class == object::elf::ELFCLASS64,
+            "Only 64 bit ELF is currently supported"
+        );
+        ensure!(
+            header.e_ident.data == object::elf::ELFDATA2LSB,
+            "Only little endian is currently supported"
+        );
 
-    pub(crate) fn is_compiler_ir(self) -> bool {
-        matches!(self, FileKind::LlvmIr | FileKind::GccIr)
-    }
-
-    pub(crate) fn is_dynamic(self) -> bool {
-        matches!(self, FileKind::ElfDynamic | FileKind::MachODylib)
+        match header.e_type.get(LittleEndian) {
+            object::elf::ET_REL => {
+                if is_gcc_bitcode(bytes, header).unwrap_or(false) {
+                    Ok(FileKind::GccIr)
+                } else if is_llvm_bitcode(bytes, header).unwrap_or(false) {
+                    Ok(FileKind::LlvmIr)
+                } else {
+                    Ok(FileKind::ElfObject)
+                }
+            }
+            object::elf::ET_DYN => Ok(FileKind::ElfDynamic),
+            t => bail!("Unsupported ELF kind {t}"),
+        }
+    } else if bytes.starts_with(macho::MH_MAGIC_64.as_bytes())
+        || bytes.starts_with(&macho::MH_MAGIC_64.to_be_bytes())
+    {
+        determine_macho_kind(bytes)
+    } else if bytes.starts_with(b"\0asm") {
+        // Wasm binary magic number is `\0asm` followed by a 4-byte version.
+        ensure!(bytes.len() >= 8, "Invalid Wasm file (too short)");
+        Ok(FileKind::WasmObject)
+    } else if bytes.starts_with(&macho::FAT_MAGIC.to_be_bytes())
+        || bytes.starts_with(&macho::FAT_MAGIC_64.to_be_bytes())
+    {
+        Ok(FileKind::FatMachOObject)
+    } else if bytes.starts_with(b"--- !tapi-tbd") || bytes.starts_with(b"tbd-version:") {
+        Ok(FileKind::MachOStubLibrary)
+    } else if bytes.is_ascii() {
+        Ok(FileKind::Text)
+    } else if bytes.starts_with(b"BC") {
+        Ok(FileKind::LlvmIr)
+    } else if let Some(start) = bytes.get(..4) {
+        bail!("Couldn't identify file type starting with {start:x?}");
+    } else {
+        bail!("Input file is only {} bytes", bytes.len());
     }
 }
 
@@ -157,24 +135,4 @@ fn is_llvm_bitcode(data: &[u8], header: &crate::elf::FileHeader64) -> Option<boo
     let e = LittleEndian;
     let section_headers = header.section_headers(e, data).ok()?;
     Some(section_headers.iter().any(|s| s.sh_type(e) == SHT_LLVM_LTO))
-}
-
-impl std::fmt::Display for FileKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            FileKind::ElfObject => "ELF object",
-            FileKind::ElfDynamic => "ELF dynamic",
-            FileKind::MachOObject => "Mach-O object",
-            FileKind::MachODylib => "Mach-O dylib",
-            FileKind::WasmObject => "Wasm object",
-            FileKind::FatMachOObject => "Fat Mach-O object",
-            FileKind::MachOStubLibrary => "Mach-O TBD library",
-            FileKind::Archive => "archive",
-            FileKind::ThinArchive => "thin archive",
-            FileKind::Text => "text",
-            FileKind::LlvmIr => "LLVM-IR",
-            FileKind::GccIr => "GCC-IR",
-        };
-        std::fmt::Display::fmt(s, f)
-    }
 }

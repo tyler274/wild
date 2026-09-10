@@ -5,8 +5,6 @@ use super::*;
 use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
 use crate::wasm::LINKER_MEMORY_BASE;
 use crate::wasm::WASM_DEAD_INDEX;
 use crate::wasm::Wasm;
@@ -24,6 +22,8 @@ pub(crate) use memory::*;
 use rayon::prelude::*;
 use wild_layout as layout;
 use wild_layout::symbol_db::SymbolDb;
+use wild_layout::timing_phase;
+use wild_layout::verbose_timing_phase;
 
 pub(crate) fn build_output_module_layout<'data, 'files>(
     groups: &'files mut [layout::GroupState<'data, Wasm>],

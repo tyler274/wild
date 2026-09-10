@@ -32,8 +32,8 @@ use wild_platform::Args;
 use wild_platform::Platform;
 use wild_scripts::linker_script::LinkerScript;
 
-pub(crate) trait LoadPlatform: EnginePlatform + Platform<FileKind = FileKind> {}
-impl<P: EnginePlatform + Platform<FileKind = FileKind>> LoadPlatform for P {}
+pub(crate) trait LoadPlatform: EnginePlatform {}
+impl<P: EnginePlatform> LoadPlatform for P {}
 use colosseum::sync::Arena;
 use crossbeam_queue::SegQueue;
 use hashbrown::HashMap;
@@ -441,7 +441,7 @@ fn process_archive<'data, P: LoadPlatform, F: FileSystem>(
                 let start_offset = archive_entry.data_offset;
                 let end_offset = archive_entry.data_offset + archive_entry.entry_data.len();
                 let member_data = &archive_data[start_offset..end_offset];
-                let kind = FileKind::identify_bytes(member_data).with_context(|| {
+                let kind = crate::file_kind::identify_bytes(member_data).with_context(|| {
                     format!(
                         "Failed process input `{}` in archive `{}`",
                         archive_entry.ident.as_path().display(),
@@ -521,7 +521,7 @@ fn process_thin_archive<'data, P: LoadPlatform, F: FileSystem>(
                 entry: None,
             };
 
-            let kind = FileKind::identify_bytes(input_ref.data())
+            let kind = crate::file_kind::identify_bytes(input_ref.data())
                 .with_context(|| format!("Failed process input `{input_ref}`"))?;
 
             let parsed = state.process_input(input_ref, file.as_ref(), kind)?;
@@ -548,7 +548,7 @@ fn process_fat_macho_object<'data, P: LoadPlatform, F: FileSystem>(
     let data = select_fat_entry_for_cpu_type(input_ref.data(), object::macho::CPU_TYPE_ARM64)
         .with_context(|| format!("Failed to parse FAT object {input_ref}"))?;
 
-    let kind = FileKind::identify_bytes(data).context("Unrecognised entry in FAT file")?;
+    let kind = crate::file_kind::identify_bytes(data).context("Unrecognised entry in FAT file")?;
 
     let input_ref = InputRef {
         file: input_ref.file,
@@ -616,7 +616,7 @@ impl<'data, P: LoadPlatform, F: FileSystem> TemporaryState<'data, P, F> {
             entry: None,
         };
 
-        let kind = FileKind::identify_bytes(input_ref.data())
+        let kind = crate::file_kind::identify_bytes(input_ref.data())
             .with_context(|| format!("Failed to identify {input_ref}"))?;
 
         match kind {

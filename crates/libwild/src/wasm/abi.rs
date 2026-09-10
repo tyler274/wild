@@ -590,13 +590,12 @@ impl platform::Platform for Wasm {
     type OutputSections<'data> = wild_layout::output_section_id::OutputSections<'data, Self>;
     type OutputOrder<'data> = wild_layout::output_section_id::OutputOrder<'data>;
     type CustomSectionIds = wild_layout::output_section_id::CustomSectionIds;
-    type FileWriterOutput<F: wild_fs::fs::FileSystem> = crate::file_writer::Output<F>;
+    type FileWriterOutput<F: wild_fs::fs::FileSystem> = wild_layout::file_writer::Output<F>;
     type LocationCounter<'data> = wild_layout::layout_rules::LocationCounter<'data>;
     type SectionOutputInfo<'data> = wild_layout::output_section_id::SectionOutputInfo<'data, Self>;
-    type FileKind = crate::file_kind::FileKind;
 
     fn write_output_file<'data, A: platform::Arch<Platform = Self>, F: FileSystem>(
-        output: &crate::file_writer::Output<F>,
+        output: &wild_layout::file_writer::Output<F>,
         layout: &wild_layout::Layout<'data, Self>,
     ) -> crate::error::Result {
         output.write(layout, crate::wasm_writer::write::<A>)
@@ -1160,8 +1159,8 @@ impl platform::Platform for Wasm {
         WasmSymbol::default()
     }
 
-    fn is_allowed_in_archive(kind: crate::file_kind::FileKind) -> bool {
-        kind == crate::file_kind::FileKind::WasmObject
+    fn is_allowed_in_archive(kind: wild_platform::FileKind) -> bool {
+        kind == wild_platform::FileKind::WasmObject
     }
 
     fn section_identity<'data>(
