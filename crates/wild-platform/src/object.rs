@@ -8,17 +8,18 @@ use std::num::NonZeroU32;
 use std::ops::Range;
 use std::path::PathBuf;
 use wild_error::error::Result;
+use wild_util::alignment::Alignment;
 
 /// Symbol visibility. Lives here so `platform/` does not import `symbol_db`.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Visibility {
+pub enum Visibility {
     Default,
     Protected,
     Hidden,
 }
 
 /// Abstracts over the different object file formats that we support (or may support). e.g. ELF.
-pub(crate) trait ObjectFile<'data>: Sized + Send + Sync + std::fmt::Debug + 'data {
+pub trait ObjectFile<'data>: Sized + Send + Sync + std::fmt::Debug + 'data {
     type Platform: Platform<File<'data> = Self>;
 
     fn parse_bytes(input: &'data [u8], is_dynamic: bool) -> Result<Self>;
@@ -213,7 +214,7 @@ pub(crate) trait ObjectFile<'data>: Sized + Send + Sync + std::fmt::Debug + 'dat
     fn dynamic_tags(&self) -> Result<&'data [<Self::Platform as Platform>::DynamicEntry]>;
 }
 
-pub(crate) trait SectionHeader: std::fmt::Debug + Send + Sync + 'static {
+pub trait SectionHeader: std::fmt::Debug + Send + Sync + 'static {
     fn is_alloc(&self) -> bool;
 
     fn is_writable(&self) -> bool;
@@ -269,27 +270,20 @@ pub(crate) trait SectionHeader: std::fmt::Debug + Send + Sync + 'static {
     }
 }
 
-pub(crate) trait SectionType:
-    Default + Copy + Send + Sync + std::fmt::Debug + 'static
-{
+pub trait SectionType: Default + Copy + Send + Sync + std::fmt::Debug + 'static {
     fn is_rela(&self) -> bool;
     fn is_rel(&self) -> bool;
     fn is_symtab(&self) -> bool;
     fn is_strtab(&self) -> bool;
 }
 
-pub(crate) trait SegmentType:
-    Default + Copy + Send + Sync + std::fmt::Debug + 'static
-{
-}
+pub trait SegmentType: Default + Copy + Send + Sync + std::fmt::Debug + 'static {}
 
-pub(crate) trait SectionFlags:
-    Default + Copy + std::fmt::Debug + Send + Sync + 'static
-{
+pub trait SectionFlags: Default + Copy + std::fmt::Debug + Send + Sync + 'static {
     fn is_alloc(self) -> bool;
 }
 
-pub(crate) trait Symbol: std::fmt::Debug + Copy + Send + Sync + 'static {
+pub trait Symbol: std::fmt::Debug + Copy + Send + Sync + 'static {
     /// Returns information about the symbol if it's a common symbol. Platforms that don't have
     /// common symbols can just return None.
     fn as_common(&self) -> Option<CommonSymbol>;
@@ -338,12 +332,25 @@ pub(crate) trait Symbol: std::fmt::Debug + Copy + Send + Sync + 'static {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct CommonSymbol {
-    pub(crate) size: u64,
-    pub(crate) part_id: PartId,
+pub struct CommonSymbol {
+    pub size: u64,
+    pub alignment: Alignment,
+    pub is_tls: bool,
 }
 
-pub(crate) trait Relocation: Send + Sync + Copy + 'static {
+impl CommonSymbol {
+    pub fn part_id<P: Platform>(self) -> PartId {
+        let section_id = if self.is_tls {
+            P::TBSS_SECTION_ID
+        } else {
+            P::BSS_SECTION_ID
+        }
+        .expect("common symbols require BSS/TBSS section IDs");
+        section_id.part_id_with_alignment::<P>(self.alignment)
+    }
+}
+
+pub trait Relocation: Send + Sync + Copy + 'static {
     type Sequence<'data>: RelocationSequence<'data, Rel = Self>;
     type Platform: Platform;
 
@@ -356,7 +363,7 @@ pub(crate) trait Relocation: Send + Sync + Copy + 'static {
     fn addend(&self) -> i64;
 }
 
-pub(crate) trait RelocationSequence<'data> {
+pub trait RelocationSequence<'data> {
     type Rel: Relocation;
 
     fn rel_iter(&self) -> impl Iterator<Item = Self::Rel>;
@@ -364,11 +371,11 @@ pub(crate) trait RelocationSequence<'data> {
     fn num_relocations(&self) -> usize;
 }
 
-pub(crate) trait RelocationList<'data>: Send + Sync + 'data {
+pub trait RelocationList<'data>: Send + Sync + 'data {
     fn num_relocations(&self) -> usize;
 }
 
-pub(crate) trait RawSymbolName<'data>: Send + Sync + std::fmt::Display + 'data {
+pub trait RawSymbolName<'data>: Send + Sync + std::fmt::Display + 'data {
     fn parse(bytes: &'data [u8]) -> Self;
 
     fn name(&self) -> &'data [u8];
@@ -378,21 +385,19 @@ pub(crate) trait RawSymbolName<'data>: Send + Sync + std::fmt::Display + 'data {
     fn is_default(&self) -> bool;
 }
 
-pub(crate) trait VerneedTable<'data>: Send + Sync + 'data {
+pub trait VerneedTable<'data>: Send + Sync + 'data {
     fn version_name(&self, local_symbol_index: object::SymbolIndex) -> Option<&'data [u8]>;
 }
 
-pub(crate) trait DynamicTagValues<'data>: std::fmt::Debug + Send + Sync + 'data {
+pub trait DynamicTagValues<'data>: std::fmt::Debug + Send + Sync + 'data {
     fn lib_name(&self, fallback_name: &'data [u8]) -> &'data [u8];
 }
 
-pub(crate) trait NonAddressableIndexes: Send + Sync + 'static {
+pub trait NonAddressableIndexes: Send + Sync + 'static {
     fn new<P: Platform>(symbol_db: &P::SymbolDb<'_>) -> Self;
 }
 
-pub(crate) trait SectionAttributes:
-    std::fmt::Debug + Default + Send + Sync + Copy + 'static
-{
+pub trait SectionAttributes: std::fmt::Debug + Default + Send + Sync + Copy + 'static {
     type Platform: Platform;
 
     fn merge(&mut self, rhs: Self);
@@ -443,30 +448,40 @@ pub(crate) trait SectionAttributes:
     }
 }
 
-pub(crate) struct SourceInfo(pub(crate) Option<SourceInfoDetails>);
+pub struct SourceInfo(pub Option<SourceInfoDetails>);
 
 #[derive(Debug)]
-pub(crate) struct SourceInfoDetails {
-    pub(crate) path: PathBuf,
-    pub(crate) line: u64,
+pub struct SourceInfoDetails {
+    pub path: PathBuf,
+    pub line: u64,
 }
 
 /// An index into the exception frames for an object. Interpretation of the value is up to the
 /// platform.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct FrameIndex(NonZeroU32);
+pub struct FrameIndex(NonZeroU32);
+
+impl Display for SourceInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(details) = self.0.as_ref() {
+            let SourceInfoDetails { path, line } = details;
+            write!(f, "\n    {}:{}", path.display(), line)?;
+        }
+        Ok(())
+    }
+}
 
 impl FrameIndex {
-    pub(crate) fn from_usize(raw: usize) -> Self {
+    pub fn from_usize(raw: usize) -> Self {
         Self(NonZeroU32::new(raw as u32 + 1).unwrap())
     }
 
-    pub(crate) fn as_usize(self) -> usize {
+    pub fn as_usize(self) -> usize {
         self.0.get() as usize - 1
     }
 }
 
-pub(crate) trait ProgramSegmentDef: Copy + Send + Sync + Display + 'static {
+pub trait ProgramSegmentDef: Copy + Send + Sync + Display + 'static {
     fn is_writable(self) -> bool;
 
     fn is_executable(self) -> bool;
@@ -493,4 +508,4 @@ pub(crate) trait ProgramSegmentDef: Copy + Send + Sync + Display + 'static {
     }
 }
 
-pub(crate) trait BuiltInSectionDetails: Send + Sync + 'static {}
+pub trait BuiltInSectionDetails: Send + Sync + 'static {}

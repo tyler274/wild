@@ -27,9 +27,7 @@ use wild_scripts::linker_script;
 use wild_util::alignment::Alignment;
 
 /// A platform for which we support writing producing linked outputs.
-pub(crate) trait Platform:
-    Copy + Send + Sync + Sized + Default + std::fmt::Debug + 'static
-{
+pub trait Platform: Copy + Send + Sync + Sized + Default + std::fmt::Debug + 'static {
     const NUM_SINGLE_PART_SECTIONS: u32;
     const NUM_BUILT_IN_REGULAR_SECTIONS: usize;
 

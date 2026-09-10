@@ -28,20 +28,18 @@ pub(crate) struct SectionRules<'data> {
     pub(crate) rules: HashTable<SectionRule<'data>>,
 }
 
-impl SectionRuleOutcome {
-    pub(crate) fn section_rule_from_id<P: EnginePlatform>(
-        section_id: OutputSectionId,
-        output_info: SectionOutputInfo,
-    ) -> SectionRuleOutcome {
-        if Some(section_id) == P::EH_FRAME_SECTION_ID {
-            SectionRuleOutcome::EhFrame
-        } else if Some(section_id) == P::NOTE_GNU_PROPERTY_SECTION_ID {
-            SectionRuleOutcome::NoteGnuProperty
-        } else if Some(section_id) == P::RISCV_ATTRIBUTES_SECTION_ID {
-            SectionRuleOutcome::RiscVAttribute
-        } else {
-            SectionRuleOutcome::Section(output_info)
-        }
+pub(crate) fn section_rule_from_id<P: EnginePlatform>(
+    section_id: OutputSectionId,
+    output_info: SectionOutputInfo,
+) -> SectionRuleOutcome {
+    if Some(section_id) == P::EH_FRAME_SECTION_ID {
+        SectionRuleOutcome::EhFrame
+    } else if Some(section_id) == P::NOTE_GNU_PROPERTY_SECTION_ID {
+        SectionRuleOutcome::NoteGnuProperty
+    } else if Some(section_id) == P::RISCV_ATTRIBUTES_SECTION_ID {
+        SectionRuleOutcome::RiscVAttribute
+    } else {
+        SectionRuleOutcome::Section(output_info)
     }
 }
 

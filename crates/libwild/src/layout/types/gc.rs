@@ -131,7 +131,7 @@ impl<'data, P: EnginePlatform> SymbolRequestHandler<'data, P> for ObjectLayoutSt
                     gc_unit,
                 )));
         } else if let Some(common_symbol) = local_symbol.as_common() {
-            common.allocate(common_symbol.part_id, common_symbol.size);
+            common.allocate(common_symbol.part_id::<P>(), common_symbol.size);
         }
 
         Ok(())

@@ -677,7 +677,8 @@ pub(crate) fn verify_resolution_allocation<C: ElfClass, A: Arch<Platform = elf::
     // Allocate however much space was requested.
 
     let mut total_bytes_allocated = 0;
-    mem_sizes.output_order_map(
+    crate::output_section_part_map::output_order_map(
+        mem_sizes,
         output_order,
         output_sections,
         |_part_id, alignment, &size| {
@@ -688,7 +689,8 @@ pub(crate) fn verify_resolution_allocation<C: ElfClass, A: Arch<Platform = elf::
     let mut all_mem = vec![0_u64; total_bytes_allocated as usize / size_of::<u64>()];
     let mut all_mem: &mut [u8] = transmute_mut!(all_mem.as_mut_slice());
     let mut offset = 0;
-    let mut buffers = mem_sizes.output_order_map(
+    let mut buffers = crate::output_section_part_map::output_order_map(
+        mem_sizes,
         output_order,
         output_sections,
         |_part_id, alignment, &size| {

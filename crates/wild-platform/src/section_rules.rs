@@ -11,7 +11,7 @@ use wild_util::glob_match::unescape_pattern;
 
 /// Determines how a section name pattern is matched against input section names.
 #[derive(Debug, Clone)]
-pub(crate) enum SectionNameMatcher<'data> {
+pub enum SectionNameMatcher<'data> {
     /// Matches sections whose name is exactly equal to the stored bytes.
     Exact(Cow<'data, [u8]>),
 
@@ -24,7 +24,7 @@ pub(crate) enum SectionNameMatcher<'data> {
 }
 
 impl<'data> SectionNameMatcher<'data> {
-    pub(crate) fn prefix_bytes(&self) -> &[u8] {
+    pub fn prefix_bytes(&self) -> &[u8] {
         match self {
             Self::Exact(n) => n.as_ref(),
             Self::Prefix(n) | Self::Glob(n, _) => n,
@@ -34,7 +34,7 @@ impl<'data> SectionNameMatcher<'data> {
 
 /// What should be done with a particular input section.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SectionRuleOutcome {
+pub enum SectionRuleOutcome {
     Section(SectionOutputInfo),
     Discard,
     Custom,
@@ -48,19 +48,19 @@ pub(crate) enum SectionRuleOutcome {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct SectionOutputInfo {
-    pub(crate) section_id: OutputSectionId,
-    pub(crate) must_keep: bool,
-    pub(crate) sorted: bool,
-    pub(crate) sort_by_init_priority: bool,
-    pub(crate) sort_by_alignment: bool,
+pub struct SectionOutputInfo {
+    pub section_id: OutputSectionId,
+    pub must_keep: bool,
+    pub sorted: bool,
+    pub sort_by_init_priority: bool,
+    pub sort_by_alignment: bool,
     /// GNU ld default for script matchers without `SORT*`: input order, each input
     /// aligned to its own `sh_addralign`.
-    pub(crate) input_order: bool,
+    pub input_order: bool,
 }
 
 impl SectionOutputInfo {
-    pub(crate) const fn regular(section_id: OutputSectionId) -> Self {
+    pub const fn regular(section_id: OutputSectionId) -> Self {
         Self {
             section_id,
             must_keep: false,
@@ -71,7 +71,7 @@ impl SectionOutputInfo {
         }
     }
 
-    pub(crate) const fn keep(section_id: OutputSectionId) -> Self {
+    pub const fn keep(section_id: OutputSectionId) -> Self {
         Self {
             section_id,
             must_keep: true,
@@ -85,9 +85,9 @@ impl SectionOutputInfo {
 
 /// A rule for determining what should be done with some input sections.
 #[derive(Debug, Clone)]
-pub(crate) struct SectionRule<'data> {
+pub struct SectionRule<'data> {
     /// Determine how the section rule matches against input section names.
-    pub(crate) name_matcher: SectionNameMatcher<'data>,
+    pub name_matcher: SectionNameMatcher<'data>,
 
     /// Pre-compiled glob pattern for matching input filenames. `None` means the rule matches all
     /// files.
@@ -97,17 +97,17 @@ pub(crate) struct SectionRule<'data> {
     exclude_file_patterns: Vec<Pattern>,
 
     /// What to do if the rule matches.
-    pub(crate) outcome: SectionRuleOutcome,
+    pub outcome: SectionRuleOutcome,
 
     /// GNU `ONLY_IF_RO` / `ONLY_IF_RW` on the output section this rule feeds.
-    pub(crate) only_if: Option<OnlyIf>,
+    pub only_if: Option<OnlyIf>,
 
     /// Output section used to group an `ONLY_IF_RO` copy with its `ONLY_IF_RW` pair.
-    pub(crate) only_if_section_id: Option<OutputSectionId>,
+    pub only_if_section_id: Option<OutputSectionId>,
 }
 
 impl<'data> SectionRule<'data> {
-    pub(crate) fn new(
+    pub fn new(
         pattern: &'data [u8],
         input_file_pattern: Option<&'data [u8]>,
         outcome: SectionRuleOutcome,
@@ -139,11 +139,7 @@ impl<'data> SectionRule<'data> {
         })
     }
 
-    pub(crate) fn with_only_if(
-        mut self,
-        only_if: Option<OnlyIf>,
-        section_id: OutputSectionId,
-    ) -> Self {
+    pub fn with_only_if(mut self, only_if: Option<OnlyIf>, section_id: OutputSectionId) -> Self {
         self.only_if = only_if;
         if only_if.is_some() {
             self.only_if_section_id = Some(section_id);
@@ -151,7 +147,7 @@ impl<'data> SectionRule<'data> {
         self
     }
 
-    pub(crate) fn with_excludes(mut self, patterns: &[&'data [u8]]) -> Result<Self> {
+    pub fn with_excludes(mut self, patterns: &[&'data [u8]]) -> Result<Self> {
         self.exclude_file_patterns = patterns
             .iter()
             .map(|pattern| compile_glob_pattern(pattern).map_err(|e| wild_error::error!("{e}")))
@@ -160,7 +156,7 @@ impl<'data> SectionRule<'data> {
     }
 
     #[inline(always)]
-    pub(crate) fn matches(&self, section_name: &[u8], file_name: Option<&[u8]>) -> bool {
+    pub fn matches(&self, section_name: &[u8], file_name: Option<&[u8]>) -> bool {
         let section_matches = match &self.name_matcher {
             SectionNameMatcher::Exact(name) => section_name == name.as_ref(),
             SectionNameMatcher::Prefix(prefix) => section_name.starts_with(prefix),
@@ -209,7 +205,7 @@ impl<'data> SectionRule<'data> {
             .any(|pattern| pattern.matches(name_str))
     }
 
-    pub(crate) const fn exact_section(
+    pub const fn exact_section(
         name: &'data [u8],
         section_id: OutputSectionId,
     ) -> SectionRule<'data> {
@@ -219,7 +215,7 @@ impl<'data> SectionRule<'data> {
         )
     }
 
-    pub(crate) const fn exact_section_keep(
+    pub const fn exact_section_keep(
         name: &'data [u8],
         section_id: OutputSectionId,
     ) -> SectionRule<'data> {
@@ -229,7 +225,7 @@ impl<'data> SectionRule<'data> {
         )
     }
 
-    pub(crate) const fn prefix_section(
+    pub const fn prefix_section(
         name: &'data [u8],
         section_id: OutputSectionId,
     ) -> SectionRule<'data> {
@@ -239,7 +235,7 @@ impl<'data> SectionRule<'data> {
         )
     }
 
-    pub(crate) const fn prefix_section_sort(
+    pub const fn prefix_section_sort(
         name: &'data [u8],
         section_id: OutputSectionId,
     ) -> SectionRule<'data> {
@@ -253,10 +249,7 @@ impl<'data> SectionRule<'data> {
         }
     }
 
-    pub(crate) const fn exact(
-        name: &'data [u8],
-        outcome: SectionRuleOutcome,
-    ) -> SectionRule<'data> {
+    pub const fn exact(name: &'data [u8], outcome: SectionRuleOutcome) -> SectionRule<'data> {
         SectionRule {
             name_matcher: SectionNameMatcher::Exact(Cow::Borrowed(name)),
             input_file_pattern: None,
@@ -267,10 +260,7 @@ impl<'data> SectionRule<'data> {
         }
     }
 
-    pub(crate) const fn prefix(
-        name: &'data [u8],
-        outcome: SectionRuleOutcome,
-    ) -> SectionRule<'data> {
+    pub const fn prefix(name: &'data [u8], outcome: SectionRuleOutcome) -> SectionRule<'data> {
         SectionRule {
             name_matcher: SectionNameMatcher::Prefix(name),
             input_file_pattern: None,
@@ -281,7 +271,7 @@ impl<'data> SectionRule<'data> {
         }
     }
 
-    pub(crate) fn allows_only_if(&self, writable_sections: &HashSet<OutputSectionId>) -> bool {
+    pub fn allows_only_if(&self, writable_sections: &HashSet<OutputSectionId>) -> bool {
         match self.only_if {
             None => true,
             Some(OnlyIf::Ro) => !self

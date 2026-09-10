@@ -65,6 +65,7 @@ pub(crate) trait WritableSymbol {
         symbol_type: object::elf::SymbolType,
     );
     fn set_other(&mut self, value: object::elf::SymbolOther);
+    #[allow(dead_code)]
     fn set_visibility(&mut self, value: object::elf::SymbolVisibility);
     fn set_section(&mut self, value: object::elf::SymbolSection);
     fn set_value(&mut self, value: u64) -> Result;

@@ -319,7 +319,11 @@ pub(crate) fn compute_layout_sections<'data, P: EnginePlatform>(
                 }
 
                 let part_id_range = section_id.part_id_range::<P>();
-                let max_alignment = sizes.max_alignment(part_id_range.clone(), output_sections);
+                let max_alignment = crate::output_section_part_map::max_alignment(
+                    sizes,
+                    part_id_range.clone(),
+                    output_sections,
+                );
                 let overlay = section_info
                     .location_info
                     .as_ref()
@@ -749,7 +753,8 @@ fn next_allocated_section_metrics<'data, P: EnginePlatform>(
         if size == 0 {
             continue;
         }
-        let mut align = sizes.max_alignment(range, output_sections);
+        let mut align =
+            crate::output_section_part_map::max_alignment(sizes, range, output_sections);
         if let Some(&max_input_align) = input_order_max_align.get(&section_id) {
             align = align.max(max_input_align);
         }

@@ -21,7 +21,6 @@ use object::read::elf::RelocationSections;
 use object::read::elf::SectionHeader as _;
 use object::read::elf::Sym as _;
 use std::borrow::Cow;
-use std::fmt::Display;
 use std::path::PathBuf;
 
 /// The address at which we'll pretend that we loaded the section we're interested in. This value is
@@ -190,14 +189,4 @@ fn apply_section_relocations<
         r_type.write_to_buffer(new_value, rel_out)?;
     }
     Ok(())
-}
-
-impl Display for SourceInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(details) = self.0.as_ref() {
-            let SourceInfoDetails { path, line } = details;
-            write!(f, "\n    {}:{}", path.display(), line)?;
-        }
-        Ok(())
-    }
 }

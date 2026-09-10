@@ -1,5 +1,6 @@
 pub use args::Args;
 pub(crate) use wild_fs::archive;
+pub(crate) use wild_platform as platform;
 pub(crate) use wild_util::alignment;
 pub(crate) use wild_util::arch;
 pub mod args;
@@ -24,8 +25,6 @@ pub(crate) mod file_writer;
 pub(crate) use wild_fs::fs;
 pub(crate) mod gc_stats;
 pub(crate) mod gdb_index;
-#[allow(unused_imports)]
-pub(crate) use wild_util::glob_match;
 pub(crate) mod grouping;
 pub(crate) use wild_util::hash;
 pub(crate) mod incremental;
@@ -49,6 +48,7 @@ pub use wild_error::ensure;
 pub use wild_error::malfunction;
 pub use wild_error::malfunction_point_ret;
 pub(crate) mod output_kind;
+pub(crate) use output_kind::OutputKind;
 pub(crate) mod output_section_id;
 pub(crate) mod output_section_map;
 pub(crate) mod output_section_part_map;
@@ -73,7 +73,6 @@ pub(crate) mod perf;
 ))]
 #[path = "perf_unsupported.rs"]
 pub(crate) mod perf;
-pub(crate) mod platform;
 pub(crate) mod program_segments;
 pub(crate) mod resolution;
 pub(crate) mod save_dir;
@@ -106,7 +105,6 @@ use crate::error::Context;
 use crate::error::Result;
 use crate::layout::EnginePlatform;
 use crate::layout_rules::LayoutRulesBuilder;
-use crate::output_kind::OutputKind;
 use crate::platform::Arch;
 use crate::platform::Args as _;
 use crate::platform::Platform;
@@ -354,7 +352,7 @@ impl<F: FileSystem> Linker<F> {
 
         let loaded = loaded?;
 
-        let output_kind = OutputKind::new(args, file_loader);
+        let output_kind = crate::output_kind::new(args, file_loader);
 
         let mut output = file_writer::Output::new::<P>(args, output_kind, self.file_system.clone());
 

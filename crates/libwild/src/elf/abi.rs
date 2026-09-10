@@ -1141,14 +1141,16 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                     eh_frame_section_index,
                     frame_index_offset,
                     data,
-                    &crel_iterator
-                        .map(|raw| {
-                            raw.map(|raw| ElfCrel {
-                                raw,
-                                class: PhantomData,
+                    &CrelSequence(
+                        crel_iterator
+                            .map(|raw| {
+                                raw.map(|raw| ElfCrel {
+                                    raw,
+                                    class: PhantomData,
+                                })
                             })
-                        })
-                        .collect::<Result<Vec<_>, _>>()?,
+                            .collect::<Result<Vec<_>, _>>()?,
+                    ),
                     scope,
                 )?)
             }

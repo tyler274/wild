@@ -8,7 +8,6 @@ use super::abi::*;
 use super::file::*;
 #[allow(unused_imports)]
 use super::output::*;
-use super::output_section_id;
 #[allow(unused_imports)]
 use super::types::*;
 use crate::alignment::Alignment;
@@ -21,11 +20,10 @@ use crate::layout_rules::SectionKind;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
 use crate::platform;
-use crate::platform::CommonSymbol;
 use crate::platform::DynamicTagValues as _;
-use crate::platform::ObjectFile;
+use crate::platform::ObjectFile as _;
 use crate::platform::Platform;
-use crate::platform::SectionFlags as _;
+#[cfg(all(feature = "plugins", unix))]
 use crate::symbol_db::Visibility;
 use crate::timing_phase;
 #[allow(unused_imports)]
@@ -44,224 +42,12 @@ pub(crate) use notes::*;
 use object::LittleEndian;
 use object::read::elf::CompressionHeader;
 use object::read::elf::Dyn as _;
-use object::read::elf::SectionHeader as _;
 use std::marker::PhantomData;
 use std::sync::atomic::AtomicBool;
 #[allow(unused_imports)]
 pub(crate) use versions::*;
 
-impl platform::SectionHeader for object::elf::SectionHeader64<LittleEndian> {
-    fn is_alloc(&self) -> bool {
-        self.sh_flags(LittleEndian).is_alloc()
-    }
-
-    fn is_writable(&self) -> bool {
-        self.sh_flags(LittleEndian).contains(shf::WRITE)
-    }
-
-    fn is_executable(&self) -> bool {
-        self.sh_flags(LittleEndian).contains(shf::EXECINSTR)
-    }
-
-    fn is_tls(&self) -> bool {
-        self.sh_flags(LittleEndian).contains(shf::TLS)
-    }
-
-    fn is_merge_section(&self) -> bool {
-        self.sh_flags(LittleEndian).contains(shf::MERGE)
-    }
-
-    fn is_strings(&self) -> bool {
-        self.sh_flags(LittleEndian).contains(shf::STRINGS)
-    }
-
-    fn merge_entsize(&self) -> u64 {
-        self.sh_entsize(LittleEndian).into()
-    }
-
-    fn should_retain(&self) -> bool {
-        self.sh_flags(LittleEndian).contains(shf::GNU_RETAIN)
-    }
-
-    fn should_exclude(&self) -> bool {
-        self.sh_flags(LittleEndian).contains(shf::EXCLUDE)
-    }
-
-    fn is_group(&self) -> bool {
-        self.sh_flags(LittleEndian).contains(shf::GROUP)
-    }
-
-    fn is_note(&self) -> bool {
-        self.sh_type(LittleEndian) == sht::NOTE
-    }
-
-    fn is_prog_bits(&self) -> bool {
-        self.sh_type(LittleEndian) == sht::PROGBITS
-    }
-
-    fn is_no_bits(&self) -> bool {
-        self.sh_type(LittleEndian) == sht::NOBITS
-    }
-
-    fn skip_linker_script_matching(&self) -> bool {
-        let ty = self.sh_type(LittleEndian);
-        matches!(
-            ty,
-            sht::REL
-                | sht::RELA
-                | sht::SYMTAB
-                | sht::STRTAB
-                | sht::DYNSYM
-                | sht::GROUP
-                | sht::SYMTAB_SHNDX
-        )
-    }
-
-    fn is_reloc_section(&self) -> bool {
-        matches!(self.sh_type(LittleEndian), sht::REL | sht::RELA)
-    }
-
-    fn reloc_output_name_prefix(&self) -> Option<&'static [u8]> {
-        match self.sh_type(LittleEndian) {
-            sht::RELA => Some(b".rela"),
-            sht::REL => Some(b".rel"),
-            _ => None,
-        }
-    }
-
-    fn reloc_target_section_index(&self) -> Option<object::SectionIndex> {
-        if !self.is_reloc_section() {
-            return None;
-        }
-        let info = self.sh_info(LittleEndian) as usize;
-        (info != 0).then_some(object::SectionIndex(info))
-    }
-}
-
-impl platform::SectionType for SectionType {
-    fn is_rela(&self) -> bool {
-        *self == sht::RELA
-    }
-
-    fn is_rel(&self) -> bool {
-        *self == sht::REL
-    }
-
-    fn is_symtab(&self) -> bool {
-        *self == sht::SYMTAB
-    }
-
-    fn is_strtab(&self) -> bool {
-        *self == sht::STRTAB
-    }
-}
-
-impl platform::SectionFlags for SectionFlags {
-    fn is_alloc(self) -> bool {
-        self.contains(shf::ALLOC)
-    }
-}
-
-impl<T: ElfSymbol> platform::Symbol for T {
-    fn as_common(&self) -> Option<CommonSymbol> {
-        let e = LittleEndian;
-        if !object::read::elf::Sym::is_common(self, e) {
-            return None;
-        }
-
-        // Common symbols misuse the value field (which we access via `address()`) to store
-        // the alignment.
-        let Ok(alignment) = Alignment::new(object::read::elf::Sym::st_value(self, e).into()) else {
-            return None;
-        };
-        let size = alignment.align_up(object::read::elf::Sym::st_size(self, e).into());
-
-        let output_section_id = if self.st_type() == object::elf::STT_TLS {
-            output_section_id::TBSS
-        } else {
-            output_section_id::BSS
-        };
-
-        let part_id = output_section_id.part_id_with_alignment::<Elf<T::Class>>(alignment);
-
-        Some(CommonSymbol { size, part_id })
-    }
-
-    fn is_undefined(&self) -> bool {
-        object::read::elf::Sym::is_undefined(self, LittleEndian)
-    }
-
-    fn is_local(&self) -> bool {
-        object::read::elf::Sym::is_local(self)
-    }
-
-    fn visibility(&self) -> Visibility {
-        convert_elf_visibility(self.st_visibility())
-    }
-
-    fn is_absolute(&self) -> bool {
-        object::read::elf::Sym::is_absolute(self, LittleEndian)
-    }
-
-    fn is_weak(&self) -> bool {
-        object::read::elf::Sym::is_weak(self)
-    }
-
-    fn value(&self) -> u64 {
-        object::read::elf::Sym::st_value(self, LittleEndian).into()
-    }
-
-    fn size(&self) -> u64 {
-        object::read::elf::Sym::st_size(self, LittleEndian).into()
-    }
-
-    fn has_name(&self) -> bool {
-        object::read::elf::Sym::st_name(self, LittleEndian) != 0
-    }
-
-    fn is_default_strippable(&self, name: &[u8]) -> bool {
-        (self.is_local() && name.starts_with(b".L"))
-            || crate::symbol_db::is_mapping_symbol_name(name)
-    }
-
-    fn debug_string(&self) -> String {
-        SymDebug(self).to_string()
-    }
-
-    fn is_tls(&self) -> bool {
-        self.st_type() == object::elf::STT_TLS
-    }
-
-    fn is_interposable(&self) -> bool {
-        self.st_visibility() == object::elf::STV_DEFAULT
-    }
-
-    fn is_func(&self) -> bool {
-        self.st_type() == object::elf::STT_FUNC
-    }
-
-    fn is_ifunc(&self) -> bool {
-        self.st_type() == object::elf::STT_GNU_IFUNC
-    }
-
-    fn is_hidden(&self) -> bool {
-        self.st_visibility() == object::elf::STV_HIDDEN
-    }
-
-    fn is_gnu_unique(&self) -> bool {
-        self.st_bind() == object::elf::STB_GNU_UNIQUE
-    }
-
-    fn with_hidden(mut self, hidden: bool) -> Self {
-        self.set_visibility(if hidden {
-            object::elf::STV_HIDDEN
-        } else {
-            object::elf::STV_DEFAULT
-        });
-        self
-    }
-}
-
+#[cfg(all(feature = "plugins", unix))]
 pub(crate) fn convert_elf_visibility(st_visibility: object::elf::SymbolVisibility) -> Visibility {
     match st_visibility {
         object::elf::STV_PROTECTED => Visibility::Protected,
@@ -362,41 +148,6 @@ impl<'data> DynamicTagValues<'data> {
 impl<'data> platform::DynamicTagValues<'data> for DynamicTagValues<'data> {
     fn lib_name(&self, fallback_name: &'data [u8]) -> &'data [u8] {
         self.soname.unwrap_or(fallback_name)
-    }
-}
-
-pub(super) struct SymDebug<'data, T: ElfSymbol>(pub(crate) &'data T);
-
-impl<T: ElfSymbol> std::fmt::Display for SymDebug<'_, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let e = LittleEndian;
-        let sym = self.0;
-
-        let vis = if object::read::elf::Sym::is_local(sym) {
-            "Local"
-        } else if object::read::elf::Sym::is_weak(sym) {
-            "Weak"
-        } else {
-            "Global"
-        };
-
-        let kind = if object::read::elf::Sym::is_undefined(sym, e) {
-            "Undefined"
-        } else {
-            match object::read::elf::Sym::st_type(sym) {
-                object::elf::STT_FUNC => "Func",
-                object::elf::STT_GNU_IFUNC => "IFunc",
-                object::elf::STT_OBJECT => "Data",
-                object::elf::STT_COMMON => "Common",
-                object::elf::STT_SECTION => "Section",
-                object::elf::STT_FILE => "File",
-                object::elf::STT_NOTYPE => "NoType",
-                object::elf::STT_TLS => "Tls",
-                _ => "Unknown",
-            }
-        };
-
-        write!(f, "{vis} {kind}")
     }
 }
 
@@ -646,8 +397,6 @@ impl<'data> Sonames<'data> {
         self.0.contains(name)
     }
 }
-
-impl platform::SegmentType for SegmentType {}
 
 impl EpilogueLayoutExt {
     pub(crate) fn gnu_build_id_note_section_size<C: ElfClass>(&self) -> Option<u64> {

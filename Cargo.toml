@@ -10,6 +10,7 @@ members = [
   "crates/wild-util",
   "crates/wild-fs",
   "crates/wild-scripts",
+  "crates/wild-platform",
   "crates/benchmarks/runner",
 ]
 resolver = "2"

@@ -1,0 +1,27 @@
+[package]
+name = "wild-platform"
+description = "Platform traits and IDs for the Wild linker"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bitflags.workspace = true
+bumpalo-herd.workspace = true
+colosseum.workspace = true
+derive_more.workspace = true
+glob.workspace = true
+hashbrown.workspace = true
+linker-utils = { path = "../linker-utils", version = "0.10.0" }
+object.workspace = true
+rayon.workspace = true
+wild-error = { path = "../wild-error", version = "0.10.0" }
+wild-fs = { path = "../wild-fs", version = "0.10.0" }
+wild-scripts = { path = "../wild-scripts", version = "0.10.0" }
+wild-util = { path = "../wild-util", version = "0.10.0" }
+zerocopy.workspace = true
+
+[lints]
+workspace = true

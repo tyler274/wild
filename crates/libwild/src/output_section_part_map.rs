@@ -10,52 +10,60 @@ use crate::platform::Platform;
 pub(crate) use crate::platform::output_section_part_map::*;
 use std::ops::Range;
 
-impl<T: Default + PartialEq> OutputSectionPartMap<T> {
-    /// Iterate through all contained T in output order, producing a new map of U from the values
-    /// returned by the callback. Note, the alignment is the alignment of the PartId, but capped at
-    /// the maximum alignment of the highest alignment PartId with a non-default value.
-    pub(crate) fn output_order_map<U: Default, P: EnginePlatform>(
-        &self,
-        output_order: &OutputOrder,
-        output_sections: &OutputSections<P>,
-        mut cb: impl FnMut(PartId, Alignment, &T) -> U,
-    ) -> OutputSectionPartMap<U> {
-        let mut output = OutputSectionPartMap::with_dense_size(self.dense_len());
+/// Iterate through all contained T in output order, producing a new map of U from the values
+/// returned by the callback. Note, the alignment is the alignment of the PartId, but capped at
+/// the maximum alignment of the highest alignment PartId with a non-default value.
+pub(crate) fn output_order_map<T, U, P>(
+    part_map: &OutputSectionPartMap<T>,
+    output_order: &OutputOrder,
+    output_sections: &OutputSections<P>,
+    mut cb: impl FnMut(PartId, Alignment, &T) -> U,
+) -> OutputSectionPartMap<U>
+where
+    T: Default + PartialEq,
+    U: Default,
+    P: EnginePlatform,
+{
+    let mut output = OutputSectionPartMap::with_dense_size(part_map.dense_len());
 
-        for event in output_order {
-            let OrderEvent::Section(section_id) = event else {
-                continue;
-            };
+    for event in output_order {
+        let OrderEvent::Section(section_id) = event else {
+            continue;
+        };
 
-            let part_id_range = section_id.part_id_range::<P>();
-            let max_alignment = self.max_alignment(part_id_range.clone(), output_sections);
+        let part_id_range = section_id.part_id_range::<P>();
+        let max_alignment = max_alignment(part_map, part_id_range.clone(), output_sections);
 
-            for (part_id, input) in self.in_range(part_id_range) {
-                let alignment = output_sections
-                    .part_alignment::<P>(part_id)
-                    .min(max_alignment);
-                *output.get_mut(part_id) = cb(part_id, alignment, input);
-            }
+        for (part_id, input) in part_map.in_range(part_id_range) {
+            let alignment = output_sections
+                .part_alignment::<P>(part_id)
+                .min(max_alignment);
+            *output.get_mut(part_id) = cb(part_id, alignment, input);
         }
-
-        output
     }
 
-    /// Returns the maximum alignment for any part with a non-default value starting from
-    /// `base_part_id` for the next `count` parts. The returned value will not be any less than the
-    /// minimum alignment for the section.
-    pub(crate) fn max_alignment<P: EnginePlatform>(
-        &self,
-        range: Range<PartId>,
-        output_sections: &OutputSections<P>,
-    ) -> Alignment {
-        self.in_range(range.clone())
-            .find(|(_, value)| **value != T::default())
-            .map_or(alignment::MIN, |(part_id, _)| {
-                output_sections.part_alignment::<P>(part_id)
-            })
-            .max(output_sections.min_alignment(range.start.output_section_id::<P>()))
-    }
+    output
+}
+
+/// Returns the maximum alignment for any part with a non-default value starting from
+/// `base_part_id` for the next `count` parts. The returned value will not be any less than the
+/// minimum alignment for the section.
+pub(crate) fn max_alignment<T, P>(
+    part_map: &OutputSectionPartMap<T>,
+    range: Range<PartId>,
+    output_sections: &OutputSections<P>,
+) -> Alignment
+where
+    T: Default + PartialEq,
+    P: EnginePlatform,
+{
+    part_map
+        .in_range(range.clone())
+        .find(|(_, value)| **value != T::default())
+        .map_or(alignment::MIN, |(part_id, _)| {
+            output_sections.part_alignment::<P>(part_id)
+        })
+        .max(output_sections.min_alignment(range.start.output_section_id::<P>()))
 }
 
 #[test]
@@ -80,7 +88,7 @@ fn test_merge_parts() {
     }
 
     let mut expected_sum_of_sums = 0;
-    let all_1 = part_map.output_order_map(&output_order, &output_sections, |_, _, _| {
+    let all_1 = output_order_map(&part_map, &output_order, &output_sections, |_, _, _| {
         expected_sum_of_sums += 1;
         1
     });
@@ -219,12 +227,17 @@ fn test_output_order_map_consistent() {
     );
 
     let mut ordering_a = Vec::new();
-    part_map.output_order_map(&output_order, &output_sections, |part_id, _, _| {
-        let section_id = part_id.output_section_id::<Elf64>();
-        if ordering_a.last() != Some(&section_id.as_usize()) {
-            ordering_a.push(section_id.as_usize());
-        }
-    });
+    output_order_map(
+        &part_map,
+        &output_order,
+        &output_sections,
+        |part_id, _, _| {
+            let section_id = part_id.output_section_id::<Elf64>();
+            if ordering_a.last() != Some(&section_id.as_usize()) {
+                ordering_a.push(section_id.as_usize());
+            }
+        },
+    );
     let ordering_b = output_order
         .into_iter()
         .filter_map(|event| {
@@ -262,7 +275,8 @@ fn test_output_order_map() {
         output_section_id::DATA.part_id_with_alignment::<Elf64>(alignment::MIN);
     *part_map.get_mut(PART_ID2) += 5;
 
-    part_map.output_order_map(
+    output_order_map(
+        &part_map,
         &output_order,
         &output_sections,
         |part_id, alignment, &value| match part_id {
@@ -296,7 +310,8 @@ fn test_max_alignment() {
     let mut part_map = output_sections.new_part_map::<u32>();
 
     assert_eq!(
-        part_map.max_alignment(
+        max_alignment(
+            &part_map,
             output_section_id::DATA.part_id_range::<Elf64>(),
             &output_sections,
         ),
@@ -312,7 +327,8 @@ fn test_max_alignment() {
     *part_map.get_mut(PART_ID2) += 5;
 
     assert_eq!(
-        part_map.max_alignment(
+        max_alignment(
+            &part_map,
             output_section_id::DATA.part_id_range::<Elf64>(),
             &output_sections,
         ),

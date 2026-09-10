@@ -5,27 +5,24 @@ use std::hash::Hash;
 use std::hash::Hasher;
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct SectionIdentity<'data, P: Platform> {
+pub struct SectionIdentity<'data, P: Platform> {
     name: SectionName<'data>,
     format_specific: P::SectionIdentityExt,
 }
 
 impl<'data, P: Platform> SectionIdentity<'data, P> {
-    pub(crate) const fn new(
-        name: SectionName<'data>,
-        format_specific: P::SectionIdentityExt,
-    ) -> Self {
+    pub const fn new(name: SectionName<'data>, format_specific: P::SectionIdentityExt) -> Self {
         Self {
             name,
             format_specific,
         }
     }
 
-    pub(crate) fn section_name(&self) -> SectionName<'data> {
+    pub fn section_name(&self) -> SectionName<'data> {
         self.name
     }
 
-    pub(crate) fn format_specific(&self) -> P::SectionIdentityExt {
+    pub fn format_specific(&self) -> P::SectionIdentityExt {
         self.format_specific
     }
 }
@@ -46,10 +43,10 @@ impl<'data, P: Platform> Hash for SectionIdentity<'data, P> {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct SectionName<'data>(pub(crate) &'data [u8]);
+pub struct SectionName<'data>(pub &'data [u8]);
 
 impl SectionName<'_> {
-    pub(crate) fn bytes(&self) -> &[u8] {
+    pub fn bytes(&self) -> &[u8] {
         self.0
     }
 }

@@ -109,7 +109,8 @@ fn offsets_by_key<P: EnginePlatform>(
     output_sections: &OutputSections<P>,
 ) -> Vec<(PartId, u64)> {
     let mut offsets_by_key = Vec::new();
-    memory_offsets.output_order_map(
+    crate::output_section_part_map::output_order_map(
+        memory_offsets,
         output_order,
         output_sections,
         |part_id, _alignment, offset| {

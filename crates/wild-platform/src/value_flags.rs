@@ -13,16 +13,16 @@ use zerocopy::transmute_mut;
 /// `FromBytes` and `IntoBytes`.
 #[derive(derive_more::Debug, Clone, Copy, PartialEq, Eq, Hash, FromBytes, IntoBytes)]
 #[debug("{}", ValueFlags::from_bits_retain(*_0))]
-pub(crate) struct RawFlags(u32);
+pub struct RawFlags(u32);
 
 /// Flags for each symbol.
 #[derive(Debug)]
-pub(crate) struct PerSymbolFlags {
-    pub(crate) flags: Vec<RawFlags>,
+pub struct PerSymbolFlags {
+    pub flags: Vec<RawFlags>,
 }
 
 // Flags for each symbol where we can perform atomic updates via a shared reference.
-pub(crate) struct AtomicPerSymbolFlags<'a> {
+pub struct AtomicPerSymbolFlags<'a> {
     flags: &'a [AtomicValueFlags],
 }
 
@@ -31,7 +31,7 @@ bitflags! {
     /// that defined the symbol or section and some is computed based on what kinds of references we
     /// encounter to it.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub(crate) struct ValueFlags: u32 {
+    pub struct ValueFlags: u32 {
         /// An absolute value that won't change depending on load address. This could be a symbol
         /// with an absolute value or an undefined symbol, which needs to always resolve to 0
         /// regardless of load address.
@@ -117,7 +117,7 @@ bitflags! {
 }
 
 #[derive(FromBytes, IntoBytes)]
-pub(crate) struct AtomicValueFlags(AtomicU32);
+pub struct AtomicValueFlags(AtomicU32);
 
 impl ValueFlags {
     /// Returns self merged with `other` which should be the flags for the local (possibly
@@ -125,14 +125,14 @@ impl ValueFlags {
     /// doesn't define and will mark that symbol as hidden, however the object that defines the
     /// symbol gives the symbol default visibility. In this case, we want references in the object
     /// defining it as hidden to be allowed to bypass the GOT/PLT.
-    pub(crate) fn merge(&mut self, other: ValueFlags) {
+    pub fn merge(&mut self, other: ValueFlags) {
         if other.contains(ValueFlags::NON_INTERPOSABLE) {
             *self |= ValueFlags::NON_INTERPOSABLE;
         }
     }
 
     /// Returns the subset of the set flags that relate to resolutions.
-    pub(crate) fn resolution_flags(self) -> ValueFlags {
+    pub fn resolution_flags(self) -> ValueFlags {
         self.intersection(
             ValueFlags::DIRECT
                 | ValueFlags::GOT
@@ -149,17 +149,17 @@ impl ValueFlags {
     }
 
     #[must_use]
-    pub(crate) fn has_resolution(self) -> bool {
+    pub fn has_resolution(self) -> bool {
         !self.resolution_flags().is_empty()
     }
 
     #[must_use]
-    pub(crate) fn is_dynamic(self) -> bool {
+    pub fn is_dynamic(self) -> bool {
         self.contains(ValueFlags::DYNAMIC)
     }
 
     #[must_use]
-    pub(crate) fn is_ifunc(self) -> bool {
+    pub fn is_ifunc(self) -> bool {
         self.contains(ValueFlags::IFUNC)
     }
 
@@ -167,108 +167,108 @@ impl ValueFlags {
     /// opposed to things where the address cannot be known until runtime or absolute values, which
     /// aren't addresses.
     #[must_use]
-    pub(crate) fn has_link_time_address(self) -> bool {
+    pub fn has_link_time_address(self) -> bool {
         !self.contains(ValueFlags::IFUNC)
             && !self.contains(ValueFlags::DYNAMIC)
             && !self.contains(ValueFlags::ABSOLUTE)
     }
 
     #[must_use]
-    pub(crate) fn is_absolute(self) -> bool {
+    pub fn is_absolute(self) -> bool {
         self.contains(ValueFlags::ABSOLUTE)
     }
 
     #[must_use]
-    pub(crate) fn is_function(self) -> bool {
+    pub fn is_function(self) -> bool {
         self.contains(ValueFlags::DYNAMIC_FUNCTION)
     }
     #[must_use]
-    pub(crate) fn is_downgraded_to_local(self) -> bool {
+    pub fn is_downgraded_to_local(self) -> bool {
         self.contains(ValueFlags::DOWNGRADE_TO_LOCAL)
     }
 
     /// Returns true if a symbol should be treated as local in the symbol table.
     /// This includes both originally-local symbols and symbols downgraded by version scripts.
     #[must_use]
-    pub(crate) fn is_symtab_local<S: Symbol>(self, sym: &S) -> bool {
+    pub fn is_symtab_local<S: Symbol>(self, sym: &S) -> bool {
         sym.is_local() || self.is_downgraded_to_local()
     }
 
     #[must_use]
-    pub(crate) fn is_interposable(self) -> bool {
+    pub fn is_interposable(self) -> bool {
         !self.contains(ValueFlags::NON_INTERPOSABLE)
     }
 
     #[must_use]
-    pub(crate) fn needs_direct(self) -> bool {
+    pub fn needs_direct(self) -> bool {
         self.contains(ValueFlags::DIRECT)
     }
 
     #[must_use]
-    pub(crate) fn needs_copy_relocation(self) -> bool {
+    pub fn needs_copy_relocation(self) -> bool {
         self.contains(ValueFlags::COPY_RELOCATION)
     }
 
     #[must_use]
-    pub(crate) fn needs_export_dynamic(self) -> bool {
+    pub fn needs_export_dynamic(self) -> bool {
         self.contains(ValueFlags::EXPORT_DYNAMIC)
     }
 
     #[must_use]
-    pub(crate) fn needs_got(self) -> bool {
+    pub fn needs_got(self) -> bool {
         self.contains(ValueFlags::GOT)
     }
 
     #[must_use]
-    pub(crate) fn needs_plt(self) -> bool {
+    pub fn needs_plt(self) -> bool {
         self.contains(ValueFlags::PLT)
     }
 
     #[must_use]
-    pub(crate) fn needs_got_tls_offset(self) -> bool {
+    pub fn needs_got_tls_offset(self) -> bool {
         self.contains(ValueFlags::GOT_TLS_OFFSET)
     }
 
     #[must_use]
-    pub(crate) fn needs_got_tls_module(self) -> bool {
+    pub fn needs_got_tls_module(self) -> bool {
         self.contains(ValueFlags::GOT_TLS_MODULE)
     }
 
     #[must_use]
-    pub(crate) fn needs_got_tls_descriptor(self) -> bool {
+    pub fn needs_got_tls_descriptor(self) -> bool {
         self.contains(ValueFlags::GOT_TLS_DESCRIPTOR)
     }
 
     #[must_use]
-    pub(crate) fn needs_ifunc_got_for_address(self) -> bool {
+    pub fn needs_ifunc_got_for_address(self) -> bool {
         self.contains(ValueFlags::IFUNC_GOT_FOR_ADDRESS)
     }
 
     #[must_use]
-    pub(crate) fn needs_canonical_plt(self) -> bool {
+    pub fn needs_canonical_plt(self) -> bool {
         self.contains(ValueFlags::CANONICAL_PLT)
     }
 
     #[must_use]
-    pub(crate) fn needs_canonical_plt_got_for_address(self) -> bool {
+    pub fn needs_canonical_plt_got_for_address(self) -> bool {
         self.contains(ValueFlags::CANONICAL_PLT | ValueFlags::GOT_FOR_PLT_ENTRY)
     }
 
     #[must_use]
-    pub(crate) fn needs_tls_got(self) -> bool {
+    pub fn needs_tls_got(self) -> bool {
         self.contains(ValueFlags::GOT_TLS_OFFSET)
             || self.contains(ValueFlags::GOT_TLS_MODULE)
             || self.contains(ValueFlags::GOT_TLS_DESCRIPTOR)
     }
 
     #[must_use]
-    pub(crate) fn raw(self) -> RawFlags {
+    pub fn raw(self) -> RawFlags {
         RawFlags(self.bits())
     }
 }
 
 impl AtomicValueFlags {
-    pub(crate) fn fetch_or(&self, flags: ValueFlags) -> ValueFlags {
+    pub fn fetch_or(&self, flags: ValueFlags) -> ValueFlags {
         // Calling fetch_or on our atomic requires that we gain exclusive access to the cache line
         // containing the atomic. If all the bits are already set, then that's wasteful, so we first
         // check if the bits are set and if they are, we skip the fetch_or call.
@@ -280,15 +280,15 @@ impl AtomicValueFlags {
         ValueFlags::from_bits_retain(previous_bits)
     }
 
-    pub(crate) fn get(&self) -> ValueFlags {
+    pub fn get(&self) -> ValueFlags {
         ValueFlags::from_bits_retain(self.0.load(atomic::Ordering::Relaxed))
     }
 
-    pub(crate) fn or_assign(&self, flags: ValueFlags) {
+    pub fn or_assign(&self, flags: ValueFlags) {
         self.0.fetch_or(flags.bits(), Ordering::Relaxed);
     }
 
-    pub(crate) fn remove(&self, flags_to_remove: ValueFlags) {
+    pub fn remove(&self, flags_to_remove: ValueFlags) {
         self.0.fetch_and(!flags_to_remove.bits(), Ordering::Relaxed);
     }
 }
@@ -300,54 +300,54 @@ impl std::fmt::Display for ValueFlags {
 }
 
 impl PerSymbolFlags {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self { flags: Vec::new() }
     }
 
-    pub(crate) fn reserve(&mut self, additional: usize) {
+    pub fn reserve(&mut self, additional: usize) {
         self.flags.reserve(additional);
     }
 
-    pub(crate) fn borrow_atomic(&'_ mut self) -> AtomicPerSymbolFlags<'_> {
+    pub fn borrow_atomic(&'_ mut self) -> AtomicPerSymbolFlags<'_> {
         AtomicPerSymbolFlags {
             flags: transmute_mut!(self.flags.as_mut_slice()),
         }
     }
 
-    pub(crate) fn raw_range(&self, range: SymbolIdRange) -> &[RawFlags] {
+    pub fn raw_range(&self, range: SymbolIdRange) -> &[RawFlags] {
         &self.flags[range.as_usize()]
     }
 
-    pub(crate) fn push(&mut self, extra: ValueFlags) {
+    pub fn push(&mut self, extra: ValueFlags) {
         self.flags.push(extra.raw());
     }
 
-    pub(crate) fn set_flag(&mut self, symbol_id: SymbolId, extra: ValueFlags) {
+    pub fn set_flag(&mut self, symbol_id: SymbolId, extra: ValueFlags) {
         self.flags[symbol_id.as_usize()].0 |= extra.raw().0;
     }
 
-    pub(crate) fn flags_mut(&mut self) -> &mut [RawFlags] {
+    pub fn flags_mut(&mut self) -> &mut [RawFlags] {
         &mut self.flags
     }
 }
 
 impl<'a> AtomicPerSymbolFlags<'a> {
-    pub(crate) fn get_atomic(&self, symbol_id: SymbolId) -> &AtomicValueFlags {
+    pub fn get_atomic(&self, symbol_id: SymbolId) -> &AtomicValueFlags {
         &self.flags[symbol_id.as_usize()]
     }
 
-    pub(crate) fn range(&self, range: SymbolIdRange) -> &[AtomicValueFlags] {
+    pub fn range(&self, range: SymbolIdRange) -> &[AtomicValueFlags] {
         &self.flags[range.as_usize()]
     }
 }
 
 impl RawFlags {
-    pub(crate) fn get(self) -> ValueFlags {
+    pub fn get(self) -> ValueFlags {
         ValueFlags::from_bits_retain(self.0)
     }
 }
 
-pub(crate) trait FlagsForSymbol {
+pub trait FlagsForSymbol {
     fn flags_for_symbol(&self, symbol_id: SymbolId) -> ValueFlags;
 }
 

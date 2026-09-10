@@ -96,7 +96,7 @@ impl platform::Platform for MachO {
     type SectionFlags = SectionFlags;
     type SectionAttributes = SectionAttributes;
     type SectionType = macho::SectionType;
-    type SegmentType = ();
+    type SegmentType = MachOSegmentType;
     type ProgramSegmentDef = ProgramSegmentDef;
     type BuiltInSectionDetails = BuiltInSectionDetails;
     type RelocationSections = ();
@@ -1062,7 +1062,11 @@ impl platform::Platform for MachO {
         let max_align = tlv_sections
             .iter()
             .map(|&section_id| {
-                sizes.max_alignment(section_id.part_id_range::<MachO>(), output_sections)
+                crate::output_section_part_map::max_alignment(
+                    sizes,
+                    section_id.part_id_range::<MachO>(),
+                    output_sections,
+                )
             })
             .max();
 

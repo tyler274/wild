@@ -1173,7 +1173,11 @@ pub(crate) fn compute_segment_alignments<'data, P: EnginePlatform>(
             }
             OrderEvent::Section(section_id) => {
                 let part_id_range = section_id.part_id_range::<P>();
-                let max_alignment = sizes.max_alignment(part_id_range, output_sections);
+                let max_alignment = crate::output_section_part_map::max_alignment(
+                    sizes,
+                    part_id_range,
+                    output_sections,
+                );
 
                 // Update the alignment for all active LOAD segments
                 for &segment_id in &active_load_segments {

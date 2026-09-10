@@ -1,7 +1,7 @@
 use super::cli::RelocationModel;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum OutputKind {
+pub enum OutputKind {
     StaticExecutable(RelocationModel),
     DynamicExecutable(RelocationModel),
     SharedObject,
@@ -9,27 +9,27 @@ pub(crate) enum OutputKind {
 }
 
 impl OutputKind {
-    pub(crate) fn is_executable(self) -> bool {
+    pub fn is_executable(self) -> bool {
         !matches!(self, OutputKind::SharedObject | OutputKind::PartialLink)
     }
 
-    pub(crate) fn is_shared_object(self) -> bool {
+    pub fn is_shared_object(self) -> bool {
         matches!(self, OutputKind::SharedObject)
     }
 
-    pub(crate) fn is_partial_link(self) -> bool {
+    pub fn is_partial_link(self) -> bool {
         matches!(self, OutputKind::PartialLink)
     }
 
-    pub(crate) fn is_dynamic_executable(self) -> bool {
+    pub fn is_dynamic_executable(self) -> bool {
         matches!(self, OutputKind::DynamicExecutable(_))
     }
 
-    pub(crate) fn is_static_executable(self) -> bool {
+    pub fn is_static_executable(self) -> bool {
         matches!(self, OutputKind::StaticExecutable(_))
     }
 
-    pub(crate) fn is_position_independent(self) -> bool {
+    pub fn is_position_independent(self) -> bool {
         matches!(
             self,
             OutputKind::SharedObject
@@ -38,7 +38,7 @@ impl OutputKind {
         )
     }
 
-    pub(crate) fn has_fixed_load_address(self) -> bool {
+    pub fn has_fixed_load_address(self) -> bool {
         matches!(
             self,
             OutputKind::StaticExecutable(RelocationModel::Fixed)
@@ -46,7 +46,7 @@ impl OutputKind {
         )
     }
 
-    pub(crate) fn needs_dynsym(self) -> bool {
+    pub fn needs_dynsym(self) -> bool {
         matches!(
             self,
             OutputKind::DynamicExecutable(_)
@@ -57,14 +57,14 @@ impl OutputKind {
         )
     }
 
-    pub(crate) fn needs_dynamic(self) -> bool {
+    pub fn needs_dynamic(self) -> bool {
         !matches!(
             self,
             OutputKind::StaticExecutable(RelocationModel::Fixed) | OutputKind::PartialLink
         )
     }
 
-    pub(crate) fn should_output_symbol_versions(self) -> bool {
+    pub fn should_output_symbol_versions(self) -> bool {
         matches!(
             self,
             OutputKind::DynamicExecutable(_) | OutputKind::SharedObject

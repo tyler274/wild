@@ -99,6 +99,7 @@ pub(crate) trait ElfClass: Copy + Default + Send + Sync + std::fmt::Debug + 'sta
 pub(crate) trait ElfSymbol:
     object::read::elf::Sym<Endian = LittleEndian>
     + WritableSymbol
+    + platform::Symbol
     + Default
     + std::fmt::Debug
     + Copy
@@ -227,6 +228,9 @@ pub(crate) struct ElfCrel<C: ElfClass> {
     pub(super) class: PhantomData<C>,
 }
 
+#[derive(Clone)]
+pub(crate) struct CrelSequence<C: ElfClass>(pub(crate) Vec<ElfCrel<C>>);
+
 impl<C: ElfClass> ElfCrel<C> {
     pub(crate) fn new(raw: Crel) -> Self {
         Self {
@@ -237,7 +241,7 @@ impl<C: ElfClass> ElfCrel<C> {
 }
 
 impl<C: ElfClass> Relocation for ElfCrel<C> {
-    type Sequence<'data> = Vec<Self>;
+    type Sequence<'data> = CrelSequence<C>;
     type Platform = Elf<C>;
 
     fn symbol(&self) -> Option<object::SymbolIndex> {
@@ -292,19 +296,19 @@ impl<'data, C: ElfClass> RelocationSequence<'data> for RelaSequence<'data, C> {
     }
 }
 
-impl<'data, C: ElfClass> RelocationSequence<'data> for Vec<ElfCrel<C>> {
+impl<'data, C: ElfClass> RelocationSequence<'data> for CrelSequence<C> {
     type Rel = ElfCrel<C>;
 
     fn rel_iter(&self) -> impl Iterator<Item = ElfCrel<C>> {
-        self.clone().into_iter()
+        self.0.clone().into_iter()
     }
 
     fn subsequence(&self, range: Range<usize>) -> Self {
-        self[range].to_vec()
+        Self(self.0[range].to_vec())
     }
 
     fn num_relocations(&self) -> usize {
-        self.len()
+        self.0.len()
     }
 }
 

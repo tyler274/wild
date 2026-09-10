@@ -257,10 +257,9 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                 input_order,
                                             };
 
-                                            let outcome = SectionRuleOutcome::section_rule_from_id::<
-                                                P,
-                                            >(
-                                                primary_section_id, output_info
+                                            let outcome = section_rule_from_id::<P>(
+                                                primary_section_id,
+                                                output_info,
                                             );
 
                                             let rule = SectionRule::new(
@@ -487,10 +486,9 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                     == linker_script::SortKind::Alignment,
                                                 input_order,
                                             };
-                                            let outcome = SectionRuleOutcome::section_rule_from_id::<
-                                                P,
-                                            >(
-                                                primary_section_id, output_info
+                                            let outcome = section_rule_from_id::<P>(
+                                                primary_section_id,
+                                                output_info,
                                             );
                                             self.add_section_rule(
                                                 SectionRule::new(

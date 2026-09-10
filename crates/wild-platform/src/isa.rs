@@ -13,24 +13,24 @@ use wild_error::error::Result;
 
 /// Configuration for range-extension thunks on architectures that need them.
 /// Returned by `Arch::thunk_config()`; `None` means the architecture never needs thunks.
-pub(crate) struct ThunkConfig {
+pub struct ThunkConfig {
     /// PartId for the primary function part (main `.text` alignment bucket). This is the
     /// alignment used by the vast majority of code and is where per-object thunks are placed.
-    pub(crate) primary_function_part_id: PartId,
+    pub primary_function_part_id: PartId,
 
     /// Minimum branch range across all range-limited branch relocations for this architecture.
     /// If the total executable input size is below this, thunks can be disabled entirely.
-    pub(crate) min_branch_range: u64,
+    pub min_branch_range: u64,
 
     /// Size in bytes of a single thunk. Must be a multiple of the `primary_function_part_id`
     /// alignment.
-    pub(crate) thunk_size: u64,
+    pub thunk_size: u64,
 }
 
 /// How overlapping GNU property note bits are combined. Used by ELF; other formats return `None`
 /// from [`Arch::get_property_class`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum PropertyClass {
+pub enum PropertyClass {
     /// A bit in the output is set if it is set in any relocatable input.
     Or,
     /// A bit in the output is set only if it is set in all relocatable inputs.
@@ -40,7 +40,7 @@ pub(crate) enum PropertyClass {
 }
 
 /// Represents a supported architecture. Note that implementations are file-format specific.
-pub(crate) trait Arch: Send + Sync + 'static {
+pub trait Arch: Send + Sync + 'static {
     type Relaxation: Relaxation;
     type Platform: Platform;
 
@@ -211,7 +211,7 @@ pub(crate) trait Arch: Send + Sync + 'static {
     }
 }
 
-pub(crate) trait Relaxation: Send + Sync + 'static {
+pub trait Relaxation: Send + Sync + 'static {
     fn apply(&self, section_bytes: &mut [u8], offset_in_section: &mut u64, addend: &mut i64);
 
     fn rel_info(&self) -> RelocationKindInfo;
@@ -223,7 +223,7 @@ pub(crate) trait Relaxation: Send + Sync + 'static {
     fn is_mandatory(&self) -> bool;
 }
 
-pub(crate) struct RelaxSymbolInfo {
+pub struct RelaxSymbolInfo {
     /// The symbol's approximate output address (section base + offset within section).
     pub output_address: u64,
     /// Whether the symbol may be interposed at runtime.
@@ -232,7 +232,7 @@ pub(crate) struct RelaxSymbolInfo {
 
 /// Information about the previous relocation, used for pair-based relaxations.
 #[allow(dead_code)]
-pub(crate) struct PreviousRelocationInfo<RelInfo> {
+pub struct PreviousRelocationInfo<RelInfo> {
     pub kind: RelInfo,
     pub offset: u64,
     pub symbol: Option<object::SymbolIndex>,

@@ -15,7 +15,7 @@ use wild_util::alignment::Alignment;
 use wild_util::arch::Architecture;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum EntryPoint<'a> {
+pub enum EntryPoint<'a> {
     None,
     Symbol(&'a [u8]),
     Address(u64),
@@ -26,7 +26,7 @@ pub(crate) enum EntryPoint<'a> {
 /// sections still follows Wild's custom-section path, not GNU's insertion
 /// heuristic.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) enum OrphanHandling {
+pub enum OrphanHandling {
     /// Place the section in a same-named output section (default).
     #[default]
     Place,
@@ -41,19 +41,19 @@ pub(crate) enum OrphanHandling {
 pub const WILD_UNSUPPORTED_ENV: &str = "WILD_UNSUPPORTED";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RelocationModel {
+pub enum RelocationModel {
     Fixed,
     PositionIndependent,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum CopyRelocations {
+pub enum CopyRelocations {
     Allowed,
     Disallowed(CopyRelocationsDisabledReason),
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum CopyRelocationsDisabledReason {
+pub enum CopyRelocationsDisabledReason {
     Unsupported,
     Flag,
     SharedObject,
@@ -76,7 +76,7 @@ impl std::fmt::Display for CopyRelocationsDisabledReason {
 
 /// Indices into `--wild-experiments` for internal tunables.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Experiment {
+pub enum Experiment {
     /// How much parallelism to allow when splitting string-merge sections.
     MergeStringSplitParallelism = 0,
 
@@ -89,7 +89,7 @@ pub(crate) enum Experiment {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum UnresolvedSymbols {
+pub enum UnresolvedSymbols {
     /// Report all unresolved symbols.
     ReportAll,
 
@@ -103,7 +103,7 @@ pub(crate) enum UnresolvedSymbols {
     IgnoreAll,
 }
 
-pub(crate) trait Args: std::fmt::Debug + Send + Sync + 'static {
+pub trait Args: std::fmt::Debug + Send + Sync + 'static {
     fn parse<S, I>(&mut self, input: I) -> Result
     where
         S: AsRef<str>,

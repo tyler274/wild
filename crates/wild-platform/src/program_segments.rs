@@ -2,17 +2,17 @@ use super::ProgramSegmentDef;
 use std::fmt::Display;
 
 #[derive(Default, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash, Debug)]
-pub(crate) struct ProgramSegmentId(u8);
+pub struct ProgramSegmentId(u8);
 
 #[derive(Debug)]
-pub(crate) struct ProgramSegments<T: ProgramSegmentDef> {
+pub struct ProgramSegments<T: ProgramSegmentDef> {
     program_segment_details: Vec<T>,
     has_custom_phdrs: bool,
     at_lmas: Vec<Option<u64>>,
 }
 
 impl<T: ProgramSegmentDef> ProgramSegments<T> {
-    pub(crate) fn empty(has_custom_phdrs: bool) -> ProgramSegments<T> {
+    pub fn empty(has_custom_phdrs: bool) -> ProgramSegments<T> {
         Self {
             program_segment_details: Vec::new(),
             has_custom_phdrs,
@@ -20,68 +20,68 @@ impl<T: ProgramSegmentDef> ProgramSegments<T> {
         }
     }
 
-    pub(crate) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.program_segment_details.len()
     }
 
-    pub(crate) fn segment_def(&self, segment_id: ProgramSegmentId) -> &T {
+    pub fn segment_def(&self, segment_id: ProgramSegmentId) -> &T {
         &self.program_segment_details[segment_id.as_usize()]
     }
 
-    pub(crate) fn segment_def_mut(&mut self, segment_id: ProgramSegmentId) -> &mut T {
+    pub fn segment_def_mut(&mut self, segment_id: ProgramSegmentId) -> &mut T {
         &mut self.program_segment_details[segment_id.as_usize()]
     }
 
-    pub(crate) fn add_segment(&mut self, segment_def: T) -> ProgramSegmentId {
+    pub fn add_segment(&mut self, segment_def: T) -> ProgramSegmentId {
         let id = ProgramSegmentId::new(self.program_segment_details.len());
         self.program_segment_details.push(segment_def);
         self.at_lmas.push(None);
         id
     }
 
-    pub(crate) fn set_at_lma(&mut self, segment_id: ProgramSegmentId, at_lma: u64) {
+    pub fn set_at_lma(&mut self, segment_id: ProgramSegmentId, at_lma: u64) {
         self.at_lmas[segment_id.as_usize()] = Some(at_lma);
     }
 
-    pub(crate) fn at_lma(&self, segment_id: ProgramSegmentId) -> Option<u64> {
+    pub fn at_lma(&self, segment_id: ProgramSegmentId) -> Option<u64> {
         self.at_lmas.get(segment_id.as_usize()).copied().flatten()
     }
 
-    pub(crate) fn is_load_segment(&self, segment_id: ProgramSegmentId) -> bool {
+    pub fn is_load_segment(&self, segment_id: ProgramSegmentId) -> bool {
         self.segment_def(segment_id).is_loadable()
     }
 
-    pub(crate) fn is_stack_segment(&self, segment_id: ProgramSegmentId) -> bool {
+    pub fn is_stack_segment(&self, segment_id: ProgramSegmentId) -> bool {
         self.segment_def(segment_id).is_stack()
     }
 
-    pub(crate) fn is_tls_segment(&self, segment_id: ProgramSegmentId) -> bool {
+    pub fn is_tls_segment(&self, segment_id: ProgramSegmentId) -> bool {
         self.segment_def(segment_id).is_tls()
     }
 
     /// Returns a tuple that can be used for sorting the order of segments in the program headers
     /// table.
-    pub(crate) fn order_key(&self, segment_id: ProgramSegmentId, mem_start: u64) -> (usize, u64) {
+    pub fn order_key(&self, segment_id: ProgramSegmentId, mem_start: u64) -> (usize, u64) {
         let def = self.segment_def(segment_id);
 
         (def.order_key(), mem_start)
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = T> {
+    pub fn iter(&self) -> impl Iterator<Item = T> {
         self.program_segment_details.iter().copied()
     }
 
-    pub(crate) fn has_custom_phdrs(&self) -> bool {
+    pub fn has_custom_phdrs(&self) -> bool {
         self.has_custom_phdrs
     }
 }
 
 impl ProgramSegmentId {
-    pub(crate) fn as_usize(self) -> usize {
+    pub fn as_usize(self) -> usize {
         self.0.into()
     }
 
-    pub(crate) fn new(segment_id: usize) -> Self {
+    pub fn new(segment_id: usize) -> Self {
         Self(
             segment_id
                 .try_into()
@@ -89,7 +89,7 @@ impl ProgramSegmentId {
         )
     }
 
-    pub(crate) fn display<T: ProgramSegmentDef>(
+    pub fn display<T: ProgramSegmentDef>(
         self,
         program_segments: &ProgramSegments<T>,
     ) -> impl Display {
@@ -108,13 +108,13 @@ impl<'a, T: ProgramSegmentDef> IntoIterator for &'a ProgramSegments<T> {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct SegmentEntry {
-    pub(crate) id: ProgramSegmentId,
-    pub(crate) ptype: u32,
-    pub(crate) flags: u32,
-    pub(crate) has_explicit_flags: bool,
-    pub(crate) is_emitted: bool,
-    pub(crate) has_filehdr: bool,
-    pub(crate) has_phdrs: bool,
-    pub(crate) at_lma: Option<u64>,
+pub struct SegmentEntry {
+    pub id: ProgramSegmentId,
+    pub ptype: u32,
+    pub flags: u32,
+    pub has_explicit_flags: bool,
+    pub is_emitted: bool,
+    pub has_filehdr: bool,
+    pub has_phdrs: bool,
+    pub at_lma: Option<u64>,
 }

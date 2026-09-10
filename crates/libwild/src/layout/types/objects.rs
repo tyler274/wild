@@ -537,7 +537,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
                 );
             }
         } else if let Some(common) = local_symbol.as_common() {
-            let offset = memory_offsets.get_mut(common.part_id);
+            let offset = memory_offsets.get_mut(common.part_id::<P>());
             let address = *offset;
             *offset += common.size;
             address
