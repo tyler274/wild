@@ -14,55 +14,38 @@ use crate::args::Input;
 use crate::args::Modifiers;
 use crate::args::elf::ElfArgs;
 use crate::bail;
-use crate::elf;
 use crate::elf::Elf;
 use crate::elf::ElfClass;
-use crate::elf::RawSymbolName;
 use crate::env;
 use crate::error;
 use crate::error::Context as _;
-use crate::error::Error;
 use crate::error::Result;
 use crate::file_kind::FileKind;
+use crate::grouping::PluginSymbol;
+use crate::grouping::UnsequencedLtoInput;
 use crate::input_data::FileId;
 use crate::input_data::FileLoader;
 use crate::input_data::InputRef;
 use crate::layout_rules::LayoutRulesBuilder;
 use crate::output_section_id::OutputSections;
 use crate::platform::Args as _;
-use crate::platform::Platform;
 use crate::platform::RawSymbolName as _;
-use crate::resolution::ResolutionResources;
 use crate::resolution::ResolvedFile;
-use crate::resolution::ResolvedGroup;
 use crate::resolution::Resolver;
-use crate::resolution::SymbolAttributes;
-use crate::symbol::PreHashedSymbolName;
-use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
-use crate::symbol_db::SymbolIdRange;
 use crate::timing_phase;
-use crate::value_flags::FlagsForSymbol;
 use crate::value_flags::PerSymbolFlags;
-use crate::value_flags::ValueFlags;
 use crate::verbose_timing_phase;
 use bumpalo_herd::Herd;
 use colosseum::sync::Arena;
 use crossbeam_utils::atomic::AtomicCell;
 use libloading::Library;
-use rayon::Scope;
-use std::cell::Cell;
-use std::cell::RefCell;
 use std::ffi::CStr;
 use std::ffi::CString;
-use std::ffi::OsStr;
 use std::fs::File;
 use std::ops::Not as _;
 use std::os::fd::AsRawFd as _;
 use std::os::fd::RawFd;
-use std::os::unix::ffi::OsStrExt;
-use std::panic::AssertUnwindSafe;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -107,18 +90,6 @@ pub(crate) struct LoadedPlugin {
     _lib: Library,
 
     version_info: Option<VersionInfo>,
-}
-
-#[derive(Debug)]
-pub(crate) struct LtoInput<'data> {
-    pub(crate) file_id: FileId,
-    pub(crate) symbol_id_range: SymbolIdRange,
-    pub(crate) section_id_range: crate::input_section_id::SectionIdRange,
-    pub(crate) input_ref: InputRef<'data>,
-    pub(crate) symbols: Vec<PluginSymbol<'data>>,
-    /// Set to false once symbols from this object should be ignored. This is done once LTO has
-    /// been performed.
-    pub(crate) enabled: bool,
 }
 
 #[derive(Debug)]
@@ -538,80 +509,12 @@ impl LoadedPlugin {
 }
 
 impl<'data> LtoInputInfo<'data> {
-    pub(crate) fn num_symbols(&self) -> usize {
-        self.symbols.len()
-    }
-
-    pub(crate) fn into_input_object(
-        self,
-        file_id: FileId,
-        symbol_id_range: SymbolIdRange,
-    ) -> LtoInput<'data> {
-        self.handle.file_id.store(Some(file_id));
-
-        LtoInput {
-            file_id,
-            symbol_id_range,
-            section_id_range: crate::input_section_id::SectionIdRange::empty(),
+    pub(crate) fn into_unsequenced(self) -> UnsequencedLtoInput<'data> {
+        UnsequencedLtoInput {
             input_ref: self.input_ref,
             symbols: self.symbols,
-            enabled: true,
+            file_id_slot: Some(&self.handle.file_id),
         }
-    }
-}
-
-impl<'data> LtoInput<'data> {
-    pub(crate) fn symbol_name(
-        &self,
-        symbol_id: crate::symbol_db::SymbolId,
-    ) -> UnversionedSymbolName<'data> {
-        let local_index = self.symbol_id_range.id_to_offset(symbol_id);
-        self.symbols[local_index].name
-    }
-
-    pub(crate) fn symbol_visibility(
-        &self,
-        symbol_id: crate::symbol_db::SymbolId,
-    ) -> crate::symbol_db::Visibility {
-        let local_index = self.symbol_id_range.id_to_offset(symbol_id);
-        crate::elf::convert_elf_visibility(object::elf::SymbolVisibility(
-            self.symbols[local_index].visibility,
-        ))
-    }
-
-    pub(crate) fn symbols_iter(&self) -> impl Iterator<Item = (SymbolId, &PluginSymbol<'data>)> {
-        self.symbol_id_range.into_iter().zip(self.symbols.iter())
-    }
-
-    pub(crate) fn symbol_properties_display(
-        &'_ self,
-        symbol_id: SymbolId,
-    ) -> SymbolPropertiesDisplay<'_> {
-        SymbolPropertiesDisplay(&self.symbols[self.symbol_id_range.id_to_offset(symbol_id)])
-    }
-
-    pub(crate) fn is_optional(&self) -> bool {
-        self.input_ref.has_archive_semantics() && !self.input_ref.file.modifiers.whole_archive
-    }
-}
-
-pub(crate) struct SymbolPropertiesDisplay<'data>(&'data PluginSymbol<'data>);
-
-impl std::fmt::Display for SymbolPropertiesDisplay<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "LTO ")?;
-        if let Some(kind) = self.0.kind {
-            write!(f, "{kind:?}")?;
-        } else {
-            write!(f, "UNKNOWN")?;
-        }
-        Ok(())
-    }
-}
-
-impl std::fmt::Display for LtoInput<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "LTO input `{}`", self.input_ref)
     }
 }
 

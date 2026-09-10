@@ -8,6 +8,7 @@ use crate::elf::Elf;
 use crate::elf::ElfClass;
 use crate::error::Result;
 use crate::fs::FileSystem;
+use crate::grouping::LtoInput;
 use crate::input_data::FileLoader;
 use crate::layout_rules::LayoutRulesBuilder;
 use crate::output_section_id::OutputSections;
@@ -26,6 +27,12 @@ pub(crate) struct LinkerPlugin<'data> {
 
 pub(crate) struct LtoInputInfo<'data> {
     _phantom: PhantomData<&'data u8>,
+}
+
+impl<'data> LtoInputInfo<'data> {
+    pub(crate) fn into_unsequenced(self) -> crate::grouping::UnsequencedLtoInput<'data> {
+        unreachable!()
+    }
 }
 
 pub(crate) struct PluginOutputs {}
@@ -63,10 +70,6 @@ impl<'data> LinkerPlugin<'data> {
     ) -> Result {
         Ok(())
     }
-}
-
-pub(crate) struct LtoInput<'data> {
-    _p: PhantomData<&'data ()>,
 }
 
 pub(crate) fn resolve_lto_symbols<'data, 'scope, C: ElfClass>(

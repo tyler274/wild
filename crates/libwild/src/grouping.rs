@@ -44,6 +44,159 @@ pub(crate) struct LoadedStubLibrary<'data> {
     pub(crate) defined_symbols: DefinedStubLibrary<'data>,
 }
 
+/// Layout-facing LTO IR types. Plugin FFI fills `UnsequencedLtoInput`; grouping assigns FileIds.
+/// The types exist without the plugins feature so `LoadedInputs` and `Platform::LtoInput` stay
+/// stable; they are unused on that build.
+#[cfg_attr(not(all(feature = "plugins", unix)), allow(dead_code))]
+mod lto {
+    use super::*;
+    use crate::platform::Visibility;
+    use crossbeam_utils::atomic::AtomicCell;
+
+    #[derive(Debug)]
+    pub(crate) struct LtoInput<'data> {
+        pub(crate) file_id: FileId,
+        pub(crate) symbol_id_range: SymbolIdRange,
+        pub(crate) section_id_range: SectionIdRange,
+        pub(crate) input_ref: InputRef<'data>,
+        pub(crate) symbols: Vec<PluginSymbol<'data>>,
+        /// Set to false once symbols from this object should be ignored. This is done once LTO has
+        /// been performed.
+        pub(crate) enabled: bool,
+    }
+
+    /// Claimed LTO IR before FileIds are assigned.
+    pub(crate) struct UnsequencedLtoInput<'data> {
+        pub(crate) input_ref: InputRef<'data>,
+        pub(crate) symbols: Vec<PluginSymbol<'data>>,
+        /// Plugin FFI records the FileId once groups are sequenced.
+        pub(crate) file_id_slot: Option<&'data AtomicCell<Option<FileId>>>,
+    }
+
+    #[derive(Debug)]
+    pub(crate) struct PluginSymbol<'data> {
+        pub(crate) name: UnversionedSymbolName<'data>,
+        pub(crate) version: Option<&'data [u8]>,
+        pub(crate) visibility: Visibility,
+        pub(crate) kind: Option<SymbolKind>,
+        pub(crate) size: u64,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum SymbolKind {
+        Def = 0,
+        WeakDef = 1,
+        Undef = 2,
+        WeakUndef = 3,
+        Common = 4,
+    }
+
+    pub(crate) struct SymbolPropertiesDisplay<'data>(&'data PluginSymbol<'data>);
+
+    impl PluginSymbol<'_> {
+        pub(crate) fn is_definition(&self) -> bool {
+            self.kind.is_some_and(|kind| kind.is_definition())
+        }
+    }
+
+    impl SymbolKind {
+        pub(crate) fn is_definition(self) -> bool {
+            matches!(
+                self,
+                SymbolKind::Def | SymbolKind::WeakDef | SymbolKind::Common
+            )
+        }
+    }
+
+    impl<'data> UnsequencedLtoInput<'data> {
+        pub(crate) fn num_symbols(&self) -> usize {
+            self.symbols.len()
+        }
+
+        pub(crate) fn into_input_object(
+            self,
+            file_id: FileId,
+            symbol_id_range: SymbolIdRange,
+        ) -> LtoInput<'data> {
+            if let Some(slot) = self.file_id_slot {
+                slot.store(Some(file_id));
+            }
+
+            LtoInput {
+                file_id,
+                symbol_id_range,
+                section_id_range: SectionIdRange::empty(),
+                input_ref: self.input_ref,
+                symbols: self.symbols,
+                enabled: true,
+            }
+        }
+    }
+
+    impl<'data> LtoInput<'data> {
+        pub(crate) fn symbol_name(&self, symbol_id: SymbolId) -> UnversionedSymbolName<'data> {
+            let local_index = self.symbol_id_range.id_to_offset(symbol_id);
+            self.symbols[local_index].name
+        }
+
+        pub(crate) fn symbol_visibility(&self, symbol_id: SymbolId) -> Visibility {
+            let local_index = self.symbol_id_range.id_to_offset(symbol_id);
+            self.symbols[local_index].visibility
+        }
+
+        pub(crate) fn symbols_iter(
+            &self,
+        ) -> impl Iterator<Item = (SymbolId, &PluginSymbol<'data>)> {
+            self.symbol_id_range.into_iter().zip(self.symbols.iter())
+        }
+
+        pub(crate) fn symbol_properties_display(
+            &'_ self,
+            symbol_id: SymbolId,
+        ) -> SymbolPropertiesDisplay<'_> {
+            SymbolPropertiesDisplay(&self.symbols[self.symbol_id_range.id_to_offset(symbol_id)])
+        }
+
+        pub(crate) fn is_optional(&self) -> bool {
+            self.input_ref.has_archive_semantics() && !self.input_ref.file.modifiers.whole_archive
+        }
+
+        pub(crate) fn symbol_strength(&self, symbol_id: SymbolId) -> SymbolStrength {
+            if !self.enabled {
+                return SymbolStrength::Undefined;
+            }
+            let local_index = symbol_id.to_input(self.symbol_id_range);
+            let obj_symbol = &self.symbols[local_index.0];
+            match obj_symbol.kind {
+                Some(SymbolKind::Def) => SymbolStrength::Strong,
+                Some(SymbolKind::WeakDef) => SymbolStrength::Weak,
+                Some(SymbolKind::Common) => SymbolStrength::Common(obj_symbol.size),
+                _ => SymbolStrength::Undefined,
+            }
+        }
+    }
+
+    impl std::fmt::Display for LtoInput<'_> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "LTO input `{}`", self.input_ref)
+        }
+    }
+
+    impl std::fmt::Display for SymbolPropertiesDisplay<'_> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "LTO ")?;
+            if let Some(kind) = self.0.kind {
+                write!(f, "{kind:?}")?;
+            } else {
+                write!(f, "UNKNOWN")?;
+            }
+            Ok(())
+        }
+    }
+}
+
+pub(crate) use lto::*;
+
 #[derive(Debug)]
 pub(crate) enum Group<'data, P: Platform> {
     Prelude(Prelude<'data, P>),
@@ -52,7 +205,7 @@ pub(crate) enum Group<'data, P: Platform> {
     LinkerScripts(Vec<SequencedLinkerScript<'data, P>>),
     SyntheticSymbols(SyntheticSymbols),
     #[cfg(all(feature = "plugins", unix))]
-    LtoInputs(Vec<crate::linker_plugins::LtoInput<'data>>),
+    LtoInputs(Vec<LtoInput<'data>>),
 }
 
 #[derive(Debug)]
@@ -89,7 +242,7 @@ pub(crate) enum SequencedInput<'db, 'data, P: Platform> {
     LinkerScript(&'db SequencedLinkerScript<'data, P>),
     SyntheticSymbols(&'db SyntheticSymbols),
     #[cfg(all(feature = "plugins", unix))]
-    LtoInput(&'db crate::linker_plugins::LtoInput<'data>),
+    LtoInput(&'db LtoInput<'data>),
 }
 
 impl<'data, P: Platform> Group<'data, P> {

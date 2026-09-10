@@ -11,7 +11,7 @@ use wild_error::error::Result;
 use wild_util::alignment::Alignment;
 
 /// Symbol visibility. Lives here so `platform/` does not import `symbol_db`.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Visibility {
     Default,
     Protected,

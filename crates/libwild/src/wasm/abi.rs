@@ -580,7 +580,7 @@ impl platform::Platform for Wasm {
     type ResolvedStubLibrary<'data> = crate::resolution::ResolvedStubLibrary<'data>;
     type LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>;
     type LoadedPlugin = crate::linker_plugins::LoadedPlugin;
-    type LtoInput<'data> = crate::linker_plugins::LtoInput<'data>;
+    type LtoInput<'data> = crate::grouping::LtoInput<'data>;
     type Group<'data> = crate::grouping::Group<'data, Self>;
     type SequencedLinkerScript<'data> = crate::grouping::SequencedLinkerScript<'data, Self>;
     type FileLoader<'data, F: crate::fs::FileSystem> = crate::input_data::FileLoader<'data, F>;

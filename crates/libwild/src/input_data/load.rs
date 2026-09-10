@@ -953,7 +953,9 @@ fn add_record<'data, P: LoadPlatform>(
                     plugin.process_input(input_ref, file, kind)
                 });
             match plugin_result {
-                Ok(Some(info)) => loaded.lto_objects.push(Ok(info)),
+                Ok(Some(info)) => loaded
+                    .lto_objects
+                    .push(Ok(Box::new(info.into_unsequenced()))),
                 Ok(None) => {} // Skipped, e.g. unclaimed IR member inside an archive
                 Err(e) => loaded.lto_objects.push(Err(e)),
             }

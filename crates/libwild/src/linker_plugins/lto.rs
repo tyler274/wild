@@ -1,7 +1,8 @@
-use crate::elf;
 use crate::elf::Elf;
 use crate::elf::ElfClass;
 use crate::error::Result;
+use crate::grouping::LtoInput;
+use crate::grouping::SymbolKind;
 use crate::layout::EnginePlatform;
 use crate::platform::Args as _;
 use crate::platform::Platform;
@@ -41,9 +42,7 @@ pub(crate) fn mark_lto_symbols_for_dynamic_export<C: ElfClass>(
                     if symbol.is_definition()
                         && crate::layout::can_export_global_def(
                             symbol_db,
-                            elf::convert_elf_visibility(object::elf::SymbolVisibility(
-                                symbol.visibility,
-                            )),
+                            symbol.visibility,
                             symbol_id,
                             per_symbol_flags.flags_for_symbol(symbol_id),
                             mode,
@@ -69,7 +68,7 @@ pub(crate) fn has_loaded_lto_input<P: EnginePlatform>(
 }
 
 pub(crate) fn resolve_lto_symbols<'data, 'scope, C: ElfClass>(
-    obj: &crate::linker_plugins::LtoInput<'data>,
+    obj: &LtoInput<'data>,
     resources: &'scope ResolutionResources<'data, 'scope, Elf<C>>,
     definitions_out: &mut [SymbolId],
     scope: &Scope<'scope>,
@@ -89,9 +88,9 @@ pub(crate) fn resolve_lto_symbols<'data, 'scope, C: ElfClass>(
                     let symbol_attributes = SymbolAttributes {
                         name_info,
                         is_local: false,
-                        default_visibility: local_symbol.visibility == object::elf::STV_DEFAULT.0,
-                        is_weak: local_symbol.kind
-                            == Some(crate::linker_plugins::SymbolKind::WeakUndef),
+                        default_visibility: local_symbol.visibility
+                            == crate::platform::Visibility::Default,
+                        is_weak: local_symbol.kind == Some(SymbolKind::WeakUndef),
                     };
 
                     crate::resolution::resolve_symbol(

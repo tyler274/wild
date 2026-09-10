@@ -1,5 +1,6 @@
 use super::ids::*;
 use super::load::SymbolVecWriters;
+#[cfg(not(all(feature = "plugins", unix)))]
 use super::load::linker_plugin_disabled_error;
 use super::load::num_symbol_hash_buckets;
 use super::load::populate_symbol_db;
@@ -17,13 +18,13 @@ use crate::grouping;
 use crate::grouping::Group;
 use crate::grouping::LoadedStubLibrary;
 use crate::grouping::SequencedInput;
+use crate::grouping::UnsequencedLtoInput;
 use crate::hash::PassThroughHashMap;
 use crate::hash::PreHashed;
 use crate::layout::EnginePlatform;
 use crate::layout::timing_phase;
 use crate::layout::verbose_timing_phase;
 use crate::layout_rules::LayoutRulesBuilder;
-use crate::linker_plugins::LtoInputInfo;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
 use crate::output_section_map::OutputSectionMap;
@@ -71,7 +72,7 @@ pub(crate) struct LoadedInputs<'data, P: Platform> {
 
     pub(crate) stub_libraries: Vec<LoadedStubLibrary<'data>>,
 
-    pub(crate) lto_objects: Vec<Result<Box<LtoInputInfo<'data>>>>,
+    pub(crate) lto_objects: Vec<Result<Box<UnsequencedLtoInput<'data>>>>,
 
     /// Number of regular objects seen on the command line before the first LTO input. Used to
     /// place plugin codegen at that position (#1935).
@@ -348,7 +349,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
     #[cfg(all(feature = "plugins", unix))]
     fn create_lto_input_groups(
         &mut self,
-        lto_objects: Vec<Result<Box<crate::linker_plugins::LtoInputInfo<'data>>>>,
+        lto_objects: Vec<Result<Box<UnsequencedLtoInput<'data>>>>,
     ) -> Result {
         if lto_objects.is_empty() {
             return Ok(());
@@ -393,7 +394,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
     )]
     fn create_lto_input_groups(
         &mut self,
-        lto_objects: Vec<Result<Box<crate::linker_plugins::LtoInputInfo<'data>>>>,
+        lto_objects: Vec<Result<Box<UnsequencedLtoInput<'data>>>>,
     ) -> Result {
         if !lto_objects.is_empty() {
             return Err(linker_plugin_disabled_error());
@@ -812,22 +813,10 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
             ResolvedFile::StubLibrary(stub) => stub.symbol_strength(symbol_id),
             #[cfg(all(feature = "plugins", unix))]
             ResolvedFile::LtoInput(obj) => {
-                use crate::linker_plugins::SymbolKind;
-
                 let SequencedInput::LtoInput(obj) = self.file(obj.file_id) else {
                     unreachable!();
                 };
-                if !obj.enabled {
-                    return SymbolStrength::Undefined;
-                }
-                let local_index = symbol_id.to_input(obj.symbol_id_range);
-                let obj_symbol = &obj.symbols[local_index.0];
-                match obj_symbol.kind {
-                    Some(SymbolKind::Def) => SymbolStrength::Strong,
-                    Some(SymbolKind::WeakDef) => SymbolStrength::Weak,
-                    Some(SymbolKind::Common) => SymbolStrength::Common(obj_symbol.size),
-                    _ => SymbolStrength::Undefined,
-                }
+                obj.symbol_strength(symbol_id)
             }
             _ => SymbolStrength::Undefined,
         }

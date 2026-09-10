@@ -265,7 +265,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     type ResolvedStubLibrary<'data> = crate::resolution::ResolvedStubLibrary<'data>;
     type LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>;
     type LoadedPlugin = crate::linker_plugins::LoadedPlugin;
-    type LtoInput<'data> = crate::linker_plugins::LtoInput<'data>;
+    type LtoInput<'data> = crate::grouping::LtoInput<'data>;
     type Group<'data> = crate::grouping::Group<'data, Self>;
     type SequencedLinkerScript<'data> = crate::grouping::SequencedLinkerScript<'data, Self>;
     type FileLoader<'data, F: crate::fs::FileSystem> = crate::input_data::FileLoader<'data, F>;
@@ -321,7 +321,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     }
 
     fn resolve_lto_symbols<'data, 'scope>(
-        obj: &crate::linker_plugins::LtoInput<'data>,
+        obj: &crate::grouping::LtoInput<'data>,
         resources: &'scope crate::resolution::ResolutionResources<'data, 'scope, Self>,
         definitions_out: &mut [SymbolId],
         scope: &Scope<'scope>,

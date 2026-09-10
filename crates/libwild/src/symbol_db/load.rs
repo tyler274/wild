@@ -203,7 +203,7 @@ fn load_stub_library_symbols<'data, P: EnginePlatform>(
 fn load_lto_symbols<'data, P: EnginePlatform>(
     symbols_out: &mut SymbolWriterShard<'_, '_, 'data, P>,
     outputs: &mut SymbolLoadOutputs<'data>,
-    obj: &crate::linker_plugins::LtoInput<'data>,
+    obj: &crate::grouping::LtoInput<'data>,
 ) {
     for (symbol_id, sym) in obj.symbols_iter() {
         if sym.is_definition() {

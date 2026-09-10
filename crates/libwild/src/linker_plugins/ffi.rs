@@ -4,17 +4,15 @@ use crate::elf::Elf;
 use crate::elf::ElfClass;
 use crate::elf::RawSymbolName;
 use crate::error;
-use crate::error::Context as _;
 use crate::error::Error;
 use crate::error::Result;
-use crate::input_data::FileId;
-use crate::input_data::InputRef;
+use crate::grouping::PluginSymbol;
+use crate::grouping::SymbolKind;
 use crate::layout::EnginePlatform;
 use crate::platform::Platform;
 use crate::resolution::ResolvedGroup;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
 use crate::symbol_db::SymbolIdRange;
 use crate::value_flags::FlagsForSymbol;
 use crate::value_flags::PerSymbolFlags;
@@ -23,7 +21,6 @@ use bumpalo_herd::Herd;
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::ffi::CStr;
-use std::ffi::CString;
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::panic::AssertUnwindSafe;
@@ -242,15 +239,6 @@ pub(crate) enum PluginSymbolResolution {
     PrevailingDefIronlyExp,
 }
 
-#[derive(Debug)]
-pub(crate) struct PluginSymbol<'data> {
-    pub(crate) name: UnversionedSymbolName<'data>,
-    pub(crate) version: Option<&'data [u8]>,
-    pub(crate) visibility: u8,
-    pub(crate) kind: Option<SymbolKind>,
-    pub(crate) size: u64,
-}
-
 #[repr(C)]
 pub(crate) struct RawPluginSymbol {
     name: *const libc::c_char,
@@ -333,7 +321,9 @@ pub(crate) extern "C" fn add_symbols(
                         &*arena.alloc_slice_copy(unsafe { CStr::from_ptr(sym.version) }.to_bytes())
                     }),
                     kind: sym.kind(),
-                    visibility: sym.visibility as u8,
+                    visibility: crate::elf::convert_elf_visibility(object::elf::SymbolVisibility(
+                        sym.visibility as u8,
+                    )),
                     size: sym.size,
                 })
                 .collect();
@@ -697,12 +687,6 @@ impl RawPluginSymbol {
     }
 }
 
-impl PluginSymbol<'_> {
-    pub(crate) fn is_definition(&self) -> bool {
-        self.kind.is_some_and(|kind| kind.is_definition())
-    }
-}
-
 impl std::fmt::Display for MessageLevel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let message = match self {
@@ -725,15 +709,6 @@ impl Callbacks {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SymbolKind {
-    Def = 0,
-    WeakDef = 1,
-    Undef = 2,
-    WeakUndef = 3,
-    Common = 4,
-}
-
 impl std::fmt::Display for VersionInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -741,15 +716,6 @@ impl std::fmt::Display for VersionInfo {
             "{} version {}",
             String::from_utf8_lossy(&self.identifier),
             String::from_utf8_lossy(&self.version)
-        )
-    }
-}
-
-impl SymbolKind {
-    pub(crate) fn is_definition(self) -> bool {
-        matches!(
-            self,
-            SymbolKind::Def | SymbolKind::WeakDef | SymbolKind::Common
         )
     }
 }

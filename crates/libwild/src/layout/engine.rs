@@ -52,6 +52,7 @@ pub(crate) trait EnginePlatform:
         LayoutRulesBuilder<'data> = LayoutRulesBuilder<'data>,
         InternalSymbolsBuilder<'data> = InternalSymbolsBuilder<'data, Self>,
         InternalSymDefInfo<'data> = InternalSymDefInfo<'data, Self>,
+        LtoInput<'data> = crate::grouping::LtoInput<'data>,
         OutputSections<'data> = crate::output_section_id::OutputSections<'data, Self>,
         OutputOrder<'data> = crate::output_section_id::OutputOrder<'data>,
         LocationCounter<'data> = crate::layout_rules::LocationCounter<'data>,
