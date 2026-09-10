@@ -1,21 +1,21 @@
 use super::*;
 use crate::EnginePlatform;
-use crate::alignment;
-use crate::alignment::Alignment;
-use crate::error::Result;
 use crate::expression_eval::ResolvedLocationCounter;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSections;
-use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
-use crate::program_segments::ProgramSegments;
 use crate::resolution::SectionSlot;
 use crate::string_merging::MergedStringsSection;
 use crate::symbol_db::SymbolDb;
 use crate::types::*;
 use hashbrown::HashMap;
 use object::SectionIndex;
+use wild_error::error::Result;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::program_segments::ProgramSegments;
+use wild_util::alignment;
+use wild_util::alignment::Alignment;
 
 pub fn advance_section_offset<P: EnginePlatform>(
     offset: &mut u64,

@@ -8,13 +8,14 @@ use crate::elf::file::*;
 #[allow(unused_imports)]
 use crate::elf::output::*;
 #[allow(unused_imports)]
-use crate::elf::types::*;
+use crate::elf::types::Elf;
+use crate::elf::types::ElfClass;
+use crate::elf::types::File;
+use crate::elf::types::File64;
 use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::gdb_index::InputDebugIndexSection;
-use crate::platform::Arch;
-use crate::platform::ObjectFile;
 use crate::timing_phase;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
@@ -40,6 +41,8 @@ use smallvec::SmallVec;
 use std::num::NonZeroU32;
 use wild_layout as layout;
 use wild_layout::objects_iter;
+use wild_platform::Arch;
+use wild_platform::ObjectFile;
 use zerocopy::FromBytes;
 use zerocopy::IntoBytes;
 use zerocopy::KnownLayout;
@@ -111,7 +114,7 @@ pub(crate) fn get_page_mask(mask: Option<PageMask>) -> PageMaskValue {
     }
 }
 
-pub(crate) use crate::platform::PropertyClass;
+pub(crate) use wild_platform::PropertyClass;
 
 #[derive(Debug)]
 pub(crate) struct GnuProperty {

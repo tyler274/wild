@@ -1,17 +1,7 @@
-use crate::args::InputRef;
-use crate::error::Result;
-use crate::input_section_id::InputSectionId;
-use crate::input_section_id::SectionIdRange;
 use crate::parsing::ParsedInputObject;
 use crate::parsing::Prelude;
 use crate::parsing::ProcessedLinkerScript;
 use crate::parsing::SyntheticSymbols;
-use crate::platform;
-use crate::platform::FileId;
-use crate::platform::MAX_FILES_PER_GROUP;
-use crate::platform::ObjectFile;
-use crate::platform::Platform;
-use crate::sharding::ShardKey as _;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
 use crate::symbol_db::SymbolId;
@@ -20,6 +10,17 @@ use crate::symbol_db::SymbolStrength;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
 use std::fmt::Display;
+use wild_args::Experiment;
+use wild_args::InputRef;
+use wild_error::error::Result;
+use wild_platform as platform;
+use wild_platform::FileId;
+use wild_platform::MAX_FILES_PER_GROUP;
+use wild_platform::ObjectFile;
+use wild_platform::Platform;
+use wild_util::input_section_id::InputSectionId;
+use wild_util::input_section_id::SectionIdRange;
+use wild_util::sharding::ShardKey as _;
 
 #[derive(Debug, Clone)]
 pub struct DefinedStubLibrary<'a> {
@@ -50,8 +51,8 @@ pub struct LoadedStubLibrary<'data> {
 #[cfg_attr(not(all(feature = "plugins", unix)), allow(dead_code))]
 mod lto {
     use super::*;
-    use crate::platform::Visibility;
     use crossbeam_utils::atomic::AtomicCell;
+    use wild_platform::Visibility;
 
     #[derive(Debug)]
     pub struct LtoInput<'data> {
@@ -593,12 +594,11 @@ fn determine_symbols_per_group(num_symbols: usize, args: &impl platform::Args) -
 
     // If we have lots of threads, then we might benefit from a few more groups in order to properly
     // take advantage of the available parallelism.
-    let groups_per_thread =
-        args.numeric_experiment(crate::args::Experiment::GroupsPerThread, 5) as usize;
+    let groups_per_thread = args.numeric_experiment(Experiment::GroupsPerThread, 5) as usize;
 
     // If we don't have lots of threads, then we still want a reasonable number of groups. The need
     // for this was based on experimentation.
-    let min_groups = args.numeric_experiment(crate::args::Experiment::MinGroups, 150) as usize;
+    let min_groups = args.numeric_experiment(Experiment::MinGroups, 150) as usize;
 
     let target_num_groups = (num_threads * groups_per_thread).max(min_groups);
 
@@ -613,7 +613,7 @@ fn determine_max_files_per_group(args: &impl platform::Args) -> usize {
 
     // We may eventually find that a lower value based on the number of threads is better, but for
     // now, if files are small, we allow lots of them in a single group.
-    crate::platform::MAX_FILES_PER_GROUP as usize
+    wild_platform::MAX_FILES_PER_GROUP as usize
 }
 
 /// Compute the total number of symbols in the supplied objects.

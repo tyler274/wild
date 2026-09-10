@@ -1,11 +1,6 @@
 use crate::elf::Elf;
 use crate::elf::ElfClass;
 use crate::error::Result;
-use crate::platform::Args as _;
-use crate::platform::Platform;
-use crate::value_flags::FlagsForSymbol;
-use crate::value_flags::PerSymbolFlags;
-use crate::value_flags::ValueFlags;
 use rayon::Scope;
 use wild_layout::EnginePlatform;
 use wild_layout::grouping::LtoInput;
@@ -17,6 +12,12 @@ use wild_layout::resolution::SymbolAttributes;
 use wild_layout::symbol::UnversionedSymbolName;
 use wild_layout::symbol_db::SymbolDb;
 use wild_layout::symbol_db::SymbolId;
+use wild_platform::Args as _;
+use wild_platform::Platform;
+use wild_platform::Visibility;
+use wild_platform::value_flags::FlagsForSymbol;
+use wild_platform::value_flags::PerSymbolFlags;
+use wild_platform::value_flags::ValueFlags;
 
 pub(crate) fn mark_lto_symbols_for_dynamic_export<C: ElfClass>(
     symbol_db: &SymbolDb<Elf<C>>,
@@ -88,8 +89,7 @@ pub(crate) fn resolve_lto_symbols<'data, 'scope, C: ElfClass>(
                     let symbol_attributes = SymbolAttributes {
                         name_info,
                         is_local: false,
-                        default_visibility: local_symbol.visibility
-                            == crate::platform::Visibility::Default,
+                        default_visibility: local_symbol.visibility == Visibility::Default,
                         is_weak: local_symbol.kind == Some(SymbolKind::WeakUndef),
                     };
 

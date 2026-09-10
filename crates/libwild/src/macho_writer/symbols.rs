@@ -5,8 +5,6 @@ use crate::error::Context;
 use crate::error::Result;
 use crate::macho::MachO;
 use crate::macho::part_id;
-use crate::platform::ObjectFile;
-use crate::platform::Symbol;
 use object::from_bytes_mut;
 use object::macho::N_ABS;
 use object::macho::N_SECT;
@@ -16,6 +14,8 @@ use wild_layout::output_section_id::OrderEvent;
 use wild_layout::output_section_id::OutputSectionId;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::resolution::SectionSlot;
+use wild_platform::ObjectFile;
+use wild_platform::Symbol;
 
 pub(crate) struct MachOSymbolTableWriter {
     pub(crate) next_strtab_offset: u32,

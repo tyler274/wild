@@ -1,17 +1,7 @@
 use super::*;
 use crate::EnginePlatform;
 use crate::OutputSections;
-use crate::alignment;
-use crate::arch::Architecture;
-use crate::args::InputLinkerScript;
-use crate::args::InputRef;
-use crate::error::Context;
-use crate::error::Result;
 use crate::expression_eval::evaluate_const;
-use crate::linker_script;
-use crate::linker_script::ContentsCommand;
-use crate::linker_script::Expression;
-use crate::linker_script::SectionCommand;
 use crate::output_section_id::GnuBuildIdPlacement;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::SectionLocationInfo;
@@ -22,9 +12,19 @@ use crate::parsing::Redirect;
 use crate::parsing::RedirectKind;
 use crate::parsing::SymbolLoc;
 use crate::parsing::SymbolPlacement;
-use crate::platform::Args as _;
 use hashbrown::HashMap;
 use linker_utils::elf::secnames::NOTE_GNU_BUILD_ID_SECTION_NAME;
+use wild_args::InputLinkerScript;
+use wild_args::InputRef;
+use wild_error::error::Context;
+use wild_error::error::Result;
+use wild_platform::Args as _;
+use wild_scripts::linker_script;
+use wild_scripts::linker_script::ContentsCommand;
+use wild_scripts::linker_script::Expression;
+use wild_scripts::linker_script::SectionCommand;
+use wild_util::alignment;
+use wild_util::arch::Architecture;
 
 #[derive(Default)]
 pub struct LayoutRulesBuilder<'data> {
@@ -39,12 +39,12 @@ fn matcher_uses_input_order(matcher: &linker_script::Matcher<'_>) -> bool {
         .all(|p| p.sort == linker_script::SortKind::None)
 }
 fn loc_for_global_expr<'data>(
-    expr: &crate::linker_script::Expression<'data>,
+    expr: &Expression<'data>,
     section_id: Option<OutputSectionId>,
 ) -> SymbolLoc {
     let mut loc = SymbolLoc::None;
     expr.visit_expressions(&mut |e| match e {
-        crate::linker_script::Expression::SegmentStart(..) => {
+        Expression::SegmentStart(..) => {
             if let Some(section_id) = section_id {
                 loc = SymbolLoc::SectionEnd(section_id);
             } else {
@@ -126,7 +126,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                 self.add_section_rule(rule);
                                             }
                                         }
-                                        _ => crate::bail!("Illegal use of /DISCARD/ section"),
+                                        _ => wild_error::bail!("Illegal use of /DISCARD/ section"),
                                     }
                                 }
                                 continue;
@@ -155,7 +155,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                 .map(|fill| -> Result<[u8; 4]> {
                                     let value = evaluate_const(&fill.value)?;
                                     if value > u64::from(u32::MAX) {
-                                        crate::bail!(
+                                        wild_error::bail!(
                                             "Filler expression result does not fit 32-bit: 0x{:x}",
                                             value
                                         );
@@ -542,7 +542,9 @@ impl<'data> LayoutRulesBuilder<'data> {
                             }
                         }
                         SectionCommand::Include(_) => {
-                            crate::bail!("INCLUDE inside SECTIONS was not expanded before layout");
+                            wild_error::bail!(
+                                "INCLUDE inside SECTIONS was not expanded before layout"
+                            );
                         }
                     }
                 }
@@ -558,7 +560,7 @@ impl<'data> LayoutRulesBuilder<'data> {
             } else if let linker_script::Command::Phdrs(phdrs) = cmd {
                 program_headers = phdrs.clone();
             } else if let linker_script::Command::Include(_) = cmd {
-                crate::bail!("INCLUDE was not expanded before layout");
+                wild_error::bail!("INCLUDE was not expanded before layout");
             } else if let linker_script::Command::OutputFormat(output_format) = cmd {
                 let target_format = match args.output_format_endian() {
                     Some(object::Endianness::Little) => {
@@ -571,23 +573,23 @@ impl<'data> LayoutRulesBuilder<'data> {
                 };
                 let target_arch = Architecture::parse_output_format(target_format);
                 if target_arch == Architecture::Unsupported {
-                    crate::bail!(
+                    wild_error::bail!(
                         "{} is not yet supported",
                         String::from_utf8_lossy(target_format)
                     );
                 }
                 if args.architecture() != target_arch {
-                    crate::bail!(
+                    wild_error::bail!(
                         "Setting the output format using OUTPUT_FORMAT is currently unsupported"
                     );
                 }
             } else if let linker_script::Command::OutputArch(arch) = cmd {
                 let target_arch = Architecture::parse_output_arch(arch);
                 if target_arch == Architecture::Unsupported {
-                    crate::bail!("{} is not yet supported", String::from_utf8_lossy(arch));
+                    wild_error::bail!("{} is not yet supported", String::from_utf8_lossy(arch));
                 }
                 if args.architecture() != target_arch {
-                    crate::bail!(
+                    wild_error::bail!(
                         "Setting the output architecture using OUTPUT_ARCH is currently unsupported"
                     );
                 }

@@ -5,7 +5,7 @@ use crate::elf::file::*;
 #[allow(unused_imports)]
 use crate::elf::gnu::*;
 #[allow(unused_imports)]
-use crate::elf::types::*;
+use crate::elf::types::ElfClass;
 use crate::error::Result;
 use std::marker::PhantomData;
 use std::ops::Range;

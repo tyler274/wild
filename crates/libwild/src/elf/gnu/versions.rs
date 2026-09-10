@@ -7,12 +7,14 @@ use crate::elf::file::*;
 use crate::elf::output::*;
 use crate::elf::part_id;
 #[allow(unused_imports)]
-use crate::elf::types::*;
+use crate::elf::types::Elf;
+use crate::elf::types::ElfClass;
+use crate::elf::types::File;
+use crate::elf::types::GnuHashHeader;
+use crate::elf::types::VerdefIterator;
+use crate::elf::types::Versym;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::output_kind::OutputKind;
-use crate::platform;
-use crate::platform::Platform;
 use hashbrown::HashMap;
 use object::LittleEndian;
 use rayon::prelude::*;
@@ -20,6 +22,9 @@ use wild_layout::DynamicSymbolDefinition;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::symbol_db::SymbolDb;
 use wild_layout::symbol_db::SymbolId;
+use wild_platform as platform;
+use wild_platform::OutputKind;
+use wild_platform::Platform;
 
 pub(crate) struct VersionNames<'data> {
     pub(crate) names: Vec<Option<&'data [u8]>>,

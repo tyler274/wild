@@ -9,10 +9,6 @@ use crate::elf::Elf;
 use crate::elf::ElfClass;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::hash::PassThroughHashMap;
-use crate::hash::PreHashed;
-use crate::platform::ObjectFile as _;
-use crate::platform::SectionHeader as _;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
 use hashbrown::HashMap;
@@ -34,6 +30,10 @@ use wild_layout::GroupState;
 use wild_layout::Layout;
 use wild_layout::ObjectLayoutState;
 use wild_layout::resolution::SectionSlot;
+use wild_platform::ObjectFile as _;
+use wild_platform::SectionHeader as _;
+use wild_util::hash::PassThroughHashMap;
+use wild_util::hash::PreHashed;
 use zerocopy::FromBytes;
 use zerocopy::Immutable;
 use zerocopy::IntoBytes;
@@ -512,7 +512,7 @@ fn bucket_names<'data>(
 
             for scan in scans {
                 for (name, local_cu_idx, attrs) in &scan.symbol_entries {
-                    let hash = crate::hash::hash_bytes(name);
+                    let hash = wild_util::hash::hash_bytes(name);
                     let entry = encode_cu_vector_entry(scan.cu_base + local_cu_idx, *attrs);
                     state.buckets[hash as usize % num_buckets].push(NamedCuEntry {
                         name: PreHashed::new(name, hash),

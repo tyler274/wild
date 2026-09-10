@@ -1,4 +1,4 @@
-use crate::platform::RawSymbolName;
+use wild_platform::RawSymbolName;
 pub use wild_util::symbol_name::PreHashedSymbolName;
 pub use wild_util::symbol_name::UnversionedSymbolName;
 pub use wild_util::symbol_name::VersionedSymbolName;

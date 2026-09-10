@@ -3,13 +3,13 @@
 
 use crate::EnginePlatform;
 use crate::FileLayout;
-use crate::bail;
-use crate::error::Result;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSections;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
 use itertools::Itertools;
+use wild_error::bail;
+use wild_error::error::Result;
 
 pub struct OffsetVerifier {
     expected: OutputSectionPartMap<u64>,

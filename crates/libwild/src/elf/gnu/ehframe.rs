@@ -5,10 +5,12 @@ use crate::elf::file::*;
 #[allow(unused_imports)]
 use crate::elf::output::*;
 #[allow(unused_imports)]
-use crate::elf::types::*;
-use crate::platform::FrameIndex;
-use crate::platform::Relocation;
+use crate::elf::types::ElfClass;
+use crate::elf::types::ElfCrel;
+use crate::elf::types::ElfRela;
 use std::mem::offset_of;
+use wild_platform::FrameIndex;
+use wild_platform::Relocation;
 use zerocopy::FromBytes;
 use zerocopy::IntoBytes;
 use zerocopy::KnownLayout;

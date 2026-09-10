@@ -4,9 +4,6 @@ use crate::elf::ElfClass;
 use crate::ensure;
 use crate::error::Result;
 use crate::output_trace::TraceOutput;
-use crate::platform::Arch;
-use crate::platform::ObjectFile;
-use crate::value_flags::ValueFlags;
 use crate::verbose_timing_phase;
 use object::LittleEndian;
 use object::read::elf::Crel;
@@ -17,6 +14,9 @@ use wild_layout::Section;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::part_id::PartId;
 use wild_layout::resolution::SectionSlot;
+use wild_platform::Arch;
+use wild_platform::ObjectFile;
+use wild_platform::value_flags::ValueFlags;
 use zerocopy::FromBytes;
 
 pub(crate) fn write_object<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(

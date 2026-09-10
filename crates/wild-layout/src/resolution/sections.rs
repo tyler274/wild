@@ -1,9 +1,13 @@
-use super::types::*;
+use super::types::LoadedMetrics;
+use super::types::ResolvedFile;
+use super::types::ResolvedGroup;
+use super::types::ResolvedObject;
+use super::types::ResolvedSyntheticSymbols;
+use super::types::SectionSlot;
+use super::types::StartStopCandidate;
+use super::types::UnloadedSection;
 use crate::EnginePlatform;
 use crate::LayoutRules;
-use crate::alignment::Alignment;
-use crate::bail;
-use crate::error::Result;
 use crate::layout_rules::SectionOutputInfo;
 use crate::layout_rules::SectionRuleOutcome;
 use crate::layout_rules::SectionRules;
@@ -15,11 +19,6 @@ use crate::output_section_id::SectionIdentity;
 use crate::output_section_id::SectionName;
 use crate::part_id;
 use crate::part_id::PartId;
-use crate::platform::Args as _;
-use crate::platform::ObjectFile;
-use crate::platform::OrphanHandling;
-use crate::platform::Platform;
-use crate::platform::SectionHeader as _;
 use crate::string_merging::StringMergeSectionExtra;
 use crate::string_merging::StringMergeSectionSlot;
 use crate::symbol_db::SymbolDb;
@@ -31,6 +30,14 @@ use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
 use std::borrow::Cow;
+use wild_error::bail;
+use wild_error::error::Result;
+use wild_platform::Args as _;
+use wild_platform::ObjectFile;
+use wild_platform::OrphanHandling;
+use wild_platform::Platform;
+use wild_platform::SectionHeader as _;
+use wild_util::alignment::Alignment;
 
 pub(super) fn resolve_sections<'data, P: EnginePlatform>(
     groups: &mut [ResolvedGroup<'data, P>],
@@ -268,7 +275,7 @@ fn apply_init_fini_secondaries<'data, P: EnginePlatform>(
 fn resolve_sections_for_object<'data, P: EnginePlatform>(
     obj: &mut ResolvedObject<'data, P>,
     args: &P::Args,
-    allocator: &crate::arena::Member<'data>,
+    allocator: &wild_util::arena::Member<'data>,
     loaded_metrics: &LoadedMetrics,
     rules: &SectionRules,
     output_sections: &OutputSections<'data, P>,
@@ -310,7 +317,7 @@ fn part_id_for_output<P: EnginePlatform>(
     if output_info.input_order {
         output_info
             .section_id
-            .part_id_with_alignment::<P>(crate::alignment::MIN)
+            .part_id_with_alignment::<P>(wild_util::alignment::MIN)
     } else if output_info.section_id.is_regular::<P>() {
         output_info
             .section_id
@@ -326,7 +333,7 @@ fn resolve_section<'data, P: EnginePlatform>(
     input_section: &'data P::SectionHeader,
     obj: &mut ResolvedObject<'data, P>,
     args: &P::Args,
-    allocator: &crate::arena::Member<'data>,
+    allocator: &wild_util::arena::Member<'data>,
     loaded_metrics: &LoadedMetrics,
     rules: &SectionRules,
     output_sections: &OutputSections<'data, P>,
@@ -542,7 +549,7 @@ fn emit_relocs_section_name<'data, P: EnginePlatform>(
     file_name: Option<&[u8]>,
     rules: &SectionRules,
     output_sections: &OutputSections<'data, P>,
-    allocator: &crate::arena::Member<'data>,
+    allocator: &wild_util::arena::Member<'data>,
     only_if_writable: &HashSet<crate::output_section_id::OutputSectionId>,
 ) -> Option<&'data [u8]> {
     let prefix = input_section.reloc_output_name_prefix()?;

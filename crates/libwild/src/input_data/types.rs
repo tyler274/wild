@@ -4,11 +4,11 @@ pub(crate) use crate::args::InputFileRef;
 pub(crate) use crate::args::InputLinkerScript;
 pub(crate) use crate::args::InputRef;
 use crate::args::Modifiers;
-#[allow(unused_imports)]
-pub(crate) use crate::platform::file_id::*;
 use colosseum::sync::Arena;
 use std::path::PathBuf;
 use std::sync::Arc;
+#[allow(unused_imports)]
+pub(crate) use wild_platform::file_id::*;
 
 pub(crate) struct FileLoader<'data, F: FileSystem> {
     /// The files that we've loaded so far.

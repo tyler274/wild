@@ -2,22 +2,22 @@ use super::*;
 use crate as layout;
 use crate::EnginePlatform;
 use crate::OutputRecordLayout;
-use crate::args::InputRef;
-use crate::bail;
-use crate::error::Context;
-use crate::error::Result;
-use crate::linker_script::Expression;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
 use crate::output_section_id::SectionName;
-use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::parsing::SymbolLoc;
 use crate::part_id::PartId;
-use crate::platform::Args;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
 use hashbrown::HashMap;
+use wild_args::InputRef;
+use wild_error::bail;
+use wild_error::error::Context;
+use wild_error::error::Result;
+use wild_platform::Args;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_scripts::linker_script::Expression;
 
 /// Compute 1-based line number by counting newlines before `remainder` in `file_bytes`.
 fn line_number(file_bytes: &[u8], remainder: &[u8]) -> u32 {
@@ -160,7 +160,7 @@ fn evaluate_location<'data, P: EnginePlatform>(
         SymbolLoc::FirstSection | SymbolLoc::None => Ok(0),
         SymbolLoc::LocationCounter(idx, _) => {
             let entry = resolved_location_counters.get(*idx).ok_or_else(|| {
-                crate::error!(
+                wild_error::error!(
                     "location counter index {idx} out of range (len: {})",
                     resolved_location_counters.len()
                 )
@@ -445,7 +445,7 @@ fn evaluate_expression_value<'data, P: EnginePlatform>(
         Expression::Origin(name) => {
             value_kind.contains_absolute = true;
             let region = memory_regions.get(name).ok_or_else(|| {
-                crate::error!(
+                wild_error::error!(
                     "ORIGIN: memory region '{}' not found",
                     String::from_utf8_lossy(name)
                 )
@@ -454,7 +454,7 @@ fn evaluate_expression_value<'data, P: EnginePlatform>(
         }
         Expression::Length(name) => {
             let region = memory_regions.get(name).ok_or_else(|| {
-                crate::error!(
+                wild_error::error!(
                     "LENGTH: memory region '{}' not found",
                     String::from_utf8_lossy(name)
                 )
@@ -567,7 +567,7 @@ fn section_address<'data, P: EnginePlatform>(
     let id = output_sections
         .section_id_by_name(SectionName(name))
         .ok_or_else(|| {
-            crate::error!(
+            wild_error::error!(
                 "ADDR: section '{}' not found",
                 String::from_utf8_lossy(name)
             )
@@ -583,7 +583,7 @@ fn section_load_address<'data, P: EnginePlatform>(
     let id = output_sections
         .section_id_by_name(SectionName(name))
         .ok_or_else(|| {
-            crate::error!(
+            wild_error::error!(
                 "LOADADDR: section '{}' not found",
                 String::from_utf8_lossy(name)
             )

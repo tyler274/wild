@@ -1,26 +1,26 @@
 use crate::EnginePlatform;
-use crate::OutputKind;
 use crate::OutputSections;
-use crate::args::InputLinkerScript;
-use crate::args::InputRef;
-use crate::args::Modifiers;
-use crate::error::Context as _;
-use crate::error::Result;
 use crate::layout_rules::LayoutRulesBuilder;
 use crate::layout_rules::LocationCounter;
-use crate::linker_script::Expression;
 use crate::output_section_id::LocationCounterIndex;
 use crate::output_section_id::OutputSectionId;
-use crate::platform::Args;
-use crate::platform::FileId;
-use crate::platform::ObjectFile;
-use crate::platform::Platform;
-use crate::platform::Symbol;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolId;
 use crate::symbol_db::SymbolIdRange;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
+use wild_args::InputLinkerScript;
+use wild_args::InputRef;
+use wild_args::Modifiers;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
+use wild_platform::Args;
+use wild_platform::FileId;
+use wild_platform::ObjectFile;
+use wild_platform::OutputKind;
+use wild_platform::Platform;
+use wild_platform::Symbol;
+use wild_scripts::linker_script::Expression;
 
 pub fn process_linker_scripts<'data, P: EnginePlatform>(
     linker_scripts_in: &[InputLinkerScript<'data>],
@@ -52,8 +52,8 @@ pub struct ParsedInputObject<'data, P: Platform> {
 pub struct ProcessedLinkerScript<'data, P: Platform> {
     pub input: InputRef<'data>,
     pub symbol_defs: Vec<InternalSymDefInfo<'data, P>>,
-    pub memory_regions: Vec<crate::linker_script::MemoryRegion<'data>>,
-    pub program_headers: Vec<crate::linker_script::Phdr<'data>>,
+    pub memory_regions: Vec<wild_scripts::linker_script::MemoryRegion<'data>>,
+    pub program_headers: Vec<wild_scripts::linker_script::Phdr<'data>>,
     pub location_counters: Vec<LocationCounter<'data>>,
     pub ordered_sections: Vec<OutputSectionId>,
 }
@@ -232,7 +232,7 @@ impl<'data, P: EnginePlatform> Prelude<'data, P> {
             .iter()
             .try_for_each(|(name, value)| -> Result<()> {
                 let mut value = winnow::BStr::new(value);
-                let expr = crate::linker_script::parse_expression(&mut value)
+                let expr = wild_scripts::linker_script::parse_expression(&mut value)
                     .with_context(|| format!("Failed to parse --defsym {name}={value}"))?;
 
                 let placement = SymbolPlacement::Redirect(Redirect {
@@ -340,16 +340,16 @@ impl<'data, P: Platform> std::fmt::Display for ProcessedLinkerScript<'data, P> {
 }
 
 impl Redirect<'_> {
-    pub fn missing_target(&self, target_name: &[u8]) -> crate::error::Error {
-        crate::error!(
+    pub fn missing_target(&self, target_name: &[u8]) -> wild_error::error::Error {
+        wild_error::error!(
             "Symbol '{name}' referenced by {kind} does not exist",
             name = String::from_utf8_lossy(target_name),
             kind = self.kind.message_text(),
         )
     }
 
-    pub fn missing_resolution(&self, target_name: &[u8]) -> crate::error::Error {
-        crate::error!(
+    pub fn missing_resolution(&self, target_name: &[u8]) -> wild_error::error::Error {
+        wild_error::error!(
             "Symbol '{name}' referenced by {kind} has no resolution.",
             name = String::from_utf8_lossy(target_name),
             kind = self.kind.message_text(),

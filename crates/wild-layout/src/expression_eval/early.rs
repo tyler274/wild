@@ -6,14 +6,10 @@ use crate::GroupState;
 use crate::InputSectionPositions;
 use crate::MemoryRegion;
 use crate::OutputRecordLayout;
-use crate::bail;
-use crate::error::Result;
 use crate::grouping::Group;
 use crate::layout_rules::SectionKind;
-use crate::linker_script::Expression;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
-use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::parsing::SymbolLoc;
 use crate::parsing::SymbolPlacement;
@@ -23,6 +19,10 @@ use crate::symbol_db::SymbolId;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 use std::cell::OnceCell;
+use wild_error::bail;
+use wild_error::error::Result;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_scripts::linker_script::Expression;
 
 /// End VMA of `section_id`, including secondary contributions that have not yet been
 /// merged into the primary. Needed for `_etext = .` / `text_size = _etext - _stext` while

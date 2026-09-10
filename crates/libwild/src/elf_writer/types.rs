@@ -1,6 +1,5 @@
 use super::dynamic::*;
 use super::symbols::*;
-use crate::OutputKind;
 use crate::args::elf::ElfArgs;
 use crate::bail;
 use crate::debug_assert_bail;
@@ -16,7 +15,6 @@ use crate::error::Context as _;
 use crate::error::Result;
 use crate::file_writer::excessive_allocation;
 use crate::file_writer::insufficient_allocation;
-use crate::platform::Arch;
 use crate::writable_elf::WritableRela as _;
 use crate::writable_elf::WritableRelr as _;
 use linker_utils::elf::DynamicRelocationKind;
@@ -28,6 +26,8 @@ use wild_layout::Layout;
 use wild_layout::Resolution;
 use wild_layout::compute_allocations;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_platform::Arch;
+use wild_platform::OutputKind;
 use zerocopy::FromBytes;
 
 pub(crate) type ElfLayout<'data, C> = Layout<'data, elf::Elf<C>>;

@@ -37,22 +37,22 @@ pub(crate) fn link_for_arch<'data, F: FileSystem>(
     args: &'data ElfArgs,
 ) -> Result<crate::LinkerOutput<'data>> {
     match args.architecture() {
-        crate::arch::Architecture::X86_64 => {
+        wild_util::arch::Architecture::X86_64 => {
             linker.link_for_arch::<Elf64, crate::elf_x86_64::ElfX86_64>(args)
         }
-        crate::arch::Architecture::AArch64 => {
+        wild_util::arch::Architecture::AArch64 => {
             linker.link_for_arch::<Elf64, crate::elf_aarch64::ElfAArch64>(args)
         }
-        crate::arch::Architecture::RiscV64 => {
+        wild_util::arch::Architecture::RiscV64 => {
             linker.link_for_arch::<Elf64, crate::elf_riscv64::ElfRiscV64>(args)
         }
-        crate::arch::Architecture::LoongArch64 => {
+        wild_util::arch::Architecture::LoongArch64 => {
             linker.link_for_arch::<Elf64, crate::elf_loongarch64::ElfLoongArch64>(args)
         }
-        crate::arch::Architecture::Ppc64 => {
+        wild_util::arch::Architecture::Ppc64 => {
             linker.link_for_arch::<Elf64, crate::elf_ppc64::ElfPpc64>(args)
         }
-        crate::arch::Architecture::Unsupported => {
+        wild_util::arch::Architecture::Unsupported => {
             bail!(
                 "No default target architecture known for host platform. \
                     Please specify an architecture with -m"

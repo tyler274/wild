@@ -1,10 +1,5 @@
 pub use wild_args as args;
 pub use wild_args::Args;
-pub(crate) use wild_fs::archive;
-pub(crate) use wild_platform as platform;
-pub(crate) use wild_util::alignment;
-pub(crate) use wild_util::arch;
-pub(crate) use wild_util::arena;
 pub(crate) mod compression;
 pub(crate) mod debug_trace;
 pub(crate) mod diff;
@@ -16,21 +11,16 @@ pub(crate) mod elf_ppc64;
 pub(crate) mod elf_riscv64;
 pub(crate) mod elf_writer;
 pub(crate) mod elf_x86_64;
-pub(crate) use wild_error::env;
 pub use wild_error::error;
-pub(crate) use wild_scripts::export_list;
 pub(crate) mod file_kind;
 pub(crate) mod file_writer;
-pub(crate) use wild_fs::fs;
 pub(crate) mod gdb_index;
-pub(crate) use wild_util::hash;
 pub(crate) mod input_data;
 #[cfg_attr(
     not(all(feature = "plugins", unix)),
     path = "linker_plugins_disabled.rs"
 )]
 mod linker_plugins;
-pub(crate) use wild_scripts::linker_script;
 pub(crate) mod macho;
 pub(crate) mod macho_aarch64;
 pub(crate) mod macho_stub_library;
@@ -40,9 +30,9 @@ pub use wild_error::debug_assert_bail;
 pub use wild_error::ensure;
 pub use wild_error::malfunction;
 pub use wild_error::malfunction_point_ret;
+#[cfg(test)]
+mod layout_stack_elf_tests;
 pub(crate) mod output_kind;
-pub(crate) use output_kind::OutputKind;
-pub(crate) mod output_section_map;
 pub(crate) mod output_trace;
 #[cfg(all(
     target_os = "linux",
@@ -62,12 +52,8 @@ pub(crate) mod perf;
 ))]
 #[path = "perf_unsupported.rs"]
 pub(crate) mod perf;
-pub(crate) mod program_segments;
 pub(crate) mod save_dir;
 pub(crate) mod sframe;
-pub(crate) use wild_util::sharding;
-#[cfg(test)]
-mod layout_stack_elf_tests;
 #[cfg(all(feature = "fork", unix))]
 pub(crate) mod subprocess;
 #[cfg(not(all(feature = "fork", unix)))]
@@ -76,10 +62,7 @@ pub(crate) mod subprocess;
 #[cfg(all(test, not(target_family = "wasm")))]
 mod tidy_tests;
 pub(crate) mod timing;
-pub(crate) use wild_util::trie;
 pub(crate) mod validation;
-pub(crate) mod value_flags;
-pub(crate) use wild_scripts::version_script;
 pub(crate) mod wasm;
 pub(crate) mod wasm_wasm32;
 pub(crate) mod wasm_writer;
@@ -88,23 +71,9 @@ pub(crate) mod writable_elf;
 use crate::args::HasCommonArgs as _;
 use crate::error::Context;
 use crate::error::Result;
-use crate::platform::Arch;
-use crate::platform::Args as _;
-use crate::platform::Platform;
-use crate::value_flags::PerSymbolFlags;
-use crate::version_script::VersionScript;
 use colosseum::sync::Arena;
 use crossbeam_utils::atomic::AtomicCell;
 use error::AlreadyInitialised;
-pub use fs::FileReplacementMode;
-pub use fs::FileSystem;
-pub use fs::FileType;
-pub use fs::FileWriteMode;
-pub use fs::InputFileData;
-pub use fs::OsFileSystem;
-pub use fs::OutputFileData;
-pub use fs::OutputOptions;
-pub use fs::make_executable;
 use hashbrown::HashSet;
 use input_data::FileLoader;
 use input_data::InputFile as LoadedInputFile;
@@ -117,9 +86,23 @@ use tracing_subscriber::EnvFilter;
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
+pub use wild_fs::fs::FileReplacementMode;
+pub use wild_fs::fs::FileSystem;
+pub use wild_fs::fs::FileType;
+pub use wild_fs::fs::FileWriteMode;
+pub use wild_fs::fs::InputFileData;
+pub use wild_fs::fs::OsFileSystem;
+pub use wild_fs::fs::OutputFileData;
+pub use wild_fs::fs::OutputOptions;
+pub use wild_fs::fs::make_executable;
 use wild_layout::EnginePlatform;
 use wild_layout::layout_rules::LayoutRulesBuilder;
 use wild_layout::output_section_id::OutputSections;
+use wild_platform::Arch;
+use wild_platform::Args as _;
+use wild_platform::Platform;
+use wild_platform::value_flags::PerSymbolFlags;
+use wild_scripts::version_script::VersionScript;
 
 /// Runs the linker in a Rayon thread pool configured from the supplied arguments or the available
 /// jobserver tokens, then cleans up associated resources. Only use this function if you've OK with
@@ -168,7 +151,7 @@ pub struct Linker<F: FileSystem = OsFileSystem> {
 
     /// Anything that doesn't need a custom Drop implementation can go in here. In practice, it's
     /// mostly just the decompressed copy of compressed string-merge sections.
-    herd: arena::Herd,
+    herd: wild_util::arena::Herd,
 
     /// We'll fill this in when we're done linking and start shutting down. Once this is dropped,
     /// that signals the end of shutdown for the purposes of timing measurement.

@@ -1,49 +1,50 @@
 use super::*;
 use crate::EnginePlatform;
-use crate::OutputKind;
-use crate::alignment;
-use crate::bail;
-use crate::error::Context;
-use crate::error::Error;
-use crate::error::Result;
 use crate::graph::*;
 use crate::grouping::Group;
-use crate::linker_script::Expression;
 use crate::output_section_id;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
-use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::parsing::InternalSymDefInfo;
 use crate::parsing::SymbolPlacement;
-use crate::platform::Arch;
-use crate::platform::Args as _;
-use crate::platform::ObjectFile;
-use crate::platform::PRELUDE_FILE_ID;
-use crate::platform::ProgramSegmentDef as _;
-use crate::platform::SectionAttributes as _;
-use crate::platform::Symbol as _;
-use crate::program_segments::ProgramSegmentId;
-use crate::program_segments::ProgramSegments;
 use crate::resolution;
 use crate::script::*;
-use crate::sharding::ShardKey;
 use crate::sizes::*;
 use crate::string_merging::MergedStringsSection;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
 use crate::symbol_db::SymbolId;
 use crate::symbol_db::SymbolIdRange;
-use crate::value_flags::AtomicPerSymbolFlags;
-use crate::value_flags::FlagsForSymbol as _;
-use crate::value_flags::PerSymbolFlags;
-use crate::value_flags::ValueFlags;
 use itertools::Itertools;
 use rayon::Scope;
 use std::ffi::CString;
 use std::mem::replace;
 use std::mem::size_of;
+use wild_args::UnresolvedSymbols;
+use wild_error::bail;
+use wild_error::error::Context;
+use wild_error::error::Error;
+use wild_error::error::Result;
+use wild_platform::Arch;
+use wild_platform::Args as _;
+use wild_platform::ObjectFile;
+use wild_platform::OutputKind;
+use wild_platform::PRELUDE_FILE_ID;
+use wild_platform::ProgramSegmentDef as _;
+use wild_platform::SectionAttributes as _;
+use wild_platform::Symbol as _;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::program_segments::ProgramSegmentId;
+use wild_platform::program_segments::ProgramSegments;
+use wild_platform::value_flags::AtomicPerSymbolFlags;
+use wild_platform::value_flags::FlagsForSymbol as _;
+use wild_platform::value_flags::PerSymbolFlags;
+use wild_platform::value_flags::ValueFlags;
+use wild_scripts::linker_script::Expression;
+use wild_util::alignment;
+use wild_util::sharding::ShardKey;
 
 impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
     pub fn new(input_state: resolution::ResolvedPrelude<'data, P>, args: &P::Args) -> Self {
@@ -951,8 +952,7 @@ impl<'data, P: EnginePlatform> DynamicLayoutState<'data, P> {
                     if !symbol.is_weak() {
                         let should_report = !matches!(
                             args.unresolved_symbols_behaviour(),
-                            crate::args::UnresolvedSymbols::IgnoreAll
-                                | crate::args::UnresolvedSymbols::IgnoreInSharedLibs
+                            UnresolvedSymbols::IgnoreAll | UnresolvedSymbols::IgnoreInSharedLibs
                         );
 
                         if should_report {

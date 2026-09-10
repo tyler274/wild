@@ -1,38 +1,48 @@
-use super::types::*;
+use super::types::DynamicSymbolDefinition;
+use super::types::FileLayout;
+use super::types::FileLayoutState;
+use super::types::FinaliseLayoutResources;
+use super::types::FinaliseSizesResources;
+use super::types::GroupLayout;
+use super::types::GroupState;
+use super::types::MemoryRegion;
+use super::types::OutputRecordLayout;
+use super::types::Resolution;
 use crate::EnginePlatform;
-use crate::OutputKind;
-use crate::alignment;
-use crate::args::InputRef;
-use crate::error::Context;
-use crate::error::Result;
 use crate::expression_eval::ResolvedLocationCounter;
 use crate::expression_eval::SymbolValue;
 use crate::grouping::Group;
 use crate::output_section_id::GnuBuildIdPlacement;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSections;
-use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::parsing::InternalSymDefInfo;
 use crate::parsing::SymbolLoc;
 use crate::parsing::SymbolPlacement;
-use crate::platform::Arch;
-use crate::platform::Args as _;
-use crate::platform::NonAddressableIndexes as _;
-use crate::platform::ObjectFile;
-use crate::platform::SectionAttributes as _;
-use crate::program_segments::ProgramSegments;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
 use crate::timing_phase;
-use crate::value_flags::AtomicPerSymbolFlags;
-use crate::value_flags::PerSymbolFlags;
-use crate::value_flags::ValueFlags;
 use crate::verbose_timing_phase;
 use hashbrown::HashMap;
 use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
 use std::num::NonZeroU32;
+use wild_args::InputRef;
+use wild_error::error::Context;
+use wild_error::error::Result;
+use wild_platform::Arch;
+use wild_platform::Args as _;
+use wild_platform::NonAddressableIndexes as _;
+use wild_platform::ObjectFile;
+use wild_platform::OutputKind;
+use wild_platform::SectionAttributes as _;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::program_segments::ProgramSegments;
+use wild_platform::value_flags::AtomicPerSymbolFlags;
+use wild_platform::value_flags::PerSymbolFlags;
+use wild_platform::value_flags::ValueFlags;
+use wild_scripts::linker_script::Expression;
+use wild_util::alignment;
 
 /// Update resolutions for symbol redirects.
 pub fn update_redirect_resolutions<'data, P: EnginePlatform>(
@@ -126,7 +136,7 @@ pub fn update_defsym_symbol_resolution<'data, P: EnginePlatform>(
         if def_info.is_provide {
             let mut missing_rhs = false;
             redirect.expression.visit_expressions(&mut |e| {
-                if let crate::linker_script::Expression::Symbol(name) = e
+                if let Expression::Symbol(name) = e
                     && symbol_db
                         .get_unversioned(&UnversionedSymbolName::prehashed(name))
                         .is_none()

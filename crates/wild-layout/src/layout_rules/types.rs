@@ -1,13 +1,13 @@
 use super::*;
 use crate::EnginePlatform;
-use crate::linker_script;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::SectionIdentity;
 use crate::parsing::SymbolLoc;
-use crate::platform::Platform;
-use crate::platform::SectionOutputInfo;
-use crate::platform::SectionRuleOutcome;
 use hashbrown::HashTable;
+use wild_platform::Platform;
+use wild_platform::SectionOutputInfo;
+use wild_platform::SectionRuleOutcome;
+use wild_scripts::linker_script;
 
 pub struct LayoutRules<'data> {
     pub section_rules: SectionRules<'data>,

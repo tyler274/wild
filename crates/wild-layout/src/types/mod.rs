@@ -4,33 +4,15 @@ mod units;
 
 use super::graph::*;
 use crate::EnginePlatform;
-use crate::alignment::Alignment;
-use crate::args::InputRef;
-use crate::bail;
-use crate::error::Context;
-use crate::error::Error;
-use crate::error::Result;
 use crate::expression_eval::ResolvedLocationCounter;
 use crate::grouping::SequencedInputObject;
-use crate::input_section_id::SectionIdRange;
 use crate::output_section_id::OrderEvent;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
-use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::parsing::InternalSymDefInfo;
 use crate::part_id::PartId;
-use crate::platform::Args as _;
-use crate::platform::FileId;
-use crate::platform::ObjectFile;
-use crate::platform::Platform;
-use crate::platform::RelaxSymbolInfo;
-use crate::platform::SectionAttributes as _;
-use crate::platform::SectionFlags as _;
-use crate::platform::Symbol as _;
-use crate::program_segments::ProgramSegmentId;
-use crate::program_segments::ProgramSegments;
 use crate::resolution;
 use crate::resolution::NotLoaded;
 use crate::resolution::ResolvedGroup;
@@ -45,10 +27,6 @@ use crate::symbol_db::SymbolIdRange;
 use crate::thunks::ThunkBlockId;
 use crate::thunks::ThunkLayoutBuilder;
 use crate::timing_phase;
-use crate::value_flags::AtomicPerSymbolFlags;
-use crate::value_flags::FlagsForSymbol as _;
-use crate::value_flags::PerSymbolFlags;
-use crate::value_flags::ValueFlags;
 #[allow(unused_imports)]
 pub use gc::*;
 use hashbrown::HashMap;
@@ -67,6 +45,28 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicU64;
 #[allow(unused_imports)]
 pub use units::*;
+use wild_args::InputRef;
+use wild_error::bail;
+use wild_error::error::Context;
+use wild_error::error::Error;
+use wild_error::error::Result;
+use wild_platform::Args as _;
+use wild_platform::FileId;
+use wild_platform::ObjectFile;
+use wild_platform::Platform;
+use wild_platform::RelaxSymbolInfo;
+use wild_platform::SectionAttributes as _;
+use wild_platform::SectionFlags as _;
+use wild_platform::Symbol as _;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::program_segments::ProgramSegmentId;
+use wild_platform::program_segments::ProgramSegments;
+use wild_platform::value_flags::AtomicPerSymbolFlags;
+use wild_platform::value_flags::FlagsForSymbol as _;
+use wild_platform::value_flags::PerSymbolFlags;
+use wild_platform::value_flags::ValueFlags;
+use wild_util::alignment::Alignment;
+use wild_util::input_section_id::SectionIdRange;
 
 pub struct FinaliseSizesResources<'data, 'scope, P: Platform> {
     pub dynamic_symbol_definitions: &'scope [DynamicSymbolDefinition<'data, P>],
@@ -598,7 +598,7 @@ pub struct MemoryRegion {
     pub length: u64,
     pub used: u64,
     pub used_lma: u64,
-    pub flags: Option<crate::linker_script::MemoryFlags>,
+    pub flags: Option<wild_scripts::linker_script::MemoryFlags>,
 }
 
 impl<'data, P: EnginePlatform> Layout<'data, P> {
@@ -622,7 +622,7 @@ impl<'data, P: EnginePlatform> Layout<'data, P> {
                 match file {
                     FileLayout::Prelude(prelude) => {
                         records.push(crate::incremental::IncrementalFileRecord {
-                            file_id: crate::platform::PRELUDE_FILE_ID,
+                            file_id: wild_platform::PRELUDE_FILE_ID,
                             key: "<prelude>".into(),
                             source_path: PathBuf::new(),
                             sizes: Vec::new(),

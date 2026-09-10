@@ -1,11 +1,11 @@
 //! Tests that assert properties of our source files, such as formatting.
 
 use crate::bail;
-use crate::env;
 use crate::error::Context as _;
 use crate::error::Result;
 use std::fs::read_dir;
 use std::path::Path;
+use wild_error::env;
 
 fn repo_root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))

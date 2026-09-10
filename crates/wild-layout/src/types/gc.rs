@@ -1,31 +1,15 @@
 use super::*;
 use crate::EnginePlatform;
-use crate::alignment::Alignment;
-use crate::bail;
-use crate::debug_assert_bail;
-use crate::error::Context;
-use crate::error::Error;
-use crate::error::Result;
 use crate::graph::*;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
-use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
-use crate::platform::Arch;
-use crate::platform::Args as _;
-use crate::platform::ObjectFile;
-use crate::platform::Platform;
-use crate::platform::SectionAttributes as _;
-use crate::platform::Symbol as _;
 use crate::resolution::SectionSlot;
 use crate::sizes::*;
 use crate::symbol_db::SymbolDebug;
 use crate::symbol_db::SymbolId;
 use crate::symbol_db::SymbolIdRange;
-use crate::value_flags::AtomicPerSymbolFlags;
-use crate::value_flags::FlagsForSymbol as _;
-use crate::value_flags::ValueFlags;
 use crate::verbose_timing_phase;
 use rayon::Scope;
 use std::fmt::Display;
@@ -33,6 +17,22 @@ use std::mem::size_of;
 use std::mem::swap;
 use std::mem::take;
 use std::sync::atomic;
+use wild_error::bail;
+use wild_error::debug_assert_bail;
+use wild_error::error::Context;
+use wild_error::error::Error;
+use wild_error::error::Result;
+use wild_platform::Arch;
+use wild_platform::Args as _;
+use wild_platform::ObjectFile;
+use wild_platform::Platform;
+use wild_platform::SectionAttributes as _;
+use wild_platform::Symbol as _;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::value_flags::AtomicPerSymbolFlags;
+use wild_platform::value_flags::FlagsForSymbol as _;
+use wild_platform::value_flags::ValueFlags;
+use wild_util::alignment::Alignment;
 
 pub trait HandlerData {
     fn symbol_id_range(&self) -> SymbolIdRange;
@@ -883,7 +883,7 @@ impl<'data, P: Platform> std::fmt::Display for GroupLayout<'data, P> {
                 f,
                 "Group with {} files. Rerun with {}=1",
                 self.files.len(),
-                crate::args::FILES_PER_GROUP_ENV
+                wild_args::FILES_PER_GROUP_ENV
             )
         }
     }
@@ -898,7 +898,7 @@ impl<'data, P: Platform> std::fmt::Display for GroupState<'data, P> {
                 f,
                 "Group with {} files. Rerun with {}=1",
                 self.files.len(),
-                crate::args::FILES_PER_GROUP_ENV
+                wild_args::FILES_PER_GROUP_ENV
             )
         }
     }

@@ -10,10 +10,6 @@
 mod atoms;
 
 use crate::EnginePlatform;
-use crate::error::Result;
-use crate::hash::hash_bytes;
-use crate::platform::Args as _;
-use crate::platform::FileId;
 pub use atoms::AtomId;
 pub use atoms::AtomResolutions;
 pub use atoms::AtomTable;
@@ -28,6 +24,10 @@ use std::io::Write as _;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::SystemTime;
+use wild_error::error::Result;
+use wild_platform::Args as _;
+use wild_platform::FileId;
+use wild_util::hash::hash_bytes;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IncrementalMode {
@@ -77,7 +77,7 @@ pub struct IncrementalSession {
 }
 
 impl IncrementalSession {
-    pub fn from_args(args: &impl crate::platform::Args) -> Option<Self> {
+    pub fn from_args(args: &impl wild_platform::Args) -> Option<Self> {
         if !args.incremental() {
             return None;
         }

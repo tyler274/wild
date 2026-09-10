@@ -1,7 +1,7 @@
-#[allow(unused_imports)]
-pub use crate::platform::symbol_id::*;
 use crate::symbol::UnversionedSymbolName;
 use std::fmt::Display;
+#[allow(unused_imports)]
+pub use wild_platform::symbol_id::*;
 
 pub struct SymbolNameDisplay<'data> {
     pub(super) name: Option<UnversionedSymbolName<'data>>,

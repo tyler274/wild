@@ -1,18 +1,11 @@
 use crate::FileSystem;
 use crate::OutputFileData;
-use crate::OutputKind;
 use crate::OutputOptions;
 use crate::args::WRITE_VERIFY_ALLOCATIONS_ENV;
-use crate::env;
 use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::fs::FileReplacementMode;
-use crate::fs::FileType;
-use crate::fs::FileWriteMode;
-use crate::output_section_map::OutputSectionMap;
 use crate::output_trace::TraceOutput;
-use crate::platform::Args;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
 use anyhow::anyhow;
@@ -26,11 +19,18 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
+use wild_error::env;
+use wild_fs::fs::FileReplacementMode;
+use wild_fs::fs::FileType;
+use wild_fs::fs::FileWriteMode;
 use wild_layout::EnginePlatform;
 use wild_layout::GroupLayout;
 use wild_layout::Layout;
 use wild_layout::output_section_id::OutputSectionId;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_platform::Args;
+use wild_platform::OutputKind;
+use wild_platform::output_section_map::OutputSectionMap;
 
 pub struct Output<F: FileSystem> {
     path: Arc<Path>,

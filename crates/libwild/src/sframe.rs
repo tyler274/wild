@@ -1,10 +1,10 @@
 use crate::bail;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::platform;
 use crate::timing_phase;
 use std::convert::TryFrom;
 use std::convert::TryInto;
+use wild_platform as platform;
 
 // Magic value identifying an SFrame section.
 const SFRAME_MAGIC: u16 = 0xdee2;

@@ -28,15 +28,9 @@ use crate::FileLayoutState;
 use crate::output_section_id::OutputSections;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
-use crate::platform::Arch;
-use crate::platform::FileId;
-use crate::platform::Platform;
-use crate::platform::SectionAttributes as _;
 use crate::resolution;
 use crate::symbol_db::SymbolId;
 use crate::timing_phase;
-use crate::value_flags::FlagsForSymbol;
-use crate::value_flags::ValueFlags;
 use crate::verbose_timing_phase;
 use crossbeam_queue::SegQueue;
 use itertools::Itertools as _;
@@ -44,6 +38,12 @@ use rayon::iter::IntoParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator as _;
 use std::collections::HashSet;
+use wild_platform::Arch;
+use wild_platform::FileId;
+use wild_platform::Platform;
+use wild_platform::SectionAttributes as _;
+use wild_platform::value_flags::FlagsForSymbol;
+use wild_platform::value_flags::ValueFlags;
 
 /// Identifies a ThunkBlock within a Vec.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -141,7 +141,7 @@ impl ThunkLayoutBuilder {
         mut self,
         group_states: &mut [layout::GroupState<'data, P>],
         symbol_db: &crate::symbol_db::SymbolDb<'data, P>,
-        per_symbol_flags: &crate::value_flags::PerSymbolFlags,
+        per_symbol_flags: &wild_platform::value_flags::PerSymbolFlags,
         output_sections: &OutputSections<P>,
         section_part_sizes: &OutputSectionPartMap<u64>,
     ) -> Vec<ThunkBlock> {
@@ -209,7 +209,7 @@ impl ThunkLayoutBuilder {
         &self,
         primary_ranges: &[Vec<Option<(u64, u64)>>],
         symbol_db: &crate::symbol_db::SymbolDb<'data, P>,
-        per_symbol_flags: &crate::value_flags::PerSymbolFlags,
+        per_symbol_flags: &wild_platform::value_flags::PerSymbolFlags,
         block_builders: &mut [ThunkBlockBuilder<'data, '_, P>],
     ) {
         verbose_timing_phase!("Process primary part refs");

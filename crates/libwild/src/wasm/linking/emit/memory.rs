@@ -5,7 +5,6 @@ use crate::bail;
 use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::platform::Args as _;
 use crate::wasm::Wasm;
 use crate::wasm::gc::*;
 use crate::wasm::output::*;
@@ -16,6 +15,7 @@ use std::borrow::Cow;
 use wasmparser::MemoryType;
 use wild_layout::symbol::UnversionedSymbolName;
 use wild_layout::symbol_db::SymbolDb;
+use wild_platform::Args as _;
 
 pub(crate) const fn wasm_page_size() -> u64 {
     crate::args::wasm::WASM_PAGE_SIZE

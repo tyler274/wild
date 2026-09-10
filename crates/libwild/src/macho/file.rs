@@ -4,13 +4,21 @@ use super::abi::*;
 #[allow(unused_imports)]
 use super::output::*;
 #[allow(unused_imports)]
-use super::types::*;
+use super::types::DynamicTagValues;
+use super::types::LE;
+use super::types::NonAddressableIndexes;
+use super::types::RawSymbolName;
+use super::types::RelocationList;
+use super::types::SectionHeader;
+use super::types::SectionTable;
+use super::types::SymbolTable;
+use super::types::SymtabEntry;
+use super::types::VerneedTable;
 use crate::args::macho::MachOArgs;
 use crate::ensure;
 use crate::error;
 use crate::error::Result;
 use crate::file_writer::copy_section_data;
-use crate::platform;
 use object::macho;
 use object::macho::N_SECT;
 use object::read::macho::MachHeader;
@@ -20,6 +28,7 @@ use object::read::macho::Segment;
 use std::borrow::Cow;
 use std::slice::Iter;
 use wild_layout as layout;
+use wild_platform as platform;
 
 #[derive(derive_more::Debug)]
 pub(crate) struct File<'data> {
@@ -213,7 +222,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
     fn section_data(
         &self,
         _section: &SectionHeader,
-        _member: &crate::arena::Member<'data>,
+        _member: &wild_util::arena::Member<'data>,
         _loaded_metrics: &wild_layout::resolution::LoadedMetrics,
     ) -> Result<&'data [u8]> {
         todo!()

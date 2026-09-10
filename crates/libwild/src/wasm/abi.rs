@@ -10,8 +10,6 @@ use super::symbols::*;
 use crate::FileSystem;
 use crate::args::wasm::WasmArgs;
 use crate::error::Result;
-use crate::platform;
-use crate::platform::Args as _;
 use wasmparser::RelocationType;
 use wasmparser::SymbolFlags;
 use wild_layout as layout;
@@ -21,6 +19,8 @@ use wild_layout::layout_rules::SectionRuleOutcome;
 use wild_layout::output_section_id::OutputSectionId;
 use wild_layout::output_section_id::SectionIdentity;
 use wild_layout::output_section_id::SectionName;
+use wild_platform as platform;
+use wild_platform::Args as _;
 
 impl platform::SectionHeader for SectionHeader {
     fn is_alloc(&self) -> bool {
@@ -583,14 +583,14 @@ impl platform::Platform for Wasm {
     type LtoInput<'data> = wild_layout::grouping::LtoInput<'data>;
     type Group<'data> = wild_layout::grouping::Group<'data, Self>;
     type SequencedLinkerScript<'data> = wild_layout::grouping::SequencedLinkerScript<'data, Self>;
-    type FileLoader<'data, F: crate::fs::FileSystem> = crate::input_data::FileLoader<'data, F>;
+    type FileLoader<'data, F: wild_fs::fs::FileSystem> = crate::input_data::FileLoader<'data, F>;
     type LayoutRulesBuilder<'data> = wild_layout::layout_rules::LayoutRulesBuilder<'data>;
     type InternalSymbolsBuilder<'data> = wild_layout::parsing::InternalSymbolsBuilder<'data, Self>;
     type InternalSymDefInfo<'data> = wild_layout::parsing::InternalSymDefInfo<'data, Self>;
     type OutputSections<'data> = wild_layout::output_section_id::OutputSections<'data, Self>;
     type OutputOrder<'data> = wild_layout::output_section_id::OutputOrder<'data>;
     type CustomSectionIds = wild_layout::output_section_id::CustomSectionIds;
-    type FileWriterOutput<F: crate::fs::FileSystem> = crate::file_writer::Output<F>;
+    type FileWriterOutput<F: wild_fs::fs::FileSystem> = crate::file_writer::Output<F>;
     type LocationCounter<'data> = wild_layout::layout_rules::LocationCounter<'data>;
     type SectionOutputInfo<'data> = wild_layout::output_section_id::SectionOutputInfo<'data, Self>;
     type FileKind = crate::file_kind::FileKind;
@@ -607,7 +607,7 @@ impl platform::Platform for Wasm {
     }
 
     fn apply_force_keep_sections(
-        _keep_sections: &mut crate::output_section_map::OutputSectionMap<bool>,
+        _keep_sections: &mut wild_platform::output_section_map::OutputSectionMap<bool>,
         _args: &Self::Args,
     ) {
         // No `-u` / `--require-defined` analogue is wired through for Wasm yet.
@@ -692,7 +692,7 @@ impl platform::Platform for Wasm {
 
     fn take_dynsym_index(
         _memory_offsets: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
-        _section_layouts: &crate::output_section_map::OutputSectionMap<
+        _section_layouts: &wild_platform::output_section_map::OutputSectionMap<
             wild_layout::OutputRecordLayout,
         >,
     ) -> crate::error::Result<u32> {
@@ -781,7 +781,9 @@ impl platform::Platform for Wasm {
     }
 
     fn update_segment_keep_list(
-        _program_segments: &crate::program_segments::ProgramSegments<Self::ProgramSegmentDef>,
+        _program_segments: &wild_platform::program_segments::ProgramSegments<
+            Self::ProgramSegmentDef,
+        >,
         _keep_segments: &mut [bool],
         _args: &Self::Args,
     ) {
@@ -827,7 +829,7 @@ impl platform::Platform for Wasm {
 
     fn create_linker_defined_symbols(
         symbols: &mut wild_layout::parsing::InternalSymbolsBuilder<Self>,
-        _output_kind: crate::output_kind::OutputKind,
+        _output_kind: wild_platform::OutputKind,
         _args: &Self::Args,
     ) {
         // Reserve SymbolId 0 as the linker’s undefined sentinel (Wasm objects have no null symbol
@@ -851,7 +853,7 @@ impl platform::Platform for Wasm {
             .map(|d| wild_layout::output_section_id::SectionOutputInfo {
                 section_attributes: SectionAttributes::default(),
                 kind: d.kind,
-                min_alignment: crate::alignment::MIN,
+                min_alignment: wild_util::alignment::MIN,
                 location_info: None,
                 secondary_order: None,
                 region_name: None,
@@ -939,7 +941,7 @@ impl platform::Platform for Wasm {
 
     fn new_epilogue_layout<'data>(
         _args: &Self::Args,
-        _output_kind: crate::output_kind::OutputKind,
+        _output_kind: wild_platform::OutputKind,
         _dynamic_symbol_definitions: &mut [wild_layout::DynamicSymbolDefinition<'data, Self>],
         _group_states: &[layout::GroupState<'data, Self>],
     ) -> Self::EpilogueLayoutExt {
@@ -998,8 +1000,8 @@ impl platform::Platform for Wasm {
         _object: &Self::File<'data>,
         _args: &Self::Args,
         _sym: &Self::SymtabEntry,
-        _output_kind: crate::output_kind::OutputKind,
-        _export_list: Option<&crate::export_list::ExportList>,
+        _output_kind: wild_platform::OutputKind,
+        _export_list: Option<&wild_scripts::export_list::ExportList>,
         _lib_name: &[u8],
         _archive_semantics: bool,
         _is_undefined: bool,
@@ -1012,7 +1014,9 @@ impl platform::Platform for Wasm {
         _prelude: &mut wild_layout::PreludeLayoutState<'data, Self>,
         sizes: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
         _header_info: &wild_layout::HeaderInfo,
-        _program_segments: &crate::program_segments::ProgramSegments<Self::ProgramSegmentDef>,
+        _program_segments: &wild_platform::program_segments::ProgramSegments<
+            Self::ProgramSegmentDef,
+        >,
         _output_sections: &wild_layout::output_section_id::OutputSections<Self>,
         _resources: &layout::FinaliseSizesResources<'data, '_, Self>,
         _args: &Self::Args,
@@ -1027,15 +1031,15 @@ impl platform::Platform for Wasm {
         _common: &mut wild_layout::CommonGroupState<'data, Self>,
         _symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Self>,
         _symbol_id: wild_layout::symbol_db::SymbolId,
-        _flags: crate::value_flags::ValueFlags,
+        _flags: wild_platform::value_flags::ValueFlags,
     ) -> crate::error::Result {
         Ok(())
     }
 
     fn allocate_resolution(
-        _flags: crate::value_flags::ValueFlags,
+        _flags: wild_platform::value_flags::ValueFlags,
         _mem_sizes: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
-        _output_kind: crate::output_kind::OutputKind,
+        _output_kind: wild_platform::OutputKind,
         _args: &Self::Args,
     ) {
     }
@@ -1044,7 +1048,7 @@ impl platform::Platform for Wasm {
         _state: &wild_layout::ObjectLayoutState<'data, Self>,
         _common: &mut wild_layout::CommonGroupState<'data, Self>,
         _symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Self>,
-        _per_symbol_flags: &crate::value_flags::AtomicPerSymbolFlags,
+        _per_symbol_flags: &wild_platform::value_flags::AtomicPerSymbolFlags,
     ) -> crate::error::Result {
         Ok(())
     }
@@ -1074,12 +1078,12 @@ impl platform::Platform for Wasm {
     }
 
     fn create_resolution(
-        flags: crate::value_flags::ValueFlags,
+        flags: wild_platform::value_flags::ValueFlags,
         raw_value: u64,
         dynamic_symbol_index: Option<std::num::NonZeroU32>,
         _memory_offsets: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
-        _args: &<Self as crate::platform::Platform>::Args,
-        _output_kind: crate::OutputKind,
+        _args: &<Self as wild_platform::Platform>::Args,
+        _output_kind: wild_platform::OutputKind,
     ) -> wild_layout::Resolution<Self> {
         wild_layout::Resolution {
             raw_value,
@@ -1103,7 +1107,7 @@ impl platform::Platform for Wasm {
 
     fn align_load_segment_start(
         _segment_def: Self::ProgramSegmentDef,
-        _segment_alignment: crate::alignment::Alignment,
+        _segment_alignment: wild_util::alignment::Alignment,
         _file_offset: &mut usize,
         _mem_offset: &mut u64,
     ) {
@@ -1112,15 +1116,15 @@ impl platform::Platform for Wasm {
 
     fn build_output_order_and_program_segments<'data>(
         _custom: &Self::CustomSectionIds,
-        output_kind: crate::output_kind::OutputKind,
+        output_kind: wild_platform::OutputKind,
         output_sections: &Self::OutputSections<'data>,
-        secondary: &crate::output_section_map::OutputSectionMap<
+        secondary: &wild_platform::output_section_map::OutputSectionMap<
             Vec<wild_layout::output_section_id::OutputSectionId>,
         >,
         _location_counters: &[Self::LocationCounter<'data>],
     ) -> (
         Self::OutputOrder<'data>,
-        crate::program_segments::ProgramSegments<Self::ProgramSegmentDef>,
+        wild_platform::program_segments::ProgramSegments<Self::ProgramSegmentDef>,
     ) {
         use crate::wasm::output_section_id as osid;
 

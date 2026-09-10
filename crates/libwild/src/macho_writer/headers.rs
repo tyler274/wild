@@ -52,6 +52,7 @@ use wild_layout::OutputRecordLayout;
 use wild_layout::PreludeLayout;
 use wild_layout::output_section_id::SectionName;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_platform::EntryPoint;
 use zerocopy::FromZeros;
 
 pub(crate) fn write_prelude<'data>(
@@ -300,8 +301,8 @@ pub(crate) fn write_entry_point_command(
     command: &mut EntryPointCommand,
 ) -> Result {
     let entry_name = match layout.symbol_db.entry_point() {
-        crate::platform::EntryPoint::Symbol(name) => String::from_utf8_lossy(name),
-        crate::platform::EntryPoint::None | crate::platform::EntryPoint::Address(_) => {
+        EntryPoint::Symbol(name) => String::from_utf8_lossy(name),
+        EntryPoint::None | EntryPoint::Address(_) => {
             bail!("Mach-O executable entry point must be a symbol")
         }
     };

@@ -1,13 +1,25 @@
 use super::merge::build_merge_class_buckets;
 use super::merge::entity_alignment;
 use super::merge::merge_bucket_index;
-use super::types::*;
-use crate::alignment;
-use crate::args::Experiment;
-use crate::error::Context as _;
-use crate::error::Result;
-use crate::hash::PreHashed;
-use crate::platform;
+use super::types::BucketOffset;
+use super::types::BucketString;
+use super::types::LinearInputOffset;
+use super::types::MAP_BLOCK_SIZE;
+use super::types::MERGE_STRING_BUCKETS;
+use super::types::MergeClassBuckets;
+use super::types::MergeString;
+use super::types::MergeStringsSectionBucket;
+use super::types::OffsetOut;
+use super::types::OverflowedOffset;
+use super::types::PoolReservation;
+use super::types::ReusePool;
+use super::types::SectionGroup;
+use super::types::SplitResources;
+use super::types::StringMergeInputSection;
+use super::types::StringPlacement;
+use super::types::StringToMerge;
+use super::types::StringsSlot;
+use super::types::TARGET_GROUP_SIZE_BYTES;
 use crate::verbose_timing_phase;
 use crossbeam_queue::ArrayQueue;
 use crossbeam_utils::atomic::AtomicCell;
@@ -19,6 +31,12 @@ use std::mem::take;
 use std::ops::Range;
 use std::sync::Mutex;
 use thread_local::ThreadLocal;
+use wild_args::Experiment;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
+use wild_platform as platform;
+use wild_util::alignment;
+use wild_util::hash::PreHashed;
 
 pub(super) fn process_input_section<'data, 'offsets>(
     input_section: &StringMergeInputSection<'data>,
@@ -553,7 +571,7 @@ impl<'data> MergeString<'data> {
 }
 
 fn hash_merge_string(bytes: &[u8], is_string: bool, entsize: u32) -> u64 {
-    crate::hash::hash_bytes(bytes)
+    wild_util::hash::hash_bytes(bytes)
         ^ if is_string { 0 } else { 0x517c_c1b7_2722_0a95 }
         ^ 0x9e37_79b9_7f4a_7c15u64.wrapping_mul(u64::from(entsize))
 }

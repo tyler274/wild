@@ -9,7 +9,6 @@ use crate::file_writer::split_output_into_sections;
 use crate::macho::MachO;
 use crate::macho::output_section_id;
 use crate::output_trace::TraceOutput;
-use crate::platform::Arch;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
 use object::Endianness;
@@ -19,6 +18,7 @@ use rayon::iter::ParallelIterator;
 use wild_layout::FileLayout;
 use wild_layout::Layout;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_platform::Arch;
 
 pub(crate) mod headers;
 pub(crate) mod linkedit;

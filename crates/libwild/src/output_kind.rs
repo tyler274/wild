@@ -1,14 +1,10 @@
 use crate::FileSystem;
 use crate::input_data::FileLoader;
-use crate::platform;
-#[allow(unused_imports)]
-pub(crate) use crate::platform::OutputKind;
-use crate::platform::RelocationModel;
+use wild_platform::Args;
+use wild_platform::OutputKind;
+use wild_platform::RelocationModel;
 
-pub(crate) fn new(
-    args: &impl platform::Args,
-    input_data: &FileLoader<'_, impl FileSystem>,
-) -> OutputKind {
+pub(crate) fn new(args: &impl Args, input_data: &FileLoader<'_, impl FileSystem>) -> OutputKind {
     let model = args.relocation_model();
     if !args.should_output_executable() {
         if args.should_output_partial_object() {

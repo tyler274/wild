@@ -1,24 +1,24 @@
 //! Support for saving inputs for later use.
 
 use crate::FileSystem;
-use crate::archive::ArchiveEntry;
-use crate::archive::ArchiveIterator;
 use crate::args::Modifiers;
 use crate::bail;
-use crate::env;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::file_kind::FileKind;
 use crate::input_data::FileLoader;
-use crate::linker_script::LinkerScript;
 use crate::make_executable;
-use crate::platform;
 use foldhash::HashSet;
 use std::borrow::Cow;
 use std::io::BufWriter;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
+use wild_error::env;
+use wild_fs::archive::ArchiveEntry;
+use wild_fs::archive::ArchiveIterator;
+use wild_platform as platform;
+use wild_scripts::linker_script::LinkerScript;
 
 #[derive(Debug, Default)]
 pub(crate) struct SaveDir(Option<SaveDirState>);

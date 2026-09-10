@@ -12,10 +12,22 @@ use super::part_id;
 #[allow(unused_imports)]
 use super::strtab::*;
 #[allow(unused_imports)]
-use super::types::*;
+use super::types::CrelSequence;
+use super::types::DynamicEntry;
+use super::types::Elf;
+use super::types::ElfClass;
+use super::types::ElfCrel;
+use super::types::ElfRela;
+use super::types::ElfWord as _;
+use super::types::File;
+use super::types::RelaSequence;
+use super::types::RelocationList;
+use super::types::SectionHeader;
+use super::types::SymtabEntry;
+use super::types::Versym;
+use super::types::Word;
+use super::types::symtab_name_for_strtab;
 use crate::FileSystem;
-use crate::alignment::Alignment;
-use crate::arch::Architecture;
 use crate::args::BSymbolicKind;
 use crate::args::RelocationModel;
 use crate::args::elf::BuildIdOption;
@@ -27,30 +39,6 @@ use crate::error::Context as _;
 use crate::error::Result;
 use crate::file_kind::FileKind;
 use crate::gdb_index::InputDebugIndexSection;
-use crate::linker_script;
-use crate::output_kind::OutputKind;
-use crate::output_section_map::OutputSectionMap;
-use crate::platform;
-use crate::platform::Arch;
-use crate::platform::Args as _;
-use crate::platform::ObjectFile;
-use crate::platform::Platform;
-use crate::platform::ProgramSegmentDef as _;
-use crate::platform::RawSymbolName as _;
-use crate::platform::RelocationSequence;
-use crate::platform::SectionAttributes as _;
-use crate::platform::SectionFlags as _;
-use crate::platform::SectionHeader as _;
-use crate::platform::SectionType as _;
-use crate::platform::Symbol as _;
-use crate::platform::ThunkConfig;
-use crate::platform::VerneedTable as _;
-use crate::program_segments::ProgramSegmentId;
-use crate::program_segments::ProgramSegments;
-use crate::program_segments::SegmentEntry;
-use crate::value_flags::AtomicPerSymbolFlags;
-use crate::value_flags::ValueFlags;
-use crate::version_script::VersionScript;
 use crate::writable_elf::WritableSymbol;
 use hashbrown::HashMap;
 use itertools::Itertools as _;
@@ -101,6 +89,32 @@ use wild_layout::resolution::SectionSlot;
 use wild_layout::symbol::UnversionedSymbolName;
 use wild_layout::symbol_db::SymbolDb;
 use wild_layout::symbol_db::SymbolId;
+use wild_platform as platform;
+use wild_platform::Arch;
+use wild_platform::Args as _;
+use wild_platform::ObjectFile;
+use wild_platform::OutputKind;
+use wild_platform::Platform;
+use wild_platform::ProgramSegmentDef as _;
+use wild_platform::RawSymbolName as _;
+use wild_platform::RelocationSequence;
+use wild_platform::SectionAttributes as _;
+use wild_platform::SectionFlags as _;
+use wild_platform::SectionHeader as _;
+use wild_platform::SectionType as _;
+use wild_platform::Symbol as _;
+use wild_platform::ThunkConfig;
+use wild_platform::VerneedTable as _;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::program_segments::ProgramSegmentId;
+use wild_platform::program_segments::ProgramSegments;
+use wild_platform::program_segments::SegmentEntry;
+use wild_platform::value_flags::AtomicPerSymbolFlags;
+use wild_platform::value_flags::ValueFlags;
+use wild_scripts::linker_script;
+use wild_scripts::version_script::VersionScript;
+use wild_util::alignment::Alignment;
+use wild_util::arch::Architecture;
 
 impl<C: ElfClass> platform::Platform for Elf<C> {
     const NUM_SINGLE_PART_SECTIONS: u32 = ELF_NUM_SINGLE_PART_SECTIONS;
@@ -268,14 +282,14 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     type LtoInput<'data> = wild_layout::grouping::LtoInput<'data>;
     type Group<'data> = wild_layout::grouping::Group<'data, Self>;
     type SequencedLinkerScript<'data> = wild_layout::grouping::SequencedLinkerScript<'data, Self>;
-    type FileLoader<'data, F: crate::fs::FileSystem> = crate::input_data::FileLoader<'data, F>;
+    type FileLoader<'data, F: wild_fs::fs::FileSystem> = crate::input_data::FileLoader<'data, F>;
     type LayoutRulesBuilder<'data> = wild_layout::layout_rules::LayoutRulesBuilder<'data>;
     type InternalSymbolsBuilder<'data> = wild_layout::parsing::InternalSymbolsBuilder<'data, Self>;
     type InternalSymDefInfo<'data> = wild_layout::parsing::InternalSymDefInfo<'data, Self>;
     type OutputSections<'data> = wild_layout::output_section_id::OutputSections<'data, Self>;
     type OutputOrder<'data> = wild_layout::output_section_id::OutputOrder<'data>;
     type CustomSectionIds = wild_layout::output_section_id::CustomSectionIds;
-    type FileWriterOutput<F: crate::fs::FileSystem> = crate::file_writer::Output<F>;
+    type FileWriterOutput<F: wild_fs::fs::FileSystem> = crate::file_writer::Output<F>;
     type LocationCounter<'data> = wild_layout::layout_rules::LocationCounter<'data>;
     type SectionOutputInfo<'data> = wild_layout::output_section_id::SectionOutputInfo<'data, Self>;
     type FileKind = crate::file_kind::FileKind;
@@ -296,7 +310,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     fn maybe_init_linker_plugin<'data>(
         args: &'data Self::Args,
         linker_plugin_arena: &'data colosseum::sync::Arena<crate::linker_plugins::LoadedPlugin>,
-        herd: &'data crate::arena::Herd,
+        herd: &'data wild_util::arena::Herd,
     ) -> Result<Option<crate::linker_plugins::LinkerPlugin<'data>>> {
         crate::linker_plugins::LinkerPlugin::from_args::<C>(args, linker_plugin_arena, herd)
     }
@@ -306,7 +320,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         symbol_db: &mut SymbolDb<'data, Self>,
         resolver: &mut wild_layout::resolution::Resolver<'data, Self>,
         file_loader: &mut crate::input_data::FileLoader<'data, F>,
-        per_symbol_flags: &mut crate::value_flags::PerSymbolFlags,
+        per_symbol_flags: &mut wild_platform::value_flags::PerSymbolFlags,
         output_sections: &mut OutputSections<'data, Self>,
         layout_rules_builder: &mut wild_layout::layout_rules::LayoutRulesBuilder<'data>,
     ) -> Result {
@@ -1493,7 +1507,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         args: &Self::Args,
         sym: &Self::SymtabEntry,
         output_kind: OutputKind,
-        export_list: Option<&crate::export_list::ExportList>,
+        export_list: Option<&wild_scripts::export_list::ExportList>,
         lib_name: &[u8],
         archive_semantics: bool,
         is_undefined: bool,
@@ -2667,7 +2681,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         obj: &mut wild_layout::resolution::ResolvedObject<'data, Self>,
         section_index: object::SectionIndex,
         input_section: &'data Self::SectionHeader,
-        member: &crate::arena::Member<'data>,
+        member: &wild_util::arena::Member<'data>,
         loaded_metrics: &LoadedMetrics,
     ) -> Result {
         let data = obj

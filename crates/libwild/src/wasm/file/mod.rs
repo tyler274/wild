@@ -11,7 +11,6 @@ use super::symbols::*;
 use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::platform;
 use leb128::write::unsigned_len as uleb128_size;
 #[allow(unused_imports)]
 pub(crate) use parse::*;
@@ -30,6 +29,7 @@ use wasmparser::ImportSectionReader;
 use wasmparser::MemorySectionReader;
 use wasmparser::MemoryType;
 use wasmparser::TypeSectionReader;
+use wild_platform as platform;
 
 impl<'data> File<'data> {
     pub(crate) fn section_is_debug(&self, index: u32) -> bool {
@@ -374,7 +374,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
     fn section_data(
         &self,
         section: &<Self::Platform as platform::Platform>::SectionHeader,
-        _member: &crate::arena::Member<'data>,
+        _member: &wild_util::arena::Member<'data>,
         _loaded_metrics: &wild_layout::resolution::LoadedMetrics,
     ) -> crate::error::Result<&'data [u8]> {
         // Wasm sections are never compressed.

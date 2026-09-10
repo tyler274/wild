@@ -1,24 +1,20 @@
 mod compute;
 mod input_order;
 
-use super::types::*;
+use super::types::FinaliseLayoutResources;
+use super::types::GroupLayout;
+use super::types::GroupState;
+use super::types::HeaderInfo;
+use super::types::OutputRecordLayout;
+use super::types::Resolution;
+use super::types::SegmentLayout;
+use super::types::SegmentLayouts;
 use crate::EnginePlatform;
-use crate::alignment;
-use crate::alignment::Alignment;
-use crate::ensure;
-use crate::error::Context;
-use crate::error::Result;
 use crate::layout_rules::SectionKind;
 use crate::output_section_id;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSections;
-use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
-use crate::platform::Args as _;
-use crate::platform::SectionAttributes as _;
-use crate::platform::SectionFlags as _;
-use crate::program_segments::ProgramSegmentId;
-use crate::program_segments::ProgramSegments;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
 #[allow(unused_imports)]
@@ -30,6 +26,17 @@ use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 use std::mem::take;
+use wild_error::ensure;
+use wild_error::error::Context;
+use wild_error::error::Result;
+use wild_platform::Args as _;
+use wild_platform::SectionAttributes as _;
+use wild_platform::SectionFlags as _;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::program_segments::ProgramSegmentId;
+use wild_platform::program_segments::ProgramSegments;
+use wild_util::alignment;
+use wild_util::alignment::Alignment;
 
 pub fn layout_section_from_part_layouts<'data, P: EnginePlatform>(
     part: &OutputRecordLayout,

@@ -1,4 +1,3 @@
-use crate::alignment::Alignment;
 use crate::elf::Elf64;
 use crate::elf::PLT_ENTRY_SIZE;
 use crate::elf::PropertyClass;
@@ -7,9 +6,6 @@ use crate::ensure;
 use crate::error;
 use crate::error::Result;
 use crate::malfunction_point_ret;
-use crate::platform::ObjectFile as _;
-use crate::platform::Platform;
-use crate::platform::PreviousRelocationInfo;
 use linker_utils::aarch64::RelaxationKind;
 use linker_utils::aarch64::relocation_type_from_raw;
 use linker_utils::bit_misc::BitExtraction;
@@ -26,6 +22,10 @@ use linker_utils::elf::shf;
 use linker_utils::relaxation::RelocationModifier;
 use object::elf::GNU_PROPERTY_AARCH64_FEATURE_1_AND;
 use wild_layout::Layout;
+use wild_platform::ObjectFile as _;
+use wild_platform::Platform;
+use wild_platform::PreviousRelocationInfo;
+use wild_util::alignment::Alignment;
 
 pub(crate) struct ElfAArch64;
 
@@ -56,7 +56,7 @@ macro_rules! rel_info_from_type {
     };
 }
 
-impl crate::platform::Arch for ElfAArch64 {
+impl wild_platform::Arch for ElfAArch64 {
     type Relaxation = Relaxation;
     type Platform = Elf64;
 
@@ -162,8 +162,8 @@ impl crate::platform::Arch for ElfAArch64 {
         relocation_kind: object::elf::RelocationType,
         section_bytes: &[u8],
         offset_in_section: u64,
-        flags: crate::value_flags::ValueFlags,
-        output_kind: crate::output_kind::OutputKind,
+        flags: wild_platform::value_flags::ValueFlags,
+        output_kind: wild_platform::OutputKind,
         section_flags: linker_utils::elf::SectionFlags,
         _relax_deltas: Option<&linker_utils::relaxation::SectionRelaxDeltas>,
         sym_addr: u64,
@@ -380,7 +380,7 @@ impl crate::platform::Arch for ElfAArch64 {
         relocations: &<Self::Platform as Platform>::RelocationSections,
         section: &<Self::Platform as Platform>::SectionHeader,
         offset_in_section: u64,
-    ) -> Result<crate::platform::SourceInfo> {
+    ) -> Result<wild_platform::SourceInfo> {
         crate::dwarf_address_info::get_source_info::<crate::elf::Class64, Self>(
             object,
             relocations,
@@ -389,8 +389,8 @@ impl crate::platform::Arch for ElfAArch64 {
         )
     }
 
-    fn thunk_config() -> Option<crate::platform::ThunkConfig> {
-        Some(crate::platform::ThunkConfig {
+    fn thunk_config() -> Option<wild_platform::ThunkConfig> {
+        Some(wild_platform::ThunkConfig {
             primary_function_part_id: const {
                 output_section_id::TEXT.part_id_with_alignment::<Elf64>(Alignment { exponent: 2 })
             },
@@ -432,7 +432,7 @@ const TLSDESC_ADD_LO12_INSN_SEQUENCE: &[u8] = &[
     0x0, 0x0, 0x0, 0x91, // add     x0, x0, #0x0
 ];
 
-impl crate::platform::Relaxation for Relaxation {
+impl wild_platform::Relaxation for Relaxation {
     fn apply(&self, section_bytes: &mut [u8], offset_in_section: &mut u64, addend: &mut i64) {
         self.kind.apply(section_bytes, offset_in_section, addend);
     }

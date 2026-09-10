@@ -1,9 +1,9 @@
 use crate::FileSystem;
 use crate::args::wasm::WasmArgs;
 use crate::bail;
-use crate::platform::Args as _;
 use wild_layout::output_section_id::OutputSectionId;
 use wild_layout::part_id::PartId;
+use wild_platform::Args as _;
 
 pub(crate) mod abi;
 pub(crate) mod file;

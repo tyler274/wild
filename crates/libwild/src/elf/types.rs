@@ -6,13 +6,8 @@ use super::file::*;
 use super::gnu::*;
 #[allow(unused_imports)]
 use super::output::*;
-use crate::alignment::Alignment;
-use crate::arch::Architecture;
 use crate::error;
 use crate::error::Result;
-use crate::platform;
-use crate::platform::Relocation;
-use crate::platform::RelocationSequence;
 use crate::writable_elf::WritableCompressionHeader;
 use crate::writable_elf::WritableDynamicEntry;
 use crate::writable_elf::WritableFileHeader;
@@ -27,6 +22,11 @@ use object::read::elf::Crel;
 use object::read::elf::CrelIterator;
 use std::marker::PhantomData;
 use std::ops::Range;
+use wild_platform as platform;
+use wild_platform::Relocation;
+use wild_platform::RelocationSequence;
+use wild_util::alignment::Alignment;
+use wild_util::arch::Architecture;
 use zerocopy::FromBytes;
 use zerocopy::IntoBytes;
 

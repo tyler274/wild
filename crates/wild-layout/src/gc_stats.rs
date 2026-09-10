@@ -19,15 +19,15 @@
 use crate::EnginePlatform;
 use crate::FileLayout;
 use crate::GroupLayout;
-use crate::error::Context as _;
-use crate::error::Result;
-use crate::platform::Args;
-use crate::platform::ObjectFile;
 use crate::resolution::SectionSlot;
 use crate::symbol_db::SymbolDb;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use std::path::PathBuf;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
+use wild_platform::Args;
+use wild_platform::ObjectFile;
 
 pub fn maybe_write_gc_stats<'data, P: EnginePlatform>(
     group_layouts: &[GroupLayout<'data, P>],

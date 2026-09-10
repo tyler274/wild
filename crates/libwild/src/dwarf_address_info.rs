@@ -8,12 +8,6 @@ use crate::elf::ElfRela;
 use crate::elf::File;
 use crate::elf::SectionHeader;
 use crate::error::Result;
-use crate::fs::path_from_bytes;
-use crate::platform::Arch;
-use crate::platform::ObjectFile as _;
-use crate::platform::Relocation;
-use crate::platform::SourceInfo;
-use crate::platform::SourceInfoDetails;
 use anyhow::Context;
 use linker_utils::elf::RelocationKind;
 use object::LittleEndian;
@@ -22,6 +16,12 @@ use object::read::elf::SectionHeader as _;
 use object::read::elf::Sym as _;
 use std::borrow::Cow;
 use std::path::PathBuf;
+use wild_fs::fs::path_from_bytes;
+use wild_platform::Arch;
+use wild_platform::ObjectFile as _;
+use wild_platform::Relocation;
+use wild_platform::SourceInfo;
+use wild_platform::SourceInfoDetails;
 
 /// The address at which we'll pretend that we loaded the section we're interested in. This value is
 /// arbitrary, but should be larger than the largest input section we expect to encounter and small

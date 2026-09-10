@@ -1,7 +1,8 @@
 mod table;
 mod versions;
 
-use super::types::*;
+use super::types::ElfLayout;
+use super::types::TableWriter;
 use crate::bail;
 use crate::debug_assert_bail;
 use crate::elf;
@@ -10,9 +11,6 @@ use crate::elf::Versym;
 use crate::elf::output_section_id;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::platform;
-use crate::platform::ObjectFile;
-use crate::value_flags::ValueFlags;
 use crate::writable_elf::WritableSymbol as _;
 use object::read::elf::Sym as _;
 use rayon::iter::ParallelBridge as _;
@@ -27,6 +25,9 @@ use wild_layout::LinkerScriptLayoutState;
 use wild_layout::ObjectLayout;
 use wild_layout::PreludeLayout;
 use wild_layout::symbol_db::SymbolId;
+use wild_platform as platform;
+use wild_platform::ObjectFile;
+use wild_platform::value_flags::ValueFlags;
 
 pub(crate) struct VersionedDynsymWriter<'layout, 'out, C: ElfClass> {
     pub(crate) dynsym_writer: SymbolTableWriter<'layout, 'out, C>,

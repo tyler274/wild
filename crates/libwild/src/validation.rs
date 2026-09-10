@@ -4,12 +4,12 @@ use crate::elf;
 use crate::elf::ElfClass;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::platform::ObjectFile as _;
-use crate::platform::Platform;
 use linker_utils::elf::secnames::GOT_SECTION_NAME_STR;
 use object::LittleEndian;
 use object::read::elf::SectionHeader as _;
 use wild_layout::Layout;
+use wild_platform::ObjectFile as _;
+use wild_platform::Platform;
 
 type ElfLayout<'data, C> = Layout<'data, elf::Elf<C>>;
 

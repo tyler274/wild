@@ -15,6 +15,7 @@ use std::path::PathBuf;
 use wild_error::bail;
 use wild_error::error::Context as _;
 use wild_platform::Args as _;
+use wild_platform::OrphanHandling;
 use wild_scripts::linker_script::maybe_forced_sysroot;
 
 pub(super) const SILENTLY_IGNORED_FLAGS: &[&str] = &[
@@ -190,10 +191,10 @@ pub(super) fn setup_argument_parser() -> ArgumentParser<ElfArgs> {
         .help("Control how input sections not mentioned in a linker script are handled")
         .execute(|args, _modifier_stack, value| {
             args.orphan_handling = match value {
-                "place" => wild_platform::OrphanHandling::Place,
-                "discard" => wild_platform::OrphanHandling::Discard,
-                "warn" => wild_platform::OrphanHandling::Warn,
-                "error" => wild_platform::OrphanHandling::Error,
+                "place" => OrphanHandling::Place,
+                "discard" => OrphanHandling::Discard,
+                "warn" => OrphanHandling::Warn,
+                "error" => OrphanHandling::Error,
                 other => bail!(
                     "Invalid --orphan-handling `{other}`, expected place, discard, warn, or error"
                 ),

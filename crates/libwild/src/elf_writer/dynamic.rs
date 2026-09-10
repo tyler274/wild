@@ -1,6 +1,6 @@
 use super::symbols::*;
-use super::types::*;
-use crate::OutputKind;
+use super::types::ElfLayout;
+use super::types::TableWriter;
 use crate::args::elf::ElfArgs;
 use crate::bail;
 use crate::elf;
@@ -18,10 +18,6 @@ use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::file_writer::insufficient_allocation;
-use crate::output_section_map::OutputSectionMap;
-use crate::platform::Arch;
-use crate::platform::ObjectFile;
-use crate::value_flags::ValueFlags;
 use crate::verbose_timing_phase;
 use crate::writable_elf::WritableDynamicEntry as _;
 use crate::writable_elf::WritableSymbol as _;
@@ -35,6 +31,11 @@ use wild_layout::OutputRecordLayout;
 use wild_layout::output_section_id::OutputSectionId;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::symbol_db::SymbolId;
+use wild_platform::Arch;
+use wild_platform::ObjectFile;
+use wild_platform::OutputKind;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::value_flags::ValueFlags;
 use zerocopy::FromBytes;
 
 pub(crate) fn write_epilogue_dynamic_entries<C: ElfClass>(
@@ -499,7 +500,7 @@ pub(crate) const EPILOGUE_DYNAMIC_ENTRY_WRITERS: &[DynamicEntryWriter] = &[
         object::elf::DT_AARCH64_VARIANT_PCS,
         |inputs| {
             inputs.has_variant_pcs
-                && inputs.args.architecture() == crate::arch::Architecture::AArch64
+                && inputs.args.architecture() == wild_util::arch::Architecture::AArch64
         },
         |_inputs| 0,
     ),
@@ -507,7 +508,7 @@ pub(crate) const EPILOGUE_DYNAMIC_ENTRY_WRITERS: &[DynamicEntryWriter] = &[
         object::elf::DT_RISCV_VARIANT_CC,
         |inputs| {
             inputs.has_variant_pcs
-                && inputs.args.architecture() == crate::arch::Architecture::RiscV64
+                && inputs.args.architecture() == wild_util::arch::Architecture::RiscV64
         },
         |_inputs| 0,
     ),

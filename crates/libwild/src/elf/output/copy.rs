@@ -1,4 +1,3 @@
-use crate::alignment::Alignment;
 #[allow(unused_imports)]
 use crate::elf::abi::*;
 #[allow(unused_imports)]
@@ -8,14 +7,11 @@ use crate::elf::gnu::*;
 use crate::elf::output_section_id;
 use crate::elf::part_id;
 #[allow(unused_imports)]
-use crate::elf::types::*;
+use crate::elf::types::Elf;
+use crate::elf::types::ElfClass;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::platform::ObjectFile;
-use crate::platform::Symbol as _;
 use crate::timing_phase;
-use crate::value_flags::AtomicPerSymbolFlags;
-use crate::value_flags::ValueFlags;
 use crate::verbose_timing_phase;
 use hashbrown::HashMap;
 use itertools::Itertools as _;
@@ -27,6 +23,11 @@ use wild_layout::HandlerData as _;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::symbol_db::SymbolDb;
 use wild_layout::symbol_db::SymbolId;
+use wild_platform::ObjectFile;
+use wild_platform::Symbol as _;
+use wild_platform::value_flags::AtomicPerSymbolFlags;
+use wild_platform::value_flags::ValueFlags;
+use wild_util::alignment::Alignment;
 
 /// Where we've decided that we need copy relocations, look for symbols with the same address as the
 /// symbols with copy relocations. If the other symbol is non-weak, then we do the copy relocation

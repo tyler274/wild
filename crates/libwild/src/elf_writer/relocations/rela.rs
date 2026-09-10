@@ -6,12 +6,6 @@ use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::output_trace::TraceOutput;
-use crate::platform::Arch;
-use crate::platform::Args as _;
-use crate::platform::ObjectFile;
-use crate::platform::Relocation;
-use crate::platform::RelocationList;
-use crate::platform::SectionHeader as _;
 use crate::writable_elf::WritableRela as _;
 use hashbrown::HashMap;
 use linker_utils::elf::secnames::DEBUG_LOC_SECTION_NAME;
@@ -28,6 +22,12 @@ use wild_layout::ObjectLayout;
 use wild_layout::output_section_id::SectionName;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::resolution::SectionSlot;
+use wild_platform::Arch;
+use wild_platform::Args as _;
+use wild_platform::ObjectFile;
+use wild_platform::Relocation;
+use wild_platform::RelocationList;
+use wild_platform::SectionHeader as _;
 
 /// A cache for managing ELF relocations and optimization of relocation entries.
 #[derive(Debug)]

@@ -4,7 +4,6 @@
 use crate::bail;
 use crate::ensure;
 use crate::macho::MachO;
-use crate::platform::PreviousRelocationInfo;
 use linker_utils::aarch64::RelaxationKind;
 use linker_utils::elf::AArch64Instruction;
 use linker_utils::elf::AllowedRange;
@@ -16,6 +15,7 @@ use linker_utils::elf::RelocationSize;
 use linker_utils::elf::SIZE_4KB;
 use linker_utils::elf::Sign;
 use std::borrow::Cow;
+use wild_platform::PreviousRelocationInfo;
 
 pub(crate) struct MachOAArch64;
 
@@ -36,7 +36,7 @@ pub(crate) struct Relaxation {
     rel_info: RelocationKindInfo,
 }
 
-impl crate::platform::Relaxation for Relaxation {
+impl wild_platform::Relaxation for Relaxation {
     fn apply(&self, section_bytes: &mut [u8], offset_in_section: &mut u64, addend: &mut i64) {
         self.kind.apply(section_bytes, offset_in_section, addend);
     }
@@ -58,13 +58,13 @@ impl crate::platform::Relaxation for Relaxation {
     }
 }
 
-impl crate::platform::Arch for MachOAArch64 {
+impl wild_platform::Arch for MachOAArch64 {
     type Relaxation = Relaxation;
     type Platform = MachO;
-    fn start_memory_address(_output_kind: crate::output_kind::OutputKind) -> u64 {
+    fn start_memory_address(_output_kind: wild_platform::OutputKind) -> u64 {
         crate::macho::MACHO_START_MEM_ADDRESS
     }
-    fn arch_identifier() -> <Self::Platform as crate::platform::Platform>::ArchIdentifier {
+    fn arch_identifier() -> <Self::Platform as wild_platform::Platform>::ArchIdentifier {
         todo!()
     }
 
@@ -192,7 +192,7 @@ impl crate::platform::Arch for MachOAArch64 {
         todo!()
     }
 
-    fn get_property_class(_property_type: u32) -> Option<crate::platform::PropertyClass> {
+    fn get_property_class(_property_type: u32) -> Option<wild_platform::PropertyClass> {
         todo!()
     }
 
@@ -205,21 +205,21 @@ impl crate::platform::Arch for MachOAArch64 {
     }
 
     fn get_source_info<'data>(
-        object: &<Self::Platform as crate::platform::Platform>::File<'data>,
-        relocations: &<Self::Platform as crate::platform::Platform>::RelocationSections,
-        section: &<Self::Platform as crate::platform::Platform>::SectionHeader,
+        object: &<Self::Platform as wild_platform::Platform>::File<'data>,
+        relocations: &<Self::Platform as wild_platform::Platform>::RelocationSections,
+        section: &<Self::Platform as wild_platform::Platform>::SectionHeader,
         offset_in_section: u64,
-    ) -> crate::error::Result<crate::platform::SourceInfo> {
-        Ok(crate::platform::SourceInfo(None))
+    ) -> crate::error::Result<wild_platform::SourceInfo> {
+        Ok(wild_platform::SourceInfo(None))
     }
 
     fn new_relaxation(
         relocation_kind: object::macho::RelocationInfo,
         section_bytes: &[u8],
         offset_in_section: u64,
-        flags: crate::value_flags::ValueFlags,
-        output_kind: crate::output_kind::OutputKind,
-        section_flags: <Self::Platform as crate::platform::Platform>::SectionFlags,
+        flags: wild_platform::value_flags::ValueFlags,
+        output_kind: wild_platform::OutputKind,
+        section_flags: <Self::Platform as wild_platform::Platform>::SectionFlags,
         relax_deltas: Option<&linker_utils::relaxation::SectionRelaxDeltas>,
         _sym_addr: u64,
         _section_address: u64,

@@ -1,7 +1,6 @@
 use self::elf::get_page_mask;
 use super::super::types::*;
 use super::*;
-use crate::OutputKind;
 use crate::bail;
 use crate::elf;
 use crate::elf::ElfClass;
@@ -10,10 +9,6 @@ use crate::error::Context as _;
 use crate::error::Result;
 use crate::output_trace::HexU64;
 use crate::output_trace::TraceOutput;
-use crate::platform::Arch;
-use crate::platform::PreviousRelocationInfo;
-use crate::platform::Relaxation as _;
-use crate::platform::Relocation;
 use linker_utils::elf::RelocationKind;
 use linker_utils::loongarch64::highest_relocation_with_bias;
 use linker_utils::relaxation::RelocationModifier;
@@ -22,6 +17,11 @@ use linker_utils::relaxation::opt_input_to_output;
 use std::ops::BitAnd;
 use std::ops::Sub;
 use wild_layout::ObjectLayout;
+use wild_platform::Arch;
+use wild_platform::OutputKind;
+use wild_platform::PreviousRelocationInfo;
+use wild_platform::Relaxation as _;
+use wild_platform::Relocation;
 
 /// Applies the relocation `rel` at `offset_in_section`, where the section bytes are `out`. See "ELF
 /// Handling For Thread-Local Storage" for details about some of the TLS-related relocations and

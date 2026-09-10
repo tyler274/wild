@@ -1,28 +1,39 @@
 use super::ids::*;
 use super::order::*;
-use super::types::*;
+use super::types::CustomSectionDetails;
+use super::types::CustomSectionIds;
+use super::types::GnuBuildIdPlacement;
+use super::types::OnlyIfPlacement;
+use super::types::OnlyIfSlots;
+use super::types::ScriptOutputData;
+use super::types::SecondaryOrder;
+use super::types::SectionIdentity;
+use super::types::SectionLocationInfo;
+use super::types::SectionName;
+use super::types::SectionOutputInfo;
 use crate::EnginePlatform;
 use crate::Result;
-use crate::alignment;
-use crate::alignment::Alignment;
-use crate::alignment::NUM_ALIGNMENTS;
 use crate::grouping::SequencedLinkerScript;
 use crate::layout_rules::SectionKind;
-use crate::linker_script;
-use crate::linker_script::Expression;
-use crate::linker_script::OnlyIf;
-use crate::output_kind::OutputKind;
-use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
-use crate::platform::Args;
-use crate::platform::Platform;
-use crate::platform::SectionAttributes as _;
-use crate::program_segments::ProgramSegments;
 use crate::timing_phase;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 use std::fmt::Display;
+use wild_args::RelocationModel;
+use wild_platform::Args;
+use wild_platform::OutputKind;
+use wild_platform::Platform;
+use wild_platform::SectionAttributes as _;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::program_segments::ProgramSegments;
+use wild_scripts::linker_script;
+use wild_scripts::linker_script::Expression;
+use wild_scripts::linker_script::OnlyIf;
+use wild_util::alignment;
+use wild_util::alignment::Alignment;
+use wild_util::alignment::NUM_ALIGNMENTS;
 
 #[derive(Debug)]
 pub struct OutputSections<'data, P: Platform> {
@@ -736,8 +747,7 @@ impl<'data, P: Platform> OutputSections<'data, P> {
         P: EnginePlatform,
         P::SectionIdentityExt: Default,
     {
-        let output_kind =
-            crate::output_kind::OutputKind::StaticExecutable(crate::args::RelocationModel::Fixed);
+        let output_kind = OutputKind::StaticExecutable(RelocationModel::Fixed);
         let mut output_sections = OutputSections::<P>::with_base_address(0x1000, output_kind);
         let mut add_name = |name: &'static str| {
             output_sections.add_named_section(
@@ -745,7 +755,7 @@ impl<'data, P: Platform> OutputSections<'data, P> {
                     SectionName(name.as_bytes()),
                     P::SectionIdentityExt::default(),
                 ),
-                crate::alignment::MIN,
+                alignment::MIN,
                 None,
                 None,
                 None,

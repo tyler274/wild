@@ -1,9 +1,12 @@
-use super::types::*;
+use super::types::AuxiliaryFiles;
+use super::types::FileLoader;
+use super::types::InputFile;
+use super::types::InputLinkerScript;
+use super::types::InputPath;
+use super::types::InputRef;
+use super::types::ScriptData;
 use crate::FileSystem;
 use crate::InputFileData;
-use crate::archive::ArchiveEntry;
-use crate::archive::ArchiveIterator;
-use crate::archive::EntryMeta;
 use crate::args::Input;
 use crate::args::InputSpec;
 use crate::args::Modifiers;
@@ -13,18 +16,21 @@ use crate::error::Error;
 use crate::error::Result;
 use crate::file_kind::FileKind;
 use crate::linker_plugins::LinkerPlugin;
-use crate::linker_script::LinkerScript;
 use crate::macho_stub_library::parse_defined_library;
-use crate::platform;
-use crate::platform::Args;
-use crate::platform::Platform;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
+use wild_fs::archive::ArchiveEntry;
+use wild_fs::archive::ArchiveIterator;
+use wild_fs::archive::EntryMeta;
 use wild_layout::EnginePlatform;
 use wild_layout::grouping::DefinedStubLibrary;
 use wild_layout::grouping::LoadedStubLibrary;
 use wild_layout::parsing::ParsedInputObject;
 use wild_layout::symbol_db::LoadedInputs;
+use wild_platform as platform;
+use wild_platform::Args;
+use wild_platform::Platform;
+use wild_scripts::linker_script::LinkerScript;
 
 pub(crate) trait LoadPlatform: EnginePlatform + Platform<FileKind = FileKind> {}
 impl<P: EnginePlatform + Platform<FileKind = FileKind>> LoadPlatform for P {}
@@ -354,7 +360,7 @@ fn process_linker_script<'data, F: FileSystem>(
 
         if let (Some(sysroot), InputSpec::File(file)) = (args.sysroot(), &mut input.spec)
             && let Some(new_file) =
-                crate::linker_script::maybe_apply_sysroot(&script_path, file, sysroot)
+                wild_scripts::linker_script::maybe_apply_sysroot(&script_path, file, sysroot)
         {
             *file = new_file;
         }

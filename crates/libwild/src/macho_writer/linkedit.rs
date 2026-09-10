@@ -1,6 +1,5 @@
 use super::*;
 use crate::OutputFileData;
-use crate::alignment::MACHO_PAGE_ALIGNMENT;
 use crate::bail;
 use crate::ensure;
 use crate::error;
@@ -23,8 +22,6 @@ use crate::macho::UuidCommand;
 use crate::macho::code_signature_identifier;
 use crate::macho::code_signature_padded_identifier_size;
 use crate::macho::output_section_id;
-use crate::platform::ObjectFile;
-use crate::platform::Symbol;
 use crate::verbose_timing_phase;
 use itertools::Itertools;
 use object::Endianness;
@@ -50,6 +47,9 @@ use sha2::Digest;
 use sha2::Sha256;
 use wild_layout::FileLayout;
 use wild_layout::symbol_db::SymbolId;
+use wild_platform::ObjectFile;
+use wild_platform::Symbol;
+use wild_util::alignment::MACHO_PAGE_ALIGNMENT;
 use zerocopy::FromZeros;
 
 pub(crate) fn build_exports_trie(layout: &MachOLayout<'_>) -> Result<Vec<u8>> {
@@ -104,7 +104,7 @@ pub(crate) fn build_exports_trie(layout: &MachOLayout<'_>) -> Result<Vec<u8>> {
                 flags |= object::macho::EXPORT_SYMBOL_FLAGS_WEAK_DEFINITION;
             }
 
-            Ok(crate::trie::Symbol {
+            Ok(wild_util::trie::Symbol {
                 name: symbol.name,
                 address,
                 flags,
@@ -112,7 +112,7 @@ pub(crate) fn build_exports_trie(layout: &MachOLayout<'_>) -> Result<Vec<u8>> {
         })
         .collect::<Result<Vec<_>>>()?;
 
-    Ok(crate::trie::build(&mut symbols))
+    Ok(wild_util::trie::build(&mut symbols))
 }
 
 pub(crate) fn exported_symbol_is_weak(

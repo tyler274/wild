@@ -9,18 +9,7 @@ use crate::elf::part_id;
 use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::linker_script::Expression;
-use crate::linker_script::RelocatableAnchor;
-use crate::output_section_map::OutputSectionMap;
-use crate::platform;
-use crate::platform::Args as _;
-use crate::platform::ObjectFile;
-use crate::platform::Platform;
-use crate::platform::RawSymbolName as _;
-use crate::platform::SectionAttributes as _;
-use crate::sharding::ShardKey;
 use crate::timing_phase;
-use crate::value_flags::ValueFlags;
 use crate::writable_elf::WritableSymbol as _;
 use linker_utils::elf::RISCV_TLS_DTV_OFFSET;
 use linker_utils::elf::secnames::DYNSYM_SECTION_NAME_STR;
@@ -43,6 +32,17 @@ use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::parsing::SymbolLoc;
 use wild_layout::resolution::SectionSlot;
 use wild_layout::symbol_db::SymbolId;
+use wild_platform as platform;
+use wild_platform::Args as _;
+use wild_platform::ObjectFile;
+use wild_platform::Platform;
+use wild_platform::RawSymbolName as _;
+use wild_platform::SectionAttributes as _;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::value_flags::ValueFlags;
+use wild_scripts::linker_script::Expression;
+use wild_scripts::linker_script::RelocatableAnchor;
+use wild_util::sharding::ShardKey;
 
 #[derive(Clone, Copy)]
 pub(crate) enum SymbolSection {
@@ -906,13 +906,13 @@ pub(crate) fn get_defsym_attributes<C: ElfClass>(
     }
 }
 
-pub(crate) fn section_is_loaded<A: crate::platform::SectionAttributes>(attr: &A) -> bool {
+pub(crate) fn section_is_loaded<A: wild_platform::SectionAttributes>(attr: &A) -> bool {
     attr.is_alloc() && !attr.is_no_bits()
 }
 
 /// GNU ld `SEC_READONLY`. Unflagged empty sections are not readonly; `!SHF_WRITE`
 /// only counts once the section is allocated.
-pub(crate) fn section_is_readonly<A: crate::platform::SectionAttributes>(attr: &A) -> bool {
+pub(crate) fn section_is_readonly<A: wild_platform::SectionAttributes>(attr: &A) -> bool {
     attr.is_alloc() && !attr.is_writable()
 }
 

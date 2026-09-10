@@ -1,16 +1,8 @@
-use crate::args::InputRef;
-use crate::error::Error;
 use crate::grouping::DefinedStubLibrary;
 use crate::grouping::SequencedInputObject;
-use crate::input_section_id::SectionIdRange;
 use crate::output_section_id::CustomSectionDetails;
 use crate::output_section_id::InitFiniSectionDetail;
 use crate::parsing::InternalSymDefInfo;
-use crate::platform::DynamicTagValues as _;
-use crate::platform::FileId;
-use crate::platform::FrameIndex;
-use crate::platform::ObjectFile;
-use crate::platform::Platform;
 use crate::string_merging::StringMergeSectionExtra;
 use crate::string_merging::StringMergeSectionSlot;
 use crate::symbol::PreHashedSymbolName;
@@ -21,6 +13,14 @@ use crossbeam_queue::ArrayQueue;
 use crossbeam_queue::SegQueue;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
+use wild_args::InputRef;
+use wild_error::error::Error;
+use wild_platform::DynamicTagValues as _;
+use wild_platform::FileId;
+use wild_platform::FrameIndex;
+use wild_platform::ObjectFile;
+use wild_platform::Platform;
+use wild_util::input_section_id::SectionIdRange;
 
 pub(super) const MAX_SYMBOLS_PER_WORK_ITEM: usize = 5000;
 
@@ -212,7 +212,7 @@ pub struct ResolvedSyntheticSymbols<'data, P: Platform> {
     pub start_symbol_id: SymbolId,
     pub symbol_definitions: Vec<InternalSymDefInfo<'data, P>>,
     pub start_stop_sections:
-        Option<crate::output_section_map::OutputSectionMap<Vec<StartStopCandidate<P>>>>,
+        Option<wild_platform::output_section_map::OutputSectionMap<Vec<StartStopCandidate<P>>>>,
 }
 
 #[derive(Debug, Clone, Copy)]

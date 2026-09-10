@@ -1,9 +1,3 @@
-use crate::alignment;
-use crate::error::Error;
-use crate::error::Result;
-use crate::hash::PassThroughHashMap;
-use crate::hash::PreHashed;
-use crate::output_section_map::OutputSectionMap;
 use crossbeam_queue::ArrayQueue;
 use crossbeam_utils::atomic::AtomicCell;
 use hashbrown::HashMap;
@@ -14,6 +8,12 @@ use std::sync::Mutex;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use thread_local::ThreadLocal;
+use wild_error::error::Error;
+use wild_error::error::Result;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_util::alignment;
+use wild_util::hash::PassThroughHashMap;
+use wild_util::hash::PreHashed;
 
 /// Maximum number of threads that can split and hash input sections at once. We default to allowing
 /// splitting parallelism up to the number of threads, but beyond about 24 it doesn't really help.

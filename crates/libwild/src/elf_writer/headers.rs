@@ -1,7 +1,5 @@
 use super::link_ids;
-use super::types::*;
-use crate::OutputKind;
-use crate::alignment;
+use super::types::ElfLayout;
 use crate::elf;
 use crate::elf::ElfClass;
 use crate::elf::output_section_id;
@@ -11,9 +9,6 @@ use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::malfunction;
-use crate::output_section_map::OutputSectionMap;
-use crate::platform::Arch;
-use crate::platform::Args as _;
 use crate::writable_elf::WritableFileHeader as _;
 use crate::writable_elf::WritableProgramHeader as _;
 use crate::writable_elf::WritableSectionHeader as _;
@@ -24,6 +19,12 @@ use linker_utils::utils::slice_from_all_bytes_mut;
 use wild_layout::HeaderInfo;
 use wild_layout::output_section_id::OutputSections;
 use wild_layout::output_section_id::SectionName;
+use wild_platform::Arch;
+use wild_platform::Args as _;
+use wild_platform::EntryPoint;
+use wild_platform::OutputKind;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_util::alignment;
 
 pub(crate) fn write_program_headers<C: ElfClass>(
     program_headers_out: &mut ProgramHeaderWriter<'_, C>,
@@ -136,9 +137,9 @@ pub(crate) fn elf_entry_address<C: ElfClass>(layout: &ElfLayout<C>) -> Result<u6
     }
 
     let entry_name = match layout.symbol_db.entry_point() {
-        crate::platform::EntryPoint::None => return Ok(0),
-        crate::platform::EntryPoint::Address(address) => return Ok(address),
-        crate::platform::EntryPoint::Symbol(name) => name,
+        EntryPoint::None => return Ok(0),
+        EntryPoint::Address(address) => return Ok(address),
+        EntryPoint::Symbol(name) => name,
     };
 
     if let Some(address) = layout.resolved_entry_symbol_address()? {

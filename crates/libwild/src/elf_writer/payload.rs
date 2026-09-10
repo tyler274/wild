@@ -8,9 +8,7 @@ use crate::file_writer::SizedOutput;
 use crate::file_writer::split_buffers_by_alignment;
 use crate::file_writer::split_output_by_group;
 use crate::file_writer::split_output_into_sections;
-use crate::output_section_map::OutputSectionMap;
 use crate::output_trace::TraceOutput;
-use crate::platform::Arch;
 use crate::sframe;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
@@ -20,6 +18,8 @@ use wild_layout::FileLayout;
 use wild_layout::Layout;
 use wild_layout::output_section_id::OrderEvent;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_platform::Arch;
+use wild_platform::output_section_map::OutputSectionMap;
 use zerocopy::FromBytes;
 
 pub(crate) fn write_file_contents<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(

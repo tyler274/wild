@@ -9,15 +9,16 @@ use super::file::*;
 #[allow(unused_imports)]
 use super::output::*;
 #[allow(unused_imports)]
-use super::types::*;
-use crate::alignment::Alignment;
+use super::types::DynamicEntry;
+use super::types::Elf;
+use super::types::ElfClass;
+use super::types::File;
+use super::types::SectionTable;
+use super::types::SymbolTable;
+use super::types::Versym;
 use crate::bail;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::platform;
-use crate::platform::DynamicTagValues as _;
-use crate::platform::ObjectFile as _;
-use crate::platform::Platform;
 use crate::timing_phase;
 #[allow(unused_imports)]
 pub(crate) use ehframe::*;
@@ -46,6 +47,11 @@ use wild_layout::output_section_id::OutputSectionId;
 use wild_layout::output_section_id::OutputSections;
 #[cfg(all(feature = "plugins", unix))]
 use wild_layout::symbol_db::Visibility;
+use wild_platform as platform;
+use wild_platform::DynamicTagValues as _;
+use wild_platform::ObjectFile as _;
+use wild_platform::Platform;
+use wild_util::alignment::Alignment;
 
 #[cfg(all(feature = "plugins", unix))]
 pub(crate) fn convert_elf_visibility(st_visibility: object::elf::SymbolVisibility) -> Visibility {

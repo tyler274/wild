@@ -1,24 +1,25 @@
 use super::ids::*;
 use super::sections::OutputSections;
-use super::types::*;
+use super::types::LocationCounterIndex;
+use super::types::SectionName;
 use crate::EnginePlatform;
 use crate::layout_rules::LocationCounter;
 use crate::layout_rules::SectionKind;
-use crate::linker_script;
-use crate::output_kind::OutputKind;
-use crate::output_section_map::OutputSectionMap;
 use crate::parsing::SymbolLoc;
-use crate::platform::Platform;
-use crate::platform::ProgramSegmentDef;
-use crate::platform::SectionAttributes as _;
-use crate::platform::SectionType as _;
-use crate::program_segments::ProgramSegmentId;
-use crate::program_segments::ProgramSegments;
 use core::slice;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 use itertools::multizip;
 use std::fmt::Display;
+use wild_platform::Platform;
+use wild_platform::ProgramSegmentDef;
+use wild_platform::SectionAttributes as _;
+use wild_platform::SectionType as _;
+use wild_platform::output_kind::OutputKind;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::program_segments::ProgramSegmentId;
+use wild_platform::program_segments::ProgramSegments;
+use wild_scripts::linker_script;
 
 /// Encodes the order of output sections and the start and end of each program segment. This struct
 /// is intended to be used by iterating over it.

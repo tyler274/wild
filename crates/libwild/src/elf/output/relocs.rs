@@ -8,17 +8,9 @@ use crate::elf::file::*;
 use crate::elf::gnu::*;
 use crate::elf::part_id;
 #[allow(unused_imports)]
-use crate::elf::types::*;
+use crate::elf::types::Elf;
+use crate::elf::types::ElfClass;
 use crate::error::Result;
-use crate::platform::Arch;
-use crate::platform::Args as _;
-use crate::platform::ObjectFile;
-use crate::platform::Platform;
-use crate::platform::Relaxation as _;
-use crate::platform::Relocation;
-use crate::platform::SectionFlags as _;
-use crate::platform::SectionHeader as _;
-use crate::value_flags::ValueFlags;
 use linker_utils::elf::RelocationKind;
 use linker_utils::relaxation::RelocationModifier;
 use object::LittleEndian;
@@ -30,6 +22,15 @@ use wild_layout::CommonGroupState;
 use wild_layout::ObjectLayoutState;
 use wild_layout::part_id::PartId;
 use wild_layout::symbol_db::SymbolId;
+use wild_platform::Arch;
+use wild_platform::Args as _;
+use wild_platform::ObjectFile;
+use wild_platform::Platform;
+use wild_platform::Relaxation as _;
+use wild_platform::Relocation;
+use wild_platform::SectionFlags as _;
+use wild_platform::SectionHeader as _;
+use wild_platform::value_flags::ValueFlags;
 
 #[inline(always)]
 pub(crate) fn process_relocation<

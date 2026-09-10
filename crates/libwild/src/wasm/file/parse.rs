@@ -9,7 +9,6 @@ use super::super::relocations::*;
 use super::super::section_id;
 use super::super::symbols::*;
 use super::*;
-use crate::alignment::Alignment;
 use crate::ensure;
 use crate::error::Result;
 use linker_utils::utils::u32_from_slice;
@@ -22,6 +21,7 @@ use wasmparser::Parser;
 use wasmparser::Payload;
 use wasmparser::SymbolInfo;
 use wasmparser::TypeRef;
+use wild_util::alignment::Alignment;
 
 pub(crate) fn parse_wasm_module<'data>(input: &'data [u8]) -> Result<File<'data>> {
     ensure!(input.len() >= 8, "Wasm module too short");

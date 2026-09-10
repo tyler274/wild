@@ -1,13 +1,13 @@
 use super::ids::*;
-use crate::alignment::Alignment;
 use crate::layout_rules::SectionKind;
-use crate::linker_script::Expression;
-use crate::linker_script::OnlyIf;
-use crate::platform::Platform;
+use wild_platform::Platform;
 #[allow(unused_imports)]
-pub use crate::platform::custom_section_ids::*;
+pub use wild_platform::custom_section_ids::*;
 #[allow(unused_imports)]
-pub use crate::platform::section_identity::*;
+pub use wild_platform::section_identity::*;
+use wild_scripts::linker_script::Expression;
+use wild_scripts::linker_script::OnlyIf;
+use wild_util::alignment::Alignment;
 
 #[derive(Debug)]
 pub struct CustomSectionDetails<'data, P: Platform> {

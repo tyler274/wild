@@ -14,7 +14,6 @@ use crate::bail;
 use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::platform::Args as _;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
 use crate::wasm_writer::OutputExport;
@@ -36,6 +35,7 @@ use wasmparser::MemoryType;
 use wasmparser::RelocationType;
 use wild_layout::part_id::PartId;
 use wild_layout::symbol_db::SymbolDb;
+use wild_platform::Args as _;
 
 #[derive(Debug, Default)]
 pub(crate) struct WasmLayout<'data> {
@@ -681,8 +681,9 @@ pub(crate) fn classify_data_reloc_ranges(
 
 /// Align `data_end` to [`STACK_ALIGNMENT`], then add the stack size.
 pub(crate) fn stack_high_after_data(data_end: u32, stack_size: u32) -> Result<u32> {
-    let stack_base = u32::try_from(crate::alignment::STACK_ALIGNMENT.align_up(u64::from(data_end)))
-        .map_err(|_| crate::error!("Wasm stack base overflow"))?;
+    let stack_base =
+        u32::try_from(wild_util::alignment::STACK_ALIGNMENT.align_up(u64::from(data_end)))
+            .map_err(|_| crate::error!("Wasm stack base overflow"))?;
     stack_base
         .checked_add(stack_size)
         .ok_or_else(|| crate::error!("Wasm stack pointer overflow"))
@@ -690,7 +691,7 @@ pub(crate) fn stack_high_after_data(data_end: u32, stack_size: u32) -> Result<u3
 
 /// Align the end of static data for `__heap_base`.
 pub(crate) fn heap_base_after_data(data_end: u32) -> Result<u32> {
-    u32::try_from(crate::alignment::STACK_ALIGNMENT.align_up(u64::from(data_end)))
+    u32::try_from(wild_util::alignment::STACK_ALIGNMENT.align_up(u64::from(data_end)))
         .map_err(|_| crate::error!("Wasm heap base overflow"))
 }
 
@@ -713,7 +714,7 @@ pub(crate) fn heap_base_address(data_end: u32, stack_size: u32, stack_first: boo
 }
 
 pub(crate) fn ensure_stack_size_aligned(stack_size: u32) -> Result {
-    let align = crate::alignment::STACK_ALIGNMENT.value();
+    let align = wild_util::alignment::STACK_ALIGNMENT.value();
     ensure!(
         u64::from(stack_size).is_multiple_of(align),
         "stack size must be {align}-byte aligned"
@@ -745,7 +746,7 @@ pub(crate) fn layout_object_data<'data>(
             .segment_alignments
             .get(original_index as usize)
             .copied()
-            .unwrap_or(crate::alignment::MIN);
+            .unwrap_or(wild_util::alignment::MIN);
         *memory_cursor = u32::try_from(align.align_up(u64::from(*memory_cursor)))
             .map_err(|_| crate::error!("Wasm data segment alignment overflow"))?;
         let output_memory_offset = *memory_cursor;

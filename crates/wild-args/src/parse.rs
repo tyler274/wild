@@ -1,4 +1,6 @@
-use super::types::*;
+use super::types::Input;
+use super::types::InputSpec;
+use super::types::Modifiers;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 use itertools::Itertools;

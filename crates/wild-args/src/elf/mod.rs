@@ -29,8 +29,10 @@ use wild_error::bail;
 use wild_error::error::Result;
 use wild_platform as platform;
 use wild_platform::Args as _;
+use wild_platform::OrphanHandling;
 use wild_platform::OutputKind;
 use wild_platform::SectionName;
+use wild_scripts::linker_script::SegmentName;
 use wild_util::alignment::Alignment;
 use wild_util::arch::Architecture;
 
@@ -131,7 +133,7 @@ pub struct ElfArgs {
     pub debug_compression_kind: Option<CompressionKind>,
     pub sort_section: Option<SortSectionMode>,
     pub output_format_endian: Option<Endianness>,
-    pub orphan_handling: wild_platform::OrphanHandling,
+    pub orphan_handling: OrphanHandling,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -343,7 +345,7 @@ impl Default for ElfArgs {
             sort_section: None,
             gdb_index: false,
             output_format_endian: None,
-            orphan_handling: wild_platform::OrphanHandling::Place,
+            orphan_handling: OrphanHandling::Place,
         }
     }
 }
@@ -551,7 +553,7 @@ impl platform::Args for ElfArgs {
         self.gc_sections && !self.common.incremental
     }
 
-    fn orphan_handling(&self) -> wild_platform::OrphanHandling {
+    fn orphan_handling(&self) -> OrphanHandling {
         self.orphan_handling
     }
 
@@ -595,16 +597,12 @@ impl platform::Args for ElfArgs {
         }
     }
 
-    fn segment_start_override(
-        &self,
-        name: wild_scripts::linker_script::SegmentName,
-    ) -> Option<u64> {
+    fn segment_start_override(&self, name: SegmentName) -> Option<u64> {
         match name {
-            wild_scripts::linker_script::SegmentName::Text => self.ttext,
-            wild_scripts::linker_script::SegmentName::Data => self.tdata,
-            wild_scripts::linker_script::SegmentName::Bss => self.tbss,
-            wild_scripts::linker_script::SegmentName::Rodata
-            | wild_scripts::linker_script::SegmentName::Other => None,
+            SegmentName::Text => self.ttext,
+            SegmentName::Data => self.tdata,
+            SegmentName::Bss => self.tbss,
+            SegmentName::Rodata | SegmentName::Other => None,
         }
     }
 

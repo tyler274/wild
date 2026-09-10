@@ -1,25 +1,14 @@
 use super::*;
 use crate::EnginePlatform;
-use crate::alignment::Alignment;
-use crate::bail;
-use crate::error;
-use crate::error::Context;
-use crate::error::Result;
 use crate::expression_eval::ResolvedLocationCounter;
 use crate::expression_eval::evaluate_early_expression;
-use crate::linker_script::Expression;
 use crate::output_section_id::OrderEvent;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
-use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::parsing::SymbolLoc;
 use crate::part_id::PartId;
-use crate::platform::Args as _;
-use crate::platform::SectionAttributes as _;
-use crate::platform::SectionFlags as _;
-use crate::program_segments::ProgramSegments;
 use crate::script::*;
 use crate::symbol_db::SymbolDb;
 use crate::timing_phase;
@@ -27,6 +16,17 @@ use crate::types::*;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 use std::cell::OnceCell;
+use wild_error::bail;
+use wild_error::error;
+use wild_error::error::Context;
+use wild_error::error::Result;
+use wild_platform::Args as _;
+use wild_platform::SectionAttributes as _;
+use wild_platform::SectionFlags as _;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::program_segments::ProgramSegments;
+use wild_scripts::linker_script::Expression;
+use wild_util::alignment::Alignment;
 
 pub fn compute_layout_sections<'data, P: EnginePlatform>(
     group_states: &[GroupState<'data, P>],
@@ -696,7 +696,7 @@ pub fn pick_compatible_memory_region<'data>(
 }
 
 pub fn memory_flags_match(
-    flags: Option<crate::linker_script::MemoryFlags>,
+    flags: Option<wild_scripts::linker_script::MemoryFlags>,
     writable: bool,
     executable: bool,
 ) -> bool {

@@ -6,16 +6,18 @@ use super::file::*;
 use super::output_section_id;
 use super::part_id;
 #[allow(unused_imports)]
-use super::types::*;
-use crate::alignment;
-use crate::alignment::Alignment;
+use super::types::BuiltInSectionDetails;
+use super::types::CS_SECTION_ALIGNMENT_EXP;
+use super::types::DEFAULT_DEFS;
+use super::types::GOT_ENTRY_SIZE;
+use super::types::LE;
+use super::types::PLT_ENTRY_SIZE;
+use super::types::ProgramSegmentDef;
+use super::types::Relocation;
+use super::types::SegmentName;
 use crate::args::macho::MachOArgs;
 use crate::error::Result;
 use crate::input_data::FileId;
-use crate::platform;
-use crate::platform::ObjectFile;
-use crate::program_segments::ProgramSegmentId;
-use crate::value_flags::ValueFlags;
 use anyhow::Context;
 use object::SymbolIndex;
 use object::macho;
@@ -36,6 +38,12 @@ use wild_layout::output_section_id::SectionIdentity;
 use wild_layout::output_section_id::SectionName;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::symbol_db::SymbolId;
+use wild_platform as platform;
+use wild_platform::ObjectFile;
+use wild_platform::program_segments::ProgramSegmentId;
+use wild_platform::value_flags::ValueFlags;
+use wild_util::alignment;
+use wild_util::alignment::Alignment;
 
 pub(crate) fn install_name<'data>(
     file_id: FileId,

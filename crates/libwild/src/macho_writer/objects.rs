@@ -10,10 +10,6 @@ use crate::macho::PLT_ENTRY_SIZE;
 use crate::macho::SectionFlags;
 use crate::macho::output_section_id;
 use crate::output_trace::HexU64;
-use crate::platform::Arch;
-use crate::platform::ObjectFile as _;
-use crate::platform::Relaxation as _;
-use crate::value_flags::ValueFlags;
 use crate::verbose_timing_phase;
 use linker_utils::elf::RelocationKind;
 use object::SymbolIndex;
@@ -30,6 +26,10 @@ use wild_layout::Section;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::resolution::SectionSlot;
 use wild_layout::symbol_db::SymbolId;
+use wild_platform::Arch;
+use wild_platform::ObjectFile as _;
+use wild_platform::Relaxation as _;
+use wild_platform::value_flags::ValueFlags;
 
 pub(crate) fn write_got_entries(layout: &MachOLayout<'_>, got: &mut [u8]) -> Result {
     let got_layout = layout.section_layouts.get(output_section_id::GOT);

@@ -1,6 +1,4 @@
 use super::*;
-use crate::OutputKind;
-use crate::alignment;
 use crate::args::elf::ElfArgs;
 use crate::bail;
 use crate::elf;
@@ -12,14 +10,8 @@ use crate::elf::output_section_id;
 use crate::elf::part_id;
 use crate::error;
 use crate::error::Result;
-use crate::output_section_map::OutputSectionMap;
 use crate::output_trace::TraceOutput;
-use crate::platform::Arch;
-use crate::platform::ObjectFile;
-use crate::platform::Platform;
-use crate::sharding::ShardKey;
 use crate::timing_phase;
-use crate::value_flags::ValueFlags;
 use crate::verbose_timing_phase;
 use linker_utils::elf::RISCV_ATTRIBUTE_VENDOR_NAME;
 use linker_utils::elf::riscvattr::TAG_RISCV_ARCH;
@@ -50,6 +42,14 @@ use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::parsing::SymbolLoc;
 use wild_layout::part_id::PartId;
 use wild_layout::resolution::SectionSlot;
+use wild_platform::Arch;
+use wild_platform::ObjectFile;
+use wild_platform::OutputKind;
+use wild_platform::Platform;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::value_flags::ValueFlags;
+use wild_util::alignment;
+use wild_util::sharding::ShardKey;
 use zerocopy::FromBytes;
 use zerocopy::transmute_mut;
 
@@ -271,8 +271,9 @@ pub(crate) fn write_merged_strings<C: ElfClass>(
 ) {
     layout.merged_strings.for_each(|section_id, merged| {
         if merged.len() > 0 {
-            let buffer = buffers
-                .get_mut(section_id.part_id_with_alignment::<elf::Elf<C>>(crate::alignment::MIN));
+            let buffer = buffers.get_mut(
+                section_id.part_id_with_alignment::<elf::Elf<C>>(wild_util::alignment::MIN),
+            );
 
             write_merged_strings_to_buffer(merged, buffer);
         }
@@ -685,7 +686,7 @@ pub(crate) fn verify_resolution_allocation<C: ElfClass, A: Arch<Platform = elf::
             total_bytes_allocated = alignment.align_up(total_bytes_allocated) + size;
         },
     );
-    total_bytes_allocated = crate::alignment::USIZE.align_up(total_bytes_allocated);
+    total_bytes_allocated = wild_util::alignment::USIZE.align_up(total_bytes_allocated);
     let mut all_mem = vec![0_u64; total_bytes_allocated as usize / size_of::<u64>()];
     let mut all_mem: &mut [u8] = transmute_mut!(all_mem.as_mut_slice());
     let mut offset = 0;

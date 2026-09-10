@@ -4,20 +4,20 @@
 
 use crate::EnginePlatform;
 use crate::LayoutRules;
-use crate::bail;
-use crate::error::Result;
 use crate::grouping::Group;
 use crate::output_section_id::OutputSections;
-use crate::platform::PRELUDE_FILE_ID;
-use crate::platform::Platform;
 use crate::symbol_db::SymbolDb;
 use crate::symbol_db::SymbolId;
 use crate::timing_phase;
-use crate::value_flags::PerSymbolFlags;
 use crate::verbose_timing_phase;
 use atomic_take::AtomicTake;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
+use wild_error::bail;
+use wild_error::error::Result;
+use wild_platform::PRELUDE_FILE_ID;
+use wild_platform::Platform;
+use wild_platform::value_flags::PerSymbolFlags;
 
 pub mod sections;
 pub mod symbols;

@@ -1,18 +1,8 @@
 use super::*;
 use crate::EnginePlatform;
-use crate::bail;
-use crate::error::Context;
-use crate::error::Error;
-use crate::error::Result;
 use crate::graph::*;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
-use crate::platform::Arch;
-use crate::platform::Args as _;
-use crate::platform::ObjectFile;
-use crate::platform::Platform;
-use crate::platform::SectionHeader as _;
-use crate::platform::Symbol as _;
 use crate::resolution::ScriptSortedSectionDetail;
 use crate::resolution::SectionSlot;
 use crate::resolution::UnloadedSection;
@@ -21,13 +11,23 @@ use crate::sections::*;
 use crate::string_merging::get_merged_string_output_address;
 use crate::symbol_db::SymbolDb;
 use crate::symbol_db::SymbolId;
-use crate::value_flags::AtomicPerSymbolFlags;
-use crate::value_flags::ValueFlags;
 use linker_utils::relaxation::opt_input_to_output;
 use object::SectionIndex;
 use rayon::Scope;
 use smallvec::SmallVec;
 use std::num::NonZeroU32;
+use wild_error::bail;
+use wild_error::error::Context;
+use wild_error::error::Error;
+use wild_error::error::Result;
+use wild_platform::Arch;
+use wild_platform::Args as _;
+use wild_platform::ObjectFile;
+use wild_platform::Platform;
+use wild_platform::SectionHeader as _;
+use wild_platform::Symbol as _;
+use wild_platform::value_flags::AtomicPerSymbolFlags;
+use wild_platform::value_flags::ValueFlags;
 
 impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
     #[inline(always)]

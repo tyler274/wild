@@ -3,21 +3,14 @@ mod eh_frame;
 mod rela;
 
 use self::elf::get_page_mask;
-use super::types::*;
+use super::types::ElfLayout;
+use super::types::TableWriter;
 use crate::bail;
 use crate::elf;
 use crate::elf::ElfClass;
 use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::platform;
-use crate::platform::Arch;
-use crate::platform::ObjectFile;
-use crate::platform::Platform;
-use crate::platform::Relocation;
-use crate::platform::SectionFlags as _;
-use crate::value_flags::PerSymbolFlags;
-use crate::value_flags::ValueFlags;
 #[allow(unused_imports)]
 pub(crate) use apply::*;
 #[allow(unused_imports)]
@@ -45,6 +38,14 @@ use wild_layout::string_merging::get_merged_string_output_address;
 use wild_layout::symbol_db::SymbolDb;
 use wild_layout::symbol_db::SymbolId;
 use wild_layout::thunks::ThunkBlockId;
+use wild_platform as platform;
+use wild_platform::Arch;
+use wild_platform::ObjectFile;
+use wild_platform::Platform;
+use wild_platform::Relocation;
+use wild_platform::SectionFlags as _;
+use wild_platform::value_flags::PerSymbolFlags;
+use wild_platform::value_flags::ValueFlags;
 
 pub(crate) fn display_relocation<
     'a,
@@ -141,7 +142,7 @@ pub(crate) fn get_resolution<'data, C: ElfClass, R: Relocation>(
                     object_layout.section_resolutions[section_index.0].address()?;
                 let output_offset = opt_input_to_output(
                     object_layout.section_relax_deltas.get(section_index.0),
-                    crate::platform::Symbol::value(sym),
+                    wild_platform::Symbol::value(sym),
                 );
 
                 Some(Resolution {
@@ -329,7 +330,7 @@ pub(crate) fn apply_debug_relocation<
                 // encoded in the relocation addend.
                 let output_offset = opt_input_to_output(
                     object_layout.section_relax_deltas.get(section_index.0),
-                    crate::platform::Symbol::value(sym),
+                    wild_platform::Symbol::value(sym),
                 );
 
                 Some(Resolution {

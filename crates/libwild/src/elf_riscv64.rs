@@ -7,11 +7,6 @@ use crate::ensure;
 use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::platform::ObjectFile as _;
-use crate::platform::Platform;
-use crate::platform::PreviousRelocationInfo;
-use crate::platform::RelaxSymbolInfo;
-use crate::platform::Relocation;
 use itertools::Itertools;
 use linker_utils::elf::DynamicRelocationKind;
 use linker_utils::elf::RISCV_TLS_DTV_OFFSET;
@@ -28,6 +23,11 @@ use linker_utils::riscv64::distance_fits_jal;
 use linker_utils::riscv64::relocation_type_from_raw;
 use object::elf::EF_RISCV_RV64ILP32;
 use object::elf::EF_RISCV_RVE;
+use wild_platform::ObjectFile as _;
+use wild_platform::Platform;
+use wild_platform::PreviousRelocationInfo;
+use wild_platform::RelaxSymbolInfo;
+use wild_platform::Relocation;
 
 pub(crate) struct ElfRiscV64;
 
@@ -48,7 +48,7 @@ macro_rules! rel_info_from_type {
     };
 }
 
-impl crate::platform::Arch for ElfRiscV64 {
+impl wild_platform::Arch for ElfRiscV64 {
     type Relaxation = Relaxation;
     type Platform = Elf64;
     const DEFAULT_LOAD_ADDRESS: u64 = 0x10000;
@@ -192,8 +192,8 @@ impl crate::platform::Arch for ElfRiscV64 {
         relocation_kind: object::elf::RelocationType,
         section_bytes: &[u8],
         offset_in_section: u64,
-        flags: crate::value_flags::ValueFlags,
-        output_kind: crate::output_kind::OutputKind,
+        flags: wild_platform::value_flags::ValueFlags,
+        output_kind: wild_platform::OutputKind,
         section_flags: linker_utils::elf::SectionFlags,
         relax_deltas: Option<&SectionRelaxDeltas>,
         sym_addr: u64,
@@ -326,7 +326,7 @@ impl crate::platform::Arch for ElfRiscV64 {
         relocations: &<Self::Platform as Platform>::RelocationSections,
         section: &<Self::Platform as Platform>::SectionHeader,
         offset_in_section: u64,
-    ) -> Result<crate::platform::SourceInfo> {
+    ) -> Result<wild_platform::SourceInfo> {
         crate::dwarf_address_info::get_source_info::<crate::elf::Class64, Self>(
             object,
             relocations,
@@ -371,7 +371,7 @@ fn is_jalr_deleted(section_bytes: &[u8], offset: usize) -> bool {
     !is_jalr_with_matching_rs1
 }
 
-impl crate::platform::Relaxation for Relaxation {
+impl wild_platform::Relaxation for Relaxation {
     fn apply(&self, section_bytes: &mut [u8], offset_in_section: &mut u64, addend: &mut i64) {
         self.kind.apply(section_bytes, offset_in_section, addend);
     }

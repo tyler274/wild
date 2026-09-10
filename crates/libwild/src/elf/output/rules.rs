@@ -6,7 +6,7 @@ use crate::elf::file::*;
 use crate::elf::gnu::*;
 use crate::elf::output_section_id;
 #[allow(unused_imports)]
-use crate::elf::types::*;
+use crate::elf::types::ElfClass;
 use linker_utils::elf::secnames;
 use wild_layout as layout;
 use wild_layout::layout_rules::SectionRule;

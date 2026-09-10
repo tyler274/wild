@@ -5,7 +5,6 @@ use crate::error::Context as _;
 use crate::error::Result;
 use crate::file_writer::SizedOutput;
 use crate::file_writer::split_output_into_sections;
-use crate::platform::Arch;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
 use crate::wasm::WASM_MAGIC;
@@ -38,6 +37,7 @@ use wasm_encoder::MemorySection;
 use wasm_encoder::TableSection;
 use wasm_encoder::TypeSection;
 use wild_layout::Layout;
+use wild_platform::Arch;
 
 fn apply_resolved_reloc(
     index_map: &WasmObjectIndexMap,
@@ -124,7 +124,7 @@ pub(crate) fn write<'data, A: Arch<Platform = Wasm>>(
 
 fn copy_metadata_sections(
     layout: &WasmLayout<'_>,
-    section_buffers: &mut crate::output_section_map::OutputSectionMap<&mut [u8]>,
+    section_buffers: &mut wild_platform::output_section_map::OutputSectionMap<&mut [u8]>,
 ) -> Result<()> {
     let encoded = &layout.encoded_sections;
     copy_encoded_section(

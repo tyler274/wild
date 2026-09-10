@@ -1,27 +1,32 @@
-use super::types::*;
+use super::types::FileLayoutState;
+use super::types::GroupState;
+use super::types::InputSortedSection;
+use super::types::MemoryRegion;
+use super::types::OutputRecordLayout;
+use super::types::object_symbol_address_in_layout;
 use crate::EnginePlatform;
-use crate::bail;
-use crate::error::Result;
 use crate::expression_eval::ResolvedLocationCounter;
 use crate::expression_eval::SymbolValue;
 use crate::expression_eval::evaluate_const;
 use crate::expression_eval::evaluate_const_with_symbols;
 use crate::grouping::Group;
 use crate::grouping::SequencedInput;
-use crate::linker_script::Expression;
 use crate::output_section_id::OutputSections;
-use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::parsing::InternalSymDefInfo;
 use crate::parsing::SymbolLoc;
 use crate::parsing::SymbolPlacement;
 use crate::part_id::PartId;
-use crate::platform::ObjectFile;
 use crate::resolution::SectionSlot;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
 use crate::timing_phase;
 use hashbrown::HashMap;
+use wild_error::bail;
+use wild_error::error::Result;
+use wild_platform::ObjectFile;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_scripts::linker_script::Expression;
 
 /// BYTE/SHORT/LONG/QUAD advance the location counter via a trailing secondary section that has no
 /// input parts. Grow the primary section so the writer buffer covers those bytes.

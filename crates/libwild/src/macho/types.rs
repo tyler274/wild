@@ -5,12 +5,8 @@ use super::abi::*;
 use super::file::*;
 #[allow(unused_imports)]
 use super::output::*;
-use crate::alignment;
-use crate::alignment::Alignment;
 use crate::args::macho::MachOArgs;
 use crate::input_data::FileId;
-use crate::platform;
-use crate::platform::Args;
 use object::Endianness;
 use object::macho;
 use object::macho::S_ATTR_EXT_RELOC;
@@ -29,6 +25,10 @@ use wild_layout::layout_rules::SectionKind;
 use wild_layout::output_section_id::SectionIdentity;
 use wild_layout::output_section_id::SectionName;
 use wild_layout::symbol_db::SymbolId;
+use wild_platform as platform;
+use wild_platform::Args;
+use wild_util::alignment;
+use wild_util::alignment::Alignment;
 
 pub(super) const LE: Endianness = Endianness::Little;
 

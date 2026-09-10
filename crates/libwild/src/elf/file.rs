@@ -7,21 +7,22 @@ use super::output::*;
 use super::output_section_id;
 use super::part_id;
 #[allow(unused_imports)]
-use super::types::*;
+use super::types::CompressionHeaderEntry;
+use super::types::DynamicEntry;
+use super::types::Elf;
+use super::types::ElfClass;
+use super::types::File;
+use super::types::RelocationList;
+use super::types::SectionHeader;
+use super::types::SymbolTable;
+use super::types::SymtabEntry;
+use super::types::Versym;
 use crate::args::elf::ElfArgs;
 use crate::bail;
 use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::file_writer::copy_section_data;
-use crate::platform;
-use crate::platform::Arch;
-use crate::platform::FrameIndex;
-use crate::platform::ObjectFile;
-use crate::platform::Platform;
-use crate::platform::Relocation;
-use crate::platform::RelocationSequence;
-use crate::platform::Symbol as _;
 use linker_utils::elf::sht;
 use object::LittleEndian;
 use object::read::elf::CompressionHeader;
@@ -35,6 +36,14 @@ use wild_layout as layout;
 use wild_layout::DynamicSymbolDefinition;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::resolution::LoadedMetrics;
+use wild_platform as platform;
+use wild_platform::Arch;
+use wild_platform::FrameIndex;
+use wild_platform::ObjectFile;
+use wild_platform::Platform;
+use wild_platform::Relocation;
+use wild_platform::RelocationSequence;
+use wild_platform::Symbol as _;
 use zerocopy::FromBytes;
 
 impl<'data, C: ElfClass> File<'data, C> {
@@ -143,7 +152,7 @@ impl<'data, C: ElfClass> platform::ObjectFile<'data> for File<'data, C> {
     fn section_data(
         &self,
         section: &SectionHeader<C>,
-        member: &crate::arena::Member<'data>,
+        member: &wild_util::arena::Member<'data>,
         loaded_metrics: &LoadedMetrics,
     ) -> Result<&'data [u8]> {
         let data = section.data(LittleEndian, self.data)?;

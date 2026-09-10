@@ -2,17 +2,8 @@ use super::db::AtomicSymbolDb;
 use super::db::SymbolDb;
 use super::ids::SymbolId;
 use crate::EnginePlatform;
-use crate::bail;
-use crate::error::Error;
-use crate::error::Result;
-use crate::platform::Args;
-use crate::platform::Symbol;
 use crate::resolution::ResolvedGroup;
 use crate::timing_phase;
-use crate::value_flags::AtomicPerSymbolFlags;
-use crate::value_flags::FlagsForSymbol;
-use crate::value_flags::PerSymbolFlags;
-use crate::value_flags::ValueFlags;
 use crate::verbose_timing_phase;
 use crossbeam_queue::SegQueue;
 use hashbrown::HashMap;
@@ -20,6 +11,15 @@ use itertools::Itertools;
 use rayon::iter::IntoParallelRefMutIterator as _;
 use rayon::iter::ParallelIterator;
 use std::mem::take;
+use wild_error::bail;
+use wild_error::error::Error;
+use wild_error::error::Result;
+use wild_platform::Args;
+use wild_platform::Symbol;
+use wild_platform::value_flags::AtomicPerSymbolFlags;
+use wild_platform::value_flags::FlagsForSymbol;
+use wild_platform::value_flags::PerSymbolFlags;
+use wild_platform::value_flags::ValueFlags;
 
 /// For each symbol that has multiple definitions, some of which may be weak, some strong, some
 /// "common" symbols and some in archive entries that weren't loaded, resolve which version of the
@@ -78,7 +78,7 @@ pub fn resolve_alternative_symbol_definitions<'data, P: EnginePlatform>(
     Ok(())
 }
 
-pub use crate::platform::Visibility;
+pub use wild_platform::Visibility;
 
 fn process_alternatives<'data, P: EnginePlatform>(
     alternative_definitions: &mut HashMap<SymbolId, Vec<SymbolId>>,

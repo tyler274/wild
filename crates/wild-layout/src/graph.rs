@@ -1,23 +1,23 @@
-use super::types::*;
+use super::types::CommonGroupState;
+use super::types::DynamicLayoutState;
+use super::types::ExportSymbolsMode;
+use super::types::FileLayoutState;
+use super::types::FinaliseLayoutResources;
+use super::types::GcOutputs;
+use super::types::GraphResources;
+use super::types::GroupActivationInputs;
+use super::types::GroupState;
+use super::types::LocalWorkQueue;
+use super::types::ObjectLayoutState;
+use super::types::Resolution;
+use super::types::WorkItem;
+use super::types::WorkerSlot;
 use crate::EnginePlatform;
-use crate::OutputKind;
-use crate::args::InputRef;
-use crate::error;
-use crate::error::Context;
-use crate::error::Error;
-use crate::error::Result;
 use crate::layout_rules::SectionKind;
-use crate::linker_script::Expression;
 use crate::output_section_id::OutputSections;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::parsing::InternalSymDefInfo;
 use crate::parsing::SymbolPlacement;
-use crate::platform::Arch;
-use crate::platform::Args as _;
-use crate::platform::ObjectFile;
-use crate::platform::Platform;
-use crate::platform::ProgramSegmentDef as _;
-use crate::platform::Symbol as _;
 use crate::resolution;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
@@ -26,9 +26,6 @@ use crate::symbol_db::Visibility;
 use crate::thunks;
 use crate::thunks::ThunkBlockId;
 use crate::timing_phase;
-use crate::value_flags::AtomicPerSymbolFlags;
-use crate::value_flags::FlagsForSymbol as _;
-use crate::value_flags::ValueFlags;
 use crate::verbose_timing_phase;
 use linker_utils::elf::RelocationKind;
 use linker_utils::relaxation::RelaxDeltaMap;
@@ -37,6 +34,23 @@ use std::mem::take;
 use std::sync::Mutex;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
+use wild_args::InputRef;
+use wild_args::UnresolvedSymbols;
+use wild_error::error;
+use wild_error::error::Context;
+use wild_error::error::Error;
+use wild_error::error::Result;
+use wild_platform::Arch;
+use wild_platform::Args as _;
+use wild_platform::ObjectFile;
+use wild_platform::OutputKind;
+use wild_platform::Platform;
+use wild_platform::ProgramSegmentDef as _;
+use wild_platform::Symbol as _;
+use wild_platform::value_flags::AtomicPerSymbolFlags;
+use wild_platform::value_flags::FlagsForSymbol as _;
+use wild_platform::value_flags::ValueFlags;
+use wild_scripts::linker_script::Expression;
 
 pub fn export_dynamic<'data, P: EnginePlatform>(
     common: &mut CommonGroupState<'data, P>,
@@ -261,7 +275,7 @@ pub fn load_expression_referenced_symbols<'data, 'scope, A: Arch>(
     // Also mark any symbols in the expression as used and queue it for loading to
     // prevent it from being GC'd.
     expression.visit_expressions(&mut |e| {
-        if let crate::linker_script::Expression::Symbol(target_name) = e
+        if let Expression::Symbol(target_name) = e
             && let Some(target_symbol_id) = resources
                 .symbol_db
                 .get_unversioned(&UnversionedSymbolName::prehashed(target_name))
@@ -306,7 +320,7 @@ pub fn provide_has_missing_rhs<'data, P: EnginePlatform>(
     };
     let mut missing = false;
     redirect.expression.visit_expressions(&mut |e| {
-        if let crate::linker_script::Expression::Symbol(name) = e
+        if let Expression::Symbol(name) = e
             && symbol_db
                 .get_unversioned(&UnversionedSymbolName::prehashed(name))
                 .is_none()
@@ -457,8 +471,7 @@ pub fn should_emit_undefined_error<P: EnginePlatform>(
     }
 
     match symbol_db.args.unresolved_symbols_behaviour() {
-        crate::args::UnresolvedSymbols::IgnoreAll
-        | crate::args::UnresolvedSymbols::IgnoreInObjectFiles => false,
+        UnresolvedSymbols::IgnoreAll | UnresolvedSymbols::IgnoreInObjectFiles => false,
         _ => symbol_db.is_undefined(symbol_id),
     }
 }

@@ -4,21 +4,21 @@ mod builder;
 mod types;
 
 use crate::EnginePlatform;
-use crate::hash::hash_bytes;
 use crate::output_section_id::OutputSectionId;
-use crate::platform::SectionHeader;
-#[allow(unused_imports)]
-pub use crate::platform::SectionRule;
-#[allow(unused_imports)]
-pub use crate::platform::SectionRuleOutcome;
-#[allow(unused_imports)]
-pub use crate::platform::section_rules::SectionOutputInfo;
 #[allow(unused_imports)]
 pub use builder::*;
 use hashbrown::HashSet;
 use hashbrown::HashTable;
 #[allow(unused_imports)]
 pub use types::*;
+use wild_platform::SectionHeader;
+#[allow(unused_imports)]
+pub use wild_platform::SectionRule;
+#[allow(unused_imports)]
+pub use wild_platform::SectionRuleOutcome;
+#[allow(unused_imports)]
+pub use wild_platform::section_rules::SectionOutputInfo;
+use wild_util::hash::hash_bytes;
 
 /// Multiplier for the rule-hashtable's capacity, relative to the number of entries. We want a
 /// relatively sparse hashtable, since we may have a small number of entries with the same prefix

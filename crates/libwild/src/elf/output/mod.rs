@@ -13,22 +13,16 @@ use super::gnu::*;
 use super::output_section_id;
 use super::part_id;
 #[allow(unused_imports)]
-use super::types::*;
-use crate::alignment;
+use super::types::Elf;
+use super::types::ElfClass;
+use super::types::File;
+use super::types::Versym;
 use crate::args::elf::ElfArgs;
 use crate::bail;
 use crate::debug_assert_bail;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::gdb_index::InputDebugIndexSection;
-use crate::output_kind::OutputKind;
-use crate::output_section_map::OutputSectionMap;
-use crate::platform;
-use crate::platform::Arch;
-use crate::platform::ObjectFile;
-use crate::platform::Relocation;
-use crate::platform::ThunkConfig;
-use crate::value_flags::ValueFlags;
 #[allow(unused_imports)]
 pub(crate) use copy::*;
 use linker_utils::elf::SectionFlags;
@@ -56,6 +50,15 @@ use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::part_id::PartId;
 use wild_layout::string_merging::MergedStringStartAddresses;
 use wild_layout::string_merging::MergedStringsSection;
+use wild_platform as platform;
+use wild_platform::Arch;
+use wild_platform::ObjectFile;
+use wild_platform::OutputKind;
+use wild_platform::Relocation;
+use wild_platform::ThunkConfig;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::value_flags::ValueFlags;
+use wild_util::alignment;
 
 impl<C: ElfClass> Elf<C> {
     pub(super) const DEFAULT_DEFS: BuiltInSectionDetails<C> = BuiltInSectionDetails {
@@ -664,7 +667,7 @@ pub(crate) struct ResolvedObjectExt<'data> {
 /// contexts that aren't currently generic over Arch.
 pub(super) fn thunk_config_for_object<C: ElfClass>(file: &File<'_, C>) -> Option<ThunkConfig> {
     match file.arch {
-        crate::arch::Architecture::AArch64 => crate::elf_aarch64::ElfAArch64::thunk_config(),
+        wild_util::arch::Architecture::AArch64 => crate::elf_aarch64::ElfAArch64::thunk_config(),
         _ => None,
     }
 }

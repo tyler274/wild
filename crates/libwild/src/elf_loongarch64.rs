@@ -2,8 +2,6 @@ use crate::elf::Elf64;
 use crate::elf::PLT_ENTRY_SIZE;
 use crate::error;
 use crate::error::Result;
-use crate::platform::Platform;
-use crate::platform::PreviousRelocationInfo;
 use itertools::AllEqualValueError;
 use itertools::Itertools;
 use linker_utils::elf::DynamicRelocationKind;
@@ -16,6 +14,8 @@ use linker_utils::elf::shf;
 use linker_utils::loongarch64::RelaxationKind;
 use linker_utils::relaxation::RelocationModifier;
 use linker_utils::utils::or_from_slice;
+use wild_platform::Platform;
+use wild_platform::PreviousRelocationInfo;
 
 pub(crate) struct ElfLoongArch64;
 
@@ -30,7 +30,7 @@ const _ASSERTS: () = {
     assert!(PLT_ENTRY_TEMPLATE.len() as u64 == PLT_ENTRY_SIZE);
 };
 
-impl crate::platform::Arch for ElfLoongArch64 {
+impl wild_platform::Arch for ElfLoongArch64 {
     type Relaxation = Relaxation;
     type Platform = Elf64;
 
@@ -116,8 +116,8 @@ impl crate::platform::Arch for ElfLoongArch64 {
         relocation_kind: object::elf::RelocationType,
         section_bytes: &[u8],
         offset_in_section: u64,
-        flags: crate::value_flags::ValueFlags,
-        output_kind: crate::output_kind::OutputKind,
+        flags: wild_platform::value_flags::ValueFlags,
+        output_kind: wild_platform::OutputKind,
         section_flags: linker_utils::elf::SectionFlags,
         _relax_deltas: Option<&linker_utils::relaxation::SectionRelaxDeltas>,
         _sym_addr: u64,
@@ -169,7 +169,7 @@ impl crate::platform::Arch for ElfLoongArch64 {
         relocations: &<Self::Platform as Platform>::RelocationSections,
         section: &<Self::Platform as Platform>::SectionHeader,
         offset_in_section: u64,
-    ) -> Result<crate::platform::SourceInfo> {
+    ) -> Result<wild_platform::SourceInfo> {
         crate::dwarf_address_info::get_source_info::<crate::elf::Class64, Self>(
             object,
             relocations,
@@ -186,7 +186,7 @@ pub(crate) struct Relaxation {
     mandatory: bool,
 }
 
-impl crate::platform::Relaxation for Relaxation {
+impl wild_platform::Relaxation for Relaxation {
     fn apply(&self, section_bytes: &mut [u8], offset_in_section: &mut u64, addend: &mut i64) {
         self.kind.apply(section_bytes, offset_in_section, addend);
     }

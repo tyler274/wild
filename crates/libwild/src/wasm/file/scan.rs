@@ -7,15 +7,15 @@ use super::super::symbols::*;
 use super::*;
 use crate::bail;
 use crate::error::Result;
-use crate::platform;
-use crate::platform::Args as _;
-use crate::value_flags::ValueFlags;
 use wasmparser::BinaryReader;
 use wasmparser::ImportSectionReader;
 use wasmparser::RelocationType;
 use wasmparser::SymbolFlags;
 use wasmparser::TypeRef;
 use wild_layout::symbol::UnversionedSymbolName;
+use wild_platform as platform;
+use wild_platform::Args as _;
+use wild_platform::value_flags::ValueFlags;
 
 pub(crate) fn mark_all_wasm_units_live_and_scan_relocs<
     'data,

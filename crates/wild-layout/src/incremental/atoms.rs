@@ -4,12 +4,12 @@
 //! GC/layout hot path. Cross-run identity uses `{index, generation}` handles so a reused slot
 //! cannot alias a deleted file's reverse-reloc lists or resolutions.
 
-use crate::error::Result;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 use std::fs;
 use std::io::Write as _;
 use std::path::Path;
+use wild_error::error::Result;
 
 /// `{index, generation}` handle. Generation 0 is never issued.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

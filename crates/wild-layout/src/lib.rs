@@ -2,30 +2,6 @@
 //! referenced. Determines which sections need to be linked, sums their sizes decides what goes
 //! where in the output file then allocates addresses for each symbol.
 
-pub use wild_args as args;
-pub use wild_error::bail;
-pub use wild_error::debug_assert_bail;
-pub use wild_error::ensure;
-pub use wild_error::error;
-pub use wild_error::malfunction;
-pub use wild_error::malfunction_point_ret;
-pub use wild_platform as platform;
-pub use wild_platform::OutputKind;
-pub use wild_platform::output_kind;
-pub use wild_platform::output_section_map;
-pub use wild_platform::program_segments;
-pub use wild_platform::value_flags;
-pub use wild_scripts::ScriptData;
-pub use wild_scripts::export_list;
-pub use wild_scripts::linker_script;
-pub use wild_scripts::version_script;
-pub use wild_util::alignment;
-pub use wild_util::arch;
-pub use wild_util::arena;
-pub use wild_util::hash;
-pub use wild_util::input_section_id;
-pub use wild_util::sharding;
-
 pub mod expression_eval;
 pub mod gc_stats;
 pub mod grouping;
@@ -41,25 +17,15 @@ pub mod symbol;
 pub mod symbol_db;
 pub mod thunks;
 
-use crate::error::Context;
-use crate::error::Result;
 use crate::expression_eval::evaluate_const;
 use crate::grouping::Group;
 use crate::grouping::SequencedLinkerScript;
 use crate::output_section_id::OutputSections;
-use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
-use crate::platform::Arch;
-use crate::platform::Args as _;
-use crate::platform::FileId;
-use crate::platform::ObjectFile;
-use crate::platform::Platform;
-use crate::platform::SectionAttributes as _;
 use crate::resolution::ResolvedGroup;
 use crate::string_merging::MergedStringStartAddresses;
 use crate::symbol_db::SymbolDb;
-use crate::value_flags::PerSymbolFlags;
 use diagnostics::SymbolInfoPrinter;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
@@ -67,6 +33,16 @@ use itertools::Itertools;
 pub use layout_rules::LayoutRules;
 use linker_utils::elf::RelocationKind;
 use std::sync::Mutex;
+use wild_error::error::Context;
+use wild_error::error::Result;
+use wild_platform::Arch;
+use wild_platform::Args as _;
+use wild_platform::FileId;
+use wild_platform::ObjectFile;
+use wild_platform::Platform;
+use wild_platform::SectionAttributes as _;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::value_flags::PerSymbolFlags;
 
 pub mod addresses;
 mod diagnostics;
@@ -338,7 +314,7 @@ where
                     },
                 )
                 .map_err(|_| {
-                    error!(
+                    wild_error::error!(
                         "region '{}' already defined",
                         String::from_utf8_lossy(region.name)
                     )
@@ -615,7 +591,7 @@ pub fn needs_tlsld(relocation_kind: RelocationKind) -> bool {
 
 /// Span name must match libwild debug_trace TRACE_SPAN_NAME (`trace_file`).
 pub fn span_for_file(
-    args: &impl crate::platform::Args,
+    args: &impl wild_platform::Args,
     file_id: FileId,
 ) -> Option<tracing::span::EnteredSpan> {
     args.should_trace_file(file_id)

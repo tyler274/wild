@@ -10,48 +10,27 @@ use super::select::SymbolStrength;
 use super::select::Visibility;
 use super::select::is_mapping_symbol_name;
 use crate::EnginePlatform;
-use crate::OutputKind;
-use crate::args::InputLinkerScript;
-use crate::bail;
-use crate::error::Result;
-use crate::export_list::ExportList;
 use crate::grouping;
 use crate::grouping::Group;
 use crate::grouping::LoadedStubLibrary;
 use crate::grouping::SequencedInput;
 use crate::grouping::UnsequencedLtoInput;
-use crate::hash::PassThroughHashMap;
-use crate::hash::PreHashed;
 use crate::layout_rules::LayoutRulesBuilder;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
-use crate::output_section_map::OutputSectionMap;
 use crate::parsing;
 use crate::parsing::InternalSymDefInfo;
 use crate::parsing::ParsedInputObject;
 use crate::parsing::SyntheticSymbols;
 use crate::part_id::PartId;
-use crate::platform::Args;
-use crate::platform::FileId;
-use crate::platform::ObjectFile;
-use crate::platform::PRELUDE_FILE_ID;
-use crate::platform::Platform;
-use crate::platform::SectionHeader;
-use crate::platform::Symbol;
 use crate::resolution::ResolvedFile;
 use crate::resolution::ResolvedGroup;
 use crate::resolution::ResolvedSyntheticSymbols;
-use crate::sharding::ShardKey;
 use crate::symbol::PreHashedSymbolName;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol::VersionedSymbolName;
 use crate::timing_phase;
-use crate::value_flags::FlagsForSymbol;
-use crate::value_flags::PerSymbolFlags;
-use crate::value_flags::ValueFlags;
 use crate::verbose_timing_phase;
-use crate::version_script::RustVersionScript;
-use crate::version_script::VersionScript;
 use hashbrown::HashMap;
 use hashbrown::hash_map;
 use itertools::Itertools;
@@ -60,6 +39,29 @@ use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
 use std::mem::take;
 use symbolic_demangle::demangle;
+use wild_args::InputLinkerScript;
+use wild_error::bail;
+use wild_error::error::Result;
+use wild_platform::Args;
+use wild_platform::EntryPoint;
+use wild_platform::FileId;
+use wild_platform::ObjectFile;
+use wild_platform::OutputKind;
+use wild_platform::PRELUDE_FILE_ID;
+use wild_platform::Platform;
+use wild_platform::SectionHeader;
+use wild_platform::Symbol;
+use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::value_flags::FlagsForSymbol;
+use wild_platform::value_flags::PerSymbolFlags;
+use wild_platform::value_flags::ValueFlags;
+use wild_scripts::export_list::ExportList;
+use wild_scripts::linker_script::Command;
+use wild_scripts::version_script::RustVersionScript;
+use wild_scripts::version_script::VersionScript;
+use wild_util::hash::PassThroughHashMap;
+use wild_util::hash::PreHashed;
+use wild_util::sharding::ShardKey;
 
 #[derive(Default)]
 pub struct LoadedInputs<'data, P: Platform> {
@@ -106,11 +108,11 @@ pub struct SymbolDb<'data, P: Platform> {
     entry: Option<&'data [u8]>,
 
     pub output_kind: OutputKind,
-    pub herd: &'data crate::arena::Herd,
+    pub herd: &'data wild_util::arena::Herd,
 
     /// The next input section ID to assign. Updated by `create_groups` so that subsequent calls
     /// (e.g. for LTO output objects) continue from where the previous call left off.
-    pub next_input_section_id: crate::input_section_id::InputSectionId,
+    pub next_input_section_id: wild_util::input_section_id::InputSectionId,
 
     /// Output part IDs for all input sections across all files, indexed by `InputSectionId`.
     /// Populated after section resolution and `assign_section_ids`. Note that for non-loaded
@@ -201,9 +203,9 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
     pub fn new(
         args: &'data P::Args,
         output_kind: OutputKind,
-        version_script_data: Option<crate::ScriptData<'data>>,
-        export_list_data: Option<crate::ScriptData<'data>>,
-        herd: &'data crate::arena::Herd,
+        version_script_data: Option<wild_scripts::ScriptData<'data>>,
+        export_list_data: Option<wild_scripts::ScriptData<'data>>,
+        herd: &'data wild_util::arena::Herd,
     ) -> Result<Self> {
         let version_script = version_script_data
             .map(VersionScript::parse)
@@ -234,7 +236,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
             output_kind,
             herd,
             section_part_ids: Vec::new(),
-            next_input_section_id: crate::input_section_id::InputSectionId::from_usize(0),
+            next_input_section_id: wild_util::input_section_id::InputSectionId::from_usize(0),
             plugin_codegen_link_order: None,
         };
 
@@ -361,7 +363,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
 
         for group_objects in &lto_objects
             .into_iter()
-            .chunks(crate::platform::MAX_FILES_PER_GROUP as usize)
+            .chunks(wild_platform::MAX_FILES_PER_GROUP as usize)
         {
             let mut next_symbol_id = self.next_symbol_id();
             let group_index = self.next_group_index();
@@ -845,20 +847,20 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         header.is_group()
     }
 
-    pub fn entry_point(&self) -> crate::platform::EntryPoint<'_> {
+    pub fn entry_point(&self) -> EntryPoint<'_> {
         self.args.entry_point(self.entry)
     }
 
     pub fn entry_symbol_name(&self) -> Option<&[u8]> {
         match self.entry_point() {
-            crate::platform::EntryPoint::Symbol(name) => Some(name),
-            crate::platform::EntryPoint::None | crate::platform::EntryPoint::Address(_) => None,
+            EntryPoint::Symbol(name) => Some(name),
+            EntryPoint::None | EntryPoint::Address(_) => None,
         }
     }
 
     fn apply_linker_script(&mut self, script: &InputLinkerScript<'data>) {
         for cmd in &script.script.commands {
-            if let crate::linker_script::Command::Entry(symbol_name) = cmd {
+            if let Command::Entry(symbol_name) = cmd {
                 self.entry = Some(*symbol_name);
             }
         }
@@ -904,7 +906,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
                     bail!("Multiple version scripts provided");
                 }
 
-                self.version_script = VersionScript::parse(crate::ScriptData {
+                self.version_script = VersionScript::parse(wild_scripts::ScriptData {
                     raw: version_content,
                 })?;
             }

@@ -1,4 +1,11 @@
-use super::types::*;
+use super::types::ParsedSymbolMatcher;
+use super::types::RegularVersionScript;
+use super::types::RustVersionScript;
+use super::types::SymbolMatcher;
+use super::types::Version;
+use super::types::VersionBody;
+use super::types::VersionRuleSection;
+use super::types::VersionScript;
 use crate::linker_script::skip_comments_and_whitespace;
 use crate::script_data::ScriptData;
 use glob::Pattern;

@@ -1,16 +1,12 @@
 // Code related to output compression, in particular compression of debug sections. Input
 // compression is handled elsewhere.
 
-use crate::alignment::Alignment;
 use crate::bail;
 use crate::elf;
 use crate::elf::ElfClass;
 use crate::elf_writer;
 use crate::elf_writer::apply_debug_relocations;
 use crate::error::Result;
-use crate::platform::Arch;
-use crate::platform::ObjectFile as _;
-use crate::platform::SectionFlags as _;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
 use crate::writable_elf::WritableCompressionHeader as _;
@@ -26,6 +22,10 @@ use wild_layout::Layout;
 use wild_layout::output_section_id::OrderEvent;
 use wild_layout::output_section_id::OutputSectionId;
 use wild_layout::resolution::SectionSlot;
+use wild_platform::Arch;
+use wild_platform::ObjectFile as _;
+use wild_platform::SectionFlags as _;
+use wild_util::alignment::Alignment;
 use zlib_rs::Deflate;
 use zlib_rs::DeflateError;
 use zlib_rs::DeflateFlush;
@@ -434,7 +434,7 @@ fn update_allocation_sizes<P: EnginePlatform>(layout: &mut Layout<P>) {
         };
 
         let compressed_size: usize = compressed_data.total_compressed_size;
-        let compressed_part_id = section_id.part_id_with_alignment::<P>(crate::alignment::MIN);
+        let compressed_part_id = section_id.part_id_with_alignment::<P>(wild_util::alignment::MIN);
 
         for part_id in section_id.parts::<P>() {
             let part_layout = layout.section_part_layouts.get_mut(part_id);

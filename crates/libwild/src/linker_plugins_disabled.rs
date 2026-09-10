@@ -7,17 +7,17 @@ use crate::args::elf::ElfArgs;
 use crate::elf::Elf;
 use crate::elf::ElfClass;
 use crate::error::Result;
-use crate::fs::FileSystem;
 use crate::input_data::FileLoader;
-use crate::value_flags::PerSymbolFlags;
 use rayon::Scope;
 use std::marker::PhantomData;
+use wild_fs::fs::FileSystem;
 use wild_layout::grouping::LtoInput;
 use wild_layout::layout_rules::LayoutRulesBuilder;
 use wild_layout::output_section_id::OutputSections;
 use wild_layout::resolution::Resolver;
 use wild_layout::symbol_db::SymbolDb;
 use wild_layout::symbol_db::SymbolId;
+use wild_platform::value_flags::PerSymbolFlags;
 
 pub(crate) struct LoadedPlugin {}
 
@@ -50,7 +50,7 @@ impl<'data> LinkerPlugin<'data> {
     pub(crate) fn from_args<C: ElfClass>(
         _args: &'data ElfArgs,
         _linker_plugin_arena: &'data colosseum::sync::Arena<LoadedPlugin>,
-        _herd: &'data crate::arena::Herd,
+        _herd: &'data wild_util::arena::Herd,
     ) -> Result<Option<LinkerPlugin<'data>>> {
         Ok(None)
     }

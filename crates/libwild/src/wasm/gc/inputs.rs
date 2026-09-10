@@ -6,7 +6,6 @@ use super::super::relocations::*;
 use super::super::section_id;
 use super::super::symbols::*;
 use super::*;
-use crate::alignment::Alignment;
 use crate::bail;
 use crate::ensure;
 use crate::error::Context as _;
@@ -17,6 +16,7 @@ use std::borrow::Cow;
 use wasmparser::DataKind;
 use wasmparser::MemoryType;
 use wasmparser::TypeRef;
+use wild_util::alignment::Alignment;
 
 #[derive(Debug)]
 pub(crate) struct WasmObjectLayoutInput<'data> {

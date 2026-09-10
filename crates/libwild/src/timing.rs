@@ -1,7 +1,6 @@
 //! Code for reporting how long each phase of linking takes when the --time argument is supplied.
 
 use crate::args::CounterKind;
-use crate::env;
 use crate::error::AlreadyInitialised;
 use crate::error::Result;
 use crate::perf::CounterList;
@@ -14,6 +13,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 use std::time::Instant;
 use tracing::field::Visit;
+use wild_error::env;
 
 const PERFETTO_ENV_VAR: &str = "WILD_PERFETTO_OUT";
 

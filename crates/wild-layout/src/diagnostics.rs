@@ -1,19 +1,19 @@
 use crate::EnginePlatform;
 use crate::grouping::SequencedInput;
-use crate::platform::Args as _;
-use crate::platform::FileId;
-use crate::platform::ObjectFile;
-use crate::platform::PRELUDE_FILE_ID;
-use crate::platform::Symbol as _;
 use crate::resolution::ResolvedFile;
 use crate::resolution::ResolvedGroup;
 use crate::symbol_db::SymbolDb;
 use crate::symbol_db::SymbolId;
-use crate::value_flags::AtomicPerSymbolFlags;
-use crate::value_flags::FlagsForSymbol as _;
 use colored::Colorize as _;
 use hashbrown::HashSet;
 use std::fmt::Write as _;
+use wild_platform::Args as _;
+use wild_platform::FileId;
+use wild_platform::ObjectFile;
+use wild_platform::PRELUDE_FILE_ID;
+use wild_platform::Symbol as _;
+use wild_platform::value_flags::AtomicPerSymbolFlags;
+use wild_platform::value_flags::FlagsForSymbol as _;
 
 /// Prints information about a symbol when dropped. We do this when dropped so that we can print
 /// either after resolution flags have been computed, or, if layout gets an error, then before we

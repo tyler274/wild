@@ -1,5 +1,4 @@
 use super::*;
-use crate::arena::Herd;
 use crate::bail;
 use crate::elf::Elf;
 use crate::elf::ElfClass;
@@ -7,10 +6,6 @@ use crate::elf::RawSymbolName;
 use crate::error;
 use crate::error::Error;
 use crate::error::Result;
-use crate::platform::Platform;
-use crate::value_flags::FlagsForSymbol;
-use crate::value_flags::PerSymbolFlags;
-use crate::value_flags::ValueFlags;
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::ffi::CStr;
@@ -25,6 +20,11 @@ use wild_layout::resolution::ResolvedGroup;
 use wild_layout::symbol::UnversionedSymbolName;
 use wild_layout::symbol_db::SymbolDb;
 use wild_layout::symbol_db::SymbolIdRange;
+use wild_platform::Platform;
+use wild_platform::value_flags::FlagsForSymbol;
+use wild_platform::value_flags::PerSymbolFlags;
+use wild_platform::value_flags::ValueFlags;
+use wild_util::arena::Herd;
 
 /// Checks for any errors reported by the linker plugin during a callback. Should be called after
 /// each callback.

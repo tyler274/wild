@@ -2,12 +2,12 @@ use super::super::STANDARD_SECTION_LOOKUP_LEN;
 use super::super::relocations::*;
 use super::super::section_id;
 use super::super::symbols::*;
-use crate::alignment::Alignment;
 use std::borrow::Cow;
 use std::ops::Range;
 use wasmparser::ConstExpr;
 use wasmparser::DataKind;
 use wasmparser::GlobalType;
+use wild_util::alignment::Alignment;
 
 #[derive(derive_more::Debug)]
 pub(crate) struct File<'data> {

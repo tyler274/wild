@@ -3,16 +3,12 @@
 //! work unless they're performed. e.g. it uses GOT relocations in _start, which cannot work in a
 //! static-PIE binary because dynamic relocations haven't yet been applied to the GOT yet.
 
-use crate::OutputKind;
 use crate::elf::Elf64;
 use crate::elf::PLT_ENTRY_SIZE;
 use crate::elf::PropertyClass;
 use crate::error;
 use crate::error::Result;
 use crate::malfunction_point_ret;
-use crate::platform::Platform;
-use crate::platform::PreviousRelocationInfo;
-use crate::value_flags::ValueFlags;
 use linker_utils::elf::DynamicRelocationKind;
 use linker_utils::elf::RelocationKindInfo;
 use linker_utils::elf::SectionFlags;
@@ -31,6 +27,10 @@ use object::elf::GNU_PROPERTY_X86_UINT32_OR_AND_HI;
 use object::elf::GNU_PROPERTY_X86_UINT32_OR_AND_LO;
 use object::elf::GNU_PROPERTY_X86_UINT32_OR_HI;
 use object::elf::GNU_PROPERTY_X86_UINT32_OR_LO;
+use wild_platform::OutputKind;
+use wild_platform::Platform;
+use wild_platform::PreviousRelocationInfo;
+use wild_platform::value_flags::ValueFlags;
 
 pub(crate) struct ElfX86_64;
 
@@ -50,7 +50,7 @@ macro_rules! rel_info_from_type {
     };
 }
 
-impl crate::platform::Arch for ElfX86_64 {
+impl wild_platform::Arch for ElfX86_64 {
     type Relaxation = Relaxation;
     type Platform = Elf64;
 
@@ -492,7 +492,7 @@ impl crate::platform::Arch for ElfX86_64 {
         relocations: &<Self::Platform as Platform>::RelocationSections,
         section: &<Self::Platform as Platform>::SectionHeader,
         offset_in_section: u64,
-    ) -> Result<crate::platform::SourceInfo> {
+    ) -> Result<wild_platform::SourceInfo> {
         crate::dwarf_address_info::get_source_info::<crate::elf::Class64, Self>(
             object,
             relocations,
@@ -521,7 +521,7 @@ pub(crate) struct Relaxation {
     mandatory: bool,
 }
 
-impl crate::platform::Relaxation for Relaxation {
+impl wild_platform::Relaxation for Relaxation {
     fn apply(&self, section_bytes: &mut [u8], offset_in_section: &mut u64, addend: &mut i64) {
         self.kind.apply(section_bytes, offset_in_section, addend);
     }
@@ -586,8 +586,8 @@ impl TlsGdForm {
 #[test]
 fn test_relaxation() {
     use crate::args::RelocationModel;
-    use crate::platform::Arch as _;
-    use crate::platform::Relaxation as _;
+    use wild_platform::Arch as _;
+    use wild_platform::Relaxation as _;
 
     #[track_caller]
     fn check(

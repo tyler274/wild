@@ -9,9 +9,6 @@ use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::output_trace::TraceOutput;
-use crate::platform::Arch;
-use crate::platform::ObjectFile;
-use crate::platform::Relocation;
 use hashbrown::HashMap;
 use linker_utils::relaxation::opt_input_to_output;
 use object::LittleEndian;
@@ -19,6 +16,9 @@ use object::read::elf::SectionHeader as _;
 use object::read::elf::Sym as _;
 use std::iter;
 use wild_layout::ObjectLayout;
+use wild_platform::Arch;
+use wild_platform::ObjectFile;
+use wild_platform::Relocation;
 use zerocopy::FromBytes;
 
 pub(crate) fn write_eh_frame_data<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(

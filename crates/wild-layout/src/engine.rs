@@ -22,7 +22,6 @@ use crate::grouping::SequencedLinkerScript;
 use crate::layout_rules::LayoutRulesBuilder;
 use crate::parsing::InternalSymDefInfo;
 use crate::parsing::InternalSymbolsBuilder;
-use crate::platform::Platform;
 use crate::resolution::LoadedMetrics;
 use crate::resolution::ResolutionResources;
 use crate::resolution::ResolvedDynamic;
@@ -31,6 +30,7 @@ use crate::resolution::ResolvedStubLibrary;
 use crate::resolution::Resolver;
 use crate::resolution::UnloadedSection;
 use crate::symbol_db::SymbolDb;
+use wild_platform::Platform;
 
 pub trait EnginePlatform:
     for<'data> Platform<
