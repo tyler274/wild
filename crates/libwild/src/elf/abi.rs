@@ -25,35 +25,11 @@ use crate::elf_writer;
 use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::expression_eval;
 use crate::file_kind::FileKind;
 use crate::gdb_index::InputDebugIndexSection;
-use crate::layout;
-use crate::layout::CommonGroupState;
-use crate::layout::DynamicSymbolDefinition;
-use crate::layout::HandlerData as _;
-use crate::layout::ObjectLayoutState;
-use crate::layout::OutputRecordLayout;
-use crate::layout::Resolution;
-use crate::layout::SectionGcUnit;
-use crate::layout::SymbolCopyInfo;
-use crate::layout_rules::SectionRule;
-use crate::layout_rules::SectionRuleOutcome;
 use crate::linker_script;
 use crate::output_kind::OutputKind;
-use crate::output_section_id::CustomSectionIds;
-use crate::output_section_id::OrderEvent;
-use crate::output_section_id::OutputOrder;
-use crate::output_section_id::OutputOrderBuilder;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::OutputSections;
-use crate::output_section_id::SectionIdentity;
-use crate::output_section_id::SectionName;
-use crate::output_section_id::SectionOutputInfo;
 use crate::output_section_map::OutputSectionMap;
-use crate::output_section_part_map::OutputSectionPartMap;
-use crate::parsing::InternalSymDefInfo;
-use crate::parsing::SymbolPlacement;
 use crate::platform;
 use crate::platform::Arch;
 use crate::platform::Args as _;
@@ -72,11 +48,6 @@ use crate::platform::VerneedTable as _;
 use crate::program_segments::ProgramSegmentId;
 use crate::program_segments::ProgramSegments;
 use crate::program_segments::SegmentEntry;
-use crate::resolution::LoadedMetrics;
-use crate::resolution::SectionSlot;
-use crate::symbol::UnversionedSymbolName;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
 use crate::value_flags::AtomicPerSymbolFlags;
 use crate::value_flags::ValueFlags;
 use crate::version_script::VersionScript;
@@ -101,6 +72,35 @@ use std::num::NonZeroU32;
 use std::num::NonZeroU64;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
+use wild_layout as layout;
+use wild_layout::CommonGroupState;
+use wild_layout::DynamicSymbolDefinition;
+use wild_layout::HandlerData as _;
+use wild_layout::ObjectLayoutState;
+use wild_layout::OutputRecordLayout;
+use wild_layout::Resolution;
+use wild_layout::SectionGcUnit;
+use wild_layout::SymbolCopyInfo;
+use wild_layout::expression_eval;
+use wild_layout::layout_rules::SectionRule;
+use wild_layout::layout_rules::SectionRuleOutcome;
+use wild_layout::output_section_id::CustomSectionIds;
+use wild_layout::output_section_id::OrderEvent;
+use wild_layout::output_section_id::OutputOrder;
+use wild_layout::output_section_id::OutputOrderBuilder;
+use wild_layout::output_section_id::OutputSectionId;
+use wild_layout::output_section_id::OutputSections;
+use wild_layout::output_section_id::SectionIdentity;
+use wild_layout::output_section_id::SectionName;
+use wild_layout::output_section_id::SectionOutputInfo;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::parsing::InternalSymDefInfo;
+use wild_layout::parsing::SymbolPlacement;
+use wild_layout::resolution::LoadedMetrics;
+use wild_layout::resolution::SectionSlot;
+use wild_layout::symbol::UnversionedSymbolName;
+use wild_layout::symbol_db::SymbolDb;
+use wild_layout::symbol_db::SymbolId;
 
 impl<C: ElfClass> platform::Platform for Elf<C> {
     const NUM_SINGLE_PART_SECTIONS: u32 = ELF_NUM_SINGLE_PART_SECTIONS;
@@ -170,7 +170,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         output_section_id::GNU_VERSION,
         output_section_id::GNU_HASH,
         output_section_id::DYNAMIC,
-        crate::output_section_id::FILE_HEADER,
+        wild_layout::output_section_id::FILE_HEADER,
         output_section_id::PROGRAM_HEADERS,
         output_section_id::SECTION_HEADERS,
         output_section_id::SHSTRTAB,
@@ -222,62 +222,62 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     type ResolvedObjectExt<'data> = ResolvedObjectExt<'data>;
     type SectionIdentityExt = ();
     type GcUnit = SectionGcUnit;
-    type Layout<'data> = crate::layout::Layout<'data, Self>;
-    type SymbolDb<'data> = crate::symbol_db::SymbolDb<'data, Self>;
-    type Resolver<'data> = crate::resolution::Resolver<'data, Self>;
+    type Layout<'data> = wild_layout::Layout<'data, Self>;
+    type SymbolDb<'data> = wild_layout::symbol_db::SymbolDb<'data, Self>;
+    type Resolver<'data> = wild_layout::resolution::Resolver<'data, Self>;
     type ResolutionResources<'data, 'scope>
-        = crate::resolution::ResolutionResources<'data, 'scope, Self>
+        = wild_layout::resolution::ResolutionResources<'data, 'scope, Self>
     where
         'data: 'scope;
-    type ObjectLayoutState<'data> = crate::layout::ObjectLayoutState<'data, Self>;
-    type CommonGroupState<'data> = crate::layout::CommonGroupState<'data, Self>;
-    type GroupState<'data> = crate::layout::GroupState<'data, Self>;
-    type DynamicLayoutState<'data> = crate::layout::DynamicLayoutState<'data, Self>;
-    type PreludeLayoutState<'data> = crate::layout::PreludeLayoutState<'data, Self>;
-    type StubLibraryLayoutState<'data> = crate::layout::StubLibraryLayoutState<'data, Self>;
+    type ObjectLayoutState<'data> = wild_layout::ObjectLayoutState<'data, Self>;
+    type CommonGroupState<'data> = wild_layout::CommonGroupState<'data, Self>;
+    type GroupState<'data> = wild_layout::GroupState<'data, Self>;
+    type DynamicLayoutState<'data> = wild_layout::DynamicLayoutState<'data, Self>;
+    type PreludeLayoutState<'data> = wild_layout::PreludeLayoutState<'data, Self>;
+    type StubLibraryLayoutState<'data> = wild_layout::StubLibraryLayoutState<'data, Self>;
     type GraphResources<'data, 'scope>
-        = crate::layout::GraphResources<'data, 'scope, Self>
+        = wild_layout::GraphResources<'data, 'scope, Self>
     where
         'data: 'scope;
-    type LocalWorkQueue = crate::layout::LocalWorkQueue<Self>;
+    type LocalWorkQueue = wild_layout::LocalWorkQueue<Self>;
     type FinaliseLayoutResources<'scope, 'data>
-        = crate::layout::FinaliseLayoutResources<'scope, 'data, Self>
+        = wild_layout::FinaliseLayoutResources<'scope, 'data, Self>
     where
         'data: 'scope;
     type FinaliseSizesResources<'data, 'scope>
-        = crate::layout::FinaliseSizesResources<'data, 'scope, Self>
+        = wild_layout::FinaliseSizesResources<'data, 'scope, Self>
     where
         'data: 'scope;
     type ResolutionWriter<'writer, 'out>
-        = crate::layout::ResolutionWriter<'writer, 'out, Self>
+        = wild_layout::ResolutionWriter<'writer, 'out, Self>
     where
         'out: 'writer;
-    type DynamicSymbolDefinition<'data> = crate::layout::DynamicSymbolDefinition<'data, Self>;
-    type OutputRecordLayout = crate::layout::OutputRecordLayout;
-    type SymbolResolutions = crate::layout::SymbolResolutions<Self>;
-    type LayoutSection = crate::layout::Section;
-    type HeaderInfo = crate::layout::HeaderInfo;
-    type Resolution = crate::layout::Resolution<Self>;
-    type UnloadedSection = crate::resolution::UnloadedSection;
-    type LoadedMetrics = crate::resolution::LoadedMetrics;
-    type ResolvedObject<'data> = crate::resolution::ResolvedObject<'data, Self>;
-    type ResolvedDynamic<'data> = crate::resolution::ResolvedDynamic<'data, Self>;
-    type ResolvedStubLibrary<'data> = crate::resolution::ResolvedStubLibrary<'data>;
+    type DynamicSymbolDefinition<'data> = wild_layout::DynamicSymbolDefinition<'data, Self>;
+    type OutputRecordLayout = wild_layout::OutputRecordLayout;
+    type SymbolResolutions = wild_layout::SymbolResolutions<Self>;
+    type LayoutSection = wild_layout::Section;
+    type HeaderInfo = wild_layout::HeaderInfo;
+    type Resolution = wild_layout::Resolution<Self>;
+    type UnloadedSection = wild_layout::resolution::UnloadedSection;
+    type LoadedMetrics = wild_layout::resolution::LoadedMetrics;
+    type ResolvedObject<'data> = wild_layout::resolution::ResolvedObject<'data, Self>;
+    type ResolvedDynamic<'data> = wild_layout::resolution::ResolvedDynamic<'data, Self>;
+    type ResolvedStubLibrary<'data> = wild_layout::resolution::ResolvedStubLibrary<'data>;
     type LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>;
     type LoadedPlugin = crate::linker_plugins::LoadedPlugin;
-    type LtoInput<'data> = crate::grouping::LtoInput<'data>;
-    type Group<'data> = crate::grouping::Group<'data, Self>;
-    type SequencedLinkerScript<'data> = crate::grouping::SequencedLinkerScript<'data, Self>;
+    type LtoInput<'data> = wild_layout::grouping::LtoInput<'data>;
+    type Group<'data> = wild_layout::grouping::Group<'data, Self>;
+    type SequencedLinkerScript<'data> = wild_layout::grouping::SequencedLinkerScript<'data, Self>;
     type FileLoader<'data, F: crate::fs::FileSystem> = crate::input_data::FileLoader<'data, F>;
-    type LayoutRulesBuilder<'data> = crate::layout_rules::LayoutRulesBuilder<'data>;
-    type InternalSymbolsBuilder<'data> = crate::parsing::InternalSymbolsBuilder<'data, Self>;
-    type InternalSymDefInfo<'data> = crate::parsing::InternalSymDefInfo<'data, Self>;
-    type OutputSections<'data> = crate::output_section_id::OutputSections<'data, Self>;
-    type OutputOrder<'data> = crate::output_section_id::OutputOrder<'data>;
-    type CustomSectionIds = crate::output_section_id::CustomSectionIds;
+    type LayoutRulesBuilder<'data> = wild_layout::layout_rules::LayoutRulesBuilder<'data>;
+    type InternalSymbolsBuilder<'data> = wild_layout::parsing::InternalSymbolsBuilder<'data, Self>;
+    type InternalSymDefInfo<'data> = wild_layout::parsing::InternalSymDefInfo<'data, Self>;
+    type OutputSections<'data> = wild_layout::output_section_id::OutputSections<'data, Self>;
+    type OutputOrder<'data> = wild_layout::output_section_id::OutputOrder<'data>;
+    type CustomSectionIds = wild_layout::output_section_id::CustomSectionIds;
     type FileWriterOutput<F: crate::fs::FileSystem> = crate::file_writer::Output<F>;
-    type LocationCounter<'data> = crate::layout_rules::LocationCounter<'data>;
-    type SectionOutputInfo<'data> = crate::output_section_id::SectionOutputInfo<'data, Self>;
+    type LocationCounter<'data> = wild_layout::layout_rules::LocationCounter<'data>;
+    type SectionOutputInfo<'data> = wild_layout::output_section_id::SectionOutputInfo<'data, Self>;
     type FileKind = crate::file_kind::FileKind;
 
     fn write_output_file<'data, A: Arch<Platform = Self>, F: FileSystem>(
@@ -304,11 +304,11 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     fn plugin_all_symbols_read<'data, F: FileSystem>(
         plugin: &mut crate::linker_plugins::LinkerPlugin<'data>,
         symbol_db: &mut SymbolDb<'data, Self>,
-        resolver: &mut crate::resolution::Resolver<'data, Self>,
+        resolver: &mut wild_layout::resolution::Resolver<'data, Self>,
         file_loader: &mut crate::input_data::FileLoader<'data, F>,
         per_symbol_flags: &mut crate::value_flags::PerSymbolFlags,
         output_sections: &mut OutputSections<'data, Self>,
-        layout_rules_builder: &mut crate::layout_rules::LayoutRulesBuilder<'data>,
+        layout_rules_builder: &mut wild_layout::layout_rules::LayoutRulesBuilder<'data>,
     ) -> Result {
         plugin.all_symbols_read(
             symbol_db,
@@ -321,8 +321,8 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     }
 
     fn resolve_lto_symbols<'data, 'scope>(
-        obj: &crate::grouping::LtoInput<'data>,
-        resources: &'scope crate::resolution::ResolutionResources<'data, 'scope, Self>,
+        obj: &wild_layout::grouping::LtoInput<'data>,
+        resources: &'scope wild_layout::resolution::ResolutionResources<'data, 'scope, Self>,
         definitions_out: &mut [SymbolId],
         scope: &Scope<'scope>,
     ) -> Result {
@@ -334,7 +334,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         // yet. e.g. we don't allocate space for section headers until we know which sections we're
         // keeping, which by inherently needs to be after this method is called.
         const FORCE_KEEP_SECTIONS: &[OutputSectionId] = &[
-            crate::output_section_id::FILE_HEADER,
+            wild_layout::output_section_id::FILE_HEADER,
             output_section_id::PROGRAM_HEADERS,
             output_section_id::SECTION_HEADERS,
             output_section_id::SHSTRTAB,
@@ -802,7 +802,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         // RISCV_ATTRIBUTES segment.
         if [sht::NOTE, sht::RISCV_ATTRIBUTES].contains(&section_info.section_attributes.ty) {
         } else if section_layout.mem_offset == 0
-            && merge_target != crate::output_section_id::FILE_HEADER
+            && merge_target != wild_layout::output_section_id::FILE_HEADER
         {
             // Sections with an explicit VMA of 0 (e.g. `.comment 0 :`) and empty
             // unused script sections can appear in PHDRS without a non-zero address.
@@ -811,7 +811,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             // address.
             ensure!(
                 section_layout.mem_offset != 0
-                    || merge_target == crate::output_section_id::FILE_HEADER,
+                    || merge_target == wild_layout::output_section_id::FILE_HEADER,
                 "Missing memory offset for section {} present in a program segment.",
                 output_sections.section_debug(section_id),
             );
@@ -931,7 +931,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     }
 
     fn create_linker_defined_symbols(
-        symbols: &mut crate::parsing::InternalSymbolsBuilder<Elf<C>>,
+        symbols: &mut wild_layout::parsing::InternalSymbolsBuilder<Elf<C>>,
         output_kind: OutputKind,
         args: &ElfArgs,
     ) {
@@ -944,7 +944,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         symbols
             .add_symbol(
                 InternalSymDefInfo::new(
-                    SymbolPlacement::SectionStart(crate::output_section_id::FILE_HEADER),
+                    SymbolPlacement::SectionStart(wild_layout::output_section_id::FILE_HEADER),
                     b"__ehdr_start",
                 )
                 .with_provide(),
@@ -1061,7 +1061,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     }
 
     fn built_in_section_infos<'data>()
-    -> Vec<crate::output_section_id::SectionOutputInfo<'data, Elf<C>>> {
+    -> Vec<wild_layout::output_section_id::SectionOutputInfo<'data, Elf<C>>> {
         Self::SECTION_DEFINITIONS
             .iter()
             .map(|d| SectionOutputInfo {
@@ -1088,7 +1088,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     fn create_finalise_sizes_ext<'data, 'states, 'files, A: Arch<Platform = Self>>(
         args: &ElfArgs,
         groups: &'files mut [layout::GroupState<'data, Self>],
-        _symbol_db: &crate::symbol_db::SymbolDb<'data, Self>,
+        _symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Self>,
     ) -> Result<LayoutExt>
     where
         'data: 'files,
@@ -1105,11 +1105,11 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     }
 
     fn load_exception_frame_data<'data, 'scope, A: Arch<Platform = Self>>(
-        object: &mut crate::layout::ObjectLayoutState<'data, Elf<C>>,
-        common: &mut crate::layout::CommonGroupState<'data, Elf<C>>,
+        object: &mut wild_layout::ObjectLayoutState<'data, Elf<C>>,
+        common: &mut wild_layout::CommonGroupState<'data, Elf<C>>,
         eh_frame_section_index: object::SectionIndex,
-        resources: &'scope crate::layout::GraphResources<'data, '_, Elf<C>>,
-        queue: &mut crate::layout::LocalWorkQueue<Self>,
+        resources: &'scope wild_layout::GraphResources<'data, '_, Elf<C>>,
+        queue: &mut wild_layout::LocalWorkQueue<Self>,
         scope: &rayon::Scope<'scope>,
     ) -> Result {
         object.format_specific.has_eh_frame_input = true;
@@ -1167,7 +1167,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         object: &mut layout::ObjectLayoutState<'data, Elf<C>>,
         common: &mut layout::CommonGroupState<'data, Elf<C>>,
         queue: &mut layout::LocalWorkQueue<Self>,
-        unloaded: crate::resolution::UnloadedSection,
+        unloaded: wild_layout::resolution::UnloadedSection,
         resources: &'scope layout::GraphResources<'data, 'scope, Elf<C>>,
         scope: &Scope<'scope>,
     ) -> Result {
@@ -1935,7 +1935,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
 
     fn validate_resolution(
         name: &[u8],
-        resolution: &crate::layout::Resolution<Elf<C>>,
+        resolution: &wild_layout::Resolution<Elf<C>>,
         got: &SectionHeader<C>,
         got_data: &[u8],
     ) -> Result {
@@ -1990,7 +1990,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         let sframe_outcome = if args.discard_sframe {
             SectionRuleOutcome::Discard
         } else {
-            SectionRuleOutcome::Section(crate::layout_rules::SectionOutputInfo::keep(
+            SectionRuleOutcome::Section(wild_layout::layout_rules::SectionOutputInfo::keep(
                 output_section_id::SFRAME,
             ))
         };
@@ -2021,7 +2021,9 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         rules
     }
 
-    fn linker_script_rules_pre_build(rule_builder: &mut crate::layout_rules::LayoutRulesBuilder) {
+    fn linker_script_rules_pre_build(
+        rule_builder: &mut wild_layout::layout_rules::LayoutRulesBuilder,
+    ) {
         // Even when we have a linker script, we still need to map .comment to .comment. It's a
         // special section because both input objects and the linker write to it. At least for
         // linkers that put their version in the .comment section. GNU ld doesn't, but LLD does and
@@ -2044,7 +2046,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             if cfg!(all(feature = "plugins", unix)) {
                 bail!("Found GCC LTO input that we didn't supply to linker plugin");
             }
-            return Err(crate::symbol_db::linker_plugin_disabled_error());
+            return Err(wild_layout::symbol_db::linker_plugin_disabled_error());
         }
 
         Ok(())
@@ -2059,7 +2061,10 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         _resources: &layout::FinaliseSizesResources<'data, '_, Self>,
         _args: &Self::Args,
     ) {
-        sizes.increment(crate::part_id::FILE_HEADER, u64::from(C::FILE_HEADER_SIZE));
+        sizes.increment(
+            wild_layout::part_id::FILE_HEADER,
+            u64::from(C::FILE_HEADER_SIZE),
+        );
         sizes.increment(
             part_id::PROGRAM_HEADERS,
             program_headers_size::<C>(header_info),
@@ -2143,7 +2148,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             location_counters,
         );
 
-        builder.add_section(crate::output_section_id::FILE_HEADER);
+        builder.add_section(wild_layout::output_section_id::FILE_HEADER);
         builder.add_section(output_section_id::PROGRAM_HEADERS);
         builder.add_section(output_section_id::SECTION_HEADERS);
         builder.add_section(output_section_id::NOTE_GNU_PROPERTY);
@@ -2419,7 +2424,9 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                 while let Some((_, seg_id)) = it.next_if(|&(cat, _)| cat == 0) {
                     builder.push_event(OrderEvent::SegmentStart(seg_id));
                 }
-                builder.push_event(OrderEvent::Section(crate::output_section_id::FILE_HEADER));
+                builder.push_event(OrderEvent::Section(
+                    wild_layout::output_section_id::FILE_HEADER,
+                ));
                 while let Some((_, seg_id)) = it.next_if(|&(cat, _)| cat == 1) {
                     builder.push_event(OrderEvent::SegmentEnd(seg_id));
                 }
@@ -2455,7 +2462,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                     &output_sections.section_infos.get(*next).section_attributes,
                 )
             });
-            if this_class != crate::output_section_id::OrphanClass::NonAlloc
+            if this_class != wild_layout::output_section_id::OrphanClass::NonAlloc
                 && next_class != Some(this_class)
             {
                 let orphans = pending.take_class(this_class);
@@ -2543,7 +2550,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
 
         if matches!(
             section_id,
-            crate::output_section_id::FILE_HEADER
+            wild_layout::output_section_id::FILE_HEADER
                 | output_section_id::PROGRAM_HEADERS
                 | output_section_id::SECTION_HEADERS
         ) {
@@ -2577,7 +2584,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         }
 
         if section_name.is_empty() {
-            return crate::layout_rules::unnamed_section_output::<Elf<C>>(section);
+            return wild_layout::layout_rules::unnamed_section_output::<Elf<C>>(section);
         }
 
         match section_name {
@@ -2591,9 +2598,11 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             secnames::RISCV_ATTRIBUTES_SECTION_NAME => return SectionRuleOutcome::RiscVAttribute,
             secnames::NOTE_GNU_PROPERTY_SECTION_NAME => return SectionRuleOutcome::NoteGnuProperty,
             secnames::NOTE_ABI_TAG_SECTION_NAME => {
-                return SectionRuleOutcome::Section(crate::layout_rules::SectionOutputInfo::keep(
-                    output_section_id::NOTE_ABI_TAG,
-                ));
+                return SectionRuleOutcome::Section(
+                    wild_layout::layout_rules::SectionOutputInfo::keep(
+                        output_section_id::NOTE_ABI_TAG,
+                    ),
+                );
             }
             secnames::DEBUG_GNU_PUBNAMES | secnames::DEBUG_GNU_PUBTYPES if args.gdb_index => {
                 return SectionRuleOutcome::DebugIndex;
@@ -2655,7 +2664,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     }
 
     fn handle_debug_index_section<'data>(
-        obj: &mut crate::resolution::ResolvedObject<'data, Self>,
+        obj: &mut wild_layout::resolution::ResolvedObject<'data, Self>,
         section_index: object::SectionIndex,
         input_section: &'data Self::SectionHeader,
         member: &crate::arena::Member<'data>,

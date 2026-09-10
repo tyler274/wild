@@ -1,13 +1,11 @@
 use super::types::*;
+use crate::EnginePlatform;
 use crate::OutputKind;
 use crate::args::InputRef;
 use crate::error;
 use crate::error::Context;
 use crate::error::Error;
 use crate::error::Result;
-use crate::layout::EnginePlatform;
-use crate::layout::timing_phase;
-use crate::layout::verbose_timing_phase;
 use crate::layout_rules::SectionKind;
 use crate::linker_script::Expression;
 use crate::output_section_id::OutputSections;
@@ -27,9 +25,11 @@ use crate::symbol_db::SymbolId;
 use crate::symbol_db::Visibility;
 use crate::thunks;
 use crate::thunks::ThunkBlockId;
+use crate::timing_phase;
 use crate::value_flags::AtomicPerSymbolFlags;
 use crate::value_flags::FlagsForSymbol as _;
 use crate::value_flags::ValueFlags;
+use crate::verbose_timing_phase;
 use linker_utils::elf::RelocationKind;
 use linker_utils::relaxation::RelaxDeltaMap;
 use rayon::Scope;
@@ -38,7 +38,7 @@ use std::sync::Mutex;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
 
-pub(crate) fn export_dynamic<'data, P: EnginePlatform>(
+pub fn export_dynamic<'data, P: EnginePlatform>(
     common: &mut CommonGroupState<'data, P>,
     symbol_id: SymbolId,
     symbol_db: &SymbolDb<'data, P>,
@@ -52,7 +52,7 @@ pub(crate) fn export_dynamic<'data, P: EnginePlatform>(
 
 /// Traverse the graph of references. This is where we garbage-collect unused stuff if enabled. Even
 /// when GC isn't enabled, we still run this, since we perform size calculations during this phase.
-pub(crate) fn traverse_reference_graph<'data, A: Arch>(
+pub fn traverse_reference_graph<'data, A: Arch>(
     groups_in: Vec<resolution::ResolvedGroup<'data, A::Platform>>,
     symbol_db: &SymbolDb<'data, A::Platform>,
     per_symbol_flags: &AtomicPerSymbolFlags,
@@ -114,7 +114,7 @@ where
     <A::Platform as Platform>::pre_finalise_sizes_prelude(
         prelude,
         &mut prelude_group.common,
-        crate::layout::platform_graph(&resources),
+        crate::platform_graph(&resources),
     );
 
     let must_keep_sections = resources.must_keep_sections.into_map(|v| v.into_inner());
@@ -128,7 +128,7 @@ where
     })
 }
 
-pub(crate) fn queue_initial_group_processing<'data, 'scope, A: Arch>(
+pub fn queue_initial_group_processing<'data, 'scope, A: Arch>(
     groups_in: Vec<resolution::ResolvedGroup<'data, A::Platform>>,
     symbol_db: &'scope SymbolDb<'data, A::Platform>,
     resources: &'scope GraphResources<'data, '_, A::Platform>,
@@ -157,7 +157,7 @@ pub(crate) fn queue_initial_group_processing<'data, 'scope, A: Arch>(
         });
 }
 
-pub(crate) fn unwrap_worker_states<'data, P: EnginePlatform>(
+pub fn unwrap_worker_states<'data, P: EnginePlatform>(
     worker_slots: &[Mutex<WorkerSlot<'data, P>>],
 ) -> Vec<GroupState<'data, P>> {
     worker_slots
@@ -166,7 +166,7 @@ pub(crate) fn unwrap_worker_states<'data, P: EnginePlatform>(
         .collect()
 }
 
-pub(crate) fn activate<'data, 'scope, A: Arch>(
+pub fn activate<'data, 'scope, A: Arch>(
     common: &mut CommonGroupState<'data, A::Platform>,
     file: &mut FileLayoutState<'data, A::Platform>,
     queue: &mut LocalWorkQueue<A::Platform>,
@@ -189,7 +189,7 @@ where
     Ok(())
 }
 
-pub(crate) fn resolution_flags(rel_kind: RelocationKind) -> ValueFlags {
+pub fn resolution_flags(rel_kind: RelocationKind) -> ValueFlags {
     match rel_kind {
         RelocationKind::PltRelative | RelocationKind::PltRelGotBase => {
             ValueFlags::PLT | ValueFlags::GOT
@@ -233,7 +233,7 @@ pub(crate) fn resolution_flags(rel_kind: RelocationKind) -> ValueFlags {
     }
 }
 
-pub(crate) fn load_redirect_referenced_symbols<'data, 'scope, A: Arch>(
+pub fn load_redirect_referenced_symbols<'data, 'scope, A: Arch>(
     resources: &'scope GraphResources<'data, '_, <A as Arch>::Platform>,
     queue: &mut LocalWorkQueue<A::Platform>,
     scope: &Scope<'scope>,
@@ -250,7 +250,7 @@ pub(crate) fn load_redirect_referenced_symbols<'data, 'scope, A: Arch>(
     load_expression_referenced_symbols::<A>(resources, queue, scope, &redirect.expression);
 }
 
-pub(crate) fn load_expression_referenced_symbols<'data, 'scope, A: Arch>(
+pub fn load_expression_referenced_symbols<'data, 'scope, A: Arch>(
     resources: &'scope GraphResources<'data, '_, <A as Arch>::Platform>,
     queue: &mut LocalWorkQueue<A::Platform>,
     scope: &Scope<'scope>,
@@ -286,7 +286,7 @@ pub(crate) fn load_expression_referenced_symbols<'data, 'scope, A: Arch>(
     });
 }
 
-pub(crate) fn load_redirect_expression_targets<'data, 'scope, A: Arch>(
+pub fn load_redirect_expression_targets<'data, 'scope, A: Arch>(
     resources: &'scope GraphResources<'data, '_, <A as Arch>::Platform>,
     queue: &mut LocalWorkQueue<A::Platform>,
     scope: &Scope<'scope>,
@@ -297,7 +297,7 @@ pub(crate) fn load_redirect_expression_targets<'data, 'scope, A: Arch>(
     load_expression_referenced_symbols::<A>(resources, queue, scope, &redirect.expression);
 }
 
-pub(crate) fn provide_has_missing_rhs<'data, P: EnginePlatform>(
+pub fn provide_has_missing_rhs<'data, P: EnginePlatform>(
     def_info: &InternalSymDefInfo<'data, P>,
     symbol_db: &SymbolDb<'data, P>,
 ) -> bool {
@@ -318,7 +318,7 @@ pub(crate) fn provide_has_missing_rhs<'data, P: EnginePlatform>(
     missing
 }
 
-pub(crate) fn create_internal_symbol_resolution<'data, P: EnginePlatform>(
+pub fn create_internal_symbol_resolution<'data, P: EnginePlatform>(
     memory_offsets: &mut OutputSectionPartMap<u64>,
     resources: &FinaliseLayoutResources<'_, 'data, P>,
     def_info: &InternalSymDefInfo<P>,
@@ -393,7 +393,7 @@ pub(crate) fn create_internal_symbol_resolution<'data, P: EnginePlatform>(
 }
 
 /// Emits an undefined symbol error or warning if applicable.
-pub(crate) fn check_for_undefined<A: Arch>(
+pub fn check_for_undefined<A: Arch>(
     object: &ObjectLayoutState<A::Platform>,
     section: &<A::Platform as Platform>::SectionHeader,
     rel_offset: u64,
@@ -430,7 +430,7 @@ where
     Ok(())
 }
 
-pub(crate) fn should_emit_undefined_error<P: EnginePlatform>(
+pub fn should_emit_undefined_error<P: EnginePlatform>(
     object: &ObjectLayoutState<P>,
     local_sym_index: object::SymbolIndex,
     flags: ValueFlags,
@@ -465,7 +465,7 @@ pub(crate) fn should_emit_undefined_error<P: EnginePlatform>(
 
 /// Construct a new inactive instance, which means we don't yet load non-GC sections and only
 /// load them later if a symbol from this object is referenced.
-pub(crate) fn new_object_layout_state<P: EnginePlatform>(
+pub fn new_object_layout_state<P: EnginePlatform>(
     input_state: resolution::ResolvedObject<P>,
 ) -> FileLayoutState<P> {
     // Note, this function is called for all objects from a single thread, so don't be tempted to do
@@ -490,7 +490,7 @@ pub(crate) fn new_object_layout_state<P: EnginePlatform>(
     })
 }
 
-pub(crate) fn new_dynamic_object_layout_state<'data, P: EnginePlatform>(
+pub fn new_dynamic_object_layout_state<'data, P: EnginePlatform>(
     input_state: &resolution::ResolvedDynamic<'data, P>,
     args: &P::Args,
 ) -> FileLayoutState<'data, P> {
@@ -504,7 +504,7 @@ pub(crate) fn new_dynamic_object_layout_state<'data, P: EnginePlatform>(
     })
 }
 
-pub(crate) fn export_symbols_mode<P: EnginePlatform>(
+pub fn export_symbols_mode<P: EnginePlatform>(
     symbol_db: &SymbolDb<P>,
     input: &InputRef,
 ) -> Option<ExportSymbolsMode> {
@@ -526,7 +526,7 @@ pub(crate) fn export_symbols_mode<P: EnginePlatform>(
     None
 }
 
-pub(crate) fn can_export_symbol<P: EnginePlatform>(
+pub fn can_export_symbol<P: EnginePlatform>(
     sym: &P::SymtabEntry,
     symbol_id: SymbolId,
     resources: &GraphResources<P>,
@@ -547,7 +547,7 @@ pub(crate) fn can_export_symbol<P: EnginePlatform>(
     )
 }
 
-pub(crate) fn can_export_global_def<P: EnginePlatform>(
+pub fn can_export_global_def<P: EnginePlatform>(
     symbol_db: &SymbolDb<P>,
     visibility: Visibility,
     symbol_id: SymbolId,

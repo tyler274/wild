@@ -8,7 +8,6 @@ use crate::elf::ElfClass;
 use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::layout::ObjectLayout;
 use crate::output_trace::HexU64;
 use crate::output_trace::TraceOutput;
 use crate::platform::Arch;
@@ -22,6 +21,7 @@ use linker_utils::relaxation::SectionRelaxDeltas;
 use linker_utils::relaxation::opt_input_to_output;
 use std::ops::BitAnd;
 use std::ops::Sub;
+use wild_layout::ObjectLayout;
 
 /// Applies the relocation `rel` at `offset_in_section`, where the section bytes are `out`. See "ELF
 /// Handling For Thread-Local Storage" for details about some of the TLS-related relocations and
@@ -174,7 +174,8 @@ pub(crate) fn apply_relocation<
         | RelocationKind::AbsoluteAddition
         | RelocationKind::AbsoluteAdditionWord6
         | RelocationKind::AbsoluteSubtraction
-        | RelocationKind::AbsoluteSubtractionWord6 => resolution.value_with_addend(
+        | RelocationKind::AbsoluteSubtractionWord6 => elf::value_with_addend(
+            resolution,
             addend,
             symbol_index,
             object_layout,
@@ -182,31 +183,32 @@ pub(crate) fn apply_relocation<
             &layout.merged_strings,
             &layout.merged_string_start_addresses,
         )?,
-        RelocationKind::AbsoluteLowPart => resolution
-            .value_with_addend(
-                addend,
-                symbol_index,
-                object_layout,
-                &layout.symbol_db.section_part_ids,
-                &layout.merged_strings,
-                &layout.merged_string_start_addresses,
-            )?
-            .bitand(mask.symbol_plus_addend),
-        RelocationKind::Relative => resolution
-            .value_with_addend(
-                addend,
-                symbol_index,
-                object_layout,
-                &layout.symbol_db.section_part_ids,
-                &layout.merged_strings,
-                &layout.merged_string_start_addresses,
-            )?
-            .wrapping_add(branch_local_entry)
-            .wrapping_add(bias)
-            .bitand(mask.symbol_plus_addend)
-            .wrapping_sub(place.bitand(mask.place)),
+        RelocationKind::AbsoluteLowPart => elf::value_with_addend(
+            resolution,
+            addend,
+            symbol_index,
+            object_layout,
+            &layout.symbol_db.section_part_ids,
+            &layout.merged_strings,
+            &layout.merged_string_start_addresses,
+        )?
+        .bitand(mask.symbol_plus_addend),
+        RelocationKind::Relative => elf::value_with_addend(
+            resolution,
+            addend,
+            symbol_index,
+            object_layout,
+            &layout.symbol_db.section_part_ids,
+            &layout.merged_strings,
+            &layout.merged_string_start_addresses,
+        )?
+        .wrapping_add(branch_local_entry)
+        .wrapping_add(bias)
+        .bitand(mask.symbol_plus_addend)
+        .wrapping_sub(place.bitand(mask.place)),
         RelocationKind::RelativeLoongArchHigh => highest_relocation_with_bias(
-            resolution.value_with_addend(
+            elf::value_with_addend(
+                resolution,
                 addend,
                 symbol_index,
                 object_layout,
@@ -225,16 +227,16 @@ pub(crate) fn apply_relocation<
                 addend == 0,
                 "Unexpected addend for R_RISCV_PCREL_LO12 relocation"
             );
-            let hi_offset_in_section = resolution
-                .value_with_addend(
-                    addend,
-                    symbol_index,
-                    object_layout,
-                    &layout.symbol_db.section_part_ids,
-                    &layout.merged_strings,
-                    &layout.merged_string_start_addresses,
-                )?
-                .wrapping_sub(section_address);
+            let hi_offset_in_section = elf::value_with_addend(
+                resolution,
+                addend,
+                symbol_index,
+                object_layout,
+                &layout.symbol_db.section_part_ids,
+                &layout.merged_strings,
+                &layout.merged_string_start_addresses,
+            )?
+            .wrapping_sub(section_address);
             let hi_rel = relocation_cache
                 .high_part_symbols
                 .get(&hi_offset_in_section)
@@ -265,25 +267,22 @@ pub(crate) fn apply_relocation<
 
             // Only a subset of relocations is referenced by R_RISCV_PCREL_LO12 relocations.
             match hi_rel_info.kind {
-                RelocationKind::Relative => resolution
-                    .value_with_addend(
-                        addend,
-                        symbol_index,
-                        object_layout,
-                        &layout.symbol_db.section_part_ids
-                            [object_layout.section_id_range.as_usize()],
-                        &layout.merged_strings,
-                        &layout.merged_string_start_addresses,
-                    )?
-                    .wrapping_add(bias)
-                    .wrapping_sub(place),
-                RelocationKind::GotRelative => resolution
-                    .got_address_for_relocation()?
+                RelocationKind::Relative => elf::value_with_addend(
+                    resolution,
+                    addend,
+                    symbol_index,
+                    object_layout,
+                    &layout.symbol_db.section_part_ids[object_layout.section_id_range.as_usize()],
+                    &layout.merged_strings,
+                    &layout.merged_string_start_addresses,
+                )?
+                .wrapping_add(bias)
+                .wrapping_sub(place),
+                RelocationKind::GotRelative => elf::got_address_for_relocation(resolution)?
                     .wrapping_add(addend as u64)
                     .wrapping_add(bias)
                     .wrapping_sub(place),
-                RelocationKind::TlsGd => resolution
-                    .tlsgd_got_address()?
+                RelocationKind::TlsGd => elf::tlsgd_got_address(resolution)?
                     .wrapping_add(addend as u64)
                     .wrapping_add(bias)
                     .wrapping_sub(place),
@@ -296,8 +295,7 @@ pub(crate) fn apply_relocation<
                     .wrapping_add(addend as u64)
                     .wrapping_add(bias)
                     .wrapping_sub(place),
-                RelocationKind::GotTpOff => resolution
-                    .got_address()?
+                RelocationKind::GotTpOff => elf::got_address(resolution)?
                     .wrapping_add(addend as u64)
                     .wrapping_add(bias)
                     .wrapping_sub(place),
@@ -322,20 +320,16 @@ pub(crate) fn apply_relocation<
                 expected_r_type,
             )?
         }
-        RelocationKind::GotRelative => resolution
-            .got_address_for_relocation()?
+        RelocationKind::GotRelative => elf::got_address_for_relocation(resolution)?
             .wrapping_add(bias)
             .wrapping_add(addend as u64)
             .bitand(mask.got_entry)
             .wrapping_sub(place.bitand(mask.place)),
         RelocationKind::GotRelativeLoongArch64 => highest_relocation_with_bias(
-            resolution
-                .got_address_for_relocation()?
-                .wrapping_add(addend as u64),
+            elf::got_address_for_relocation(resolution)?.wrapping_add(addend as u64),
             place,
         ),
-        RelocationKind::GotRelGotBase => resolution
-            .got_address_for_relocation()?
+        RelocationKind::GotRelGotBase => elf::got_address_for_relocation(resolution)?
             .wrapping_add(addend as u64)
             .wrapping_add(bias)
             .bitand(mask.got_entry)
@@ -347,48 +341,43 @@ pub(crate) fn apply_relocation<
             //
             // Note: TLSLD is unsupported by the target (https://github.com/loongson/la-abi-specs/issues/19).
             if resolution.flags.needs_got_tls_module() {
-                resolution.tlsgd_got_address()?
+                elf::tlsgd_got_address(resolution)?
             } else {
-                resolution.got_address_for_relocation()?
+                elf::got_address_for_relocation(resolution)?
             }
             .wrapping_add(bias)
             .bitand(mask.got_entry)
         }
-        RelocationKind::SymRelGotBase => resolution
-            .value_with_addend(
-                addend,
-                symbol_index,
-                object_layout,
-                &layout.symbol_db.section_part_ids,
-                &layout.merged_strings,
-                &layout.merged_string_start_addresses,
-            )?
+        RelocationKind::SymRelGotBase => elf::value_with_addend(
+            resolution,
+            addend,
+            symbol_index,
+            object_layout,
+            &layout.symbol_db.section_part_ids,
+            &layout.merged_strings,
+            &layout.merged_string_start_addresses,
+        )?
+        .wrapping_add(bias)
+        .bitand(mask.symbol_plus_addend)
+        .wrapping_sub(layout.got_base().bitand(mask.got)),
+        RelocationKind::PltRelGotBase => elf::plt_address(resolution)?
             .wrapping_add(bias)
-            .bitand(mask.symbol_plus_addend)
             .wrapping_sub(layout.got_base().bitand(mask.got)),
-        RelocationKind::PltRelGotBase => resolution
-            .plt_address()?
-            .wrapping_add(bias)
-            .wrapping_sub(layout.got_base().bitand(mask.got)),
-        RelocationKind::PltRelative => resolution
-            .plt_address()?
+        RelocationKind::PltRelative => elf::plt_address(resolution)?
             .wrapping_add(addend as u64)
             .wrapping_add(bias)
             .wrapping_sub(place.bitand(mask.place)),
         // TLS-related relocations
-        RelocationKind::TlsGd => resolution
-            .tlsgd_got_address()?
+        RelocationKind::TlsGd => elf::tlsgd_got_address(resolution)?
             .wrapping_add(addend as u64)
             .wrapping_add(bias)
             .bitand(mask.got_entry)
             .wrapping_sub(place.bitand(mask.place)),
-        RelocationKind::TlsGdGot => resolution
-            .tlsgd_got_address()?
+        RelocationKind::TlsGdGot => elf::tlsgd_got_address(resolution)?
             .wrapping_add(addend as u64)
             .wrapping_add(bias)
             .bitand(mask.got_entry),
-        RelocationKind::TlsGdGotBase => resolution
-            .tlsgd_got_address()?
+        RelocationKind::TlsGdGotBase => elf::tlsgd_got_address(resolution)?
             .wrapping_add(addend as u64)
             .wrapping_add(bias)
             .bitand(mask.got_entry)
@@ -432,23 +421,20 @@ pub(crate) fn apply_relocation<
             .wrapping_add(addend as u64)
             .wrapping_add(bias)
             .wrapping_sub(layout.tls_end_address()),
-        RelocationKind::GotTpOff => resolution
-            .got_address()?
+        RelocationKind::GotTpOff => elf::got_address(resolution)?
             .wrapping_add(addend as u64)
             .wrapping_add(bias)
             .bitand(mask.got_entry)
             .wrapping_sub(place.bitand(mask.place)),
         RelocationKind::GotTpOffLoongArch64 => highest_relocation_with_bias(
-            resolution.got_address()?.wrapping_add(addend as u64),
+            elf::got_address(resolution)?.wrapping_add(addend as u64),
             place,
         ),
-        RelocationKind::GotTpOffGot => resolution
-            .got_address()?
+        RelocationKind::GotTpOffGot => elf::got_address(resolution)?
             .wrapping_add(addend as u64)
             .wrapping_add(bias)
             .bitand(mask.got_entry),
-        RelocationKind::GotTpOffGotBase => resolution
-            .got_address()?
+        RelocationKind::GotTpOffGotBase => elf::got_address(resolution)?
             .wrapping_add(addend as u64)
             .wrapping_add(bias)
             .bitand(mask.got_entry)
@@ -468,25 +454,20 @@ pub(crate) fn apply_relocation<
             .wrapping_add(addend as u64)
             .wrapping_add(bias)
             .wrapping_sub(A::tp_offset_start(layout)),
-        RelocationKind::TlsDesc => resolution
-            .tls_descriptor_got_address()?
+        RelocationKind::TlsDesc => elf::tls_descriptor_got_address(resolution)?
             .wrapping_add(addend as u64)
             .wrapping_add(bias)
             .bitand(mask.got_entry)
             .wrapping_sub(place.bitand(mask.place)),
         RelocationKind::TlsDescLoongArch64 => highest_relocation_with_bias(
-            resolution
-                .tls_descriptor_got_address()?
-                .wrapping_add(addend as u64),
+            elf::tls_descriptor_got_address(resolution)?.wrapping_add(addend as u64),
             place,
         ),
-        RelocationKind::TlsDescGot => resolution
-            .tls_descriptor_got_address()?
+        RelocationKind::TlsDescGot => elf::tls_descriptor_got_address(resolution)?
             .wrapping_add(addend as u64)
             .wrapping_add(bias)
             .bitand(mask.got_entry),
-        RelocationKind::TlsDescGotBase => resolution
-            .tls_descriptor_got_address()?
+        RelocationKind::TlsDescGotBase => elf::tls_descriptor_got_address(resolution)?
             .wrapping_add(addend as u64)
             .wrapping_add(bias)
             .bitand(mask.got_entry)

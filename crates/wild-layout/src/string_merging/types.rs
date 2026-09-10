@@ -34,19 +34,19 @@ pub(super) const MERGE_STRING_BUCKETS: usize = 1 << MERGE_STRING_BUCKET_BITS;
 /// spilled to the hashmap.
 pub(super) const MAP_BLOCK_SIZE: u64 = 256;
 
-pub(crate) struct StringMergeInputs<'data> {
+pub struct StringMergeInputs<'data> {
     pub(super) input_sections_by_output: OutputSectionMap<Vec<StringMergeInputSection<'data>>>,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct StringMergeSectionSlot {
+pub struct StringMergeSectionSlot {
     /// The sum of the sizes of the input sections prior to this one with the same part ID.
     /// Populated during string merging.
     pub(super) start_input_offset: LinearInputOffset,
 }
 
 impl StringMergeSectionSlot {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             // We'll fill this in during string merging.
             start_input_offset: LinearInputOffset(0),
@@ -57,12 +57,12 @@ impl StringMergeSectionSlot {
 /// Extra stuff that we don't want to put in `StringMergeSectionSlot` because like all section
 /// slots, we want to keep it as small as possible.
 #[derive(Debug)]
-pub(crate) struct StringMergeSectionExtra<'data> {
-    pub(crate) index: object::SectionIndex,
-    pub(crate) section_data: &'data [u8],
-    pub(crate) is_strings: bool,
-    pub(crate) alignment: alignment::Alignment,
-    pub(crate) entsize: u64,
+pub struct StringMergeSectionExtra<'data> {
+    pub index: object::SectionIndex,
+    pub section_data: &'data [u8],
+    pub is_strings: bool,
+    pub alignment: alignment::Alignment,
+    pub entsize: u64,
 }
 
 /// An input offset. We pretend that we've placed all input sections for a given output section one
@@ -157,7 +157,7 @@ pub(super) struct TailMergePiece<'data> {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct MergeString<'data> {
+pub struct MergeString<'data> {
     pub(super) bytes: &'data [u8],
     pub(super) alignment: alignment::Alignment,
     pub(super) is_string: bool,
@@ -193,15 +193,15 @@ pub(super) struct StringPlacement {
 
 /// The addresses of the start of the merged strings for each output section.
 #[derive(Debug)]
-pub(crate) struct MergedStringStartAddresses {
+pub struct MergedStringStartAddresses {
     pub(super) addresses: OutputSectionMap<[u64; MERGE_STRING_BUCKETS]>,
 }
 
 /// A section containing null terminated strings post-merging.
 #[derive(derive_more::Debug)]
-pub(crate) struct MergedStringsSection<'data> {
+pub struct MergedStringsSection<'data> {
     /// The buckets based on the hash value of the input string.
-    pub(crate) buckets: Vec<MergeStringsSectionBucket<'data>>,
+    pub buckets: Vec<MergeStringsSectionBucket<'data>>,
 
     /// The byte offset of each bucket in the final section.
     pub(super) bucket_offsets: [u64; MERGE_STRING_BUCKETS],
@@ -238,7 +238,7 @@ impl Default for MergedStringsSection<'_> {
 }
 
 #[derive(derive_more::Debug, Default)]
-pub(crate) struct MergeStringsSectionBucket<'data> {
+pub struct MergeStringsSectionBucket<'data> {
     pub(super) index: usize,
 
     /// Input sections need to be added to a bucket in deterministic order, otherwise we'll get

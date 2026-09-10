@@ -8,8 +8,6 @@ use super::gc::*;
 use super::output::*;
 use super::symbols::*;
 use crate::error::Result;
-use crate::symbol::UnversionedSymbolName;
-use crate::symbol_db::SymbolDb;
 #[allow(unused_imports)]
 pub(crate) use emit::*;
 #[allow(unused_imports)]
@@ -17,6 +15,8 @@ pub(crate) use got::*;
 use hashbrown::HashMap;
 #[allow(unused_imports)]
 pub(crate) use imports::*;
+use wild_layout::symbol::UnversionedSymbolName;
+use wild_layout::symbol_db::SymbolDb;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct LinkerDefinedIndices {

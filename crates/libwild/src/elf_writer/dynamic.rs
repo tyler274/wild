@@ -18,15 +18,9 @@ use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::file_writer::insufficient_allocation;
-use crate::layout::DynamicLayout;
-use crate::layout::EpilogueLayout;
-use crate::layout::OutputRecordLayout;
-use crate::output_section_id::OutputSectionId;
 use crate::output_section_map::OutputSectionMap;
-use crate::output_section_part_map::OutputSectionPartMap;
 use crate::platform::Arch;
 use crate::platform::ObjectFile;
-use crate::symbol_db::SymbolId;
 use crate::value_flags::ValueFlags;
 use crate::verbose_timing_phase;
 use crate::writable_elf::WritableDynamicEntry as _;
@@ -35,6 +29,12 @@ use linker_utils::elf::DynamicRelocationKind;
 use linker_utils::utils::slice_from_all_bytes_mut;
 use object::LittleEndian;
 use object::read::elf::Sym as _;
+use wild_layout::DynamicLayout;
+use wild_layout::EpilogueLayout;
+use wild_layout::OutputRecordLayout;
+use wild_layout::output_section_id::OutputSectionId;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::symbol_db::SymbolId;
 use zerocopy::FromBytes;
 
 pub(crate) fn write_epilogue_dynamic_entries<C: ElfClass>(

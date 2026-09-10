@@ -1,14 +1,12 @@
 use super::split::create_split_resources;
 use super::split::try_spawn_input_processing;
 use super::types::*;
+use crate::EnginePlatform;
 use crate::alignment;
 use crate::args::Experiment;
 use crate::bail;
 use crate::error::Result;
 use crate::input_section_id::SectionIdRange;
-use crate::layout::EnginePlatform;
-use crate::layout::timing_phase;
-use crate::layout::verbose_timing_phase;
 use crate::output_section_id::OutputSections;
 use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
@@ -20,6 +18,8 @@ use crate::platform::Symbol as _;
 use crate::resolution::ResolvedFile;
 use crate::resolution::ResolvedGroup;
 use crate::resolution::SectionSlot;
+use crate::timing_phase;
+use crate::verbose_timing_phase;
 use hashbrown::HashMap;
 use itertools::Itertools as _;
 use std::sync::atomic::Ordering;
@@ -309,7 +309,7 @@ fn tail_merge_class(
 /// A string from a string-merge section. Includes the null terminator.
 /// Equality is by content only; alignment is upgraded to the max of all
 /// occurrences (bfd 2.46 `sec_merge_hash_lookup`).
-pub(crate) fn merge_strings<'data, P: EnginePlatform>(
+pub fn merge_strings<'data, P: EnginePlatform>(
     inputs: &StringMergeInputs<'data>,
     output_sections: &OutputSections<P>,
     args: &P::Args,
@@ -373,7 +373,7 @@ pub(crate) fn merge_strings<'data, P: EnginePlatform>(
 }
 
 impl<'data> StringMergeInputs<'data> {
-    pub(crate) fn new<P: EnginePlatform>(
+    pub fn new<P: EnginePlatform>(
         resolved: &mut [ResolvedGroup<'data, P>],
         section_part_ids: &[crate::part_id::PartId],
         output_sections: &OutputSections<P>,
@@ -513,7 +513,7 @@ impl<'data> MergedStringsSection<'data> {
     }
 
     /// Returns the size in bytes of this section.
-    pub(crate) fn len(&self) -> u64 {
+    pub fn len(&self) -> u64 {
         self.buckets
             .last()
             .map(|last_bucket| {
@@ -522,15 +522,15 @@ impl<'data> MergedStringsSection<'data> {
             .unwrap_or_default()
     }
 
-    pub(crate) fn input_string_byte_size(&self) -> usize {
+    pub fn input_string_byte_size(&self) -> usize {
         self.buckets.iter().map(|b| b.input_string_byte_size).sum()
     }
 
-    pub(crate) fn input_string_count(&self) -> usize {
+    pub fn input_string_count(&self) -> usize {
         self.buckets.iter().map(|b| b.input_string_count).sum()
     }
 
-    pub(crate) fn string_count(&self) -> usize {
+    pub fn string_count(&self) -> usize {
         self.buckets.iter().map(|b| b.strings.len()).sum()
     }
 
@@ -553,13 +553,13 @@ impl<'data> MergedStringsSection<'data> {
 
     /// Re-pad merge classes so each starts at an aligned absolute VMA. Returns
     /// the change in section size (new minus old).
-    pub(crate) fn repad_to_vma(&mut self, start_vma: u64) -> i64 {
+    pub fn repad_to_vma(&mut self, start_vma: u64) -> i64 {
         let old = self.len();
         self.recompute_bucket_offsets(start_vma);
         self.len() as i64 - old as i64
     }
 
-    pub(crate) fn leading_pad(&self) -> usize {
+    pub fn leading_pad(&self) -> usize {
         self.bucket_offsets[0] as usize
     }
 }
@@ -584,7 +584,7 @@ impl BucketOffset {
 /// Looks for a merged string at `symbol_index` + `addend` in the input and if found, returns its
 /// address in the output.
 #[inline(always)]
-pub(crate) fn get_merged_string_output_address<'data, P: EnginePlatform>(
+pub fn get_merged_string_output_address<'data, P: EnginePlatform>(
     symbol_index: object::SymbolIndex,
     addend: i64,
     object: &P::File<'data>,
@@ -691,7 +691,7 @@ pub(super) fn find_string(
 }
 
 impl MergedStringStartAddresses {
-    pub(crate) fn compute<P: EnginePlatform>(
+    pub fn compute<P: EnginePlatform>(
         output_sections: &OutputSections<'_, P>,
         starting_mem_offsets_by_group: &[OutputSectionPartMap<u64>],
         merge_string_sections: &OutputSectionMap<MergedStringsSection>,

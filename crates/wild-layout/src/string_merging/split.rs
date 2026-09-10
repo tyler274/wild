@@ -7,8 +7,8 @@ use crate::args::Experiment;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::hash::PreHashed;
-use crate::layout::verbose_timing_phase;
 use crate::platform;
+use crate::verbose_timing_phase;
 use crossbeam_queue::ArrayQueue;
 use crossbeam_utils::atomic::AtomicCell;
 use rayon::Scope;
@@ -454,13 +454,13 @@ impl<'data> MergeStringsSectionBucket<'data> {
         }
     }
 
-    pub(crate) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.next_offset as usize
     }
 
     /// Writes this bucket into `buffer`, which must be exactly `self.len()` bytes. Padding
     /// between strings (and at the end of the bucket) is left as zero.
-    pub(crate) fn write_to(&self, buffer: &mut [u8]) {
+    pub fn write_to(&self, buffer: &mut [u8]) {
         debug_assert_eq!(buffer.len(), self.len());
         buffer.fill(0);
         for string in &self.strings {
@@ -473,7 +473,7 @@ impl<'data> MergeStringsSectionBucket<'data> {
 impl<'data> MergeString<'data> {
     /// Takes from `source` up to the next null terminator. Returns a prehashed reference to what
     /// was taken.
-    pub(crate) fn take_string_hashed(
+    pub fn take_string_hashed(
         source: &mut &'data [u8],
         alignment: alignment::Alignment,
         entsize: u64,
@@ -510,7 +510,7 @@ impl<'data> MergeString<'data> {
     }
 
     /// Takes `size` bytes (or the remainder) from `source`.
-    pub(crate) fn take_sized_hashed(
+    pub fn take_sized_hashed(
         source: &mut &'data [u8],
         alignment: alignment::Alignment,
         size: usize,
@@ -533,7 +533,7 @@ impl<'data> MergeString<'data> {
     }
 
     /// Takes the whole `source`. Returns a prehashed reference to what was taken.
-    pub(crate) fn take_hashed(
+    pub fn take_hashed(
         source: &mut &'data [u8],
         alignment: alignment::Alignment,
         is_string: bool,

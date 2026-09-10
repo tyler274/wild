@@ -1,7 +1,7 @@
 use super::ids::*;
 use super::sections::OutputSections;
 use super::types::*;
-use crate::layout::EnginePlatform;
+use crate::EnginePlatform;
 use crate::layout_rules::LocationCounter;
 use crate::layout_rules::SectionKind;
 use crate::linker_script;
@@ -23,7 +23,7 @@ use std::fmt::Display;
 /// Encodes the order of output sections and the start and end of each program segment. This struct
 /// is intended to be used by iterating over it.
 #[derive(Debug)]
-pub(crate) struct OutputOrder<'data> {
+pub struct OutputOrder<'data> {
     events: Vec<OrderEvent<'data>>,
     num_location_counters: usize,
     has_custom_phdrs: bool,
@@ -33,13 +33,13 @@ pub(crate) struct OutputOrder<'data> {
     script_section_order: Vec<OutputSectionId>,
 }
 
-pub(crate) struct OutputOrderDisplay<'a, 'data, P: Platform> {
+pub struct OutputOrderDisplay<'a, 'data, P: Platform> {
     order: &'a OutputOrder<'data>,
     sections: &'a OutputSections<'data, P>,
     program_segments: &'a ProgramSegments<P::ProgramSegmentDef>,
 }
 
-pub(crate) struct OutputOrderBuilder<'scope, 'data, P: Platform> {
+pub struct OutputOrderBuilder<'scope, 'data, P: Platform> {
     events: Vec<OrderEvent<'data>>,
 
     program_segments: ProgramSegments<P::ProgramSegmentDef>,
@@ -62,7 +62,7 @@ pub(crate) struct OutputOrderBuilder<'scope, 'data, P: Platform> {
 }
 
 impl<'scope, 'data, P: EnginePlatform> OutputOrderBuilder<'scope, 'data, P> {
-    pub(crate) fn new(
+    pub fn new(
         segment_defs: Vec<P::ProgramSegmentDef>,
         output_kind: OutputKind,
         output_sections: &'scope OutputSections<'data, P>,
@@ -87,7 +87,7 @@ impl<'scope, 'data, P: EnginePlatform> OutputOrderBuilder<'scope, 'data, P> {
         }
     }
 
-    pub(crate) fn queue_segment_start(&mut self, segment_id: ProgramSegmentId) {
+    pub fn queue_segment_start(&mut self, segment_id: ProgramSegmentId) {
         self.pending_segment_starts.push(segment_id);
     }
 
@@ -117,7 +117,7 @@ impl<'scope, 'data, P: EnginePlatform> OutputOrderBuilder<'scope, 'data, P> {
         self.last_location_counter = self.last_location_counter.map(|l| l.max(lc_end));
     }
 
-    pub(crate) fn add_section(&mut self, section_id: OutputSectionId) {
+    pub fn add_section(&mut self, section_id: OutputSectionId) {
         // When RELRO segment ends, also end the RW LOAD segment so that subsequent non-RELRO
         // sections go into a new LOAD segment.
         if self.should_end_current_rw_segment(section_id) {
@@ -313,28 +313,25 @@ impl<'scope, 'data, P: EnginePlatform> OutputOrderBuilder<'scope, 'data, P> {
         (stop, start)
     }
 
-    pub(crate) fn push_event(&mut self, event: OrderEvent<'data>) {
+    pub fn push_event(&mut self, event: OrderEvent<'data>) {
         self.events.push(event);
     }
 
-    pub(crate) fn add_custom_segment(
-        &mut self,
-        segment_def: P::ProgramSegmentDef,
-    ) -> ProgramSegmentId {
+    pub fn add_custom_segment(&mut self, segment_def: P::ProgramSegmentDef) -> ProgramSegmentId {
         self.program_segments.add_segment(segment_def)
     }
 
-    pub(crate) fn get_segment_mut(&mut self, id: ProgramSegmentId) -> &mut P::ProgramSegmentDef {
+    pub fn get_segment_mut(&mut self, id: ProgramSegmentId) -> &mut P::ProgramSegmentDef {
         self.program_segments.segment_def_mut(id)
     }
 
-    pub(crate) fn add_sections(&mut self, sections: &[OutputSectionId]) {
+    pub fn add_sections(&mut self, sections: &[OutputSectionId]) {
         for section in sections {
             self.add_section(*section);
         }
     }
 
-    pub(crate) fn build(mut self) -> (OutputOrder<'data>, ProgramSegments<P::ProgramSegmentDef>) {
+    pub fn build(mut self) -> (OutputOrder<'data>, ProgramSegments<P::ProgramSegmentDef>) {
         for segment_id in self.pending_segment_starts.drain(..) {
             self.events.push(OrderEvent::SegmentStart(segment_id));
         }
@@ -367,7 +364,7 @@ impl<'scope, 'data, P: EnginePlatform> OutputOrderBuilder<'scope, 'data, P> {
     }
 }
 #[derive(Debug, Clone)]
-pub(crate) enum OrderEvent<'data> {
+pub enum OrderEvent<'data> {
     SegmentStart(ProgramSegmentId),
     SegmentEnd(ProgramSegmentId),
     Section(OutputSectionId),
@@ -395,23 +392,23 @@ impl<'data, 'a> IntoIterator for &'a OutputOrder<'data> {
 }
 
 impl<'data> OutputOrder<'data> {
-    pub(crate) fn num_location_counters(&self) -> usize {
+    pub fn num_location_counters(&self) -> usize {
         self.num_location_counters
     }
 
-    pub(crate) fn has_custom_phdrs(&self) -> bool {
+    pub fn has_custom_phdrs(&self) -> bool {
         self.has_custom_phdrs
     }
 
-    pub(crate) fn script_section_order(&self) -> &[OutputSectionId] {
+    pub fn script_section_order(&self) -> &[OutputSectionId] {
         &self.script_section_order
     }
 
-    pub(crate) fn set_script_section_order(&mut self, order: Vec<OutputSectionId>) {
+    pub fn set_script_section_order(&mut self, order: Vec<OutputSectionId>) {
         self.script_section_order = order;
     }
 
-    pub(crate) fn display<'a, P: EnginePlatform>(
+    pub fn display<'a, P: EnginePlatform>(
         &'a self,
         sections: &'a OutputSections<'data, P>,
         program_segments: &'a ProgramSegments<P::ProgramSegmentDef>,
@@ -427,7 +424,7 @@ impl<'data> OutputOrder<'data> {
 /// Section-header order matching GNU ld `--emit-relocs`: each copied `SHT_REL` /
 /// `SHT_RELA` header sits immediately after its target. File layout is unchanged
 /// (reloc contents stay with the other non-ALLOC sections).
-pub(crate) fn section_header_order<'data, P: EnginePlatform>(
+pub fn section_header_order<'data, P: EnginePlatform>(
     output_order: &OutputOrder<'data>,
     output_sections: &OutputSections<'data, P>,
 ) -> Vec<OutputSectionId> {

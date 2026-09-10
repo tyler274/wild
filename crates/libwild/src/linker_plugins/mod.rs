@@ -22,18 +22,11 @@ use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::file_kind::FileKind;
-use crate::grouping::PluginSymbol;
-use crate::grouping::UnsequencedLtoInput;
 use crate::input_data::FileId;
 use crate::input_data::FileLoader;
 use crate::input_data::InputRef;
-use crate::layout_rules::LayoutRulesBuilder;
-use crate::output_section_id::OutputSections;
 use crate::platform::Args as _;
 use crate::platform::RawSymbolName as _;
-use crate::resolution::ResolvedFile;
-use crate::resolution::Resolver;
-use crate::symbol_db::SymbolDb;
 use crate::timing_phase;
 use crate::value_flags::PerSymbolFlags;
 use crate::verbose_timing_phase;
@@ -48,6 +41,13 @@ use std::os::fd::AsRawFd as _;
 use std::os::fd::RawFd;
 use std::path::Path;
 use std::path::PathBuf;
+use wild_layout::grouping::PluginSymbol;
+use wild_layout::grouping::UnsequencedLtoInput;
+use wild_layout::layout_rules::LayoutRulesBuilder;
+use wild_layout::output_section_id::OutputSections;
+use wild_layout::resolution::ResolvedFile;
+use wild_layout::resolution::Resolver;
+use wild_layout::symbol_db::SymbolDb;
 
 mod discover;
 mod ffi;
@@ -259,7 +259,7 @@ impl<'data> LinkerPlugin<'data> {
 
         symbol_db.disable_lto_inputs();
 
-        crate::symbol_db::resolve_alternative_symbol_definitions(
+        wild_layout::symbol_db::resolve_alternative_symbol_definitions(
             symbol_db,
             per_symbol_flags,
             &resolver.resolved_groups,

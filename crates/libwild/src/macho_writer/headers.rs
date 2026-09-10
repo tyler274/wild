@@ -4,9 +4,6 @@ use crate::ensure;
 use crate::error;
 use crate::error::Context;
 use crate::error::Result;
-use crate::layout::EpilogueLayout;
-use crate::layout::OutputRecordLayout;
-use crate::layout::PreludeLayout;
 use crate::macho::BuildVersionCommand;
 use crate::macho::CodeSignatureCommand;
 use crate::macho::DYLINKER_PATH;
@@ -29,8 +26,6 @@ use crate::macho::load_dylib_command_size;
 use crate::macho::output_section_id;
 use crate::macho::output_section_id::LOAD_COMMANDS;
 use crate::macho::part_id;
-use crate::output_section_id::SectionName;
-use crate::output_section_part_map::OutputSectionPartMap;
 use crate::verbose_timing_phase;
 use linker_utils::utils::slice_from_all_bytes_mut;
 use object::BigEndian;
@@ -52,6 +47,11 @@ use object::macho::MH_EXECUTE;
 use object::macho::PLATFORM_MACOS;
 use object::macho::SegmentFlags;
 use object::slice_from_bytes_mut;
+use wild_layout::EpilogueLayout;
+use wild_layout::OutputRecordLayout;
+use wild_layout::PreludeLayout;
+use wild_layout::output_section_id::SectionName;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
 use zerocopy::FromZeros;
 
 pub(crate) fn write_prelude<'data>(
@@ -66,7 +66,7 @@ pub(crate) fn write_prelude<'data>(
         prelude.format_specific.load_dylib_command_sizes.len()
     );
 
-    let header_buffer = buffers.get_mut(crate::part_id::FILE_HEADER);
+    let header_buffer = buffers.get_mut(wild_layout::part_id::FILE_HEADER);
     populate_file_header(layout, prelude, take_mut(header_buffer)?);
     ensure!(header_buffer.is_empty(), "Excess FILE_HEADER allocation");
 
@@ -312,7 +312,7 @@ pub(crate) fn write_entry_point_command(
 
     let image_base = layout
         .section_layouts
-        .get(crate::output_section_id::FILE_HEADER)
+        .get(wild_layout::output_section_id::FILE_HEADER)
         .mem_offset;
 
     let entry_offset = entry_address

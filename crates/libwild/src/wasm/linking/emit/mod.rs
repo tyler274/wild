@@ -5,8 +5,6 @@ use super::*;
 use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::layout;
-use crate::symbol_db::SymbolDb;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
 use crate::wasm::LINKER_MEMORY_BASE;
@@ -24,10 +22,12 @@ use hashbrown::HashSet;
 #[allow(unused_imports)]
 pub(crate) use memory::*;
 use rayon::prelude::*;
+use wild_layout as layout;
+use wild_layout::symbol_db::SymbolDb;
 
 pub(crate) fn build_output_module_layout<'data, 'files>(
     groups: &'files mut [layout::GroupState<'data, Wasm>],
-    symbol_db: &crate::symbol_db::SymbolDb<'data, Wasm>,
+    symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Wasm>,
 ) -> Result<WasmLayout<'data>>
 where
     'data: 'files,
@@ -504,7 +504,7 @@ pub(crate) fn compute_data_addresses(
             }
 
             if let Some(def_info) = symbol_db.prelude_symbol_def(def_id)
-                && let crate::parsing::SymbolPlacement::PlatformSpecific(known) =
+                && let wild_layout::parsing::SymbolPlacement::PlatformSpecific(known) =
                     &def_info.placement
                 && let Some(address) =
                     known.data_address(data_start, data_end, stack_size, heap_end, stack_first)?

@@ -1,4 +1,5 @@
 use super::types::*;
+use crate::EnginePlatform;
 use crate::debug_assert_bail;
 use crate::error::Context as _;
 use crate::error::Result;
@@ -6,9 +7,6 @@ use crate::grouping::Group;
 use crate::grouping::SequencedInputObject;
 use crate::hash::PassThroughHashMap;
 use crate::hash::PreHashed;
-use crate::layout::EnginePlatform;
-use crate::layout::timing_phase;
-use crate::layout::verbose_timing_phase;
 use crate::linker_script::Expression;
 use crate::output_section_id::OutputSections;
 use crate::output_section_id::SectionName;
@@ -27,13 +25,15 @@ use crate::symbol_db::SymbolDb;
 use crate::symbol_db::SymbolId;
 use crate::symbol_db::SymbolStrength;
 use crate::symbol_db::Visibility;
+use crate::timing_phase;
 use crate::value_flags::AtomicPerSymbolFlags;
 use crate::value_flags::PerSymbolFlags;
 use crate::value_flags::ValueFlags;
+use crate::verbose_timing_phase;
 use atomic_take::AtomicTake;
 use rayon::Scope;
 
-pub(crate) struct ResolutionResources<'data, 'scope, P: Platform> {
+pub struct ResolutionResources<'data, 'scope, P: Platform> {
     pub(super) definitions_per_file: &'scope Vec<Vec<AtomicTake<&'scope mut [SymbolId]>>>,
     pub(super) symbol_db: &'scope SymbolDb<'data, P>,
     pub(super) outputs: &'scope Outputs<'data, P>,
@@ -199,7 +199,7 @@ pub(super) fn process_object<'scope, 'data: 'scope, 'definitions, P: EnginePlatf
             resources.handle_result(
                 P::resolve_lto_symbols(
                     obj,
-                    crate::layout::platform_resolution(resources),
+                    crate::platform_resolution(resources),
                     definitions_out,
                     scope,
                 )
@@ -511,7 +511,7 @@ fn resolve_symbols<'data, 'scope, P: EnginePlatform>(
 }
 
 #[inline(always)]
-pub(crate) fn resolve_symbol<'data, 'scope, P: EnginePlatform>(
+pub fn resolve_symbol<'data, 'scope, P: EnginePlatform>(
     local_symbol_id: SymbolId,
     local_symbol_attributes: &SymbolAttributes<'data, P>,
     definition_out: &mut SymbolId,

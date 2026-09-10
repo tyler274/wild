@@ -2,8 +2,6 @@ use crate::args::InputRef;
 use crate::error::Result;
 use crate::input_section_id::InputSectionId;
 use crate::input_section_id::SectionIdRange;
-use crate::layout::timing_phase;
-use crate::layout::verbose_timing_phase;
 use crate::parsing::ParsedInputObject;
 use crate::parsing::Prelude;
 use crate::parsing::ProcessedLinkerScript;
@@ -19,29 +17,31 @@ use crate::symbol_db::SymbolDb;
 use crate::symbol_db::SymbolId;
 use crate::symbol_db::SymbolIdRange;
 use crate::symbol_db::SymbolStrength;
+use crate::timing_phase;
+use crate::verbose_timing_phase;
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]
-pub(crate) struct DefinedStubLibrary<'a> {
+pub struct DefinedStubLibrary<'a> {
     /// Install name of the dynamic library, including its `.dylib` suffix.
-    pub(crate) install_name: &'a str,
+    pub install_name: &'a str,
     /// Current version recorded for the library, if present.
-    pub(crate) current_version: &'a str,
+    pub current_version: &'a str,
     /// Global symbols defined by the library or by any reexported child library.
-    pub(crate) symbols: Vec<&'a str>,
+    pub symbols: Vec<&'a str>,
     /// Weak symbols defined by the library or by any reexported child library.
-    pub(crate) weak_symbols: Vec<&'a str>,
+    pub weak_symbols: Vec<&'a str>,
 }
 
 impl DefinedStubLibrary<'_> {
-    pub(crate) fn total_symbols(&self) -> usize {
+    pub fn total_symbols(&self) -> usize {
         self.symbols.len() + self.weak_symbols.len()
     }
 }
 
-pub(crate) struct LoadedStubLibrary<'data> {
-    pub(crate) input: InputRef<'data>,
-    pub(crate) defined_symbols: DefinedStubLibrary<'data>,
+pub struct LoadedStubLibrary<'data> {
+    pub input: InputRef<'data>,
+    pub defined_symbols: DefinedStubLibrary<'data>,
 }
 
 /// Layout-facing LTO IR types. Plugin FFI fills `UnsequencedLtoInput`; grouping assigns FileIds.
@@ -54,36 +54,36 @@ mod lto {
     use crossbeam_utils::atomic::AtomicCell;
 
     #[derive(Debug)]
-    pub(crate) struct LtoInput<'data> {
-        pub(crate) file_id: FileId,
-        pub(crate) symbol_id_range: SymbolIdRange,
-        pub(crate) section_id_range: SectionIdRange,
-        pub(crate) input_ref: InputRef<'data>,
-        pub(crate) symbols: Vec<PluginSymbol<'data>>,
+    pub struct LtoInput<'data> {
+        pub file_id: FileId,
+        pub symbol_id_range: SymbolIdRange,
+        pub section_id_range: SectionIdRange,
+        pub input_ref: InputRef<'data>,
+        pub symbols: Vec<PluginSymbol<'data>>,
         /// Set to false once symbols from this object should be ignored. This is done once LTO has
         /// been performed.
-        pub(crate) enabled: bool,
+        pub enabled: bool,
     }
 
     /// Claimed LTO IR before FileIds are assigned.
-    pub(crate) struct UnsequencedLtoInput<'data> {
-        pub(crate) input_ref: InputRef<'data>,
-        pub(crate) symbols: Vec<PluginSymbol<'data>>,
+    pub struct UnsequencedLtoInput<'data> {
+        pub input_ref: InputRef<'data>,
+        pub symbols: Vec<PluginSymbol<'data>>,
         /// Plugin FFI records the FileId once groups are sequenced.
-        pub(crate) file_id_slot: Option<&'data AtomicCell<Option<FileId>>>,
+        pub file_id_slot: Option<&'data AtomicCell<Option<FileId>>>,
     }
 
     #[derive(Debug)]
-    pub(crate) struct PluginSymbol<'data> {
-        pub(crate) name: UnversionedSymbolName<'data>,
-        pub(crate) version: Option<&'data [u8]>,
-        pub(crate) visibility: Visibility,
-        pub(crate) kind: Option<SymbolKind>,
-        pub(crate) size: u64,
+    pub struct PluginSymbol<'data> {
+        pub name: UnversionedSymbolName<'data>,
+        pub version: Option<&'data [u8]>,
+        pub visibility: Visibility,
+        pub kind: Option<SymbolKind>,
+        pub size: u64,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum SymbolKind {
+    pub enum SymbolKind {
         Def = 0,
         WeakDef = 1,
         Undef = 2,
@@ -91,16 +91,16 @@ mod lto {
         Common = 4,
     }
 
-    pub(crate) struct SymbolPropertiesDisplay<'data>(&'data PluginSymbol<'data>);
+    pub struct SymbolPropertiesDisplay<'data>(&'data PluginSymbol<'data>);
 
     impl PluginSymbol<'_> {
-        pub(crate) fn is_definition(&self) -> bool {
+        pub fn is_definition(&self) -> bool {
             self.kind.is_some_and(|kind| kind.is_definition())
         }
     }
 
     impl SymbolKind {
-        pub(crate) fn is_definition(self) -> bool {
+        pub fn is_definition(self) -> bool {
             matches!(
                 self,
                 SymbolKind::Def | SymbolKind::WeakDef | SymbolKind::Common
@@ -109,11 +109,11 @@ mod lto {
     }
 
     impl<'data> UnsequencedLtoInput<'data> {
-        pub(crate) fn num_symbols(&self) -> usize {
+        pub fn num_symbols(&self) -> usize {
             self.symbols.len()
         }
 
-        pub(crate) fn into_input_object(
+        pub fn into_input_object(
             self,
             file_id: FileId,
             symbol_id_range: SymbolIdRange,
@@ -134,34 +134,32 @@ mod lto {
     }
 
     impl<'data> LtoInput<'data> {
-        pub(crate) fn symbol_name(&self, symbol_id: SymbolId) -> UnversionedSymbolName<'data> {
+        pub fn symbol_name(&self, symbol_id: SymbolId) -> UnversionedSymbolName<'data> {
             let local_index = self.symbol_id_range.id_to_offset(symbol_id);
             self.symbols[local_index].name
         }
 
-        pub(crate) fn symbol_visibility(&self, symbol_id: SymbolId) -> Visibility {
+        pub fn symbol_visibility(&self, symbol_id: SymbolId) -> Visibility {
             let local_index = self.symbol_id_range.id_to_offset(symbol_id);
             self.symbols[local_index].visibility
         }
 
-        pub(crate) fn symbols_iter(
-            &self,
-        ) -> impl Iterator<Item = (SymbolId, &PluginSymbol<'data>)> {
+        pub fn symbols_iter(&self) -> impl Iterator<Item = (SymbolId, &PluginSymbol<'data>)> {
             self.symbol_id_range.into_iter().zip(self.symbols.iter())
         }
 
-        pub(crate) fn symbol_properties_display(
+        pub fn symbol_properties_display(
             &'_ self,
             symbol_id: SymbolId,
         ) -> SymbolPropertiesDisplay<'_> {
             SymbolPropertiesDisplay(&self.symbols[self.symbol_id_range.id_to_offset(symbol_id)])
         }
 
-        pub(crate) fn is_optional(&self) -> bool {
+        pub fn is_optional(&self) -> bool {
             self.input_ref.has_archive_semantics() && !self.input_ref.file.modifiers.whole_archive
         }
 
-        pub(crate) fn symbol_strength(&self, symbol_id: SymbolId) -> SymbolStrength {
+        pub fn symbol_strength(&self, symbol_id: SymbolId) -> SymbolStrength {
             if !self.enabled {
                 return SymbolStrength::Undefined;
             }
@@ -195,10 +193,10 @@ mod lto {
     }
 }
 
-pub(crate) use lto::*;
+pub use lto::*;
 
 #[derive(Debug)]
-pub(crate) enum Group<'data, P: Platform> {
+pub enum Group<'data, P: Platform> {
     Prelude(Prelude<'data, P>),
     Objects(&'data [SequencedInputObject<'data, P>]),
     StubLibraries(Vec<SequencedStubLibrary<'data>>),
@@ -209,33 +207,33 @@ pub(crate) enum Group<'data, P: Platform> {
 }
 
 #[derive(Debug)]
-pub(crate) struct SequencedInputObject<'data, P: Platform> {
-    pub(crate) parsed: Box<ParsedInputObject<'data, P>>,
-    pub(crate) symbol_id_range: SymbolIdRange,
-    pub(crate) section_id_range: SectionIdRange,
-    pub(crate) file_id: FileId,
+pub struct SequencedInputObject<'data, P: Platform> {
+    pub parsed: Box<ParsedInputObject<'data, P>>,
+    pub symbol_id_range: SymbolIdRange,
+    pub section_id_range: SectionIdRange,
+    pub file_id: FileId,
     /// Command-line position used for section concatenation. Plugin codegen shares the
     /// position of the first LTO input (#1935). Independent of FileId / SymbolId order.
-    pub(crate) link_order: u32,
+    pub link_order: u32,
 }
 
 #[derive(Debug)]
-pub(crate) struct SequencedLinkerScript<'data, P: Platform> {
-    pub(crate) parsed: ProcessedLinkerScript<'data, P>,
-    pub(crate) symbol_id_range: SymbolIdRange,
-    pub(crate) file_id: FileId,
+pub struct SequencedLinkerScript<'data, P: Platform> {
+    pub parsed: ProcessedLinkerScript<'data, P>,
+    pub symbol_id_range: SymbolIdRange,
+    pub file_id: FileId,
 }
 
 #[derive(Debug)]
-pub(crate) struct SequencedStubLibrary<'data> {
-    pub(crate) input: InputRef<'data>,
-    pub(crate) defined_symbols: DefinedStubLibrary<'data>,
-    pub(crate) symbol_id_range: SymbolIdRange,
-    pub(crate) file_id: FileId,
+pub struct SequencedStubLibrary<'data> {
+    pub input: InputRef<'data>,
+    pub defined_symbols: DefinedStubLibrary<'data>,
+    pub symbol_id_range: SymbolIdRange,
+    pub file_id: FileId,
 }
 
 #[derive(Debug)]
-pub(crate) enum SequencedInput<'db, 'data, P: Platform> {
+pub enum SequencedInput<'db, 'data, P: Platform> {
     Prelude(&'db Prelude<'data, P>),
     Object(&'data SequencedInputObject<'data, P>),
     StubLibrary(&'db SequencedStubLibrary<'data>),
@@ -247,7 +245,7 @@ pub(crate) enum SequencedInput<'db, 'data, P: Platform> {
 
 impl<'data, P: Platform> Group<'data, P> {
     // This is used when the verbose-ttttiming feature is enabled.
-    pub(crate) fn group_id(&self) -> usize {
+    pub fn group_id(&self) -> usize {
         match self {
             Group::Prelude(_) => 0,
             Group::Objects(objects) => objects.first().map(|o| o.file_id.group()).unwrap_or(0),
@@ -259,11 +257,11 @@ impl<'data, P: Platform> Group<'data, P> {
         }
     }
 
-    pub(crate) fn start_symbol_id(&self) -> SymbolId {
+    pub fn start_symbol_id(&self) -> SymbolId {
         self.symbol_id_range().start()
     }
 
-    pub(crate) fn symbol_id_range(&self) -> SymbolIdRange {
+    pub fn symbol_id_range(&self) -> SymbolIdRange {
         match self {
             Group::Prelude(o) => SymbolIdRange::prelude(o.symbol_definitions.len()),
             Group::Objects(objects) => {
@@ -299,7 +297,7 @@ impl<'data, P: Platform> Group<'data, P> {
         }
     }
 
-    pub(crate) fn num_symbols(&self) -> usize {
+    pub fn num_symbols(&self) -> usize {
         self.symbol_id_range().len()
     }
 
@@ -332,11 +330,7 @@ impl<'data, P: Platform> Group<'data, P> {
 }
 
 #[allow(dead_code)]
-pub(crate) fn remap_groups_file_ids<P: Platform>(
-    groups: &mut [Group<P>],
-    from_group: usize,
-    delta: u32,
-) {
+pub fn remap_groups_file_ids<P: Platform>(groups: &mut [Group<P>], from_group: usize, delta: u32) {
     for group in groups {
         let old = group.group_id();
         if old >= from_group {
@@ -410,7 +404,7 @@ fn emit_object_groups<'data, P: Platform>(
     }
 }
 
-pub(crate) fn create_groups<'data, P: Platform>(
+pub fn create_groups<'data, P: Platform>(
     symbol_db: &mut SymbolDb<'data, P>,
     parsed_objects: Vec<Box<ParsedInputObject<'data, P>>>,
     stub_libraries: Vec<LoadedStubLibrary<'data>>,
@@ -535,7 +529,7 @@ pub(crate) fn create_groups<'data, P: Platform>(
 
 /// Insert an empty object group used as a slot for later plugin codegen (#1935).
 #[allow(dead_code)]
-pub(crate) fn add_plugin_codegen_placeholder<P: Platform>(symbol_db: &mut SymbolDb<P>) -> usize {
+pub fn add_plugin_codegen_placeholder<P: Platform>(symbol_db: &mut SymbolDb<P>) -> usize {
     let index = symbol_db.groups.len();
     symbol_db.add_group(Group::Objects(&[]));
     index
@@ -544,7 +538,7 @@ pub(crate) fn add_plugin_codegen_placeholder<P: Platform>(symbol_db: &mut Symbol
 /// Fill the plugin-codegen placeholder with objects produced by the linker plugin.
 /// All codegen objects go in a single group so later groups keep their FileIds.
 #[allow(dead_code)]
-pub(crate) fn fill_plugin_codegen_group<'data, P: Platform>(
+pub fn fill_plugin_codegen_group<'data, P: Platform>(
     symbol_db: &mut SymbolDb<'data, P>,
     group_index: usize,
     parsed_objects: Vec<Box<ParsedInputObject<'data, P>>>,
@@ -630,7 +624,7 @@ fn count_symbols<P: Platform>(objects: &[Box<ParsedInputObject<P>>]) -> usize {
 }
 
 impl<'data, P: Platform> SequencedInputObject<'data, P> {
-    pub(crate) fn symbol_name(
+    pub fn symbol_name(
         &self,
         symbol_id: crate::symbol_db::SymbolId,
     ) -> Result<UnversionedSymbolName<'data>> {
@@ -643,10 +637,7 @@ impl<'data, P: Platform> SequencedInputObject<'data, P> {
 
     /// Get the version of a symbol. Only intended for diagnostic purposes since it's potentially
     /// quite slow.
-    pub(crate) fn symbol_version_debug(
-        &self,
-        symbol_id: crate::symbol_db::SymbolId,
-    ) -> Option<String> {
+    pub fn symbol_version_debug(&self, symbol_id: crate::symbol_db::SymbolId) -> Option<String> {
         self.parsed
             .object
             .symbol_version_debug(symbol_id.to_input(self.symbol_id_range))
@@ -655,16 +646,16 @@ impl<'data, P: Platform> SequencedInputObject<'data, P> {
     /// Returns whether this input should be skipped if there are no non-weak references to symbols
     /// it defines. This is true for archive entries for which --whole-archive is false and shared
     /// objects for which --as-needed is true.
-    pub(crate) fn is_optional(&self) -> bool {
+    pub fn is_optional(&self) -> bool {
         (self.parsed.input.has_archive_semantics() && !self.parsed.modifiers.whole_archive)
             || (self.is_dynamic() && self.parsed.modifiers.as_needed)
     }
 
-    pub(crate) fn is_dynamic(&self) -> bool {
+    pub fn is_dynamic(&self) -> bool {
         self.parsed.object.is_dynamic()
     }
 
-    pub(crate) fn symbol_strength(&self, symbol_id: crate::symbol_db::SymbolId) -> SymbolStrength {
+    pub fn symbol_strength(&self, symbol_id: crate::symbol_db::SymbolId) -> SymbolStrength {
         let local_index = symbol_id.to_input(self.symbol_id_range);
         let Ok(obj_symbol) = self.parsed.object.symbol(local_index) else {
             return SymbolStrength::Undefined;
@@ -687,14 +678,14 @@ impl<'data, P: Platform> SequencedInputObject<'data, P> {
 }
 
 impl<'data, P: Platform> SequencedLinkerScript<'data, P> {
-    pub(crate) fn symbol_name(&self, symbol_id: SymbolId) -> UnversionedSymbolName<'data> {
+    pub fn symbol_name(&self, symbol_id: SymbolId) -> UnversionedSymbolName<'data> {
         let local_index = self.symbol_id_range.id_to_offset(symbol_id);
         UnversionedSymbolName::new(self.parsed.symbol_defs[local_index].name)
     }
 }
 
 impl<'data> SequencedStubLibrary<'data> {
-    pub(crate) fn symbol_name(&self, symbol_id: SymbolId) -> UnversionedSymbolName<'data> {
+    pub fn symbol_name(&self, symbol_id: SymbolId) -> UnversionedSymbolName<'data> {
         let local_index = self.symbol_id_range.id_to_offset(symbol_id);
         UnversionedSymbolName::new(
             self.defined_symbols
@@ -708,7 +699,7 @@ impl<'data> SequencedStubLibrary<'data> {
         )
     }
 
-    pub(crate) fn symbol_strength(&self, symbol_id: SymbolId) -> SymbolStrength {
+    pub fn symbol_strength(&self, symbol_id: SymbolId) -> SymbolStrength {
         let local_index = self.symbol_id_range.id_to_offset(symbol_id);
         if local_index < self.defined_symbols.symbols.len() {
             SymbolStrength::Strong
@@ -719,7 +710,7 @@ impl<'data> SequencedStubLibrary<'data> {
 }
 
 impl<'db, 'data, P: Platform> SequencedInput<'db, 'data, P> {
-    pub(crate) fn symbol_id_range(&self) -> SymbolIdRange {
+    pub fn symbol_id_range(&self) -> SymbolIdRange {
         match self {
             SequencedInput::Prelude(o) => SymbolIdRange::prelude(o.symbol_definitions.len()),
             SequencedInput::Object(o) => o.symbol_id_range,
@@ -731,7 +722,7 @@ impl<'db, 'data, P: Platform> SequencedInput<'db, 'data, P> {
         }
     }
 
-    pub(crate) fn is_dynamic(&self) -> bool {
+    pub fn is_dynamic(&self) -> bool {
         match self {
             SequencedInput::Object(o) if o.is_dynamic() => true,
             SequencedInput::StubLibrary(_) => true,
@@ -739,7 +730,7 @@ impl<'db, 'data, P: Platform> SequencedInput<'db, 'data, P> {
         }
     }
 
-    pub(crate) fn symbol_strength(&self, symbol_id: SymbolId) -> SymbolStrength {
+    pub fn symbol_strength(&self, symbol_id: SymbolId) -> SymbolStrength {
         match self {
             SequencedInput::Object(o) => o.symbol_strength(symbol_id),
             SequencedInput::StubLibrary(o) => o.symbol_strength(symbol_id),
@@ -748,10 +739,7 @@ impl<'db, 'data, P: Platform> SequencedInput<'db, 'data, P> {
     }
 
     /// Returns the ID of the input section in which the specified symbol is defined.
-    pub(crate) fn input_section_id_for_symbol(
-        &self,
-        symbol_id: SymbolId,
-    ) -> Option<InputSectionId> {
+    pub fn input_section_id_for_symbol(&self, symbol_id: SymbolId) -> Option<InputSectionId> {
         match self {
             SequencedInput::Object(sequenced_input_object) => {
                 sequenced_input_object.input_section_id_for_symbol(symbol_id)

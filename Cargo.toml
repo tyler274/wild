@@ -12,6 +12,7 @@ members = [
   "crates/wild-scripts",
   "crates/wild-platform",
   "crates/wild-args",
+  "crates/wild-layout",
   "crates/benchmarks/runner",
 ]
 resolver = "2"

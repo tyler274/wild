@@ -1,14 +1,14 @@
 use super::*;
+use crate as layout;
+use crate::EnginePlatform;
+use crate::FileLayoutState;
+use crate::GroupState;
+use crate::InputSectionPositions;
+use crate::MemoryRegion;
+use crate::OutputRecordLayout;
 use crate::bail;
 use crate::error::Result;
 use crate::grouping::Group;
-use crate::layout;
-use crate::layout::EnginePlatform;
-use crate::layout::FileLayoutState;
-use crate::layout::GroupState;
-use crate::layout::InputSectionPositions;
-use crate::layout::MemoryRegion;
-use crate::layout::OutputRecordLayout;
 use crate::layout_rules::SectionKind;
 use crate::linker_script::Expression;
 use crate::output_section_id::OutputSectionId;
@@ -27,7 +27,7 @@ use std::cell::OnceCell;
 /// End VMA of `section_id`, including secondary contributions that have not yet been
 /// merged into the primary. Needed for `_etext = .` / `text_size = _etext - _stext` while
 /// later sections (`.orc_lookup`) are still being laid out.
-pub(crate) fn section_mem_end<'data, P: EnginePlatform>(
+pub fn section_mem_end<'data, P: EnginePlatform>(
     section_id: OutputSectionId,
     section_layouts: &OutputSectionMap<OutputRecordLayout>,
     output_sections: &OutputSections<'data, P>,
@@ -44,7 +44,7 @@ pub(crate) fn section_mem_end<'data, P: EnginePlatform>(
     end
 }
 
-pub(crate) fn evaluate_early_expression<'data, P: EnginePlatform>(
+pub fn evaluate_early_expression<'data, P: EnginePlatform>(
     expr: &Expression<'data>,
     loc: &SymbolLoc,
     memory_regions: &HashMap<&[u8], MemoryRegion>,

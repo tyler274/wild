@@ -1,11 +1,10 @@
 use super::sections::*;
 use super::sizes::*;
 use super::types::*;
+use crate::EnginePlatform;
 use crate::bail;
 use crate::error::Result;
 use crate::expression_eval::ResolvedLocationCounter;
-use crate::layout::EnginePlatform;
-use crate::layout::timing_phase;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSections;
 use crate::output_section_map::OutputSectionMap;
@@ -21,6 +20,7 @@ use crate::resolution::SectionSlot;
 use crate::symbol_db::SymbolDb;
 use crate::symbol_db::SymbolId;
 use crate::symbol_db::SymbolIdRange;
+use crate::timing_phase;
 use crate::value_flags::PerSymbolFlags;
 use crate::value_flags::ValueFlags;
 use hashbrown::HashMap;
@@ -35,7 +35,7 @@ use smallvec::SmallVec;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering::Relaxed;
 
-pub(crate) fn default_create_resolutions<'data, P: EnginePlatform>(
+pub fn default_create_resolutions<'data, P: EnginePlatform>(
     memory_offsets: &mut OutputSectionPartMap<u64>,
     resolutions_out: &mut ResolutionWriter<'_, '_, P>,
     resources: &FinaliseLayoutResources<'_, 'data, P>,
@@ -62,7 +62,7 @@ pub(crate) fn default_create_resolutions<'data, P: EnginePlatform>(
     Ok(())
 }
 
-pub(crate) fn compute_object_section_positions<'data, P: EnginePlatform>(
+pub fn compute_object_section_positions<'data, P: EnginePlatform>(
     obj: &ObjectLayoutState<'data, P>,
     offsets: &mut OutputSectionPartMap<u64>,
     symbol_db: &SymbolDb<'data, P>,
@@ -100,7 +100,7 @@ pub(crate) fn compute_object_section_positions<'data, P: EnginePlatform>(
     positions
 }
 
-pub(crate) fn compute_input_section_positions<'data, P: EnginePlatform>(
+pub fn compute_input_section_positions<'data, P: EnginePlatform>(
     group_states: &[GroupState<'data, P>],
     mem_offsets: OutputSectionPartMap<u64>,
     symbol_db: &SymbolDb<'data, P>,
@@ -133,7 +133,7 @@ pub(crate) fn compute_input_section_positions<'data, P: EnginePlatform>(
 
 /// Compute the output address of every loaded input section and every symbol in a single parallel
 /// pass over groups.
-pub(crate) fn compute_section_and_symbol_addresses<'data, P: EnginePlatform>(
+pub fn compute_section_and_symbol_addresses<'data, P: EnginePlatform>(
     group_states: &[GroupState<'data, P>],
     section_part_layouts: &OutputSectionPartMap<OutputRecordLayout>,
     symbol_db: &SymbolDb<'data, P>,
@@ -221,7 +221,7 @@ pub(crate) fn compute_section_and_symbol_addresses<'data, P: EnginePlatform>(
     (section_positions, SymbolOutputInfos { addresses })
 }
 
-pub(crate) fn resolve_early_object_symbol<'data, P: EnginePlatform>(
+pub fn resolve_early_object_symbol<'data, P: EnginePlatform>(
     canonical_id: SymbolId,
     obj: &ObjectLayoutState<'data, P>,
     section_positions: &InputSectionPositions,
@@ -277,7 +277,7 @@ pub(crate) fn resolve_early_object_symbol<'data, P: EnginePlatform>(
 /// Run one pass of the relaxation scan across all groups/objects.  Returns the total number of
 /// bytes newly deleted in this pass together with the set of sections that should be rescanned on
 /// the next iteration.
-pub(crate) fn relaxation_scan_pass<'data, A: Arch>(
+pub fn relaxation_scan_pass<'data, A: Arch>(
     group_states: &mut [GroupState<'data, A::Platform>],
     section_part_layouts: &OutputSectionPartMap<OutputRecordLayout>,
     symbol_db: &SymbolDb<'data, A::Platform>,
@@ -439,7 +439,7 @@ where
     (total_deleted, next_rescan_candidates)
 }
 
-pub(crate) fn perform_iterative_relaxation<'data, A: Arch>(
+pub fn perform_iterative_relaxation<'data, A: Arch>(
     group_states: &mut [GroupState<'data, A::Platform>],
     section_part_sizes: &mut OutputSectionPartMap<u64>,
     section_part_layouts: &mut OutputSectionPartMap<OutputRecordLayout>,

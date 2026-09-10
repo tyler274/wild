@@ -9,12 +9,8 @@ use crate::alignment;
 use crate::alignment::Alignment;
 use crate::args::macho::MachOArgs;
 use crate::input_data::FileId;
-use crate::layout_rules::SectionKind;
-use crate::output_section_id::SectionIdentity;
-use crate::output_section_id::SectionName;
 use crate::platform;
 use crate::platform::Args;
-use crate::symbol_db::SymbolId;
 use object::Endianness;
 use object::macho;
 use object::macho::S_ATTR_EXT_RELOC;
@@ -29,6 +25,10 @@ use object::macho::SECTION_ATTRIBUTES;
 use object::macho::Section64;
 pub use object::macho::SectionFlags;
 use std::num::NonZeroU64;
+use wild_layout::layout_rules::SectionKind;
+use wild_layout::output_section_id::SectionIdentity;
+use wild_layout::output_section_id::SectionName;
+use wild_layout::symbol_db::SymbolId;
 
 pub(super) const LE: Endianness = Endianness::Little;
 
@@ -198,8 +198,8 @@ impl platform::SectionAttributes for SectionAttributes {
 
     fn apply(
         &self,
-        output_sections: &mut crate::output_section_id::OutputSections<Self::Platform>,
-        section_id: crate::output_section_id::OutputSectionId,
+        output_sections: &mut wild_layout::output_section_id::OutputSections<Self::Platform>,
+        section_id: wild_layout::output_section_id::OutputSectionId,
     ) {
         let info = output_sections.section_infos.get_mut(section_id);
         // TODO: For now, we copy what ELF does to break ties in types. This acts as a workaround

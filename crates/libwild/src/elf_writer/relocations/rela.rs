@@ -5,9 +5,6 @@ use crate::elf::ElfClass;
 use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::layout::ObjectLayout;
-use crate::output_section_id::SectionName;
-use crate::output_section_part_map::OutputSectionPartMap;
 use crate::output_trace::TraceOutput;
 use crate::platform::Arch;
 use crate::platform::Args as _;
@@ -15,7 +12,6 @@ use crate::platform::ObjectFile;
 use crate::platform::Relocation;
 use crate::platform::RelocationList;
 use crate::platform::SectionHeader as _;
-use crate::resolution::SectionSlot;
 use crate::writable_elf::WritableRela as _;
 use hashbrown::HashMap;
 use linker_utils::elf::secnames::DEBUG_LOC_SECTION_NAME;
@@ -28,6 +24,10 @@ use object::SymbolIndex;
 use object::read::elf::SectionHeader as _;
 use object::read::elf::Sym as _;
 use std::sync::atomic::Ordering::Relaxed;
+use wild_layout::ObjectLayout;
+use wild_layout::output_section_id::SectionName;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::resolution::SectionSlot;
 
 /// A cache for managing ELF relocations and optimization of relocation entries.
 #[derive(Debug)]
@@ -54,7 +54,7 @@ pub(crate) fn write_rela_sections<'data, C: ElfClass>(
         }
 
         let part_id = object.section_part_id(sec_idx, &layout.symbol_db.section_part_ids);
-        if part_id == crate::part_id::UNMAPPED {
+        if part_id == wild_layout::part_id::UNMAPPED {
             continue;
         }
         if !matches!(

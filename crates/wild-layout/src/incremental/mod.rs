@@ -9,18 +9,18 @@
 
 mod atoms;
 
+use crate::EnginePlatform;
 use crate::error::Result;
 use crate::hash::hash_bytes;
-use crate::layout::EnginePlatform;
 use crate::platform::Args as _;
 use crate::platform::FileId;
-pub(crate) use atoms::AtomId;
-pub(crate) use atoms::AtomResolutions;
-pub(crate) use atoms::AtomTable;
-pub(crate) use atoms::ReverseRelocIndex;
-pub(crate) use atoms::ReverseRelocNode;
-pub(crate) use atoms::read_reverse_relocs;
-pub(crate) use atoms::write_reverse_relocs;
+pub use atoms::AtomId;
+pub use atoms::AtomResolutions;
+pub use atoms::AtomTable;
+pub use atoms::ReverseRelocIndex;
+pub use atoms::ReverseRelocNode;
+pub use atoms::read_reverse_relocs;
+pub use atoms::write_reverse_relocs;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 use std::fs;
@@ -30,7 +30,7 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum IncrementalMode {
+pub enum IncrementalMode {
     #[allow(dead_code)]
     Off,
     Initial,
@@ -38,46 +38,46 @@ pub(crate) enum IncrementalMode {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct PersistedSection {
-    pub(crate) name: String,
-    pub(crate) file_offset: usize,
-    pub(crate) file_size: usize,
-    pub(crate) mem_size: u64,
+pub struct PersistedSection {
+    pub name: String,
+    pub file_offset: usize,
+    pub file_size: usize,
+    pub mem_size: u64,
 }
 
 /// One symbol-bearing input (object, prelude, …) for atom binding and skip planning.
 #[derive(Debug, Clone)]
-pub(crate) struct IncrementalFileRecord {
-    pub(crate) file_id: FileId,
-    pub(crate) key: String,
-    pub(crate) source_path: PathBuf,
-    pub(crate) sizes: Vec<u64>,
-    pub(crate) num_symbols: usize,
-    pub(crate) skippable: bool,
+pub struct IncrementalFileRecord {
+    pub file_id: FileId,
+    pub key: String,
+    pub source_path: PathBuf,
+    pub sizes: Vec<u64>,
+    pub num_symbols: usize,
+    pub skippable: bool,
 }
 
 /// Previous resolutions and reverse-reloc index, used to patch skipped objects.
 #[derive(Debug)]
-pub(crate) struct IncrementalPatchJob {
-    pub(crate) old_resolutions: AtomResolutions,
-    pub(crate) reverse_relocs: ReverseRelocIndex,
+pub struct IncrementalPatchJob {
+    pub old_resolutions: AtomResolutions,
+    pub reverse_relocs: ReverseRelocIndex,
 }
 
 #[derive(Debug)]
-pub(crate) struct IncrementalSession {
-    pub(crate) mode: IncrementalMode,
-    pub(crate) state_dir: PathBuf,
-    pub(crate) fallback_reason: Option<String>,
+pub struct IncrementalSession {
+    pub mode: IncrementalMode,
+    pub state_dir: PathBuf,
+    pub fallback_reason: Option<String>,
     skip_payloads: HashSet<FileId>,
-    pub(crate) atoms: AtomTable,
+    pub atoms: AtomTable,
     /// FileIds whose atom was reused from the previous run (same key and symbol count).
     reused_files: HashSet<FileId>,
-    pub(crate) previous_resolutions: Option<AtomResolutions>,
-    pub(crate) previous_reverse_relocs: Option<ReverseRelocIndex>,
+    pub previous_resolutions: Option<AtomResolutions>,
+    pub previous_reverse_relocs: Option<ReverseRelocIndex>,
 }
 
 impl IncrementalSession {
-    pub(crate) fn from_args(args: &impl crate::platform::Args) -> Option<Self> {
+    pub fn from_args(args: &impl crate::platform::Args) -> Option<Self> {
         if !args.incremental() {
             return None;
         }
@@ -113,21 +113,18 @@ impl IncrementalSession {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn should_pad_sections(&self) -> bool {
+    pub fn should_pad_sections(&self) -> bool {
         self.fallback_reason.is_none() && self.mode != IncrementalMode::Off
     }
 
-    pub(crate) fn record_fallback(&mut self, reason: impl Into<String>) {
+    pub fn record_fallback(&mut self, reason: impl Into<String>) {
         if self.fallback_reason.is_none() {
             self.fallback_reason = Some(reason.into());
         }
     }
 
     /// Assign generational atoms to this run's files. Reuses handles for unchanged keys.
-    pub(crate) fn bind_files(
-        &mut self,
-        records: &[IncrementalFileRecord],
-    ) -> HashMap<FileId, AtomId> {
+    pub fn bind_files(&mut self, records: &[IncrementalFileRecord]) -> HashMap<FileId, AtomId> {
         let mut map = HashMap::new();
         self.reused_files.clear();
         let live_keys: HashSet<&str> = records.iter().map(|r| r.key.as_str()).collect();
@@ -174,7 +171,7 @@ impl IncrementalSession {
 
     /// Decide which objects can keep their existing section payloads. Returns a fallback reason
     /// when the update cannot be applied in place.
-    pub(crate) fn plan_in_place_update(
+    pub fn plan_in_place_update(
         &mut self,
         sections: &[PersistedSection],
         records: &[IncrementalFileRecord],
@@ -208,7 +205,7 @@ impl IncrementalSession {
         }
     }
 
-    pub(crate) fn finish(
+    pub fn finish(
         &self,
         loaded_paths: &[impl AsRef<Path>],
         plugin_active: bool,
@@ -308,7 +305,7 @@ impl IncrementalSession {
     }
 }
 
-pub(crate) fn incremental_state_dir(output: &Path) -> PathBuf {
+pub fn incremental_state_dir(output: &Path) -> PathBuf {
     let mut dir = output.as_os_str().to_os_string();
     dir.push(".incr");
     PathBuf::from(dir)
@@ -498,7 +495,7 @@ fn file_inode(meta: &fs::Metadata) -> u64 {
     }
 }
 
-pub(crate) fn fallback_for_plugin_or_gc<P: EnginePlatform>(
+pub fn fallback_for_plugin_or_gc<P: EnginePlatform>(
     args: &P::Args,
     plugin_active: bool,
 ) -> Option<&'static str> {

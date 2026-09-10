@@ -10,10 +10,7 @@ use crate::ensure;
 use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::layout::HeaderInfo;
 use crate::malfunction;
-use crate::output_section_id::OutputSections;
-use crate::output_section_id::SectionName;
 use crate::output_section_map::OutputSectionMap;
 use crate::platform::Arch;
 use crate::platform::Args as _;
@@ -24,6 +21,9 @@ use linker_utils::elf::pf;
 use linker_utils::elf::shf;
 use linker_utils::elf::sht;
 use linker_utils::utils::slice_from_all_bytes_mut;
+use wild_layout::HeaderInfo;
+use wild_layout::output_section_id::OutputSections;
+use wild_layout::output_section_id::SectionName;
 
 pub(crate) fn write_program_headers<C: ElfClass>(
     program_headers_out: &mut ProgramHeaderWriter<'_, C>,
@@ -171,7 +171,7 @@ pub(crate) fn write_section_headers<C: ElfClass>(out: &mut [u8], layout: &ElfLay
     let shstrtab = elf::shstrtab_from_sections(output_sections);
     let info_values = compute_info_values(layout);
 
-    for section_id in crate::output_section_id::section_header_order(
+    for section_id in wild_layout::output_section_id::section_header_order(
         &layout.output_order,
         &layout.output_sections,
     ) {

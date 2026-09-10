@@ -3,20 +3,20 @@ use crate::elf;
 use crate::elf::ElfClass;
 use crate::ensure;
 use crate::error::Result;
-use crate::layout::ObjectLayout;
-use crate::layout::Section;
-use crate::output_section_part_map::OutputSectionPartMap;
 use crate::output_trace::TraceOutput;
-use crate::part_id::PartId;
 use crate::platform::Arch;
 use crate::platform::ObjectFile;
-use crate::resolution::SectionSlot;
 use crate::value_flags::ValueFlags;
 use crate::verbose_timing_phase;
 use object::LittleEndian;
 use object::read::elf::Crel;
 use std::collections::BTreeMap;
 use tracing::debug_span;
+use wild_layout::ObjectLayout;
+use wild_layout::Section;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::part_id::PartId;
+use wild_layout::resolution::SectionSlot;
 use zerocopy::FromBytes;
 
 pub(crate) fn write_object<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
@@ -124,7 +124,7 @@ pub(crate) fn write_object<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
 /// Thunks are sorted by SymbolId for determinism and written consecutively into the primary
 /// function part buffer. Space must already have been reserved during `finalise_sizes`.
 pub(crate) fn write_thunks<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
-    thunk_addresses: &BTreeMap<crate::symbol_db::SymbolId, u64>,
+    thunk_addresses: &BTreeMap<wild_layout::symbol_db::SymbolId, u64>,
     buffers: &mut OutputSectionPartMap<&mut [u8]>,
     layout: &ElfLayout<'data, C>,
     symbol_writer: &mut SymbolTableWriter<'_, '_, C>,
@@ -156,7 +156,7 @@ pub(crate) fn write_thunks<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
                 )
             })?;
 
-        let target_address = res.plt_address().unwrap_or(res.raw_value);
+        let target_address = elf::plt_address(res).unwrap_or(res.raw_value);
 
         let buf = buffers.get_mut(primary_part_id);
         let thunk_buf = buf

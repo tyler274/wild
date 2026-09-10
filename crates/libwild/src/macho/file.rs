@@ -10,7 +10,6 @@ use crate::ensure;
 use crate::error;
 use crate::error::Result;
 use crate::file_writer::copy_section_data;
-use crate::layout;
 use crate::platform;
 use object::macho;
 use object::macho::N_SECT;
@@ -20,6 +19,7 @@ use object::read::macho::Section;
 use object::read::macho::Segment;
 use std::borrow::Cow;
 use std::slice::Iter;
+use wild_layout as layout;
 
 #[derive(derive_more::Debug)]
 pub(crate) struct File<'data> {
@@ -184,7 +184,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
         &self,
         _lib_name: &[u8],
         _state: &mut DynamicLayoutStateExt,
-        _mem_sizes: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
+        _mem_sizes: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
     ) -> Result {
         Ok(())
     }
@@ -214,7 +214,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
         &self,
         _section: &SectionHeader,
         _member: &crate::arena::Member<'data>,
-        _loaded_metrics: &crate::resolution::LoadedMetrics,
+        _loaded_metrics: &wild_layout::resolution::LoadedMetrics,
     ) -> Result<&'data [u8]> {
         todo!()
     }
@@ -289,7 +289,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
 
     fn should_enforce_undefined(
         &self,
-        _resources: &crate::layout::GraphResources<'data, '_, Self::Platform>,
+        _resources: &wild_layout::GraphResources<'data, '_, Self::Platform>,
     ) -> bool {
         todo!()
     }

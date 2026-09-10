@@ -7,14 +7,7 @@ use crate::elf::RawSymbolName;
 use crate::error;
 use crate::error::Error;
 use crate::error::Result;
-use crate::grouping::PluginSymbol;
-use crate::grouping::SymbolKind;
-use crate::layout::EnginePlatform;
 use crate::platform::Platform;
-use crate::resolution::ResolvedGroup;
-use crate::symbol::UnversionedSymbolName;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolIdRange;
 use crate::value_flags::FlagsForSymbol;
 use crate::value_flags::PerSymbolFlags;
 use crate::value_flags::ValueFlags;
@@ -25,6 +18,13 @@ use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::panic::AssertUnwindSafe;
 use std::path::Path;
+use wild_layout::EnginePlatform;
+use wild_layout::grouping::PluginSymbol;
+use wild_layout::grouping::SymbolKind;
+use wild_layout::resolution::ResolvedGroup;
+use wild_layout::symbol::UnversionedSymbolName;
+use wild_layout::symbol_db::SymbolDb;
+use wild_layout::symbol_db::SymbolIdRange;
 
 /// Checks for any errors reported by the linker plugin during a callback. Should be called after
 /// each callback.
@@ -405,7 +405,7 @@ pub(crate) fn get_symbol_resolution<'data, C: ElfClass>(
             .map(|id| symbol_db.definition(id))
     } else {
         symbol_db
-            .get(&crate::symbol::symbol_name_from_raw(&raw_name), true)
+            .get(&wild_layout::symbol::symbol_name_from_raw(&raw_name), true)
             .map(|id| symbol_db.definition(id))
     };
 
@@ -424,8 +424,10 @@ pub(crate) fn get_symbol_resolution<'data, C: ElfClass>(
         let defining_file = symbol_db.file(symbol_db.file_id_for_symbol(symbol_id));
 
         match defining_file {
-            crate::grouping::SequencedInput::LtoInput(_) => PluginSymbolResolution::ResolvedIr,
-            crate::grouping::SequencedInput::Object(obj) => {
+            wild_layout::grouping::SequencedInput::LtoInput(_) => {
+                PluginSymbolResolution::ResolvedIr
+            }
+            wild_layout::grouping::SequencedInput::Object(obj) => {
                 if obj.is_dynamic() {
                     PluginSymbolResolution::ResolvedDyn
                 } else {
@@ -450,7 +452,9 @@ pub(crate) fn get_symbol_resolution<'data, C: ElfClass>(
     } else {
         let defining_file = symbol_db.file(symbol_db.file_id_for_symbol(symbol_id));
         match defining_file {
-            crate::grouping::SequencedInput::LtoInput(_) => PluginSymbolResolution::PreemptedIr,
+            wild_layout::grouping::SequencedInput::LtoInput(_) => {
+                PluginSymbolResolution::PreemptedIr
+            }
             _ => PluginSymbolResolution::PreemptedReg,
         }
     }

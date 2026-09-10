@@ -8,7 +8,6 @@ use crate::error::Context;
 use crate::error::Result;
 use crate::file_writer::SizedOutput;
 use crate::file_writer::split_output_into_sections;
-use crate::layout::FileLayout;
 use crate::macho::CHAINED_FIXUP_PAGE_START_SIZE;
 use crate::macho::CS_BLOB_HEADERS_SIZE;
 use crate::macho::CS_BLOCK_SIZE;
@@ -26,7 +25,6 @@ use crate::macho::code_signature_padded_identifier_size;
 use crate::macho::output_section_id;
 use crate::platform::ObjectFile;
 use crate::platform::Symbol;
-use crate::symbol_db::SymbolId;
 use crate::verbose_timing_phase;
 use itertools::Itertools;
 use object::Endianness;
@@ -50,6 +48,8 @@ use rayon::iter::ParallelIterator;
 use rayon::slice::ParallelSlice;
 use sha2::Digest;
 use sha2::Sha256;
+use wild_layout::FileLayout;
+use wild_layout::symbol_db::SymbolId;
 use zerocopy::FromZeros;
 
 pub(crate) fn build_exports_trie(layout: &MachOLayout<'_>) -> Result<Vec<u8>> {

@@ -9,29 +9,16 @@ use crate::elf::part_id;
 use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::layout::FileLayout;
-use crate::layout::InternalSymbols;
-use crate::layout::ObjectLayout;
-use crate::layout::PreludeLayout;
-use crate::layout::Resolution;
-use crate::layout::SymbolCopyInfo;
 use crate::linker_script::Expression;
 use crate::linker_script::RelocatableAnchor;
-use crate::output_section_id::OrderEvent;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::OutputSections;
 use crate::output_section_map::OutputSectionMap;
-use crate::output_section_part_map::OutputSectionPartMap;
-use crate::parsing::SymbolLoc;
 use crate::platform;
 use crate::platform::Args as _;
 use crate::platform::ObjectFile;
 use crate::platform::Platform;
 use crate::platform::RawSymbolName as _;
 use crate::platform::SectionAttributes as _;
-use crate::resolution::SectionSlot;
 use crate::sharding::ShardKey;
-use crate::symbol_db::SymbolId;
 use crate::timing_phase;
 use crate::value_flags::ValueFlags;
 use crate::writable_elf::WritableSymbol as _;
@@ -43,6 +30,19 @@ use object::SectionIndex;
 use object::SymbolIndex;
 use object::elf::STT_TLS;
 use object::read::elf::Sym as _;
+use wild_layout::FileLayout;
+use wild_layout::InternalSymbols;
+use wild_layout::ObjectLayout;
+use wild_layout::PreludeLayout;
+use wild_layout::Resolution;
+use wild_layout::SymbolCopyInfo;
+use wild_layout::output_section_id::OrderEvent;
+use wild_layout::output_section_id::OutputSectionId;
+use wild_layout::output_section_id::OutputSections;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::parsing::SymbolLoc;
+use wild_layout::resolution::SectionSlot;
+use wild_layout::symbol_db::SymbolId;
 
 #[derive(Clone, Copy)]
 pub(crate) enum SymbolSection {
@@ -683,7 +683,7 @@ pub(crate) fn write_got_plt_syms<C: ElfClass>(
     let mut write_sym =
         |suffix: &[u8],
          section_id: OutputSectionId,
-         get_value: fn(&Resolution<elf::Elf<C>>) -> Result<u64>|
+         get_value: fn(Resolution<elf::Elf<C>>) -> Result<u64>|
          -> Result {
             let mut symbol_name = layout.symbol_db.symbol_name(symbol_id)?.to_string();
             symbol_name.push_str(std::str::from_utf8(suffix).unwrap_or("unknown"));
@@ -695,7 +695,7 @@ pub(crate) fn write_got_plt_syms<C: ElfClass>(
                 "Tried to write dynamic symbol in {section_id} section that's not being output"
             ))?;
 
-            let value = get_value(resolution)?;
+            let value = get_value(*resolution)?;
 
             symbol_writer
                 .define_symbol(
@@ -716,9 +716,9 @@ pub(crate) fn write_got_plt_syms<C: ElfClass>(
             Ok(())
         };
 
-    write_sym(b"$got", output_section_id::GOT, Resolution::got_address)?;
+    write_sym(b"$got", output_section_id::GOT, elf::got_address)?;
     if current_res_flags.needs_plt() {
-        write_sym(b"$plt", output_section_id::PLT_GOT, Resolution::plt_address)?;
+        write_sym(b"$plt", output_section_id::PLT_GOT, elf::plt_address)?;
     }
 
     Ok(())
@@ -847,20 +847,17 @@ pub(crate) fn get_symbol_attributes<C: ElfClass>(
 
 pub(crate) fn get_defsym_attributes<C: ElfClass>(
     layout: &ElfLayout<C>,
-    def_info: &crate::parsing::InternalSymDefInfo<elf::Elf<C>>,
+    def_info: &wild_layout::parsing::InternalSymDefInfo<elf::Elf<C>>,
     addr: u64,
 ) -> Result<(SymbolSection, object::elf::SymbolType), error::Error> {
-    let crate::parsing::SymbolPlacement::Redirect(redirect) = &def_info.placement else {
+    let wild_layout::parsing::SymbolPlacement::Redirect(redirect) = &def_info.placement else {
         unreachable!()
     };
     match redirect.expression.relocatable_anchor() {
         Some(RelocatableAnchor::Symbol(target_name)) => {
-            let target_symbol_id =
-                layout
-                    .symbol_db
-                    .get_unversioned(&crate::symbol::UnversionedSymbolName::prehashed(
-                        target_name,
-                    ));
+            let target_symbol_id = layout.symbol_db.get_unversioned(
+                &wild_layout::symbol::UnversionedSymbolName::prehashed(target_name),
+            );
 
             if let Some(target_id) = target_symbol_id {
                 let canonical_id = layout.symbol_db.definition(target_id);
@@ -980,19 +977,19 @@ pub(crate) fn output_index_of_nearby_section<C: ElfClass>(
 /// symbol to that script section, not to the unused builtin `.text`.
 pub(crate) fn prelude_symbol_section_and_type<C: ElfClass>(
     layout: &ElfLayout<C>,
-    def_info: &crate::parsing::InternalSymDefInfo<elf::Elf<C>>,
+    def_info: &wild_layout::parsing::InternalSymDefInfo<elf::Elf<C>>,
     addr: u64,
 ) -> Result<(SymbolSection, object::elf::SymbolType)> {
     if matches!(
         def_info.placement,
-        crate::parsing::SymbolPlacement::Redirect(_)
+        wild_layout::parsing::SymbolPlacement::Redirect(_)
     ) {
         return get_defsym_attributes(layout, def_info, addr);
     }
-    if let Some(script_def) = crate::layout::script_assignment_def(def_info.name, &layout.symbol_db)
+    if let Some(script_def) = wild_layout::script_assignment_def(def_info.name, &layout.symbol_db)
         && matches!(
             script_def.placement,
-            crate::parsing::SymbolPlacement::Redirect(_)
+            wild_layout::parsing::SymbolPlacement::Redirect(_)
         )
     {
         return get_defsym_attributes(layout, script_def, addr);
@@ -1019,14 +1016,16 @@ pub(crate) fn write_internal_symbols<C: ElfClass>(
             continue;
         }
         if def_info.is_provide
-            && let crate::parsing::SymbolPlacement::Redirect(redirect) = &def_info.placement
+            && let wild_layout::parsing::SymbolPlacement::Redirect(redirect) = &def_info.placement
         {
             let mut missing_rhs = false;
             redirect.expression.visit_expressions(&mut |e| {
                 if let Expression::Symbol(name) = e
                     && layout
                         .symbol_db
-                        .get_unversioned(&crate::symbol::UnversionedSymbolName::prehashed(name))
+                        .get_unversioned(&wild_layout::symbol::UnversionedSymbolName::prehashed(
+                            name,
+                        ))
                         .is_none()
                 {
                     missing_rhs = true;

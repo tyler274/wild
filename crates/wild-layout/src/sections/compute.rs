@@ -1,4 +1,5 @@
 use super::*;
+use crate::EnginePlatform;
 use crate::alignment::Alignment;
 use crate::bail;
 use crate::error;
@@ -6,10 +7,6 @@ use crate::error::Context;
 use crate::error::Result;
 use crate::expression_eval::ResolvedLocationCounter;
 use crate::expression_eval::evaluate_early_expression;
-use crate::layout::EnginePlatform;
-use crate::layout::script::*;
-use crate::layout::timing_phase;
-use crate::layout::types::*;
 use crate::linker_script::Expression;
 use crate::output_section_id::OrderEvent;
 use crate::output_section_id::OutputOrder;
@@ -23,12 +20,15 @@ use crate::platform::Args as _;
 use crate::platform::SectionAttributes as _;
 use crate::platform::SectionFlags as _;
 use crate::program_segments::ProgramSegments;
+use crate::script::*;
 use crate::symbol_db::SymbolDb;
+use crate::timing_phase;
+use crate::types::*;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 use std::cell::OnceCell;
 
-pub(crate) fn compute_layout_sections<'data, P: EnginePlatform>(
+pub fn compute_layout_sections<'data, P: EnginePlatform>(
     group_states: &[GroupState<'data, P>],
     sizes: &OutputSectionPartMap<u64>,
     output_sections: &OutputSections<'data, P>,
@@ -674,7 +674,7 @@ pub(crate) fn compute_layout_sections<'data, P: EnginePlatform>(
     Ok((records_out, section_layouts, resolved_lc))
 }
 
-pub(crate) fn pick_compatible_memory_region<'data>(
+pub fn pick_compatible_memory_region<'data>(
     memory_regions: &HashMap<&[u8], MemoryRegion>,
     memory_region_order: &[&'data [u8]],
     alloc: bool,
@@ -695,7 +695,7 @@ pub(crate) fn pick_compatible_memory_region<'data>(
     None
 }
 
-pub(crate) fn memory_flags_match(
+pub fn memory_flags_match(
     flags: Option<crate::linker_script::MemoryFlags>,
     writable: bool,
     executable: bool,
@@ -766,7 +766,7 @@ fn next_allocated_section_metrics<'data, P: EnginePlatform>(
 /// Checks if we've allocated space to any sections which aren't listed in our output ordering.
 /// Without this check, we'll fail in the write phase, but the failure message there is less
 /// helpful. No-op if debug assertions are off.
-pub(crate) fn validate_all_non_empty_sections_emitted<P: EnginePlatform>(
+pub fn validate_all_non_empty_sections_emitted<P: EnginePlatform>(
     sizes: &OutputSectionPartMap<u64>,
     output_sections: &OutputSections<P>,
     output_order: &OutputOrder,

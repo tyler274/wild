@@ -17,15 +17,6 @@ use crate::args::macho::MachOArgs;
 use crate::ensure;
 use crate::error;
 use crate::error::Result;
-use crate::layout;
-use crate::layout::HandlerData as _;
-use crate::layout::OutputRecordLayout;
-use crate::layout::Resolution;
-use crate::layout::SectionGcUnit;
-use crate::layout::StubLibraryLayoutState;
-use crate::layout::SymbolCopyInfo;
-use crate::layout::SymbolResolutions;
-use crate::layout_rules::SectionKind;
 use crate::macho::output_section_id::CHAINED_FIXUP_TABLE;
 use crate::macho::output_section_id::CODE_SIGNATURE;
 use crate::macho::output_section_id::EXPORTS_TRIE;
@@ -33,20 +24,10 @@ use crate::macho::output_section_id::LOAD_COMMANDS;
 use crate::macho::output_section_id::STRTAB;
 use crate::macho::output_section_id::SYMTAB_GLOBAL;
 use crate::macho_writer;
-use crate::output_section_id::FILE_HEADER;
-use crate::output_section_id::OutputOrderBuilder;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::SectionIdentity;
-use crate::output_section_id::SectionName;
-use crate::output_section_id::SectionOutputInfo;
-use crate::output_section_part_map::OutputSectionPartMap;
-use crate::part_id::PartId;
 use crate::platform;
 use crate::platform::ObjectFile;
 use crate::platform::SectionAttributes as _;
 use crate::program_segments::ProgramSegments;
-use crate::resolution;
-use crate::symbol_db::SymbolId;
 use crate::verbose_timing_phase;
 use anyhow::Context;
 use itertools::Itertools;
@@ -56,6 +37,25 @@ use object::macho::S_THREAD_LOCAL_VARIABLES;
 pub use object::macho::SectionFlags;
 use object::read::macho::Section;
 use std::slice::Iter;
+use wild_layout as layout;
+use wild_layout::HandlerData as _;
+use wild_layout::OutputRecordLayout;
+use wild_layout::Resolution;
+use wild_layout::SectionGcUnit;
+use wild_layout::StubLibraryLayoutState;
+use wild_layout::SymbolCopyInfo;
+use wild_layout::SymbolResolutions;
+use wild_layout::layout_rules::SectionKind;
+use wild_layout::output_section_id::FILE_HEADER;
+use wild_layout::output_section_id::OutputOrderBuilder;
+use wild_layout::output_section_id::OutputSectionId;
+use wild_layout::output_section_id::SectionIdentity;
+use wild_layout::output_section_id::SectionName;
+use wild_layout::output_section_id::SectionOutputInfo;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::part_id::PartId;
+use wild_layout::resolution;
+use wild_layout::symbol_db::SymbolId;
 
 impl platform::Platform for MachO {
     const NUM_SINGLE_PART_SECTIONS: u32 = SinglePartSectionId::Count as u32;
@@ -80,7 +80,7 @@ impl platform::Platform for MachO {
         &[output_section_id::CODE_SIGNATURE, output_section_id::STRTAB];
 
     const VERIFY_IGNORE_SECTION_IDS: &'static [OutputSectionId] = &[
-        crate::output_section_id::FILE_HEADER,
+        wild_layout::output_section_id::FILE_HEADER,
         output_section_id::LINK_EDIT_SEGMENT,
         output_section_id::LOAD_COMMANDS,
         output_section_id::CHAINED_FIXUP_TABLE,
@@ -131,63 +131,63 @@ impl platform::Platform for MachO {
     type VersionNames<'data> = ();
     type VerneedTable<'data> = VerneedTable<'data>;
     type ResolvedObjectExt<'data> = ();
-    type GcUnit = crate::layout::SectionGcUnit;
-    type Layout<'data> = crate::layout::Layout<'data, Self>;
-    type SymbolDb<'data> = crate::symbol_db::SymbolDb<'data, Self>;
-    type Resolver<'data> = crate::resolution::Resolver<'data, Self>;
+    type GcUnit = wild_layout::SectionGcUnit;
+    type Layout<'data> = wild_layout::Layout<'data, Self>;
+    type SymbolDb<'data> = wild_layout::symbol_db::SymbolDb<'data, Self>;
+    type Resolver<'data> = wild_layout::resolution::Resolver<'data, Self>;
     type ResolutionResources<'data, 'scope>
-        = crate::resolution::ResolutionResources<'data, 'scope, Self>
+        = wild_layout::resolution::ResolutionResources<'data, 'scope, Self>
     where
         'data: 'scope;
-    type ObjectLayoutState<'data> = crate::layout::ObjectLayoutState<'data, Self>;
-    type CommonGroupState<'data> = crate::layout::CommonGroupState<'data, Self>;
-    type GroupState<'data> = crate::layout::GroupState<'data, Self>;
-    type DynamicLayoutState<'data> = crate::layout::DynamicLayoutState<'data, Self>;
-    type PreludeLayoutState<'data> = crate::layout::PreludeLayoutState<'data, Self>;
-    type StubLibraryLayoutState<'data> = crate::layout::StubLibraryLayoutState<'data, Self>;
+    type ObjectLayoutState<'data> = wild_layout::ObjectLayoutState<'data, Self>;
+    type CommonGroupState<'data> = wild_layout::CommonGroupState<'data, Self>;
+    type GroupState<'data> = wild_layout::GroupState<'data, Self>;
+    type DynamicLayoutState<'data> = wild_layout::DynamicLayoutState<'data, Self>;
+    type PreludeLayoutState<'data> = wild_layout::PreludeLayoutState<'data, Self>;
+    type StubLibraryLayoutState<'data> = wild_layout::StubLibraryLayoutState<'data, Self>;
     type GraphResources<'data, 'scope>
-        = crate::layout::GraphResources<'data, 'scope, Self>
+        = wild_layout::GraphResources<'data, 'scope, Self>
     where
         'data: 'scope;
-    type LocalWorkQueue = crate::layout::LocalWorkQueue<Self>;
+    type LocalWorkQueue = wild_layout::LocalWorkQueue<Self>;
     type FinaliseLayoutResources<'scope, 'data>
-        = crate::layout::FinaliseLayoutResources<'scope, 'data, Self>
+        = wild_layout::FinaliseLayoutResources<'scope, 'data, Self>
     where
         'data: 'scope;
     type FinaliseSizesResources<'data, 'scope>
-        = crate::layout::FinaliseSizesResources<'data, 'scope, Self>
+        = wild_layout::FinaliseSizesResources<'data, 'scope, Self>
     where
         'data: 'scope;
     type ResolutionWriter<'writer, 'out>
-        = crate::layout::ResolutionWriter<'writer, 'out, Self>
+        = wild_layout::ResolutionWriter<'writer, 'out, Self>
     where
         'out: 'writer;
-    type DynamicSymbolDefinition<'data> = crate::layout::DynamicSymbolDefinition<'data, Self>;
-    type OutputRecordLayout = crate::layout::OutputRecordLayout;
-    type SymbolResolutions = crate::layout::SymbolResolutions<Self>;
-    type LayoutSection = crate::layout::Section;
-    type HeaderInfo = crate::layout::HeaderInfo;
-    type Resolution = crate::layout::Resolution<Self>;
-    type UnloadedSection = crate::resolution::UnloadedSection;
-    type LoadedMetrics = crate::resolution::LoadedMetrics;
-    type ResolvedObject<'data> = crate::resolution::ResolvedObject<'data, Self>;
-    type ResolvedDynamic<'data> = crate::resolution::ResolvedDynamic<'data, Self>;
-    type ResolvedStubLibrary<'data> = crate::resolution::ResolvedStubLibrary<'data>;
+    type DynamicSymbolDefinition<'data> = wild_layout::DynamicSymbolDefinition<'data, Self>;
+    type OutputRecordLayout = wild_layout::OutputRecordLayout;
+    type SymbolResolutions = wild_layout::SymbolResolutions<Self>;
+    type LayoutSection = wild_layout::Section;
+    type HeaderInfo = wild_layout::HeaderInfo;
+    type Resolution = wild_layout::Resolution<Self>;
+    type UnloadedSection = wild_layout::resolution::UnloadedSection;
+    type LoadedMetrics = wild_layout::resolution::LoadedMetrics;
+    type ResolvedObject<'data> = wild_layout::resolution::ResolvedObject<'data, Self>;
+    type ResolvedDynamic<'data> = wild_layout::resolution::ResolvedDynamic<'data, Self>;
+    type ResolvedStubLibrary<'data> = wild_layout::resolution::ResolvedStubLibrary<'data>;
     type LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>;
     type LoadedPlugin = crate::linker_plugins::LoadedPlugin;
-    type LtoInput<'data> = crate::grouping::LtoInput<'data>;
-    type Group<'data> = crate::grouping::Group<'data, Self>;
-    type SequencedLinkerScript<'data> = crate::grouping::SequencedLinkerScript<'data, Self>;
+    type LtoInput<'data> = wild_layout::grouping::LtoInput<'data>;
+    type Group<'data> = wild_layout::grouping::Group<'data, Self>;
+    type SequencedLinkerScript<'data> = wild_layout::grouping::SequencedLinkerScript<'data, Self>;
     type FileLoader<'data, F: crate::fs::FileSystem> = crate::input_data::FileLoader<'data, F>;
-    type LayoutRulesBuilder<'data> = crate::layout_rules::LayoutRulesBuilder<'data>;
-    type InternalSymbolsBuilder<'data> = crate::parsing::InternalSymbolsBuilder<'data, Self>;
-    type InternalSymDefInfo<'data> = crate::parsing::InternalSymDefInfo<'data, Self>;
-    type OutputSections<'data> = crate::output_section_id::OutputSections<'data, Self>;
-    type OutputOrder<'data> = crate::output_section_id::OutputOrder<'data>;
-    type CustomSectionIds = crate::output_section_id::CustomSectionIds;
+    type LayoutRulesBuilder<'data> = wild_layout::layout_rules::LayoutRulesBuilder<'data>;
+    type InternalSymbolsBuilder<'data> = wild_layout::parsing::InternalSymbolsBuilder<'data, Self>;
+    type InternalSymDefInfo<'data> = wild_layout::parsing::InternalSymDefInfo<'data, Self>;
+    type OutputSections<'data> = wild_layout::output_section_id::OutputSections<'data, Self>;
+    type OutputOrder<'data> = wild_layout::output_section_id::OutputOrder<'data>;
+    type CustomSectionIds = wild_layout::output_section_id::CustomSectionIds;
     type FileWriterOutput<F: crate::fs::FileSystem> = crate::file_writer::Output<F>;
-    type LocationCounter<'data> = crate::layout_rules::LocationCounter<'data>;
-    type SectionOutputInfo<'data> = crate::output_section_id::SectionOutputInfo<'data, Self>;
+    type LocationCounter<'data> = wild_layout::layout_rules::LocationCounter<'data>;
+    type SectionOutputInfo<'data> = wild_layout::output_section_id::SectionOutputInfo<'data, Self>;
     type FileKind = crate::file_kind::FileKind;
 
     /// Mach-O sections are associated with a SegmentName, while synthetic regions (FILE_HEADER,
@@ -198,7 +198,7 @@ impl platform::Platform for MachO {
 
     fn write_output_file<'data, A: platform::Arch<Platform = Self>, F: FileSystem>(
         output: &crate::file_writer::Output<F>,
-        layout: &crate::layout::Layout<'data, Self>,
+        layout: &wild_layout::Layout<'data, Self>,
     ) -> Result {
         output.write(layout, macho_writer::write::<A>)
     }
@@ -217,7 +217,7 @@ impl platform::Platform for MachO {
     }
 
     fn is_zero_sized_section_content(
-        _section_id: crate::output_section_id::OutputSectionId,
+        _section_id: wild_layout::output_section_id::OutputSectionId,
     ) -> bool {
         todo!()
     }
@@ -227,51 +227,51 @@ impl platform::Platform for MachO {
     }
 
     fn finalise_group_layout(
-        _memory_offsets: &crate::output_section_part_map::OutputSectionPartMap<u64>,
+        _memory_offsets: &wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
     ) -> Self::GroupLayoutExt {
     }
 
     fn frame_data_base_address(
-        _memory_offsets: &crate::output_section_part_map::OutputSectionPartMap<u64>,
+        _memory_offsets: &wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
     ) -> u64 {
         todo!()
     }
 
     fn activate_dynamic<'data>(
-        _state: &mut crate::layout::DynamicLayoutState<'data, Self>,
-        _common: &mut crate::layout::CommonGroupState<'data, Self>,
+        _state: &mut wild_layout::DynamicLayoutState<'data, Self>,
+        _common: &mut wild_layout::CommonGroupState<'data, Self>,
     ) {
     }
 
     fn pre_finalise_sizes_prelude<'scope, 'data>(
-        _prelude: &mut crate::layout::PreludeLayoutState<'data, Self>,
-        _common: &mut crate::layout::CommonGroupState<'data, Self>,
-        _resources: &crate::layout::GraphResources<'data, 'scope, Self>,
+        _prelude: &mut wild_layout::PreludeLayoutState<'data, Self>,
+        _common: &mut wild_layout::CommonGroupState<'data, Self>,
+        _resources: &wild_layout::GraphResources<'data, 'scope, Self>,
     ) {
     }
 
     fn finalise_sizes_dynamic<'data>(
-        _object: &mut crate::layout::DynamicLayoutState<'data, Self>,
-        _common: &mut crate::layout::CommonGroupState<'data, Self>,
+        _object: &mut wild_layout::DynamicLayoutState<'data, Self>,
+        _common: &mut wild_layout::CommonGroupState<'data, Self>,
     ) -> Result {
         Ok(())
     }
 
     fn finalise_object_sizes<'data>(
-        _object: &mut crate::layout::ObjectLayoutState<'data, Self>,
-        _common: &mut crate::layout::CommonGroupState<'data, Self>,
+        _object: &mut wild_layout::ObjectLayoutState<'data, Self>,
+        _common: &mut wild_layout::CommonGroupState<'data, Self>,
     ) {
     }
 
     fn finalise_object_layout<'data>(
-        _object: &crate::layout::ObjectLayoutState<'data, Self>,
-        _memory_offsets: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
+        _object: &wild_layout::ObjectLayoutState<'data, Self>,
+        _memory_offsets: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
     ) {
     }
 
     fn finalise_layout_dynamic<'data>(
         state: &mut Self::DynamicLayoutState<'data>,
-        memory_offsets: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
+        memory_offsets: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
         resources: &Self::FinaliseLayoutResources<'_, 'data>,
         resolutions_out: &mut Self::ResolutionWriter<'_, '_>,
     ) -> Result<Option<Self::DynamicLayoutExt<'data>>> {
@@ -287,9 +287,9 @@ impl platform::Platform for MachO {
 
     fn finalise_layout_stub<'data>(
         state: layout::StubLibraryLayoutState<'data, Self>,
-        memory_offsets: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
-        resources: &crate::layout::FinaliseLayoutResources<'_, 'data, Self>,
-        resolutions_out: &mut crate::layout::ResolutionWriter<Self>,
+        memory_offsets: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
+        resources: &wild_layout::FinaliseLayoutResources<'_, 'data, Self>,
+        resolutions_out: &mut wild_layout::ResolutionWriter<Self>,
     ) -> Result<Option<Self::StubLibraryLayoutExt>> {
         layout::default_create_resolutions(
             memory_offsets,
@@ -302,17 +302,17 @@ impl platform::Platform for MachO {
     }
 
     fn take_dynsym_index(
-        _memory_offsets: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
+        _memory_offsets: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
         _section_layouts: &crate::output_section_map::OutputSectionMap<
-            crate::layout::OutputRecordLayout,
+            wild_layout::OutputRecordLayout,
         >,
     ) -> Result<u32> {
         todo!()
     }
 
     fn compute_object_addresses<'data>(
-        _object: &crate::layout::ObjectLayoutState<'data, Self>,
-        _memory_offsets: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
+        _object: &wild_layout::ObjectLayoutState<'data, Self>,
+        _memory_offsets: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
     ) {
         todo!()
     }
@@ -333,20 +333,20 @@ impl platform::Platform for MachO {
     }
 
     fn activate_object_gc<'data, 'scope, A: platform::Arch<Platform = Self>>(
-        object: &mut crate::layout::ObjectLayoutState<'data, Self>,
-        common: &mut crate::layout::CommonGroupState<'data, Self>,
-        resources: &'scope crate::layout::GraphResources<'data, 'scope, Self>,
-        queue: &mut crate::layout::LocalWorkQueue<Self>,
+        object: &mut wild_layout::ObjectLayoutState<'data, Self>,
+        common: &mut wild_layout::CommonGroupState<'data, Self>,
+        resources: &'scope wild_layout::GraphResources<'data, 'scope, Self>,
+        queue: &mut wild_layout::LocalWorkQueue<Self>,
         scope: &rayon::Scope<'scope>,
     ) -> Result {
         object.activate_section_gc::<A>(common, resources, queue, scope)
     }
 
     fn load_gc_unit<'data, 'scope, A: platform::Arch<Platform = Self>>(
-        object: &mut crate::layout::ObjectLayoutState<'data, Self>,
-        common: &mut crate::layout::CommonGroupState<'data, Self>,
-        resources: &'scope crate::layout::GraphResources<'data, 'scope, Self>,
-        queue: &mut crate::layout::LocalWorkQueue<Self>,
+        object: &mut wild_layout::ObjectLayoutState<'data, Self>,
+        common: &mut wild_layout::CommonGroupState<'data, Self>,
+        resources: &'scope wild_layout::GraphResources<'data, 'scope, Self>,
+        queue: &mut wild_layout::LocalWorkQueue<Self>,
         unit: Self::GcUnit,
         scope: &rayon::Scope<'scope>,
     ) -> Result {
@@ -360,11 +360,11 @@ impl platform::Platform for MachO {
     }
 
     fn load_object_section_relocations<'data, 'scope, A: platform::Arch<Platform = Self>>(
-        state: &mut crate::layout::ObjectLayoutState<'data, Self>,
-        _common: &mut crate::layout::CommonGroupState<'data, Self>,
-        queue: &mut crate::layout::LocalWorkQueue<Self>,
-        resources: &'scope crate::layout::GraphResources<'data, '_, Self>,
-        _section: crate::layout::Section,
+        state: &mut wild_layout::ObjectLayoutState<'data, Self>,
+        _common: &mut wild_layout::CommonGroupState<'data, Self>,
+        queue: &mut wild_layout::LocalWorkQueue<Self>,
+        resources: &'scope wild_layout::GraphResources<'data, '_, Self>,
+        _section: wild_layout::Section,
         section_index: object::SectionIndex,
         scope: &rayon::Scope<'scope>,
     ) -> Result {
@@ -377,9 +377,9 @@ impl platform::Platform for MachO {
 
     fn create_dynamic_symbol_definition<'data>(
         symbol_db: &Self::SymbolDb<'data>,
-        symbol_id: crate::symbol_db::SymbolId,
+        symbol_id: wild_layout::symbol_db::SymbolId,
     ) -> Result<Self::DynamicSymbolDefinition<'data>> {
-        Ok(crate::layout::DynamicSymbolDefinition {
+        Ok(wild_layout::DynamicSymbolDefinition {
             symbol_id,
             name: symbol_db.symbol_name(symbol_id)?.bytes(),
             format_specific: (),
@@ -403,8 +403,8 @@ impl platform::Platform for MachO {
 
     fn program_segment_should_include_section(
         segment_def: Self::ProgramSegmentDef,
-        section_info: &crate::output_section_id::SectionOutputInfo<Self>,
-        section_id: crate::output_section_id::OutputSectionId,
+        section_info: &wild_layout::output_section_id::SectionOutputInfo<Self>,
+        section_id: wild_layout::output_section_id::OutputSectionId,
         _rosegment: bool,
     ) -> bool {
         match (section_id, section_info.kind) {
@@ -420,14 +420,14 @@ impl platform::Platform for MachO {
     }
 
     fn create_linker_defined_symbols(
-        _symbols: &mut crate::parsing::InternalSymbolsBuilder<Self>,
+        _symbols: &mut wild_layout::parsing::InternalSymbolsBuilder<Self>,
         _output_kind: crate::output_kind::OutputKind,
         _args: &Self::Args,
     ) {
     }
 
     fn built_in_section_infos<'data>()
-    -> Vec<crate::output_section_id::SectionOutputInfo<'data, Self>> {
+    -> Vec<wild_layout::output_section_id::SectionOutputInfo<'data, Self>> {
         SECTION_DEFINITIONS
             .iter()
             .map(|d| {
@@ -453,7 +453,7 @@ impl platform::Platform for MachO {
     fn create_finalise_sizes_ext<'data, 'states, 'files, A: platform::Arch<Platform = Self>>(
         _args: &Self::Args,
         groups: &'files mut [layout::GroupState<'data, Self>],
-        _symbol_db: &crate::symbol_db::SymbolDb<'data, Self>,
+        _symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Self>,
     ) -> Result<Self::FinaliseSizesExt<'data>>
     where
         'data: 'files,
@@ -526,22 +526,22 @@ impl platform::Platform for MachO {
     }
 
     fn load_exception_frame_data<'data, 'scope, A: platform::Arch<Platform = Self>>(
-        _object: &mut crate::layout::ObjectLayoutState<'data, Self>,
-        _common: &mut crate::layout::CommonGroupState<'data, Self>,
+        _object: &mut wild_layout::ObjectLayoutState<'data, Self>,
+        _common: &mut wild_layout::CommonGroupState<'data, Self>,
         _eh_frame_section_index: object::SectionIndex,
-        _resources: &'scope crate::layout::GraphResources<'data, '_, Self>,
-        _queue: &mut crate::layout::LocalWorkQueue<Self>,
+        _resources: &'scope wild_layout::GraphResources<'data, '_, Self>,
+        _queue: &mut wild_layout::LocalWorkQueue<Self>,
         _scope: &rayon::Scope<'scope>,
     ) -> Result {
         todo!()
     }
 
     fn non_empty_section_loaded<'data, 'scope, A: platform::Arch<Platform = Self>>(
-        _object: &mut crate::layout::ObjectLayoutState<'data, Self>,
-        _common: &mut crate::layout::CommonGroupState<'data, Self>,
-        _queue: &mut crate::layout::LocalWorkQueue<Self>,
-        _unloaded: crate::resolution::UnloadedSection,
-        _resources: &'scope crate::layout::GraphResources<'data, 'scope, Self>,
+        _object: &mut wild_layout::ObjectLayoutState<'data, Self>,
+        _common: &mut wild_layout::CommonGroupState<'data, Self>,
+        _queue: &mut wild_layout::LocalWorkQueue<Self>,
+        _unloaded: wild_layout::resolution::UnloadedSection,
+        _resources: &'scope wild_layout::GraphResources<'data, 'scope, Self>,
         _scope: &rayon::Scope<'scope>,
     ) -> Result {
         Ok(())
@@ -550,7 +550,7 @@ impl platform::Platform for MachO {
     fn new_epilogue_layout<'data>(
         _args: &Self::Args,
         _output_kind: crate::output_kind::OutputKind,
-        _dynamic_symbol_definitions: &mut [crate::layout::DynamicSymbolDefinition<'data, Self>],
+        _dynamic_symbol_definitions: &mut [wild_layout::DynamicSymbolDefinition<'data, Self>],
         group_states: &[layout::GroupState<'data, Self>],
     ) -> Self::EpilogueLayoutExt {
         verbose_timing_phase!("Gather imported symbol IDs");
@@ -581,20 +581,20 @@ impl platform::Platform for MachO {
     }
 
     fn apply_non_addressable_indexes<'data, 'groups>(
-        _symbol_db: &crate::symbol_db::SymbolDb<'data, Self>,
+        _symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Self>,
         _counts: &Self::NonAddressableCounts,
         _mem_sizes_iter: impl Iterator<
-            Item = &'groups mut crate::output_section_part_map::OutputSectionPartMap<u64>,
+            Item = &'groups mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
         >,
     ) {
     }
 
     fn finalise_sizes_epilogue<'data>(
         state: &mut Self::EpilogueLayoutExt,
-        mem_sizes: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
-        dynamic_symbol_definitions: &[crate::layout::DynamicSymbolDefinition<'data, Self>],
+        mem_sizes: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
+        dynamic_symbol_definitions: &[wild_layout::DynamicSymbolDefinition<'data, Self>],
         _format_specific: &Self::FinaliseSizesExt<'data>,
-        symbol_db: &crate::symbol_db::SymbolDb<'data, Self>,
+        symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Self>,
     ) {
         let mut fixup_table_size = CHAINED_FIXUP_TABLE_BASE_SIZE;
 
@@ -641,18 +641,18 @@ impl platform::Platform for MachO {
     }
 
     fn finalise_sizes_all<'data>(
-        _mem_sizes: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
-        _symbol_db: &crate::symbol_db::SymbolDb<'data, Self>,
+        _mem_sizes: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
+        _symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Self>,
     ) {
     }
 
     fn finalise_layout_epilogue<'data>(
         _epilogue_state: &mut Self::EpilogueLayoutExt,
-        _memory_offsets: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
-        _symbol_db: &crate::symbol_db::SymbolDb<'data, Self>,
+        _memory_offsets: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
+        _symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Self>,
         _format_specific: &Self::FinaliseSizesExt<'data>,
         _dynsym_start_index: u32,
-        _dynamic_symbol_defs: &[crate::layout::DynamicSymbolDefinition<Self>],
+        _dynamic_symbol_defs: &[wild_layout::DynamicSymbolDefinition<Self>],
     ) -> Result {
         Ok(())
     }
@@ -672,15 +672,18 @@ impl platform::Platform for MachO {
     }
 
     fn allocate_header_sizes<'data>(
-        prelude: &mut crate::layout::PreludeLayoutState<'data, Self>,
-        sizes: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
-        header_info: &crate::layout::HeaderInfo,
+        prelude: &mut wild_layout::PreludeLayoutState<'data, Self>,
+        sizes: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
+        header_info: &wild_layout::HeaderInfo,
         program_segments: &ProgramSegments<Self::ProgramSegmentDef>,
-        output_sections: &crate::output_section_id::OutputSections<Self>,
+        output_sections: &wild_layout::output_section_id::OutputSections<Self>,
         resources: &layout::FinaliseSizesResources<'data, '_, Self>,
         args: &Self::Args,
     ) {
-        sizes.increment(crate::part_id::FILE_HEADER, size_of::<FileHeader>() as u64);
+        sizes.increment(
+            wild_layout::part_id::FILE_HEADER,
+            size_of::<FileHeader>() as u64,
+        );
 
         let mut allocate_load_cmd = |command_size| {
             sizes.increment(part_id::LOAD_COMMANDS, command_size as u64);
@@ -758,9 +761,9 @@ impl platform::Platform for MachO {
     }
 
     fn finalise_sizes_for_symbol<'data>(
-        _common: &mut crate::layout::CommonGroupState<'data, Self>,
-        _symbol_db: &crate::symbol_db::SymbolDb<'data, Self>,
-        _symbol_id: crate::symbol_db::SymbolId,
+        _common: &mut wild_layout::CommonGroupState<'data, Self>,
+        _symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Self>,
+        _symbol_id: wild_layout::symbol_db::SymbolId,
         _flags: crate::value_flags::ValueFlags,
     ) -> Result {
         Ok(())
@@ -768,7 +771,7 @@ impl platform::Platform for MachO {
 
     fn allocate_resolution(
         flags: crate::value_flags::ValueFlags,
-        mem_sizes: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
+        mem_sizes: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
         _output_kind: crate::output_kind::OutputKind,
         _args: &Self::Args,
     ) {
@@ -781,9 +784,9 @@ impl platform::Platform for MachO {
     }
 
     fn allocate_object_symtab_space<'data>(
-        state: &crate::layout::ObjectLayoutState<'data, Self>,
-        common: &mut crate::layout::CommonGroupState<'data, Self>,
-        symbol_db: &crate::symbol_db::SymbolDb<'data, Self>,
+        state: &wild_layout::ObjectLayoutState<'data, Self>,
+        common: &mut wild_layout::CommonGroupState<'data, Self>,
+        symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Self>,
         per_symbol_flags: &crate::value_flags::AtomicPerSymbolFlags,
     ) -> Result {
         let mut num_globals = 0;
@@ -815,18 +818,18 @@ impl platform::Platform for MachO {
     }
 
     fn allocate_internal_symbol(
-        _symbol_id: crate::symbol_db::SymbolId,
-        _def_info: &crate::parsing::InternalSymDefInfo<Self>,
-        _sizes: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
-        _symbol_db: &crate::symbol_db::SymbolDb<Self>,
+        _symbol_id: wild_layout::symbol_db::SymbolId,
+        _def_info: &wild_layout::parsing::InternalSymDefInfo<Self>,
+        _sizes: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
+        _symbol_db: &wild_layout::symbol_db::SymbolDb<Self>,
         _format_specific: &mut Self::CommonGroupStateExt,
     ) -> Result {
         todo!()
     }
 
     fn allocate_prelude(
-        common: &mut crate::layout::CommonGroupState<Self>,
-        symbol_db: &crate::symbol_db::SymbolDb<Self>,
+        common: &mut wild_layout::CommonGroupState<Self>,
+        symbol_db: &wild_layout::symbol_db::SymbolDb<Self>,
     ) {
         // Allocate one extra character as n_strx == 0 is treated as unnamed.
         common.allocate(part_id::STRTAB, 1);
@@ -837,9 +840,9 @@ impl platform::Platform for MachO {
     }
 
     fn finalise_prelude_layout<'data>(
-        prelude: &crate::layout::PreludeLayoutState<Self>,
-        _memory_offsets: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
-        _resources: &crate::layout::FinaliseLayoutResources<'_, 'data, Self>,
+        prelude: &wild_layout::PreludeLayoutState<Self>,
+        _memory_offsets: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
+        _resources: &wild_layout::FinaliseLayoutResources<'_, 'data, Self>,
     ) -> Result<Self::PreludeLayoutExt> {
         Ok(prelude.format_specific.clone())
     }
@@ -848,10 +851,10 @@ impl platform::Platform for MachO {
         flags: crate::value_flags::ValueFlags,
         raw_value: u64,
         dynamic_symbol_index: Option<std::num::NonZeroU32>,
-        memory_offsets: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
+        memory_offsets: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
         _args: &<Self as crate::platform::Platform>::Args,
         _output_kind: crate::OutputKind,
-    ) -> crate::layout::Resolution<Self> {
+    ) -> wild_layout::Resolution<Self> {
         let mut resolution: Resolution<MachO> = Resolution {
             raw_value,
             dynamic_symbol_index,
@@ -884,7 +887,9 @@ impl platform::Platform for MachO {
         RawSymbolName { name: name_bytes }
     }
 
-    fn default_layout_rules(_args: &Self::Args) -> Vec<crate::layout_rules::SectionRule<'static>> {
+    fn default_layout_rules(
+        _args: &Self::Args,
+    ) -> Vec<wild_layout::layout_rules::SectionRule<'static>> {
         DEFAULT_SECTION_RULES.to_vec()
     }
 
@@ -893,7 +898,7 @@ impl platform::Platform for MachO {
         output_kind: OutputKind,
         output_sections: &Self::OutputSections<'data>,
         secondary: &crate::output_section_map::OutputSectionMap<
-            Vec<crate::output_section_id::OutputSectionId>,
+            Vec<wild_layout::output_section_id::OutputSectionId>,
         >,
         _location_counters: &[Self::LocationCounter<'data>],
     ) -> (
@@ -941,7 +946,7 @@ impl platform::Platform for MachO {
         );
 
         // File header and all load commands.
-        builder.add_section(crate::output_section_id::FILE_HEADER);
+        builder.add_section(wild_layout::output_section_id::FILE_HEADER);
         builder.add_section(output_section_id::LOAD_COMMANDS);
 
         // Content of the sections (e.g. __text, __data).
@@ -1045,7 +1050,7 @@ impl platform::Platform for MachO {
 
     fn finalise_output_section_alignments(
         sizes: &OutputSectionPartMap<u64>,
-        output_sections: &mut crate::output_section_id::OutputSections<'_, Self>,
+        output_sections: &mut wild_layout::output_section_id::OutputSections<'_, Self>,
     ) {
         let tlv_sections = output_sections
             .ids_with_info()
@@ -1062,7 +1067,7 @@ impl platform::Platform for MachO {
         let max_align = tlv_sections
             .iter()
             .map(|&section_id| {
-                crate::output_section_part_map::max_alignment(
+                wild_layout::output_section_part_map::max_alignment(
                     sizes,
                     section_id.part_id_range::<MachO>(),
                     output_sections,

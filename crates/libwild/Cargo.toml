@@ -15,6 +15,7 @@ wild-error = { path = "../wild-error", version = "0.10.0" }
 wild-fs = { path = "../wild-fs", version = "0.10.0" }
 wild-platform = { path = "../wild-platform", version = "0.10.0" }
 wild-args = { path = "../wild-args", version = "0.10.0" }
+wild-layout = { path = "../wild-layout", version = "0.10.0" }
 wild-scripts = { path = "../wild-scripts", version = "0.10.0" }
 wild-util = { path = "../wild-util", version = "0.10.0" }
 anyhow.workspace = true
@@ -84,7 +85,7 @@ default = ["zstd"]
 fork = []
 
 # Support for linker-plugins.
-plugins = ["libloading"]
+plugins = ["libloading", "wild-layout/plugins"]
 
 # Enable support for emitting a perfetto trace.
 perfetto = ["perfetto-recorder/enable", "tracing/release_max_level_info"]

@@ -1,9 +1,9 @@
 use crate::FileSystem;
 use crate::args::macho::MachOArgs;
 use crate::error::Result;
-use crate::output_section_id::OutputSectionId;
-use crate::part_id::PartId;
 use crate::platform::Args as _;
+use wild_layout::output_section_id::OutputSectionId;
+use wild_layout::part_id::PartId;
 
 pub(crate) mod abi;
 pub(crate) mod file;
@@ -23,9 +23,9 @@ pub(crate) use types::*;
 #[derive(Debug, Copy, Clone, Default)]
 pub(crate) struct MachO;
 
-impl crate::layout::EnginePlatform for MachO {}
-impl<'data, 'scope> crate::layout::EngineScope<'data, 'scope> for MachO where 'data: 'scope {}
-impl<'writer, 'out> crate::layout::EngineWriter<'writer, 'out> for MachO where 'out: 'writer {}
+impl wild_layout::EnginePlatform for MachO {}
+impl<'data, 'scope> wild_layout::EngineScope<'data, 'scope> for MachO where 'data: 'scope {}
+impl<'writer, 'out> wild_layout::EngineWriter<'writer, 'out> for MachO where 'out: 'writer {}
 
 pub(crate) fn link_for_arch<'data, F: FileSystem>(
     linker: &'data crate::Linker<F>,
@@ -43,7 +43,7 @@ pub(crate) fn link_for_arch<'data, F: FileSystem>(
 #[repr(u32)]
 #[derive(Clone, Copy)]
 pub(crate) enum SinglePartSectionId {
-    Strtab = crate::output_section_id::NUM_COMMON_SINGLE_PART_SECTIONS,
+    Strtab = wild_layout::output_section_id::NUM_COMMON_SINGLE_PART_SECTIONS,
     Got,
     PltGot,
     SymtabGlobal,
@@ -59,7 +59,7 @@ pub(crate) enum SinglePartSectionId {
 
 pub(crate) mod part_id {
     use super::SinglePartSectionId;
-    use crate::part_id::PartId;
+    use wild_layout::part_id::PartId;
 
     pub(crate) const STRTAB: PartId = SinglePartSectionId::Strtab.part_id();
     pub(crate) const GOT: PartId = SinglePartSectionId::Got.part_id();
@@ -73,7 +73,7 @@ pub(crate) mod part_id {
 
 pub(crate) mod output_section_id {
     use super::SinglePartSectionId;
-    use crate::output_section_id::OutputSectionId;
+    use wild_layout::output_section_id::OutputSectionId;
 
     pub(crate) const STRTAB: OutputSectionId = SinglePartSectionId::Strtab.output_section_id();
     pub(crate) const GOT: OutputSectionId = SinglePartSectionId::Got.output_section_id();

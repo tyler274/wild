@@ -2,14 +2,12 @@ mod compute;
 mod input_order;
 
 use super::types::*;
+use crate::EnginePlatform;
 use crate::alignment;
 use crate::alignment::Alignment;
 use crate::ensure;
 use crate::error::Context;
 use crate::error::Result;
-use crate::layout::EnginePlatform;
-use crate::layout::timing_phase;
-use crate::layout::verbose_timing_phase;
 use crate::layout_rules::SectionKind;
 use crate::output_section_id;
 use crate::output_section_id::OutputOrder;
@@ -21,17 +19,19 @@ use crate::platform::SectionAttributes as _;
 use crate::platform::SectionFlags as _;
 use crate::program_segments::ProgramSegmentId;
 use crate::program_segments::ProgramSegments;
+use crate::timing_phase;
+use crate::verbose_timing_phase;
 #[allow(unused_imports)]
-pub(crate) use compute::*;
+pub use compute::*;
 #[allow(unused_imports)]
-pub(crate) use input_order::*;
+pub use input_order::*;
 use itertools::Itertools;
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 use std::mem::take;
 
-pub(crate) fn layout_section_from_part_layouts<'data, P: EnginePlatform>(
+pub fn layout_section_from_part_layouts<'data, P: EnginePlatform>(
     part: &OutputRecordLayout,
     section_layout: &mut OutputRecordLayout,
     section_info: &output_section_id::SectionOutputInfo<'data, P>,
@@ -69,7 +69,7 @@ pub(crate) fn layout_section_from_part_layouts<'data, P: EnginePlatform>(
     };
 }
 
-pub(crate) fn merge_secondary_parts<P: EnginePlatform>(
+pub fn merge_secondary_parts<P: EnginePlatform>(
     output_sections: &OutputSections<P>,
     section_layouts: &OutputSectionMap<OutputRecordLayout>,
 ) -> OutputSectionMap<OutputRecordLayout> {
@@ -119,7 +119,7 @@ pub(crate) fn merge_secondary_parts<P: EnginePlatform>(
     merged
 }
 
-pub(crate) fn compute_start_offsets_by_group<P: EnginePlatform>(
+pub fn compute_start_offsets_by_group<P: EnginePlatform>(
     group_states: &[GroupState<P>],
     mut mem_offsets: OutputSectionPartMap<u64>,
 ) -> Vec<OutputSectionPartMap<u64>> {
@@ -136,7 +136,7 @@ pub(crate) fn compute_start_offsets_by_group<P: EnginePlatform>(
     starts
 }
 
-pub(crate) fn compute_symbols_and_layouts<'data, P: EnginePlatform>(
+pub fn compute_symbols_and_layouts<'data, P: EnginePlatform>(
     group_states: Vec<GroupState<'data, P>>,
     starting_mem_offsets_by_group: Vec<OutputSectionPartMap<u64>>,
     per_group_res_writers: &mut [sharded_vec_writer::Shard<Option<Resolution<P>>>],
@@ -152,14 +152,14 @@ pub(crate) fn compute_symbols_and_layouts<'data, P: EnginePlatform>(
             verbose_timing_phase!("Assign addresses for group");
 
             if cfg!(debug_assertions) {
-                let offset_verifier = crate::layout::verification::OffsetVerifier::new::<P>(
+                let offset_verifier = crate::verification::OffsetVerifier::new::<P>(
                     &memory_offsets,
                     &state.common.mem_sizes,
                 );
 
                 // Make sure that ignored offsets really aren't used by `finalise_layout` by setting
                 // them to an arbitrary value. If they are used, we'll quickly notice.
-                crate::layout::verification::clear_ignored::<P>(&mut memory_offsets);
+                crate::verification::clear_ignored::<P>(&mut memory_offsets);
 
                 let layout = state.finalise_layout(&mut memory_offsets, symbols_out, resources)?;
 
@@ -177,7 +177,7 @@ pub(crate) fn compute_symbols_and_layouts<'data, P: EnginePlatform>(
         .collect()
 }
 
-pub(crate) fn compute_segment_layout<'data, P: EnginePlatform>(
+pub fn compute_segment_layout<'data, P: EnginePlatform>(
     section_layouts: &OutputSectionMap<OutputRecordLayout>,
     output_sections: &OutputSections<P>,
     output_order: &OutputOrder<'data>,

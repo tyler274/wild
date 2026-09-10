@@ -8,16 +8,9 @@ use crate::elf::ElfClass;
 use crate::elf_writer;
 use crate::elf_writer::apply_debug_relocations;
 use crate::error::Result;
-use crate::layout::CompressedSection;
-use crate::layout::EnginePlatform;
-use crate::layout::FileLayout;
-use crate::layout::Layout;
-use crate::output_section_id::OrderEvent;
-use crate::output_section_id::OutputSectionId;
 use crate::platform::Arch;
 use crate::platform::ObjectFile as _;
 use crate::platform::SectionFlags as _;
-use crate::resolution::SectionSlot;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
 use crate::writable_elf::WritableCompressionHeader as _;
@@ -26,6 +19,13 @@ use object::elf::CompressionType;
 use rayon::iter::IntoParallelIterator as _;
 use rayon::iter::IntoParallelRefIterator as _;
 use rayon::iter::ParallelIterator as _;
+use wild_layout::CompressedSection;
+use wild_layout::EnginePlatform;
+use wild_layout::FileLayout;
+use wild_layout::Layout;
+use wild_layout::output_section_id::OrderEvent;
+use wild_layout::output_section_id::OutputSectionId;
+use wild_layout::resolution::SectionSlot;
 use zlib_rs::Deflate;
 use zlib_rs::DeflateError;
 use zlib_rs::DeflateFlush;
@@ -69,7 +69,7 @@ const ZLIB_SYNC_FLUSH_SLACK: usize = 16;
 const ZLIB_OUTPUT_GROW_BYTES: usize = 64;
 
 pub(crate) fn maybe_compress_debug_sections_elf<C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
-    layout: &mut crate::layout::Layout<elf::Elf<C>>,
+    layout: &mut wild_layout::Layout<elf::Elf<C>>,
 ) -> Result {
     let Some(compression_kind) = layout.args().debug_compression_kind else {
         return Ok(());
@@ -272,7 +272,7 @@ fn compress_sections<C: ElfClass, A: Arch<Platform = elf::Elf<C>>, S: SectionCom
         .par_iter()
         .map(
             |&section_id| -> Result<(
-                crate::output_section_id::OutputSectionId,
+                wild_layout::output_section_id::OutputSectionId,
                 Option<CompressedSection>,
             )> {
                 verbose_timing_phase!("Process debug section");
@@ -327,9 +327,9 @@ fn compress_section<C: ElfClass, S: SectionCompressor>(
 }
 
 fn build_debug_section_in_memory<C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
-    section_id: crate::output_section_id::OutputSectionId,
+    section_id: wild_layout::output_section_id::OutputSectionId,
     mut buffer: &mut [u8],
-    layout: &crate::layout::Layout<elf::Elf<C>>,
+    layout: &wild_layout::Layout<elf::Elf<C>>,
 ) -> Result {
     let merged = layout.merged_strings.get(section_id);
     if merged.len() > 0 {

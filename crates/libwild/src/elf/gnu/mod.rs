@@ -14,17 +14,10 @@ use crate::alignment::Alignment;
 use crate::bail;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::grouping::Group;
-use crate::layout;
-use crate::layout_rules::SectionKind;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::OutputSections;
 use crate::platform;
 use crate::platform::DynamicTagValues as _;
 use crate::platform::ObjectFile as _;
 use crate::platform::Platform;
-#[cfg(all(feature = "plugins", unix))]
-use crate::symbol_db::Visibility;
 use crate::timing_phase;
 #[allow(unused_imports)]
 pub(crate) use ehframe::*;
@@ -46,6 +39,13 @@ use std::marker::PhantomData;
 use std::sync::atomic::AtomicBool;
 #[allow(unused_imports)]
 pub(crate) use versions::*;
+use wild_layout as layout;
+use wild_layout::grouping::Group;
+use wild_layout::layout_rules::SectionKind;
+use wild_layout::output_section_id::OutputSectionId;
+use wild_layout::output_section_id::OutputSections;
+#[cfg(all(feature = "plugins", unix))]
+use wild_layout::symbol_db::Visibility;
 
 #[cfg(all(feature = "plugins", unix))]
 pub(crate) fn convert_elf_visibility(st_visibility: object::elf::SymbolVisibility) -> Visibility {

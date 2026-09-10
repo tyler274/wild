@@ -1,10 +1,9 @@
 use super::*;
+use crate::EnginePlatform;
 use crate::alignment;
 use crate::alignment::Alignment;
 use crate::error::Result;
 use crate::expression_eval::ResolvedLocationCounter;
-use crate::layout::EnginePlatform;
-use crate::layout::types::*;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSections;
 use crate::output_section_map::OutputSectionMap;
@@ -14,10 +13,11 @@ use crate::program_segments::ProgramSegments;
 use crate::resolution::SectionSlot;
 use crate::string_merging::MergedStringsSection;
 use crate::symbol_db::SymbolDb;
+use crate::types::*;
 use hashbrown::HashMap;
 use object::SectionIndex;
 
-pub(crate) fn advance_section_offset<P: EnginePlatform>(
+pub fn advance_section_offset<P: EnginePlatform>(
     offset: &mut u64,
     sec: Section,
     part_id: PartId,
@@ -34,7 +34,7 @@ pub(crate) fn advance_section_offset<P: EnginePlatform>(
     }
 }
 
-pub(crate) fn packed_span(start: u64, inputs: &[(Alignment, u64)]) -> u64 {
+pub fn packed_span(start: u64, inputs: &[(Alignment, u64)]) -> u64 {
     let mut offset = start;
     for &(alignment, size) in inputs {
         offset = alignment.align_up(offset) + size;
@@ -45,7 +45,7 @@ pub(crate) fn packed_span(start: u64, inputs: &[(Alignment, u64)]) -> u64 {
 /// Sizes of non-object groups that sit before/after input-order object contributions
 /// (prelude merged strings, epilogue). Those groups must keep their `mem_sizes`; packing
 /// only replaces the object groups.
-pub(crate) fn input_order_affix_sizes<P: EnginePlatform>(
+pub fn input_order_affix_sizes<P: EnginePlatform>(
     group_states: &[GroupState<P>],
     ordered: &[InputOrderItem],
 ) -> HashMap<PartId, (u64, u64)> {
@@ -77,7 +77,7 @@ pub(crate) fn input_order_affix_sizes<P: EnginePlatform>(
     affixes
 }
 
-pub(crate) fn collect_input_order_contributions<P: EnginePlatform>(
+pub fn collect_input_order_contributions<P: EnginePlatform>(
     group_states: &[GroupState<P>],
     output_sections: &OutputSections<P>,
     section_part_ids: &[PartId],
@@ -120,7 +120,7 @@ pub(crate) fn collect_input_order_contributions<P: EnginePlatform>(
     (by_part, ordered)
 }
 
-pub(crate) fn redistribute_input_order_sizes<P: EnginePlatform>(
+pub fn redistribute_input_order_sizes<P: EnginePlatform>(
     group_states: &mut [GroupState<P>],
     ordered: &[InputOrderItem],
     section_part_layouts: &OutputSectionPartMap<OutputRecordLayout>,
@@ -166,7 +166,7 @@ pub(crate) fn redistribute_input_order_sizes<P: EnginePlatform>(
     }
 }
 
-pub(crate) fn apply_input_order_section_alignments<P: EnginePlatform>(
+pub fn apply_input_order_section_alignments<P: EnginePlatform>(
     section_layouts: &mut OutputSectionMap<OutputRecordLayout>,
     by_part: &HashMap<PartId, Vec<(Alignment, u64)>>,
 ) {
@@ -179,7 +179,7 @@ pub(crate) fn apply_input_order_section_alignments<P: EnginePlatform>(
     }
 }
 
-pub(crate) fn apply_merge_vma_padding<P: EnginePlatform>(
+pub fn apply_merge_vma_padding<P: EnginePlatform>(
     merged_strings: &mut OutputSectionMap<MergedStringsSection>,
     group_states: &mut [GroupState<P>],
     section_part_sizes: &mut OutputSectionPartMap<u64>,
@@ -224,7 +224,7 @@ pub(crate) fn apply_merge_vma_padding<P: EnginePlatform>(
     changed
 }
 
-pub(crate) fn compute_and_apply_section_layout<'data, P: EnginePlatform>(
+pub fn compute_and_apply_section_layout<'data, P: EnginePlatform>(
     group_states: &mut [GroupState<'data, P>],
     sizes: &OutputSectionPartMap<u64>,
     output_sections: &OutputSections<'data, P>,

@@ -10,10 +10,6 @@ use crate::elf::part_id;
 #[allow(unused_imports)]
 use crate::elf::types::*;
 use crate::error::Result;
-use crate::layout;
-use crate::layout::CommonGroupState;
-use crate::layout::ObjectLayoutState;
-use crate::part_id::PartId;
 use crate::platform::Arch;
 use crate::platform::Args as _;
 use crate::platform::ObjectFile;
@@ -22,7 +18,6 @@ use crate::platform::Relaxation as _;
 use crate::platform::Relocation;
 use crate::platform::SectionFlags as _;
 use crate::platform::SectionHeader as _;
-use crate::symbol_db::SymbolId;
 use crate::value_flags::ValueFlags;
 use linker_utils::elf::RelocationKind;
 use linker_utils::relaxation::RelocationModifier;
@@ -30,6 +25,11 @@ use object::LittleEndian;
 use object::read::elf::SectionHeader as _;
 use rayon::Scope;
 use std::sync::atomic;
+use wild_layout as layout;
+use wild_layout::CommonGroupState;
+use wild_layout::ObjectLayoutState;
+use wild_layout::part_id::PartId;
+use wild_layout::symbol_db::SymbolId;
 
 #[inline(always)]
 pub(crate) fn process_relocation<
@@ -71,7 +71,7 @@ pub(crate) fn process_relocation<
         note_relocation_symbol_reference::<C, A>(&classified, resources, queue, scope);
 
     if !is_debug_section {
-        crate::thunks::handle_thunk_extensions_for_relocation::<A>(
+        wild_layout::thunks::handle_thunk_extensions_for_relocation::<A>(
             section_part_id,
             resources,
             classified.local_symbol_id,

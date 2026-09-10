@@ -2,11 +2,11 @@
 //! modules can move into wild-layout without depending on Elf64/MachO/Wasm.
 
 mod section_mapping {
-    use crate::layout_rules::SectionOutputInfo;
-    use crate::layout_rules::SectionRuleOutcome;
-    use crate::layout_rules::SectionRules;
     use crate::platform::Platform as _;
     use hashbrown::HashSet;
+    use wild_layout::layout_rules::SectionOutputInfo;
+    use wild_layout::layout_rules::SectionRuleOutcome;
+    use wild_layout::layout_rules::SectionRules;
 
     #[test]
     fn test_section_mapping() {
@@ -62,20 +62,20 @@ mod section_mapping {
 }
 
 mod no_disallowed_overlaps {
-    use crate::layout::HeaderInfo;
-    use crate::layout::compute_layout_sections;
-    use crate::layout::compute_segment_layout;
-    use crate::output_section_id::OutputSections;
     use crate::platform::SectionAttributes as _;
     use crate::platform::SectionFlags as _;
     use crate::program_segments::ProgramSegmentId;
+    use wild_layout::HeaderInfo;
+    use wild_layout::compute_layout_sections;
+    use wild_layout::compute_segment_layout;
+    use wild_layout::output_section_id::OutputSections;
 
     #[test]
     fn test_no_disallowed_overlaps() {
         use crate::elf::Elf64;
-        use crate::output_section_id::OrderEvent;
-        use crate::output_section_id::OutputSectionId;
         use hashbrown::HashMap;
+        use wild_layout::output_section_id::OrderEvent;
+        use wild_layout::output_section_id::OutputSectionId;
 
         let output_kind =
             crate::output_kind::OutputKind::StaticExecutable(crate::args::RelocationModel::Fixed);
@@ -108,7 +108,7 @@ mod no_disallowed_overlaps {
 
         let herd = Default::default();
         let symbol_db =
-            crate::symbol_db::SymbolDb::<Elf64>::new(&args, output_kind, None, None, &herd)
+            wild_layout::symbol_db::SymbolDb::<Elf64>::new(&args, output_kind, None, None, &herd)
                 .unwrap();
 
         let (_, section_layouts, _) = compute_layout_sections::<Elf64>(
@@ -130,7 +130,7 @@ mod no_disallowed_overlaps {
         let mut last_mem_start = 0;
         let mut last_file_end = 0;
         let mut last_mem_end = 0;
-        let mut last_section_id = crate::output_section_id::FILE_HEADER;
+        let mut last_section_id = wild_layout::output_section_id::FILE_HEADER;
 
         for event in &output_order {
             let OrderEvent::Section(section_id) = event else {
@@ -220,25 +220,25 @@ mod no_disallowed_overlaps {
 mod expression_eval {
     use crate::elf::Elf64;
     use crate::error::Result;
-    use crate::expression_eval::*;
-    use crate::grouping::SequencedLinkerScript;
-    use crate::layout::MemoryRegion;
-    use crate::layout::OutputRecordLayout;
     use crate::linker_script::AssertCommand;
     use crate::linker_script::Expression;
-    use crate::output_section_id::OutputSections;
     use crate::output_section_map::OutputSectionMap;
-    use crate::output_section_part_map::OutputSectionPartMap;
-    use crate::parsing::InternalSymDefInfo;
-    use crate::parsing::ProcessedLinkerScript;
-    use crate::parsing::Redirect;
-    use crate::parsing::RedirectKind;
-    use crate::parsing::SymbolLoc;
-    use crate::parsing::SymbolPlacement;
     use crate::platform::FileId;
-    use crate::symbol_db::SymbolDb;
-    use crate::symbol_db::SymbolIdRange;
     use hashbrown::HashMap;
+    use wild_layout::MemoryRegion;
+    use wild_layout::OutputRecordLayout;
+    use wild_layout::expression_eval::*;
+    use wild_layout::grouping::SequencedLinkerScript;
+    use wild_layout::output_section_id::OutputSections;
+    use wild_layout::output_section_part_map::OutputSectionPartMap;
+    use wild_layout::parsing::InternalSymDefInfo;
+    use wild_layout::parsing::ProcessedLinkerScript;
+    use wild_layout::parsing::Redirect;
+    use wild_layout::parsing::RedirectKind;
+    use wild_layout::parsing::SymbolLoc;
+    use wild_layout::parsing::SymbolPlacement;
+    use wild_layout::symbol_db::SymbolDb;
+    use wild_layout::symbol_db::SymbolIdRange;
 
     fn with_dummy_context<R>(
         f: impl for<'test> FnOnce(
@@ -781,12 +781,12 @@ mod expression_eval {
 mod part_ids {
     use crate::args::RelocationModel;
     use crate::output_kind::OutputKind;
-    use crate::output_section_id;
-    use crate::output_section_id::OutputSectionId;
-    use crate::output_section_id::OutputSections;
-    use crate::part_id::*;
+    use wild_layout::output_section_id;
+    use wild_layout::output_section_id::OutputSectionId;
+    use wild_layout::output_section_id::OutputSections;
+    use wild_layout::part_id::*;
 
-    fn check_platform_part_ids<P: crate::layout::EnginePlatform>() {
+    fn check_platform_part_ids<P: wild_layout::EnginePlatform>() {
         let output_kind = OutputKind::StaticExecutable(RelocationModel::Fixed);
         let output_sections = OutputSections::<P>::with_base_address(0, output_kind);
         let regular_part_base = regular_part_base::<P>();
@@ -849,17 +849,18 @@ mod part_ids {
 
 mod output_section_part_map {
     use crate::alignment;
-    use crate::output_section_id::OrderEvent;
-    use crate::output_section_part_map::max_alignment;
-    use crate::output_section_part_map::output_order_map;
-    use crate::part_id::PartId;
     use crate::platform::Platform;
+    use wild_layout::output_section_id::OrderEvent;
+    use wild_layout::output_section_part_map::max_alignment;
+    use wild_layout::output_section_part_map::output_order_map;
+    use wild_layout::part_id::PartId;
 
     #[test]
     fn test_merge_parts() {
         use crate::elf::Elf64;
 
-        let output_sections = crate::output_section_id::OutputSections::<Elf64>::for_testing();
+        let output_sections =
+            wild_layout::output_section_id::OutputSections::<Elf64>::for_testing();
         let (output_order, _program_segments) = output_sections
             .output_order(
                 crate::output_kind::OutputKind::StaticExecutable(
@@ -907,16 +908,17 @@ mod output_section_part_map {
             let unsupported_single_part = !section_id.is_regular::<Elf64>()
                 && <Elf64 as crate::platform::Platform>::single_part_id(section_id).is_none();
 
-            let expected =
-                if section_id == crate::output_section_id::UNMAPPED || unsupported_single_part {
-                    0
-                } else if section_id.is_custom::<Elf64>() {
-                    1
-                } else if section_id.is_regular::<Elf64>() {
-                    crate::alignment::NUM_ALIGNMENTS as u32
-                } else {
-                    1
-                };
+            let expected = if section_id == wild_layout::output_section_id::UNMAPPED
+                || unsupported_single_part
+            {
+                0
+            } else if section_id.is_custom::<Elf64>() {
+                1
+            } else if section_id.is_regular::<Elf64>() {
+                crate::alignment::NUM_ALIGNMENTS as u32
+            } else {
+                1
+            };
 
             assert_eq!(*sum, expected, "Unexpected sum for section {section_id:?}");
         });
@@ -927,7 +929,7 @@ mod output_section_part_map {
         assert_eq!(sum_of_sums, expected_sum_of_sums);
 
         let mut headers_only = output_sections.new_part_map::<u32>();
-        *headers_only.get_mut(crate::part_id::FILE_HEADER) += 42;
+        *headers_only.get_mut(wild_layout::part_id::FILE_HEADER) += 42;
 
         let mut merged = output_sections.new_section_map::<u32>();
         merged.for_each_mut(|section_id, sum| {
@@ -940,7 +942,7 @@ mod output_section_part_map {
             *sum = headers_only.values_in_range(range).sum();
         });
 
-        assert_eq!(*merged.get(crate::output_section_id::FILE_HEADER), 42);
+        assert_eq!(*merged.get(wild_layout::output_section_id::FILE_HEADER), 42);
         assert_eq!(*merged.get(crate::elf::output_section_id::TEXT), 0);
         assert_eq!(*merged.get(crate::elf::output_section_id::BSS), 0);
     }
@@ -948,7 +950,7 @@ mod output_section_part_map {
     #[test]
     fn test_mut_with_map() {
         let output_sections =
-            crate::output_section_id::OutputSections::<crate::elf::Elf64>::for_testing();
+            wild_layout::output_section_id::OutputSections::<crate::elf::Elf64>::for_testing();
         let mut input1 = output_sections.new_part_map::<u32>().map(|_, _| 1);
         let input2 = output_sections.new_part_map::<u32>().map(|_, _| 2);
         let expected = output_sections.new_part_map::<u32>().map(|_, _| 3);
@@ -959,7 +961,7 @@ mod output_section_part_map {
     #[test]
     fn test_merge() {
         let output_sections =
-            crate::output_section_id::OutputSections::<crate::elf::Elf64>::for_testing();
+            wild_layout::output_section_id::OutputSections::<crate::elf::Elf64>::for_testing();
         let mut input1 = output_sections.new_part_map::<u32>().map(|_, _| 1);
         let input2 = output_sections.new_part_map::<u32>().map(|_, _| 2);
         let expected = output_sections.new_part_map::<u32>().map(|_, _| 3);
@@ -977,7 +979,7 @@ mod output_section_part_map {
         use itertools::Itertools;
 
         let output_sections =
-            crate::output_section_id::OutputSections::<crate::elf::Elf64>::for_testing();
+            wild_layout::output_section_id::OutputSections::<crate::elf::Elf64>::for_testing();
         let (output_order, _program_segments) = output_sections
             .output_order(
                 crate::output_kind::OutputKind::StaticExecutable(
@@ -1003,7 +1005,7 @@ mod output_section_part_map {
         // First, make sure that all our built-in part-ids are here. If they're not, we'd fail
         // anyway, but we can give a much better failure message if we check first.
         let mut missing: hashbrown::HashSet<PartId> =
-            crate::part_id::built_in_part_ids::<Elf64>().collect();
+            wild_layout::part_id::built_in_part_ids::<Elf64>().collect();
         part_map.map(|part_id, _| {
             missing.remove(&part_id);
         });
@@ -1052,7 +1054,8 @@ mod output_section_part_map {
         use crate::elf::Elf64;
         use crate::elf::output_section_id;
 
-        let output_sections = crate::output_section_id::OutputSections::<Elf64>::for_testing();
+        let output_sections =
+            wild_layout::output_section_id::OutputSections::<Elf64>::for_testing();
         let (output_order, _program_segments) = output_sections
             .output_order(
                 crate::output_kind::OutputKind::StaticExecutable(
@@ -1103,7 +1106,8 @@ mod output_section_part_map {
         use crate::elf::Elf64;
         use crate::elf::output_section_id;
 
-        let output_sections = crate::output_section_id::OutputSections::<Elf64>::for_testing();
+        let output_sections =
+            wild_layout::output_section_id::OutputSections::<Elf64>::for_testing();
         let mut part_map = output_sections.new_part_map::<u32>();
 
         assert_eq!(

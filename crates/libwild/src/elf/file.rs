@@ -14,9 +14,6 @@ use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::file_writer::copy_section_data;
-use crate::layout;
-use crate::layout::DynamicSymbolDefinition;
-use crate::output_section_part_map::OutputSectionPartMap;
 use crate::platform;
 use crate::platform::Arch;
 use crate::platform::FrameIndex;
@@ -25,7 +22,6 @@ use crate::platform::Platform;
 use crate::platform::Relocation;
 use crate::platform::RelocationSequence;
 use crate::platform::Symbol as _;
-use crate::resolution::LoadedMetrics;
 use linker_utils::elf::sht;
 use object::LittleEndian;
 use object::read::elf::CompressionHeader;
@@ -35,6 +31,10 @@ use object::read::elf::SectionHeader as _;
 use rayon::Scope;
 use std::borrow::Cow;
 use std::sync::atomic::Ordering;
+use wild_layout as layout;
+use wild_layout::DynamicSymbolDefinition;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::resolution::LoadedMetrics;
 use zerocopy::FromBytes;
 
 impl<'data, C: ElfClass> File<'data, C> {

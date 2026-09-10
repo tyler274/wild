@@ -337,7 +337,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
         &self,
         _lib_name: &[u8],
         _state: &mut <Self::Platform as platform::Platform>::DynamicLayoutStateExt<'data>,
-        _mem_sizes: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
+        _mem_sizes: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
     ) -> crate::error::Result {
         Ok(())
     }
@@ -375,7 +375,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
         &self,
         section: &<Self::Platform as platform::Platform>::SectionHeader,
         _member: &crate::arena::Member<'data>,
-        _loaded_metrics: &crate::resolution::LoadedMetrics,
+        _loaded_metrics: &wild_layout::resolution::LoadedMetrics,
     ) -> crate::error::Result<&'data [u8]> {
         // Wasm sections are never compressed.
         self.raw_section_data(section)
@@ -468,7 +468,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
 
     fn should_enforce_undefined(
         &self,
-        _resources: &crate::layout::GraphResources<'data, '_, Self::Platform>,
+        _resources: &wild_layout::GraphResources<'data, '_, Self::Platform>,
     ) -> bool {
         // Wasm has no dynamic objects yet, so this is never reached in practice.
         false

@@ -1,5 +1,5 @@
 use super::*;
-use crate::layout::EnginePlatform;
+use crate::EnginePlatform;
 use crate::linker_script;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::SectionIdentity;
@@ -9,11 +9,11 @@ use crate::platform::SectionOutputInfo;
 use crate::platform::SectionRuleOutcome;
 use hashbrown::HashTable;
 
-pub(crate) struct LayoutRules<'data> {
-    pub(crate) section_rules: SectionRules<'data>,
+pub struct LayoutRules<'data> {
+    pub section_rules: SectionRules<'data>,
 }
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum SectionKind<'data, P: Platform> {
+pub enum SectionKind<'data, P: Platform> {
     /// This is the primary section.
     Primary(SectionIdentity<'data, P>),
 
@@ -23,12 +23,12 @@ pub(crate) enum SectionKind<'data, P: Platform> {
 }
 
 /// Rules governing how input sections should be mapped to output sections.
-pub(crate) struct SectionRules<'data> {
+pub struct SectionRules<'data> {
     /// Rules by the hash of the first 4 bytes of the name.
-    pub(crate) rules: HashTable<SectionRule<'data>>,
+    pub rules: HashTable<SectionRule<'data>>,
 }
 
-pub(crate) fn section_rule_from_id<P: EnginePlatform>(
+pub fn section_rule_from_id<P: EnginePlatform>(
     section_id: OutputSectionId,
     output_info: SectionOutputInfo,
 ) -> SectionRuleOutcome {
@@ -44,13 +44,13 @@ pub(crate) fn section_rule_from_id<P: EnginePlatform>(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum LocationCounter<'data> {
+pub enum LocationCounter<'data> {
     Absolute(linker_script::Expression<'data>, SymbolLoc),
     Relative(linker_script::Expression<'data>, SymbolLoc, OutputSectionId),
 }
 
 impl<'data> LocationCounter<'data> {
-    pub(crate) fn get_expression(&self) -> &linker_script::Expression<'data> {
+    pub fn get_expression(&self) -> &linker_script::Expression<'data> {
         match self {
             LocationCounter::Absolute(expr, ..) => expr,
             LocationCounter::Relative(expr, ..) => expr,

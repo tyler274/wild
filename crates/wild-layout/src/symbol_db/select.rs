@@ -1,19 +1,19 @@
 use super::db::AtomicSymbolDb;
 use super::db::SymbolDb;
 use super::ids::SymbolId;
+use crate::EnginePlatform;
 use crate::bail;
 use crate::error::Error;
 use crate::error::Result;
-use crate::layout::EnginePlatform;
-use crate::layout::timing_phase;
-use crate::layout::verbose_timing_phase;
 use crate::platform::Args;
 use crate::platform::Symbol;
 use crate::resolution::ResolvedGroup;
+use crate::timing_phase;
 use crate::value_flags::AtomicPerSymbolFlags;
 use crate::value_flags::FlagsForSymbol;
 use crate::value_flags::PerSymbolFlags;
 use crate::value_flags::ValueFlags;
+use crate::verbose_timing_phase;
 use crossbeam_queue::SegQueue;
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -26,7 +26,7 @@ use std::mem::take;
 /// symbol we're using. The symbol we select will be the first strongly defined symbol in a loaded
 /// object, or if there are no strong definitions, then the first definition in a loaded object. If
 /// a symbol definition is a common symbol, then the largest definition will be used.
-pub(crate) fn resolve_alternative_symbol_definitions<'data, P: EnginePlatform>(
+pub fn resolve_alternative_symbol_definitions<'data, P: EnginePlatform>(
     symbol_db: &mut SymbolDb<'data, P>,
     per_symbol_flags: &mut PerSymbolFlags,
     resolved: &[ResolvedGroup<'data, P>],
@@ -78,7 +78,7 @@ pub(crate) fn resolve_alternative_symbol_definitions<'data, P: EnginePlatform>(
     Ok(())
 }
 
-pub(crate) use crate::platform::Visibility;
+pub use crate::platform::Visibility;
 
 fn process_alternatives<'data, P: EnginePlatform>(
     alternative_definitions: &mut HashMap<SymbolId, Vec<SymbolId>>,
@@ -149,7 +149,7 @@ fn handle_non_default_visibility(
 
 /// Applies visibility flags from a hidden/protected undefined reference to its definition.
 /// Called during canonicalisation when we find the definition for an undefined symbol.
-pub(crate) fn apply_visibility_to_definition(
+pub fn apply_visibility_to_definition(
     per_symbol_flags: &mut PerSymbolFlags,
     definition_id: SymbolId,
     visibility: Visibility,
@@ -237,7 +237,7 @@ fn select_symbol<'data, P: EnginePlatform>(
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
-pub(crate) enum SymbolStrength {
+pub enum SymbolStrength {
     /// The object containing this symbol wasn't loaded, so the definition can be ignored.
     Undefined,
 
@@ -257,7 +257,7 @@ pub(crate) enum SymbolStrength {
 
 impl SymbolStrength {
     /// Computes the binding strength of a symbol from its attributes.
-    pub(crate) fn of(symbol: &impl Symbol) -> Self {
+    pub fn of(symbol: &impl Symbol) -> Self {
         if symbol.is_weak() {
             SymbolStrength::Weak
         } else if symbol.is_common() {
@@ -272,14 +272,14 @@ impl SymbolStrength {
 
 /// Accumulates symbol candidates and selects the best one based on binding priority:
 /// strong > common (largest) > weak/gnu_unique.
-pub(crate) struct SymbolPrioritySelector {
-    pub(crate) first_strong: Option<SymbolId>,
+pub struct SymbolPrioritySelector {
+    pub first_strong: Option<SymbolId>,
     max_common: Option<(u64, SymbolId)>,
     first_weak: Option<SymbolId>,
 }
 
 impl SymbolPrioritySelector {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             first_strong: None,
             max_common: None,
@@ -288,7 +288,7 @@ impl SymbolPrioritySelector {
     }
 
     /// Consider a candidate symbol with the given strength.
-    pub(crate) fn consider(&mut self, id: SymbolId, strength: SymbolStrength) {
+    pub fn consider(&mut self, id: SymbolId, strength: SymbolStrength) {
         match strength {
             SymbolStrength::Strong => {
                 if self.first_strong.is_none() {
@@ -309,7 +309,7 @@ impl SymbolPrioritySelector {
     }
 
     /// Returns the best symbol based on priority: strong > common (largest) > weak.
-    pub(crate) fn best(self) -> Option<SymbolId> {
+    pub fn best(self) -> Option<SymbolId> {
         self.first_strong
             .or(self.max_common.map(|(_, id)| id))
             .or(self.first_weak)
@@ -318,6 +318,6 @@ impl SymbolPrioritySelector {
 
 /// Returns whether the supplied symbol name is for a [mapping
 /// symbol](https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst#mapping-symbols).
-pub(crate) fn is_mapping_symbol_name(name: &[u8]) -> bool {
+pub fn is_mapping_symbol_name(name: &[u8]) -> bool {
     name.starts_with(b"$x") || name.starts_with(b"$d") || name == b"L0\x01"
 }

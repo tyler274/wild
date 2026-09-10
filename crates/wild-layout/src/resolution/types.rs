@@ -37,10 +37,10 @@ pub(super) struct LoadObjectSymbolsRequest<'definitions> {
 }
 
 #[derive(Default)]
-pub(crate) struct LoadedMetrics {
-    pub(crate) loaded_bytes: AtomicUsize,
-    pub(crate) loaded_compressed_bytes: AtomicUsize,
-    pub(crate) decompressed_bytes: AtomicUsize,
+pub struct LoadedMetrics {
+    pub loaded_bytes: AtomicUsize,
+    pub loaded_compressed_bytes: AtomicUsize,
+    pub decompressed_bytes: AtomicUsize,
 }
 
 impl LoadedMetrics {
@@ -52,12 +52,12 @@ impl LoadedMetrics {
     }
 }
 #[derive(Debug)]
-pub(crate) struct ResolvedGroup<'data, P: Platform> {
-    pub(crate) files: Vec<ResolvedFile<'data, P>>,
+pub struct ResolvedGroup<'data, P: Platform> {
+    pub files: Vec<ResolvedFile<'data, P>>,
 }
 
 #[derive(Debug)]
-pub(crate) enum ResolvedFile<'data, P: Platform> {
+pub enum ResolvedFile<'data, P: Platform> {
     NotLoaded(NotLoaded),
     Prelude(ResolvedPrelude<'data, P>),
     Object(ResolvedObject<'data, P>),
@@ -70,14 +70,14 @@ pub(crate) enum ResolvedFile<'data, P: Platform> {
 }
 
 #[derive(Debug)]
-pub(crate) struct NotLoaded {
-    pub(crate) symbol_id_range: SymbolIdRange,
-    pub(crate) section_id_range: SectionIdRange,
+pub struct NotLoaded {
+    pub symbol_id_range: SymbolIdRange,
+    pub section_id_range: SectionIdRange,
 }
 
 /// A section, but where we may or may not yet have decided to load it.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum SectionSlot {
+pub enum SectionSlot {
     /// We've decided that this section won't be loaded.
     Discard,
 
@@ -88,11 +88,11 @@ pub(crate) enum SectionSlot {
     MustLoad(UnloadedSection),
 
     /// We've already loaded the section.
-    Loaded(crate::layout::Section),
+    Loaded(crate::Section),
 
     /// As for `Loaded`, but responsibility for allocating and writing the section is held by the
     /// epilogue due to being part of a sorted section.
-    Sorted(crate::layout::SortedSection),
+    Sorted(crate::SortedSection),
 
     /// The section contains frame data, e.g. .eh_frame or equivalent.
     FrameData(object::SectionIndex),
@@ -104,7 +104,7 @@ pub(crate) enum SectionSlot {
     UnloadedDebugInfo,
 
     // Loaded section with debug info content.
-    LoadedDebugInfo(crate::layout::Section),
+    LoadedDebugInfo(crate::Section),
 
     // GNU property section (.note.gnu.property)
     NoteGnuProperty(object::SectionIndex),
@@ -114,17 +114,17 @@ pub(crate) enum SectionSlot {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct UnloadedSection {
+pub struct UnloadedSection {
     /// The index of the last FDE for this section. Previous FDEs will be linked from this.
-    pub(crate) last_frame_index: Option<FrameIndex>,
+    pub last_frame_index: Option<FrameIndex>,
 
     /// Whether the section has a name that makes it eligible for generation of __start_ / __stop_
     /// symbols. In particular, the name of the section doesn't start with a ".".
-    pub(crate) start_stop_eligible: bool,
+    pub start_stop_eligible: bool,
 
-    pub(crate) needs_sorting: bool,
-    pub(crate) sort_by_init_priority: bool,
-    pub(crate) sort_by_alignment: bool,
+    pub needs_sorting: bool,
+    pub sort_by_init_priority: bool,
+    pub sort_by_alignment: bool,
 }
 
 impl UnloadedSection {
@@ -140,93 +140,93 @@ impl UnloadedSection {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ResolvedPrelude<'data, P: Platform> {
-    pub(crate) symbol_definitions: Vec<InternalSymDefInfo<'data, P>>,
+pub struct ResolvedPrelude<'data, P: Platform> {
+    pub symbol_definitions: Vec<InternalSymDefInfo<'data, P>>,
 }
 
 /// Resolved state common to dynamic and regular objects.
 #[derive(Debug)]
-pub(crate) struct ResolvedCommon<'data, P: Platform> {
-    pub(crate) input: InputRef<'data>,
-    pub(crate) object: &'data P::File<'data>,
-    pub(crate) file_id: FileId,
-    pub(crate) symbol_id_range: SymbolIdRange,
-    pub(crate) link_order: u32,
+pub struct ResolvedCommon<'data, P: Platform> {
+    pub input: InputRef<'data>,
+    pub object: &'data P::File<'data>,
+    pub file_id: FileId,
+    pub symbol_id_range: SymbolIdRange,
+    pub link_order: u32,
 }
 #[derive(Debug, Clone)]
-pub(crate) struct ScriptSortedSectionDetail {
-    pub(crate) index: object::SectionIndex,
-    pub(crate) sort_by_init_priority: bool,
-    pub(crate) sort_by_alignment: bool,
+pub struct ScriptSortedSectionDetail {
+    pub index: object::SectionIndex,
+    pub sort_by_init_priority: bool,
+    pub sort_by_alignment: bool,
 }
 
 #[derive(Debug)]
-pub(crate) struct ResolvedObject<'data, P: Platform> {
-    pub(crate) common: ResolvedCommon<'data, P>,
-    pub(crate) section_id_range: SectionIdRange,
+pub struct ResolvedObject<'data, P: Platform> {
+    pub common: ResolvedCommon<'data, P>,
+    pub section_id_range: SectionIdRange,
 
-    pub(crate) sections: Vec<SectionSlot>,
-    pub(crate) relocations: P::RelocationSections,
+    pub sections: Vec<SectionSlot>,
+    pub relocations: P::RelocationSections,
 
-    pub(crate) string_merge_extras: Vec<StringMergeSectionExtra<'data>>,
+    pub string_merge_extras: Vec<StringMergeSectionExtra<'data>>,
 
     /// Details about each custom section that is defined in this object.
     pub(super) custom_sections: Vec<CustomSectionDetails<'data, P>>,
 
     pub(super) init_fini_sections: Vec<InitFiniSectionDetail>,
 
-    pub(crate) script_sorted_sections: Vec<ScriptSortedSectionDetail>,
+    pub script_sorted_sections: Vec<ScriptSortedSectionDetail>,
 
     /// Total size in bytes of all executable input sections in this object. Used to determine
     /// early-on if we can be sure that thunks won't be needed.
-    pub(crate) executable_bytes: u64,
+    pub executable_bytes: u64,
 
-    pub(crate) format_specific: P::ResolvedObjectExt<'data>,
+    pub format_specific: P::ResolvedObjectExt<'data>,
 }
 
 #[derive(Debug)]
-pub(crate) struct ResolvedDynamic<'data, P: Platform> {
-    pub(crate) common: ResolvedCommon<'data, P>,
+pub struct ResolvedDynamic<'data, P: Platform> {
+    pub common: ResolvedCommon<'data, P>,
     dynamic_tag_values: P::DynamicTagValues<'data>,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ResolvedStubLibrary<'data> {
-    pub(crate) input: InputRef<'data>,
-    pub(crate) file_id: FileId,
-    pub(crate) symbol_id_range: SymbolIdRange,
-    pub(crate) defined_symbols: DefinedStubLibrary<'data>,
+pub struct ResolvedStubLibrary<'data> {
+    pub input: InputRef<'data>,
+    pub file_id: FileId,
+    pub symbol_id_range: SymbolIdRange,
+    pub defined_symbols: DefinedStubLibrary<'data>,
 }
 
 #[derive(Debug)]
-pub(crate) struct ResolvedLinkerScript<'data, P: Platform> {
-    pub(crate) input: InputRef<'data>,
-    pub(crate) file_id: FileId,
-    pub(crate) symbol_id_range: SymbolIdRange,
-    pub(crate) symbol_definitions: Vec<InternalSymDefInfo<'data, P>>,
+pub struct ResolvedLinkerScript<'data, P: Platform> {
+    pub input: InputRef<'data>,
+    pub file_id: FileId,
+    pub symbol_id_range: SymbolIdRange,
+    pub symbol_definitions: Vec<InternalSymDefInfo<'data, P>>,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ResolvedSyntheticSymbols<'data, P: Platform> {
-    pub(crate) file_id: FileId,
-    pub(crate) start_symbol_id: SymbolId,
-    pub(crate) symbol_definitions: Vec<InternalSymDefInfo<'data, P>>,
-    pub(crate) start_stop_sections:
+pub struct ResolvedSyntheticSymbols<'data, P: Platform> {
+    pub file_id: FileId,
+    pub start_symbol_id: SymbolId,
+    pub symbol_definitions: Vec<InternalSymDefInfo<'data, P>>,
+    pub start_stop_sections:
         Option<crate::output_section_map::OutputSectionMap<Vec<StartStopCandidate<P>>>>,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct StartStopCandidate<P: Platform> {
-    pub(crate) file_id: FileId,
-    pub(crate) gc_unit: P::GcUnit,
+pub struct StartStopCandidate<P: Platform> {
+    pub file_id: FileId,
+    pub gc_unit: P::GcUnit,
 }
 
 #[cfg(all(feature = "plugins", unix))]
 #[derive(Debug, Clone)]
-pub(crate) struct ResolvedLtoInput {
-    pub(crate) file_id: FileId,
-    pub(crate) symbol_id_range: SymbolIdRange,
-    pub(crate) section_id_range: SectionIdRange,
+pub struct ResolvedLtoInput {
+    pub file_id: FileId,
+    pub symbol_id_range: SymbolIdRange,
+    pub section_id_range: SectionIdRange,
 }
 pub(super) struct Outputs<'data, P: Platform> {
     /// Where we put objects once we've loaded them.
@@ -271,7 +271,7 @@ impl<'data, P: Platform> ResolvedCommon<'data, P> {
         }
     }
 
-    pub(crate) fn symbol_strength(&self, symbol_id: SymbolId) -> SymbolStrength {
+    pub fn symbol_strength(&self, symbol_id: SymbolId) -> SymbolStrength {
         let local_index = symbol_id.to_input(self.symbol_id_range);
         let Ok(obj_symbol) = self.object.symbol(local_index) else {
             // Errors from this function should have been reported elsewhere.
@@ -310,17 +310,17 @@ impl<'data, P: Platform> ResolvedDynamic<'data, P> {
         }
     }
 
-    pub(crate) fn lib_name(&self) -> &'data [u8] {
+    pub fn lib_name(&self) -> &'data [u8] {
         self.dynamic_tag_values
             .lib_name(self.common.input.lib_name())
     }
 }
 #[derive(Debug)]
-pub(crate) struct SymbolAttributes<'data, P: Platform> {
-    pub(crate) is_local: bool,
-    pub(crate) default_visibility: bool,
-    pub(crate) is_weak: bool,
-    pub(crate) name_info: P::RawSymbolName<'data>,
+pub struct SymbolAttributes<'data, P: Platform> {
+    pub is_local: bool,
+    pub default_visibility: bool,
+    pub is_weak: bool,
+    pub name_info: P::RawSymbolName<'data>,
 }
 impl<'data, P: Platform> std::fmt::Display for ResolvedObject<'data, P> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -335,7 +335,7 @@ impl<'data, P: Platform> std::fmt::Display for ResolvedDynamic<'data, P> {
 }
 
 impl ResolvedStubLibrary<'_> {
-    pub(crate) fn symbol_strength(&self, symbol_id: SymbolId) -> SymbolStrength {
+    pub fn symbol_strength(&self, symbol_id: SymbolId) -> SymbolStrength {
         let local_index = self.symbol_id_range.id_to_offset(symbol_id);
         if local_index < self.defined_symbols.symbols.len() {
             SymbolStrength::Strong
@@ -374,14 +374,14 @@ impl<'data, P: Platform> std::fmt::Display for ResolvedFile<'data, P> {
 }
 
 impl SectionSlot {
-    pub(crate) fn is_loaded(&self) -> bool {
+    pub fn is_loaded(&self) -> bool {
         !matches!(
             self,
             SectionSlot::Discard | SectionSlot::Unloaded(..) | SectionSlot::NoteGnuProperty(..)
         )
     }
 
-    pub(crate) fn unloaded_mut(&mut self) -> Option<&mut UnloadedSection> {
+    pub fn unloaded_mut(&mut self) -> Option<&mut UnloadedSection> {
         match self {
             SectionSlot::Unloaded(unloaded) | SectionSlot::MustLoad(unloaded) => Some(unloaded),
             _ => None,

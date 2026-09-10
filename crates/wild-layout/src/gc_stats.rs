@@ -16,11 +16,11 @@
 //! cargo rustc --bin rg -- -Clinker=/usr/bin/clang-15 -Clink-arg=--ld-path=wild -Clink-arg=-Wl,--write-gc-stats=/tmp/gc-stats.txt -Clink-arg=-Wl,--verbose-gc-stats
 //! ```
 
+use crate::EnginePlatform;
+use crate::FileLayout;
+use crate::GroupLayout;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::layout::EnginePlatform;
-use crate::layout::FileLayout;
-use crate::layout::GroupLayout;
 use crate::platform::Args;
 use crate::platform::ObjectFile;
 use crate::resolution::SectionSlot;
@@ -29,7 +29,7 @@ use hashbrown::HashMap;
 use itertools::Itertools;
 use std::path::PathBuf;
 
-pub(crate) fn maybe_write_gc_stats<'data, P: EnginePlatform>(
+pub fn maybe_write_gc_stats<'data, P: EnginePlatform>(
     group_layouts: &[GroupLayout<'data, P>],
     symbol_db: &SymbolDb<P>,
 ) -> Result {

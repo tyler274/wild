@@ -5,7 +5,6 @@ use crate::error::Context as _;
 use crate::error::Result;
 use crate::file_writer::SizedOutput;
 use crate::file_writer::split_output_into_sections;
-use crate::layout::Layout;
 use crate::platform::Arch;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
@@ -38,6 +37,7 @@ use wasm_encoder::ImportSection;
 use wasm_encoder::MemorySection;
 use wasm_encoder::TableSection;
 use wasm_encoder::TypeSection;
+use wild_layout::Layout;
 
 fn apply_resolved_reloc(
     index_map: &WasmObjectIndexMap,
@@ -90,7 +90,7 @@ pub(crate) fn write<'data, A: Arch<Platform = Wasm>>(
     padding.fill_zero();
 
     let preamble = section_buffers
-        .get_mut(crate::output_section_id::FILE_HEADER)
+        .get_mut(wild_layout::output_section_id::FILE_HEADER)
         .get_mut(..8)
         .ok_or_else(|| crate::error!("Wasm output buffer is shorter than the 8-byte preamble"))?;
     preamble[..4].copy_from_slice(&WASM_MAGIC);

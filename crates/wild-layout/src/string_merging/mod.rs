@@ -31,13 +31,13 @@
 //! each bucket and populating a hashmap from input to output offset for any offsets that didn't fit
 //! in our primary offset map.
 
-pub(crate) mod merge;
-pub(crate) mod split;
-pub(crate) mod types;
+pub mod merge;
+pub mod split;
+pub mod types;
 
 #[allow(unused_imports)]
-pub(crate) use merge::*;
+pub use merge::*;
 #[allow(unused_imports)]
-pub(crate) use split::*;
+pub use split::*;
 #[allow(unused_imports)]
-pub(crate) use types::*;
+pub use types::*;

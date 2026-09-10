@@ -12,27 +12,11 @@ use crate::elf::output_section_id;
 use crate::elf::part_id;
 use crate::error;
 use crate::error::Result;
-use crate::layout::EpilogueLayout;
-use crate::layout::InternalSymbols;
-use crate::layout::LinkerScriptLayoutState;
-use crate::layout::ObjectLayout;
-use crate::layout::PreludeLayout;
-use crate::layout::Resolution;
-use crate::layout::Section;
-use crate::layout::SyntheticSymbolsLayout;
-use crate::output_section_id::OutputOrder;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::OutputSections;
-use crate::output_section_id::SectionOutputInfo;
 use crate::output_section_map::OutputSectionMap;
-use crate::output_section_part_map::OutputSectionPartMap;
 use crate::output_trace::TraceOutput;
-use crate::parsing::SymbolLoc;
-use crate::part_id::PartId;
 use crate::platform::Arch;
 use crate::platform::ObjectFile;
 use crate::platform::Platform;
-use crate::resolution::SectionSlot;
 use crate::sharding::ShardKey;
 use crate::timing_phase;
 use crate::value_flags::ValueFlags;
@@ -50,6 +34,22 @@ use object::elf::NT_GNU_PROPERTY_TYPE_0;
 use object::from_bytes_mut;
 use std::io::Cursor;
 use std::io::Write;
+use wild_layout::EpilogueLayout;
+use wild_layout::InternalSymbols;
+use wild_layout::LinkerScriptLayoutState;
+use wild_layout::ObjectLayout;
+use wild_layout::PreludeLayout;
+use wild_layout::Resolution;
+use wild_layout::Section;
+use wild_layout::SyntheticSymbolsLayout;
+use wild_layout::output_section_id::OutputOrder;
+use wild_layout::output_section_id::OutputSectionId;
+use wild_layout::output_section_id::OutputSections;
+use wild_layout::output_section_id::SectionOutputInfo;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::parsing::SymbolLoc;
+use wild_layout::part_id::PartId;
+use wild_layout::resolution::SectionSlot;
 use zerocopy::FromBytes;
 use zerocopy::transmute_mut;
 
@@ -204,7 +204,7 @@ pub(crate) fn write_prelude_except_gdb_index<
     verbose_timing_phase!("Write prelude");
 
     let header: &mut elf::FileHeader<C> =
-        from_bytes_mut(buffers.get_mut(crate::part_id::FILE_HEADER))
+        from_bytes_mut(buffers.get_mut(wild_layout::part_id::FILE_HEADER))
             .map_err(|_| error!("Invalid file header allocation"))?
             .0;
     populate_file_header::<C, A>(layout, &prelude.header_info, header)?;
@@ -291,7 +291,7 @@ pub(crate) fn write_merged_strings<C: ElfClass>(
 }
 
 pub(crate) fn write_merged_strings_to_buffer(
-    merged: &crate::string_merging::MergedStringsSection,
+    merged: &wild_layout::string_merging::MergedStringsSection,
     buffer: &mut &mut [u8],
 ) {
     let leading = merged.leading_pad();
@@ -470,7 +470,7 @@ pub(crate) fn write_epilogue<C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     }
 
     for sorted_section in &layout.script_sorted_sections {
-        let crate::layout::FileLayout::Object(object) = layout.file_layout(sorted_section.file_id)
+        let wild_layout::FileLayout::Object(object) = layout.file_layout(sorted_section.file_id)
         else {
             unreachable!();
         };
@@ -677,7 +677,7 @@ pub(crate) fn verify_resolution_allocation<C: ElfClass, A: Arch<Platform = elf::
     // Allocate however much space was requested.
 
     let mut total_bytes_allocated = 0;
-    crate::output_section_part_map::output_order_map(
+    wild_layout::output_section_part_map::output_order_map(
         mem_sizes,
         output_order,
         output_sections,
@@ -689,7 +689,7 @@ pub(crate) fn verify_resolution_allocation<C: ElfClass, A: Arch<Platform = elf::
     let mut all_mem = vec![0_u64; total_bytes_allocated as usize / size_of::<u64>()];
     let mut all_mem: &mut [u8] = transmute_mut!(all_mem.as_mut_slice());
     let mut offset = 0;
-    let mut buffers = crate::output_section_part_map::output_order_map(
+    let mut buffers = wild_layout::output_section_part_map::output_order_map(
         mem_sizes,
         output_order,
         output_sections,
@@ -782,7 +782,7 @@ pub(crate) fn write_script_output_data<C: ElfClass>(
             .and_then(|lc| lc.section_offset)
             .unwrap_or(u64::from(data.width)) as usize;
         let offset = end.saturating_sub(usize::from(data.width));
-        let value = crate::expression_eval::evaluate_expression(
+        let value = wild_layout::expression_eval::evaluate_expression(
             &data.value,
             &SymbolLoc::None,
             None,
@@ -796,7 +796,7 @@ pub(crate) fn write_script_output_data<C: ElfClass>(
             &mut |name| {
                 let Some(symbol_id) = layout
                     .symbol_db
-                    .get_unversioned(&crate::symbol::UnversionedSymbolName::prehashed(name))
+                    .get_unversioned(&wild_layout::symbol::UnversionedSymbolName::prehashed(name))
                 else {
                     crate::bail!(
                         "undefined symbol `{}` in linker script BYTE/SHORT/LONG/QUAD",
@@ -807,7 +807,7 @@ pub(crate) fn write_script_output_data<C: ElfClass>(
                 layout
                     .symbol_resolutions
                     .get(canonical)
-                    .map(|r| crate::expression_eval::SymbolValue::Absolute(r.raw_value))
+                    .map(|r| wild_layout::expression_eval::SymbolValue::Absolute(r.raw_value))
                     .with_context(|| {
                         format!(
                             "unresolved symbol `{}` in linker script BYTE/SHORT/LONG/QUAD",

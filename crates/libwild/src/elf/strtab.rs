@@ -5,11 +5,11 @@
 //! is always the empty string.
 
 use crate::error::Result;
-use crate::layout::EnginePlatform;
-use crate::layout_rules::SectionKind;
-use crate::output_section_id::OutputSections;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
+use wild_layout::EnginePlatform;
+use wild_layout::layout_rules::SectionKind;
+use wild_layout::output_section_id::OutputSections;
 
 /// Final `.strtab` contents and `st_name` offsets after suffix merging.
 #[derive(Debug, Default)]

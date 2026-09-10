@@ -32,7 +32,7 @@ impl WasmGcUnitState {
 
 #[derive(Debug, Default)]
 pub(crate) struct WasmObjectLayout<'data> {
-    pub(crate) symbol_id_range: crate::symbol_db::SymbolIdRange,
+    pub(crate) symbol_id_range: wild_layout::symbol_db::SymbolIdRange,
     pub(crate) file_id: crate::input_data::FileId,
     // Set once per-unit GC states have been allocated at object activate.
     pub(crate) gc_states_ready: bool,

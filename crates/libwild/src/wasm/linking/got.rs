@@ -4,9 +4,6 @@ use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::platform::Args as _;
-use crate::symbol::UnversionedSymbolName;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
 use crate::wasm::WASM_DEAD_INDEX;
@@ -20,6 +17,9 @@ use hashbrown::HashSet;
 use rayon::prelude::*;
 use std::borrow::Cow;
 use wasmparser::RelocationType;
+use wild_layout::symbol::UnversionedSymbolName;
+use wild_layout::symbol_db::SymbolDb;
+use wild_layout::symbol_db::SymbolId;
 
 /// Synthetic function produced for an unresolved weak function import.
 #[derive(Debug, Clone)]
@@ -334,7 +334,7 @@ pub(crate) fn resolve_got_mem_def(
 
     // Linker-defined data live on the prelude file, not in `layout_inputs`.
     if let Some(def_info) = symbol_db.prelude_symbol_def(def_id)
-        && let crate::parsing::SymbolPlacement::PlatformSpecific(known) = def_info.placement
+        && let wild_layout::parsing::SymbolPlacement::PlatformSpecific(known) = def_info.placement
         && matches!(
             known,
             WasmLinkerSymbol::DataEnd

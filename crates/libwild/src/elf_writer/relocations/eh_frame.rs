@@ -8,7 +8,6 @@ use crate::elf::output_section_id;
 use crate::error;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::layout::ObjectLayout;
 use crate::output_trace::TraceOutput;
 use crate::platform::Arch;
 use crate::platform::ObjectFile;
@@ -19,6 +18,7 @@ use object::LittleEndian;
 use object::read::elf::SectionHeader as _;
 use object::read::elf::Sym as _;
 use std::iter;
+use wild_layout::ObjectLayout;
 use zerocopy::FromBytes;
 
 pub(crate) fn write_eh_frame_data<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(

@@ -10,22 +10,12 @@ use crate::elf::ElfClass;
 use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::layout::FileLayout;
-use crate::layout::Layout;
-use crate::layout::ObjectLayout;
-use crate::layout::Resolution;
-use crate::part_id::PartId;
 use crate::platform;
 use crate::platform::Arch;
 use crate::platform::ObjectFile;
 use crate::platform::Platform;
 use crate::platform::Relocation;
 use crate::platform::SectionFlags as _;
-use crate::resolution::SectionSlot;
-use crate::string_merging::get_merged_string_output_address;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
-use crate::thunks::ThunkBlockId;
 use crate::value_flags::PerSymbolFlags;
 use crate::value_flags::ValueFlags;
 #[allow(unused_imports)]
@@ -45,6 +35,16 @@ pub(crate) use rela::*;
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::ops::BitAnd;
+use wild_layout::FileLayout;
+use wild_layout::Layout;
+use wild_layout::ObjectLayout;
+use wild_layout::Resolution;
+use wild_layout::part_id::PartId;
+use wild_layout::resolution::SectionSlot;
+use wild_layout::string_merging::get_merged_string_output_address;
+use wild_layout::symbol_db::SymbolDb;
+use wild_layout::symbol_db::SymbolId;
+use wild_layout::thunks::ThunkBlockId;
 
 pub(crate) fn display_relocation<
     'a,
@@ -202,7 +202,8 @@ pub(crate) fn get_pair_subtraction_relocation_value<
     );
     let (set_resolution, set_symbol_index, _) = get_resolution(set_rel, object_layout, layout)?;
 
-    let set_resolution_val = set_resolution.value_with_addend(
+    let set_resolution_val = elf::value_with_addend(
+        set_resolution,
         set_rel.addend(),
         set_symbol_index,
         object_layout,
@@ -210,7 +211,8 @@ pub(crate) fn get_pair_subtraction_relocation_value<
         &layout.merged_strings,
         &layout.merged_string_start_addresses,
     )?;
-    let sub_resolution_val = resolution.value_with_addend(
+    let sub_resolution_val = elf::value_with_addend(
+        resolution,
         addend,
         symbol_index,
         object_layout,
@@ -348,7 +350,8 @@ pub(crate) fn apply_debug_relocation<
             | RelocationKind::AbsoluteAdditionWord6
             | RelocationKind::AbsoluteSubtraction
             | RelocationKind::AbsoluteSubtractionWord6 => {
-                let mut value = resolution.value_with_addend(
+                let mut value = elf::value_with_addend(
+                    resolution,
                     addend,
                     symbol_index,
                     object_layout,
@@ -436,7 +439,8 @@ pub(crate) fn write_absolute_relocation<'data, C: ElfClass, A: Arch<Platform = e
     layout: &ElfLayout<C>,
 ) -> Result<u64> {
     if !section_info.section_flags.is_alloc() {
-        resolution.value_with_addend(
+        elf::value_with_addend(
+            resolution,
             addend,
             symbol_index,
             object_layout,
@@ -467,7 +471,8 @@ pub(crate) fn write_absolute_relocation<'data, C: ElfClass, A: Arch<Platform = e
             .write_ifunc_relocation_for_data::<A>(place, resolution.raw_value as i64 + addend)?;
         Ok(0)
     } else if table_writer.output_kind.is_position_independent() && !resolution.is_absolute() {
-        let address = resolution.value_with_addend(
+        let address = elf::value_with_addend(
+            resolution,
             addend,
             symbol_index,
             object_layout,
@@ -477,7 +482,8 @@ pub(crate) fn write_absolute_relocation<'data, C: ElfClass, A: Arch<Platform = e
         )?;
         table_writer.write_address_relocation::<A>(place, address)
     } else {
-        resolution.value_with_addend(
+        elf::value_with_addend(
+            resolution,
             addend,
             symbol_index,
             object_layout,

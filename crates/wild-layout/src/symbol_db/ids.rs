@@ -1,9 +1,9 @@
 #[allow(unused_imports)]
-pub(crate) use crate::platform::symbol_id::*;
+pub use crate::platform::symbol_id::*;
 use crate::symbol::UnversionedSymbolName;
 use std::fmt::Display;
 
-pub(crate) struct SymbolNameDisplay<'data> {
+pub struct SymbolNameDisplay<'data> {
     pub(super) name: Option<UnversionedSymbolName<'data>>,
     pub(super) demangle: bool,
 }

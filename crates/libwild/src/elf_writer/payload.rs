@@ -8,11 +8,7 @@ use crate::file_writer::SizedOutput;
 use crate::file_writer::split_buffers_by_alignment;
 use crate::file_writer::split_output_by_group;
 use crate::file_writer::split_output_into_sections;
-use crate::layout::FileLayout;
-use crate::layout::Layout;
-use crate::output_section_id::OrderEvent;
 use crate::output_section_map::OutputSectionMap;
-use crate::output_section_part_map::OutputSectionPartMap;
 use crate::output_trace::TraceOutput;
 use crate::platform::Arch;
 use crate::sframe;
@@ -20,6 +16,10 @@ use crate::timing_phase;
 use crate::verbose_timing_phase;
 use rayon::iter::IndexedParallelIterator;
 use std::sync::atomic::Ordering::Relaxed;
+use wild_layout::FileLayout;
+use wild_layout::Layout;
+use wild_layout::output_section_id::OrderEvent;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
 use zerocopy::FromBytes;
 
 pub(crate) fn write_file_contents<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
@@ -120,7 +120,7 @@ pub(crate) fn fill_padding_for_sections<C: ElfClass, A: Arch<Platform = elf::Elf
 pub(crate) fn section_covering_file_offset<C: ElfClass>(
     layout: &Layout<'_, elf::Elf<C>>,
     file_offset: usize,
-) -> Option<crate::output_section_id::OutputSectionId> {
+) -> Option<wild_layout::output_section_id::OutputSectionId> {
     let mut found = None;
     layout.merged_section_layouts.for_each(|id, rec| {
         if rec.file_size == 0 {

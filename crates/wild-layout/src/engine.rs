@@ -1,24 +1,24 @@
 //! Equality bounds that pin `Platform` associated engine types to this crate's concrete types.
 
+use crate::CommonGroupState;
+use crate::DynamicLayoutState;
+use crate::DynamicSymbolDefinition;
+use crate::FinaliseLayoutResources;
+use crate::FinaliseSizesResources;
+use crate::GraphResources;
+use crate::GroupState;
+use crate::HeaderInfo;
+use crate::Layout;
+use crate::LocalWorkQueue;
+use crate::ObjectLayoutState;
+use crate::OutputRecordLayout;
+use crate::PreludeLayoutState;
+use crate::Resolution;
+use crate::ResolutionWriter;
+use crate::StubLibraryLayoutState;
+use crate::SymbolResolutions;
 use crate::grouping::Group;
 use crate::grouping::SequencedLinkerScript;
-use crate::layout::CommonGroupState;
-use crate::layout::DynamicLayoutState;
-use crate::layout::DynamicSymbolDefinition;
-use crate::layout::FinaliseLayoutResources;
-use crate::layout::FinaliseSizesResources;
-use crate::layout::GraphResources;
-use crate::layout::GroupState;
-use crate::layout::HeaderInfo;
-use crate::layout::Layout;
-use crate::layout::LocalWorkQueue;
-use crate::layout::ObjectLayoutState;
-use crate::layout::OutputRecordLayout;
-use crate::layout::PreludeLayoutState;
-use crate::layout::Resolution;
-use crate::layout::ResolutionWriter;
-use crate::layout::StubLibraryLayoutState;
-use crate::layout::SymbolResolutions;
 use crate::layout_rules::LayoutRulesBuilder;
 use crate::parsing::InternalSymDefInfo;
 use crate::parsing::InternalSymbolsBuilder;
@@ -32,7 +32,7 @@ use crate::resolution::Resolver;
 use crate::resolution::UnloadedSection;
 use crate::symbol_db::SymbolDb;
 
-pub(crate) trait EnginePlatform:
+pub trait EnginePlatform:
     for<'data> Platform<
         Layout<'data> = Layout<'data, Self>,
         SymbolDb<'data> = SymbolDb<'data, Self>,
@@ -61,7 +61,7 @@ pub(crate) trait EnginePlatform:
         LocalWorkQueue = LocalWorkQueue<Self>,
         OutputRecordLayout = OutputRecordLayout,
         SymbolResolutions = SymbolResolutions<Self>,
-        LayoutSection = crate::layout::Section,
+        LayoutSection = crate::Section,
         HeaderInfo = HeaderInfo,
         Resolution = Resolution<Self>,
         UnloadedSection = UnloadedSection,
@@ -75,28 +75,28 @@ pub(crate) trait EnginePlatform:
 /// impl aliases these associated types to the types named here; rustc cannot be told that for
 /// generic `P` without a dual-lifetime HRTB (issue 100013).
 #[inline(always)]
-pub(crate) fn platform_graph<'a, 'data, 'scope, P: Platform>(
+pub fn platform_graph<'a, 'data, 'scope, P: Platform>(
     resources: &'a GraphResources<'data, 'scope, P>,
 ) -> &'a P::GraphResources<'data, 'scope> {
     unsafe { &*(std::ptr::from_ref(resources).cast()) }
 }
 
 #[inline(always)]
-pub(crate) fn platform_finalise_layout<'a, 'scope, 'data, P: Platform>(
+pub fn platform_finalise_layout<'a, 'scope, 'data, P: Platform>(
     resources: &'a FinaliseLayoutResources<'scope, 'data, P>,
 ) -> &'a P::FinaliseLayoutResources<'scope, 'data> {
     unsafe { &*(std::ptr::from_ref(resources).cast()) }
 }
 
 #[inline(always)]
-pub(crate) fn platform_finalise_sizes<'a, 'data, 'scope, P: Platform>(
+pub fn platform_finalise_sizes<'a, 'data, 'scope, P: Platform>(
     resources: &'a FinaliseSizesResources<'data, 'scope, P>,
 ) -> &'a P::FinaliseSizesResources<'data, 'scope> {
     unsafe { &*(std::ptr::from_ref(resources).cast()) }
 }
 
 #[inline(always)]
-pub(crate) fn platform_resolution_writer<'a, 'writer, 'out, P: Platform>(
+pub fn platform_resolution_writer<'a, 'writer, 'out, P: Platform>(
     writer: &'a mut ResolutionWriter<'writer, 'out, P>,
 ) -> &'a mut P::ResolutionWriter<'writer, 'out> {
     unsafe { &mut *std::ptr::from_mut(writer).cast() }
@@ -104,7 +104,7 @@ pub(crate) fn platform_resolution_writer<'a, 'writer, 'out, P: Platform>(
 
 #[cfg_attr(not(all(feature = "plugins", unix)), allow(dead_code))]
 #[inline(always)]
-pub(crate) fn platform_resolution<'a, 'data, 'scope, P: Platform>(
+pub fn platform_resolution<'a, 'data, 'scope, P: Platform>(
     resources: &'a ResolutionResources<'data, 'scope, P>,
 ) -> &'a P::ResolutionResources<'data, 'scope> {
     unsafe { &*(std::ptr::from_ref(resources).cast()) }
@@ -113,7 +113,7 @@ pub(crate) fn platform_resolution<'a, 'data, 'scope, P: Platform>(
 /// Dual-lifetime GAT equalities. Not folded into [`EnginePlatform`] because
 /// `for<'scope, 'data: 'scope>` hits rustc issue 100013.
 #[allow(dead_code)]
-pub(crate) trait EngineScope<'data, 'scope>: EnginePlatform
+pub trait EngineScope<'data, 'scope>: EnginePlatform
 where
     'data: 'scope,
     Self: Platform<
@@ -127,7 +127,7 @@ where
 
 /// `ResolutionWriter` uses a different lifetime pair than [`EngineScope`].
 #[allow(dead_code)]
-pub(crate) trait EngineWriter<'writer, 'out>: EnginePlatform
+pub trait EngineWriter<'writer, 'out>: EnginePlatform
 where
     'out: 'writer,
     Self: Platform<ResolutionWriter<'writer, 'out> = ResolutionWriter<'writer, 'out, Self>>,

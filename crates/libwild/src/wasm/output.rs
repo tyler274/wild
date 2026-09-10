@@ -14,9 +14,7 @@ use crate::bail;
 use crate::ensure;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::part_id::PartId;
 use crate::platform::Args as _;
-use crate::symbol_db::SymbolDb;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
 use crate::wasm_writer::OutputExport;
@@ -36,6 +34,8 @@ use wasmparser::ConstExpr;
 use wasmparser::DataKind;
 use wasmparser::MemoryType;
 use wasmparser::RelocationType;
+use wild_layout::part_id::PartId;
+use wild_layout::symbol_db::SymbolDb;
 
 #[derive(Debug, Default)]
 pub(crate) struct WasmLayout<'data> {
@@ -81,7 +81,7 @@ pub(crate) struct WasmEncodedSections {
 impl WasmEncodedSections {
     pub(crate) fn add_sizes_to(
         &self,
-        sizes: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
+        sizes: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
     ) {
         add_encoded_section_size(sizes, part_id::WASM_TYPE, self.ty.as_ref());
         add_encoded_section_size(sizes, part_id::WASM_IMPORT, self.import.as_ref());
@@ -108,7 +108,7 @@ pub(crate) struct ObjectNameEntries<'a> {
 }
 
 pub(crate) fn add_encoded_section_size(
-    sizes: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
+    sizes: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
     part_id: PartId,
     section: Option<&Vec<u8>>,
 ) {
@@ -561,7 +561,7 @@ impl<'data> WasmLayout<'data> {
 
     pub(crate) fn add_code_section_size(
         &self,
-        sizes: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
+        sizes: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
     ) {
         if self.code_section_size > 0 {
             sizes.increment(part_id::WASM_CODE, self.code_section_size);
@@ -570,7 +570,7 @@ impl<'data> WasmLayout<'data> {
 
     pub(crate) fn add_data_section_size(
         &self,
-        sizes: &mut crate::output_section_part_map::OutputSectionPartMap<u64>,
+        sizes: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
     ) {
         if self.data_section_size > 0 {
             sizes.increment(part_id::WASM_DATA, self.data_section_size);

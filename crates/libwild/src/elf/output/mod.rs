@@ -21,24 +21,13 @@ use crate::debug_assert_bail;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::gdb_index::InputDebugIndexSection;
-use crate::layout;
-use crate::layout::CommonGroupState;
-use crate::layout::ObjectLayout;
-use crate::layout::Resolution;
-use crate::layout_rules::SectionKind;
 use crate::output_kind::OutputKind;
-use crate::output_section_id::SectionIdentity;
-use crate::output_section_id::SectionName;
 use crate::output_section_map::OutputSectionMap;
-use crate::output_section_part_map::OutputSectionPartMap;
-use crate::part_id::PartId;
 use crate::platform;
 use crate::platform::Arch;
 use crate::platform::ObjectFile;
 use crate::platform::Relocation;
 use crate::platform::ThunkConfig;
-use crate::string_merging::MergedStringStartAddresses;
-use crate::string_merging::MergedStringsSection;
 use crate::value_flags::ValueFlags;
 #[allow(unused_imports)]
 pub(crate) use copy::*;
@@ -56,6 +45,17 @@ pub(crate) use relr::*;
 #[allow(unused_imports)]
 pub(crate) use rules::*;
 use std::num::NonZeroU64;
+use wild_layout as layout;
+use wild_layout::CommonGroupState;
+use wild_layout::ObjectLayout;
+use wild_layout::Resolution;
+use wild_layout::layout_rules::SectionKind;
+use wild_layout::output_section_id::SectionIdentity;
+use wild_layout::output_section_id::SectionName;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::part_id::PartId;
+use wild_layout::string_merging::MergedStringStartAddresses;
+use wild_layout::string_merging::MergedStringsSection;
 
 impl<C: ElfClass> Elf<C> {
     pub(super) const DEFAULT_DEFS: BuiltInSectionDetails<C> = BuiltInSectionDetails {
@@ -77,7 +77,7 @@ impl<C: ElfClass> Elf<C> {
         let mut defs = [Self::DEFAULT_DEFS; ELF_NUM_BUILT_IN_SECTIONS];
 
         // A section into which we write headers.
-        defs[crate::output_section_id::FILE_HEADER.as_usize()] = BuiltInSectionDetails {
+        defs[wild_layout::output_section_id::FILE_HEADER.as_usize()] = BuiltInSectionDetails {
             kind: Self::primary_section(b""),
             section_flags: shf::ALLOC,
             ..Self::DEFAULT_DEFS
@@ -553,101 +553,106 @@ pub(super) fn allocate_plt(memory_offsets: &mut OutputSectionPartMap<u64>) -> No
     plt_address
 }
 
-impl<C: ElfClass> Resolution<Elf<C>> {
-    pub(crate) fn got_address(&self) -> Result<u64> {
-        Ok(self
-            .format_specific
-            .got_address
-            .context("Missing GOT address")?
-            .get())
+pub(crate) fn got_address<C: ElfClass>(resolution: Resolution<Elf<C>>) -> Result<u64> {
+    Ok(resolution
+        .format_specific
+        .got_address
+        .context("Missing GOT address")?
+        .get())
+}
+
+pub(crate) fn got_address_for_relocation<C: ElfClass>(
+    resolution: Resolution<Elf<C>>,
+) -> Result<u64> {
+    let mut got_address = got_address(resolution)?;
+    if resolution.flags.needs_ifunc_got_for_address()
+        || resolution.flags.needs_canonical_plt_got_for_address()
+    {
+        got_address += C::GOT_ENTRY_SIZE;
+    }
+    Ok(got_address)
+}
+
+pub(crate) fn tlsgd_got_address<C: ElfClass>(resolution: Resolution<Elf<C>>) -> Result<u64> {
+    debug_assert_bail!(
+        resolution.flags.needs_got_tls_module(),
+        "Called tlsgd_got_address without GOT_TLS_MODULE being set"
+    );
+    // If we've got both a GOT_TLS_OFFSET and a GOT_TLS_MODULE, then the latter comes second.
+    let mut got_address = got_address(resolution)?;
+    if resolution.flags.needs_got_tls_offset() {
+        got_address += C::GOT_ENTRY_SIZE;
+    }
+    Ok(got_address)
+}
+
+pub(crate) fn tls_descriptor_got_address<C: ElfClass>(
+    resolution: Resolution<Elf<C>>,
+) -> Result<u64> {
+    debug_assert_bail!(
+        resolution.flags.needs_got_tls_descriptor(),
+        "Called tls_descriptor_got_address without GOT_TLS_DESCRIPTOR being set"
+    );
+    // We might have both GOT_TLS_OFFSET, GOT_TLS_MODULE and GOT_TLS_DESCRIPTOR at the same time
+    // for a single symbol. Then the TLS descriptor comes as the last one.
+    let mut got_address = got_address(resolution)?;
+    if resolution.flags.needs_got_tls_offset() {
+        got_address += C::GOT_ENTRY_SIZE;
+    }
+    if resolution.flags.needs_got_tls_module() {
+        got_address += 2 * C::GOT_ENTRY_SIZE;
     }
 
-    pub(crate) fn got_address_for_relocation(&self) -> Result<u64> {
-        let mut got_address = self.got_address()?;
-        if self.flags.needs_ifunc_got_for_address()
-            || self.flags.needs_canonical_plt_got_for_address()
-        {
-            got_address += C::GOT_ENTRY_SIZE;
-        }
-        Ok(got_address)
+    Ok(got_address)
+}
+
+pub(crate) fn plt_address<C: ElfClass>(resolution: Resolution<Elf<C>>) -> Result<u64> {
+    Ok(resolution
+        .format_specific
+        .plt_address
+        .context("Missing PLT address")?
+        .get())
+}
+
+#[inline(always)]
+pub(crate) fn value_with_addend<'data, C: ElfClass>(
+    resolution: Resolution<Elf<C>>,
+    addend: i64,
+    symbol_index: object::SymbolIndex,
+    object_layout: &ObjectLayout<'data, Elf<C>>,
+    section_part_ids: &[PartId],
+    merged_strings: &OutputSectionMap<MergedStringsSection>,
+    merged_string_start_addresses: &MergedStringStartAddresses,
+) -> Result<u64> {
+    if resolution.flags.is_ifunc() {
+        return Ok(plt_address(resolution)?.wrapping_add(addend as u64));
     }
 
-    pub(crate) fn tlsgd_got_address(&self) -> Result<u64> {
-        debug_assert_bail!(
-            self.flags.needs_got_tls_module(),
-            "Called tlsgd_got_address without GOT_TLS_MODULE being set"
-        );
-        // If we've got both a GOT_TLS_OFFSET and a GOT_TLS_MODULE, then the latter comes second.
-        let mut got_address = self.got_address()?;
-        if self.flags.needs_got_tls_offset() {
-            got_address += C::GOT_ENTRY_SIZE;
+    // For most symbols, `raw_value` won't be zero, so we can save ourselves from looking up the
+    // section to see if it's a string-merge section. For string-merge symbols with names,
+    // `raw_value` will have already been computed, so we can avoid computing it again.
+    if resolution.raw_value == 0
+        && let Some(r) = wild_layout::string_merging::get_merged_string_output_address::<Elf<C>>(
+            symbol_index,
+            addend,
+            object_layout.object,
+            &object_layout.sections,
+            section_part_ids,
+            object_layout.section_id_range,
+            merged_strings,
+            merged_string_start_addresses,
+            false,
+        )?
+    {
+        if resolution.raw_value != 0 {
+            bail!(
+                "Merged string resolution has value 0x{}",
+                resolution.raw_value
+            );
         }
-        Ok(got_address)
+        return Ok(r);
     }
-
-    pub(crate) fn tls_descriptor_got_address(&self) -> Result<u64> {
-        debug_assert_bail!(
-            self.flags.needs_got_tls_descriptor(),
-            "Called tls_descriptor_got_address without GOT_TLS_DESCRIPTOR being set"
-        );
-        // We might have both GOT_TLS_OFFSET, GOT_TLS_MODULE and GOT_TLS_DESCRIPTOR at the same time
-        // for a single symbol. Then the TLS descriptor comes as the last one.
-        let mut got_address = self.got_address()?;
-        if self.flags.needs_got_tls_offset() {
-            got_address += C::GOT_ENTRY_SIZE;
-        }
-        if self.flags.needs_got_tls_module() {
-            got_address += 2 * C::GOT_ENTRY_SIZE;
-        }
-
-        Ok(got_address)
-    }
-
-    pub(crate) fn plt_address(&self) -> Result<u64> {
-        Ok(self
-            .format_specific
-            .plt_address
-            .context("Missing PLT address")?
-            .get())
-    }
-
-    #[inline(always)]
-    pub(crate) fn value_with_addend<'data>(
-        &self,
-        addend: i64,
-        symbol_index: object::SymbolIndex,
-        object_layout: &ObjectLayout<'data, Elf<C>>,
-        section_part_ids: &[PartId],
-        merged_strings: &OutputSectionMap<MergedStringsSection>,
-        merged_string_start_addresses: &MergedStringStartAddresses,
-    ) -> Result<u64> {
-        if self.flags.is_ifunc() {
-            return Ok(self.plt_address()?.wrapping_add(addend as u64));
-        }
-
-        // For most symbols, `raw_value` won't be zero, so we can save ourselves from looking up the
-        // section to see if it's a string-merge section. For string-merge symbols with names,
-        // `raw_value` will have already been computed, so we can avoid computing it again.
-        if self.raw_value == 0
-            && let Some(r) = crate::string_merging::get_merged_string_output_address::<Elf<C>>(
-                symbol_index,
-                addend,
-                object_layout.object,
-                &object_layout.sections,
-                section_part_ids,
-                object_layout.section_id_range,
-                merged_strings,
-                merged_string_start_addresses,
-                false,
-            )?
-        {
-            if self.raw_value != 0 {
-                bail!("Merged string resolution has value 0x{}", self.raw_value);
-            }
-            return Ok(r);
-        }
-        Ok(self.raw_value.wrapping_add(addend as u64))
-    }
+    Ok(resolution.raw_value.wrapping_add(addend as u64))
 }
 
 #[derive(Debug, Default)]

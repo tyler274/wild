@@ -13,9 +13,9 @@ use std::path::Path;
 
 /// `{index, generation}` handle. Generation 0 is never issued.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct AtomId {
-    pub(crate) index: u32,
-    pub(crate) generation: u32,
+pub struct AtomId {
+    pub index: u32,
+    pub generation: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -29,14 +29,14 @@ struct AtomSlot {
 /// Generational arena of input files (and other symbol-bearing units) that persist across
 /// `--incremental` updates.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct AtomTable {
+pub struct AtomTable {
     slots: Vec<AtomSlot>,
     free: Vec<u32>,
     by_key: HashMap<String, u32>,
 }
 
 impl AtomTable {
-    pub(crate) fn alloc(&mut self, key: String, num_symbols: u32) -> AtomId {
+    pub fn alloc(&mut self, key: String, num_symbols: u32) -> AtomId {
         if let Some(&index) = self.by_key.get(&key)
             && let Some(id) = self.live_id(index)
         {
@@ -67,31 +67,31 @@ impl AtomTable {
         }
     }
 
-    pub(crate) fn get(&self, id: AtomId) -> bool {
+    pub fn get(&self, id: AtomId) -> bool {
         self.live_id(id.index)
             .is_some_and(|live| live.generation == id.generation)
     }
 
-    pub(crate) fn get_by_key(&self, key: &str) -> Option<AtomId> {
+    pub fn get_by_key(&self, key: &str) -> Option<AtomId> {
         let index = *self.by_key.get(key)?;
         self.live_id(index)
     }
 
-    pub(crate) fn num_symbols(&self, id: AtomId) -> Option<u32> {
+    pub fn num_symbols(&self, id: AtomId) -> Option<u32> {
         if !self.get(id) {
             return None;
         }
         Some(self.slots[id.index as usize].num_symbols)
     }
 
-    pub(crate) fn key(&self, id: AtomId) -> Option<&str> {
+    pub fn key(&self, id: AtomId) -> Option<&str> {
         if !self.get(id) {
             return None;
         }
         self.slots[id.index as usize].key.as_deref()
     }
 
-    pub(crate) fn free(&mut self, id: AtomId) {
+    pub fn free(&mut self, id: AtomId) {
         if !self.get(id) {
             return;
         }
@@ -104,7 +104,7 @@ impl AtomTable {
         self.free.push(id.index);
     }
 
-    pub(crate) fn live_ids(&self) -> impl Iterator<Item = AtomId> + '_ {
+    pub fn live_ids(&self) -> impl Iterator<Item = AtomId> + '_ {
         self.slots.iter().enumerate().filter_map(|(i, slot)| {
             slot.key.as_ref().map(|_| AtomId {
                 index: i as u32,
@@ -125,7 +125,7 @@ impl AtomTable {
         }
     }
 
-    pub(crate) fn write(&self, path: &Path) -> Result {
+    pub fn write(&self, path: &Path) -> Result {
         let mut out = fs::File::create(path)?;
         for (i, slot) in self.slots.iter().enumerate() {
             match &slot.key {
@@ -136,7 +136,7 @@ impl AtomTable {
         Ok(())
     }
 
-    pub(crate) fn read(path: &Path) -> Option<Self> {
+    pub fn read(path: &Path) -> Option<Self> {
         let text = fs::read_to_string(path).ok()?;
         let mut table = Self::default();
         for line in text.lines() {
@@ -192,30 +192,30 @@ fn next_generation(generation: u32) -> u32 {
 
 /// Handle into [`NodeArena`]. `index == u32::MAX` is nil.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct NodeId {
-    pub(crate) index: u32,
-    pub(crate) generation: u32,
+pub struct NodeId {
+    pub index: u32,
+    pub generation: u32,
 }
 
 impl NodeId {
-    pub(crate) const NIL: Self = Self {
+    pub const NIL: Self = Self {
         index: u32::MAX,
         generation: 0,
     };
 
-    pub(crate) fn is_nil(self) -> bool {
+    pub fn is_nil(self) -> bool {
         self.index == u32::MAX
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct ReverseRelocNode {
-    pub(crate) file_offset: u64,
-    pub(crate) place: u64,
-    pub(crate) addend: i64,
-    pub(crate) r_type: u32,
-    pub(crate) owner: AtomId,
-    pub(crate) next: NodeId,
+pub struct ReverseRelocNode {
+    pub file_offset: u64,
+    pub place: u64,
+    pub addend: i64,
+    pub r_type: u32,
+    pub owner: AtomId,
+    pub next: NodeId,
 }
 
 #[derive(Debug)]
@@ -227,7 +227,7 @@ struct NodeSlot {
 
 /// Generational arena for reverse-reloc linked-list nodes.
 #[derive(Debug, Default)]
-pub(crate) struct NodeArena {
+pub struct NodeArena {
     slots: Vec<NodeSlot>,
     free: Vec<u32>,
 }
@@ -297,17 +297,17 @@ struct AtomRelocs {
 
 /// Reverse-reloc lists keyed by `(atom, local symbol offset)`, not dense `SymbolId`.
 #[derive(Debug, Default)]
-pub(crate) struct ReverseRelocIndex {
+pub struct ReverseRelocIndex {
     atoms: Vec<AtomRelocs>,
     nodes: NodeArena,
 }
 
 impl ReverseRelocIndex {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self::default()
     }
 
-    pub(crate) fn push(
+    pub fn push(
         &mut self,
         defined: AtomId,
         local_symbol: usize,
@@ -334,7 +334,7 @@ impl ReverseRelocIndex {
         self.atoms[defined.index as usize].heads[local_symbol] = id;
     }
 
-    pub(crate) fn for_each_site(
+    pub fn for_each_site(
         &self,
         defined: AtomId,
         local_symbol: usize,
@@ -360,11 +360,7 @@ impl ReverseRelocIndex {
     ///
     /// A skip update only rewrites changed objects, so `fresh` is incomplete. Sites in skipped
     /// objects stay; sites in rewritten objects are replaced.
-    pub(crate) fn merge_rewritten(
-        &mut self,
-        fresh: &ReverseRelocIndex,
-        rewritten: &HashSet<AtomId>,
-    ) {
+    pub fn merge_rewritten(&mut self, fresh: &ReverseRelocIndex, rewritten: &HashSet<AtomId>) {
         let mut keep = Vec::new();
         self.for_each_all(|defined, local, node| {
             if !rewritten.contains(&node.owner) {
@@ -408,7 +404,7 @@ impl ReverseRelocIndex {
     }
 
     #[cfg(test)]
-    pub(crate) fn live_node_count(&self) -> u64 {
+    pub fn live_node_count(&self) -> u64 {
         self.nodes.live_count()
     }
 
@@ -440,7 +436,7 @@ impl ReverseRelocIndex {
 const REVERSE_RELOC_MAGIC: &[u8; 4] = b"WREV";
 const REVERSE_RELOC_VERSION: u32 = 2;
 
-pub(crate) fn write_reverse_relocs(path: &Path, index: &ReverseRelocIndex) -> Result {
+pub fn write_reverse_relocs(path: &Path, index: &ReverseRelocIndex) -> Result {
     // Compact live nodes so the on-disk form is a dense list with generation 1.
     let (compact_atoms, compact_nodes) = compact_reverse_relocs(index);
     let mut bytes = Vec::new();
@@ -518,7 +514,7 @@ fn compact_list(
     }
 }
 
-pub(crate) fn read_reverse_relocs(path: &Path) -> Option<ReverseRelocIndex> {
+pub fn read_reverse_relocs(path: &Path) -> Option<ReverseRelocIndex> {
     let bytes = fs::read(path).ok()?;
     if bytes.len() < 16 || bytes.get(..4) != Some(REVERSE_RELOC_MAGIC.as_slice()) {
         return None;
@@ -608,7 +604,7 @@ const RESOLUTIONS_MAGIC: &[u8; 4] = b"WRES";
 const RESOLUTIONS_VERSION: u32 = 1;
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct AtomResolutions {
+pub struct AtomResolutions {
     slots: Vec<AtomResolutionSlot>,
 }
 
@@ -619,7 +615,7 @@ struct AtomResolutionSlot {
 }
 
 impl AtomResolutions {
-    pub(crate) fn set(&mut self, id: AtomId, values: Vec<u64>) {
+    pub fn set(&mut self, id: AtomId, values: Vec<u64>) {
         if self.slots.len() <= id.index as usize {
             self.slots
                 .resize_with(id.index as usize + 1, || AtomResolutionSlot {
@@ -633,7 +629,7 @@ impl AtomResolutions {
         };
     }
 
-    pub(crate) fn get(&self, id: AtomId) -> Option<&[u64]> {
+    pub fn get(&self, id: AtomId) -> Option<&[u64]> {
         let slot = self.slots.get(id.index as usize)?;
         if slot.generation == id.generation {
             Some(slot.values.as_slice())
@@ -642,7 +638,7 @@ impl AtomResolutions {
         }
     }
 
-    pub(crate) fn write(&self, path: &Path) -> Result {
+    pub fn write(&self, path: &Path) -> Result {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(RESOLUTIONS_MAGIC);
         bytes.extend_from_slice(&RESOLUTIONS_VERSION.to_le_bytes());
@@ -658,7 +654,7 @@ impl AtomResolutions {
         Ok(())
     }
 
-    pub(crate) fn read(path: &Path) -> Option<Self> {
+    pub fn read(path: &Path) -> Option<Self> {
         let bytes = fs::read(path).ok()?;
         if bytes.len() < 16 || bytes.get(..4) != Some(RESOLUTIONS_MAGIC.as_slice()) {
             return None;

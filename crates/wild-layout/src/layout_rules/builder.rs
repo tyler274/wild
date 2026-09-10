@@ -1,4 +1,5 @@
 use super::*;
+use crate::EnginePlatform;
 use crate::OutputSections;
 use crate::alignment;
 use crate::arch::Architecture;
@@ -7,7 +8,6 @@ use crate::args::InputRef;
 use crate::error::Context;
 use crate::error::Result;
 use crate::expression_eval::evaluate_const;
-use crate::layout::EnginePlatform;
 use crate::linker_script;
 use crate::linker_script::ContentsCommand;
 use crate::linker_script::Expression;
@@ -27,7 +27,7 @@ use hashbrown::HashMap;
 use linker_utils::elf::secnames::NOTE_GNU_BUILD_ID_SECTION_NAME;
 
 #[derive(Default)]
-pub(crate) struct LayoutRulesBuilder<'data> {
+pub struct LayoutRulesBuilder<'data> {
     rules: Vec<SectionRule<'data>>,
     num_location_counters: usize,
     overlay_group: u32,
@@ -58,7 +58,7 @@ fn loc_for_global_expr<'data>(
 }
 impl<'data> LayoutRulesBuilder<'data> {
     /// Records information about any sections and symbols declared by the linker script.
-    pub(crate) fn process_linker_script<P: EnginePlatform>(
+    pub fn process_linker_script<P: EnginePlatform>(
         &mut self,
         input: &InputLinkerScript<'data>,
         output_sections: &mut OutputSections<'data, P>,
@@ -610,7 +610,7 @@ impl<'data> LayoutRulesBuilder<'data> {
         })
     }
 
-    pub(crate) fn build<P: EnginePlatform>(mut self, args: &P::Args) -> LayoutRules<'data> {
+    pub fn build<P: EnginePlatform>(mut self, args: &P::Args) -> LayoutRules<'data> {
         let section_rules = if self.rules.is_empty() {
             SectionRules::from_rules(&P::default_layout_rules(args))
         } else {
@@ -621,7 +621,7 @@ impl<'data> LayoutRulesBuilder<'data> {
         LayoutRules { section_rules }
     }
 
-    pub(crate) fn add_section_rule(&mut self, rule: SectionRule<'data>) {
+    pub fn add_section_rule(&mut self, rule: SectionRule<'data>) {
         self.rules.push(rule);
     }
 }

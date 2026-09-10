@@ -1,15 +1,13 @@
 use super::*;
+use crate::EnginePlatform;
 use crate::OutputKind;
 use crate::alignment;
 use crate::bail;
 use crate::error::Context;
 use crate::error::Error;
 use crate::error::Result;
+use crate::graph::*;
 use crate::grouping::Group;
-use crate::layout::EnginePlatform;
-use crate::layout::graph::*;
-use crate::layout::script::*;
-use crate::layout::sizes::*;
 use crate::linker_script::Expression;
 use crate::output_section_id;
 use crate::output_section_id::OutputOrder;
@@ -29,7 +27,9 @@ use crate::platform::Symbol as _;
 use crate::program_segments::ProgramSegmentId;
 use crate::program_segments::ProgramSegments;
 use crate::resolution;
+use crate::script::*;
 use crate::sharding::ShardKey;
+use crate::sizes::*;
 use crate::string_merging::MergedStringsSection;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
@@ -46,7 +46,7 @@ use std::mem::replace;
 use std::mem::size_of;
 
 impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
-    pub(crate) fn new(input_state: resolution::ResolvedPrelude<'data, P>, args: &P::Args) -> Self {
+    pub fn new(input_state: resolution::ResolvedPrelude<'data, P>, args: &P::Args) -> Self {
         Self {
             file_id: PRELUDE_FILE_ID,
             symbol_id_range: SymbolIdRange::prelude(input_state.symbol_definitions.len()),
@@ -62,7 +62,7 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
         }
     }
 
-    pub(crate) fn activate<'scope, A: Arch<Platform = P>>(
+    pub fn activate<'scope, A: Arch<Platform = P>>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
         resources: &'scope GraphResources<'data, '_, P>,
@@ -107,7 +107,7 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
 
     /// Mark defsyms from the command-line as being directly referenced so that we emit the symbols
     /// even if nothing in the code references them.
-    pub(crate) fn mark_defsyms_as_used<'scope, A: Arch<Platform = P>>(
+    pub fn mark_defsyms_as_used<'scope, A: Arch<Platform = P>>(
         &self,
         resources: &'scope GraphResources<'data, '_, A::Platform>,
         queue: &mut LocalWorkQueue<P>,
@@ -130,7 +130,7 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
         }
     }
 
-    pub(crate) fn load_entry_point<'scope, A: Arch<Platform = P>>(
+    pub fn load_entry_point<'scope, A: Arch<Platform = P>>(
         &mut self,
         resources: &'scope GraphResources<'data, '_, P>,
         queue: &mut LocalWorkQueue<P>,
@@ -165,7 +165,7 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
         }
     }
 
-    pub(crate) fn finalise_sizes(
+    pub fn finalise_sizes(
         common: &mut CommonGroupState<'data, P>,
         merged_strings: &OutputSectionMap<MergedStringsSection<'data>>,
     ) {
@@ -183,7 +183,7 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
     /// of the section headers table, which depends on which sections we're writing, which depends
     /// on which sections are non-empty. We also decide which internal symtab entries we'll write
     /// here, since that also depends on which sections we're writing.
-    pub(crate) fn apply_late_size_adjustments<'scope>(
+    pub fn apply_late_size_adjustments<'scope>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
         total_sizes: &mut OutputSectionPartMap<u64>,
@@ -253,7 +253,7 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
     /// Allocates space for our internal symbols. For unreferenced symbols, we also update the
     /// symbol so that it is treated as referenced, but only for symbols in sections that we're
     /// going to emit.
-    pub(crate) fn allocate_symbol_table_sizes(
+    pub fn allocate_symbol_table_sizes(
         &self,
         output_sections: &OutputSections<P>,
         per_symbol_flags: &mut PerSymbolFlags,
@@ -314,7 +314,7 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
         )
     }
 
-    pub(crate) fn determine_header_sizes<'scope>(
+    pub fn determine_header_sizes<'scope>(
         &mut self,
         total_sizes: &OutputSectionPartMap<u64>,
         extra_sizes: &mut OutputSectionPartMap<u64>,
@@ -544,14 +544,14 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
             &header_info,
             program_segments,
             output_sections,
-            crate::layout::platform_finalise_sizes(resources),
+            crate::platform_finalise_sizes(resources),
             resources.symbol_db.args,
         );
 
         self.header_info = Some(header_info);
     }
 
-    pub(crate) fn finalise_layout<'scope, 'writer, 'out>(
+    pub fn finalise_layout<'scope, 'writer, 'out>(
         self,
         memory_offsets: &mut OutputSectionPartMap<u64>,
         resolutions_out: &mut ResolutionWriter<'writer, 'out, P>,
@@ -565,7 +565,7 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
         let format_specific = P::finalise_prelude_layout(
             &self,
             memory_offsets,
-            crate::layout::platform_finalise_layout(resources),
+            crate::platform_finalise_layout(resources),
         )?;
 
         self.internal_symbols
@@ -612,7 +612,7 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
 }
 
 impl<'data, P: EnginePlatform> InternalSymbols<'data, P> {
-    pub(crate) fn activate_symbols<'scope, A: Arch<Platform = P>>(
+    pub fn activate_symbols<'scope, A: Arch<Platform = P>>(
         &self,
         common: &mut CommonGroupState<'data, P>,
         resources: &'scope GraphResources<'data, '_, P>,
@@ -669,7 +669,7 @@ impl<'data, P: EnginePlatform> InternalSymbols<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn allocate_symbol_table_sizes(
+    pub fn allocate_symbol_table_sizes(
         &self,
         sizes: &mut OutputSectionPartMap<u64>,
         symbol_db: &SymbolDb<'data, P>,
@@ -695,7 +695,7 @@ impl<'data, P: EnginePlatform> InternalSymbols<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn finalise_layout(
+    pub fn finalise_layout(
         &self,
         memory_offsets: &mut OutputSectionPartMap<u64>,
         resolutions_out: &mut ResolutionWriter<P>,
@@ -713,13 +713,13 @@ impl<'data, P: EnginePlatform> InternalSymbols<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn symbol_id_range(&self) -> SymbolIdRange {
+    pub fn symbol_id_range(&self) -> SymbolIdRange {
         SymbolIdRange::input(self.start_symbol_id, self.symbol_definitions.len())
     }
 }
 
 impl<'data, P: EnginePlatform> SyntheticSymbolsLayoutState<'data, P> {
-    pub(crate) fn new(
+    pub fn new(
         input_state: resolution::ResolvedSyntheticSymbols<'data, P>,
     ) -> SyntheticSymbolsLayoutState<'data, P> {
         SyntheticSymbolsLayoutState {
@@ -736,7 +736,7 @@ impl<'data, P: EnginePlatform> SyntheticSymbolsLayoutState<'data, P> {
         }
     }
 
-    pub(crate) fn finalise_sizes(
+    pub fn finalise_sizes(
         &self,
         common: &mut CommonGroupState<'data, P>,
         per_symbol_flags: &AtomicPerSymbolFlags,
@@ -761,7 +761,7 @@ impl<'data, P: EnginePlatform> SyntheticSymbolsLayoutState<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn finalise_layout(
+    pub fn finalise_layout(
         self,
         memory_offsets: &mut OutputSectionPartMap<u64>,
         resolutions_out: &mut ResolutionWriter<P>,
@@ -777,7 +777,7 @@ impl<'data, P: EnginePlatform> SyntheticSymbolsLayoutState<'data, P> {
 }
 
 impl<'data, P: EnginePlatform> EpilogueLayoutState<P> {
-    pub(crate) fn new(
+    pub fn new(
         args: &P::Args,
         output_kind: OutputKind,
         dynamic_symbol_definitions: &mut [DynamicSymbolDefinition<'data, P>],
@@ -793,7 +793,7 @@ impl<'data, P: EnginePlatform> EpilogueLayoutState<P> {
         }
     }
 
-    pub(crate) fn apply_late_size_adjustments(
+    pub fn apply_late_size_adjustments(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
         total_sizes: &mut OutputSectionPartMap<u64>,
@@ -819,7 +819,7 @@ impl<'data, P: EnginePlatform> EpilogueLayoutState<P> {
         Ok(())
     }
 
-    pub(crate) fn finalise_sizes(
+    pub fn finalise_sizes(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
         resources: &FinaliseSizesResources<'data, '_, P>,
@@ -835,7 +835,7 @@ impl<'data, P: EnginePlatform> EpilogueLayoutState<P> {
         );
     }
 
-    pub(crate) fn finalise_layout<'scope>(
+    pub fn finalise_layout<'scope>(
         mut self,
         memory_offsets: &mut OutputSectionPartMap<u64>,
         resources: &FinaliseLayoutResources<'scope, 'data, P>,
@@ -876,7 +876,7 @@ impl<'data, P: EnginePlatform> EpilogueLayoutState<P> {
 }
 
 impl<'data, P: EnginePlatform> StubLibraryLayoutState<'data, P> {
-    pub(crate) fn new(stub: &resolution::ResolvedStubLibrary<'data>, args: &P::Args) -> Self {
+    pub fn new(stub: &resolution::ResolvedStubLibrary<'data>, args: &P::Args) -> Self {
         Self {
             input: stub.input,
             file_id: stub.file_id,
@@ -885,7 +885,7 @@ impl<'data, P: EnginePlatform> StubLibraryLayoutState<'data, P> {
         }
     }
 
-    pub(crate) fn finalise_layout<'scope, 'writer, 'out>(
+    pub fn finalise_layout<'scope, 'writer, 'out>(
         self,
         memory_offsets: &mut OutputSectionPartMap<u64>,
         resolutions_out: &mut ResolutionWriter<'writer, 'out, P>,
@@ -895,8 +895,8 @@ impl<'data, P: EnginePlatform> StubLibraryLayoutState<'data, P> {
             match P::finalise_layout_stub(
                 self,
                 memory_offsets,
-                crate::layout::platform_finalise_layout(resources),
-                crate::layout::platform_resolution_writer(resolutions_out),
+                crate::platform_finalise_layout(resources),
+                crate::platform_resolution_writer(resolutions_out),
             )? {
                 Some(format_specific) => {
                     FileLayout::StubLibrary(StubLibraryLayout { format_specific })
@@ -908,7 +908,7 @@ impl<'data, P: EnginePlatform> StubLibraryLayoutState<'data, P> {
 }
 
 impl<'data, P: EnginePlatform> DynamicLayoutState<'data, P> {
-    pub(crate) fn activate<'scope, A: Arch<Platform = P>>(
+    pub fn activate<'scope, A: Arch<Platform = P>>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
         resources: &'scope GraphResources<'data, '_, P>,
@@ -920,7 +920,7 @@ impl<'data, P: EnginePlatform> DynamicLayoutState<'data, P> {
         self.request_all_undefined_symbols::<A>(resources, queue, scope)
     }
 
-    pub(crate) fn request_all_undefined_symbols<'scope, A: Arch<Platform = P>>(
+    pub fn request_all_undefined_symbols<'scope, A: Arch<Platform = P>>(
         &self,
         resources: &'scope GraphResources<'data, '_, P>,
         queue: &mut LocalWorkQueue<P>,
@@ -941,7 +941,7 @@ impl<'data, P: EnginePlatform> DynamicLayoutState<'data, P> {
                 let args = resources.symbol_db.args;
                 let check_undefined = *check_undefined_cache.get_or_insert_with(|| {
                     self.object
-                        .should_enforce_undefined(crate::layout::platform_graph(resources))
+                        .should_enforce_undefined(crate::platform_graph(resources))
                 });
 
                 if check_undefined {
@@ -983,7 +983,7 @@ impl<'data, P: EnginePlatform> DynamicLayoutState<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn finalise_sizes(&mut self, common: &mut CommonGroupState<'data, P>) -> Result {
+    pub fn finalise_sizes(&mut self, common: &mut CommonGroupState<'data, P>) -> Result {
         P::finalise_sizes_dynamic(self, common)?;
 
         self.object.finalise_sizes_dynamic(
@@ -995,7 +995,7 @@ impl<'data, P: EnginePlatform> DynamicLayoutState<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn finalise_layout<'scope, 'writer, 'out>(
+    pub fn finalise_layout<'scope, 'writer, 'out>(
         mut self,
         memory_offsets: &mut OutputSectionPartMap<u64>,
         resolutions_out: &mut ResolutionWriter<'writer, 'out, P>,
@@ -1007,8 +1007,8 @@ impl<'data, P: EnginePlatform> DynamicLayoutState<'data, P> {
             match P::finalise_layout_dynamic(
                 &mut self,
                 memory_offsets,
-                crate::layout::platform_finalise_layout(resources),
-                crate::layout::platform_resolution_writer(resolutions_out),
+                crate::platform_finalise_layout(resources),
+                crate::platform_resolution_writer(resolutions_out),
             )? {
                 Some(format_specific) => FileLayout::Dynamic(DynamicLayout {
                     file_id,
@@ -1025,7 +1025,7 @@ impl<'data, P: EnginePlatform> DynamicLayoutState<'data, P> {
 }
 
 impl<'data, P: EnginePlatform> LinkerScriptLayoutState<'data, P> {
-    pub(crate) fn finalise_layout(
+    pub fn finalise_layout(
         &self,
         memory_offsets: &mut OutputSectionPartMap<u64>,
         resolutions_out: &mut ResolutionWriter<P>,
@@ -1035,7 +1035,7 @@ impl<'data, P: EnginePlatform> LinkerScriptLayoutState<'data, P> {
             .finalise_layout(memory_offsets, resolutions_out, resources)
     }
 
-    pub(crate) fn new(input: resolution::ResolvedLinkerScript<'data, P>) -> Self {
+    pub fn new(input: resolution::ResolvedLinkerScript<'data, P>) -> Self {
         Self {
             file_id: input.file_id,
             input: input.input,
@@ -1047,7 +1047,7 @@ impl<'data, P: EnginePlatform> LinkerScriptLayoutState<'data, P> {
         }
     }
 
-    pub(crate) fn activate<'scope, A: Arch<Platform = P>>(
+    pub fn activate<'scope, A: Arch<Platform = P>>(
         &self,
         common: &mut CommonGroupState<'data, P>,
         resources: &'scope GraphResources<'data, '_, P>,
@@ -1075,7 +1075,7 @@ impl<'data, P: EnginePlatform> LinkerScriptLayoutState<'data, P> {
             .activate_symbols::<A>(common, resources, queue, scope)
     }
 
-    pub(crate) fn finalise_sizes(
+    pub fn finalise_sizes(
         &self,
         common: &mut CommonGroupState<'data, P>,
         per_symbol_flags: &AtomicPerSymbolFlags,

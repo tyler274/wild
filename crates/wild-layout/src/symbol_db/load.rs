@@ -2,6 +2,7 @@ use super::db::PendingSymbol;
 use super::db::PendingVersionedSymbol;
 use super::db::SymbolBucket;
 use super::ids::*;
+use crate::EnginePlatform;
 use crate::OutputKind;
 use crate::error;
 use crate::error::Context as _;
@@ -13,9 +14,6 @@ use crate::grouping::SequencedInputObject;
 use crate::grouping::SequencedLinkerScript;
 use crate::hash::PreHashed;
 use crate::hash::hash_bytes;
-use crate::layout::EnginePlatform;
-use crate::layout::timing_phase;
-use crate::layout::verbose_timing_phase;
 use crate::output_section_id::OutputSectionId;
 use crate::parsing::InternalSymDefInfo;
 use crate::parsing::Prelude;
@@ -30,8 +28,10 @@ use crate::platform::Platform;
 use crate::platform::RawSymbolName as _;
 use crate::platform::Symbol;
 use crate::symbol::UnversionedSymbolName;
+use crate::timing_phase;
 use crate::value_flags::RawFlags;
 use crate::value_flags::ValueFlags;
+use crate::verbose_timing_phase;
 use crate::version_script::VersionScript;
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelRefMutIterator as _;
@@ -48,7 +48,7 @@ struct PendingSymbolHashBucket<'data> {
 
     versioned_symbols: Vec<PendingVersionedSymbol<'data>>,
 }
-pub(crate) fn linker_plugin_disabled_error() -> Error {
+pub fn linker_plugin_disabled_error() -> Error {
     error!("Wild was compiled without linker-plugin support, but LTO inputs were detected")
 }
 
@@ -569,7 +569,7 @@ impl<'data, P: EnginePlatform> Prelude<'data, P> {
     }
 }
 impl<P: EnginePlatform> InternalSymDefInfo<'_, P> {
-    pub(crate) fn section_id(&self) -> Option<OutputSectionId> {
+    pub fn section_id(&self) -> Option<OutputSectionId> {
         match self.placement {
             SymbolPlacement::Redirect(Redirect { ref loc, .. }) => loc.section_id(),
             SymbolPlacement::Undefined

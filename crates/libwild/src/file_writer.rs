@@ -10,12 +10,7 @@ use crate::error::Result;
 use crate::fs::FileReplacementMode;
 use crate::fs::FileType;
 use crate::fs::FileWriteMode;
-use crate::layout::EnginePlatform;
-use crate::layout::GroupLayout;
-use crate::layout::Layout;
-use crate::output_section_id::OutputSectionId;
 use crate::output_section_map::OutputSectionMap;
-use crate::output_section_part_map::OutputSectionPartMap;
 use crate::output_trace::TraceOutput;
 use crate::platform::Args;
 use crate::timing_phase;
@@ -31,6 +26,11 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
+use wild_layout::EnginePlatform;
+use wild_layout::GroupLayout;
+use wild_layout::Layout;
+use wild_layout::output_section_id::OutputSectionId;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
 
 pub struct Output<F: FileSystem> {
     path: Arc<Path>,
@@ -232,7 +232,7 @@ fn default_file_replacement_mode<P: EnginePlatform>(
     file_system: &impl FileSystem,
 ) -> FileReplacementMode {
     if args.incremental() {
-        let dir = crate::incremental::incremental_state_dir(args.output());
+        let dir = wild_layout::incremental::incremental_state_dir(args.output());
         if dir.join("inputs.txt").is_file() {
             return FileReplacementMode::UpdateInPlace;
         }
@@ -418,7 +418,7 @@ pub(crate) fn split_buffers_by_alignment<'out, 'data, P: EnginePlatform>(
 ) -> OutputSectionPartMap<&'out mut [u8]> {
     timing_phase!("Split buffers by alignment");
 
-    crate::output_section_part_map::output_order_map(
+    wild_layout::output_section_part_map::output_order_map(
         &layout.section_part_layouts,
         &layout.output_order,
         &layout.output_sections,

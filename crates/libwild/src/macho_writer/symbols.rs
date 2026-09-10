@@ -3,19 +3,19 @@ use crate::bail;
 use crate::error;
 use crate::error::Context;
 use crate::error::Result;
-use crate::layout::ObjectLayout;
-use crate::layout::SymbolCopyInfo;
 use crate::macho::MachO;
 use crate::macho::part_id;
-use crate::output_section_id::OrderEvent;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_part_map::OutputSectionPartMap;
 use crate::platform::ObjectFile;
 use crate::platform::Symbol;
-use crate::resolution::SectionSlot;
 use object::from_bytes_mut;
 use object::macho::N_ABS;
 use object::macho::N_SECT;
+use wild_layout::ObjectLayout;
+use wild_layout::SymbolCopyInfo;
+use wild_layout::output_section_id::OrderEvent;
+use wild_layout::output_section_id::OutputSectionId;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::resolution::SectionSlot;
 
 pub(crate) struct MachOSymbolTableWriter {
     pub(crate) next_strtab_offset: u32,

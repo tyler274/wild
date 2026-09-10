@@ -1,4 +1,5 @@
 use super::types::*;
+use crate::EnginePlatform;
 use crate::bail;
 use crate::error::Result;
 use crate::expression_eval::ResolvedLocationCounter;
@@ -7,8 +8,6 @@ use crate::expression_eval::evaluate_const;
 use crate::expression_eval::evaluate_const_with_symbols;
 use crate::grouping::Group;
 use crate::grouping::SequencedInput;
-use crate::layout::EnginePlatform;
-use crate::layout::timing_phase;
 use crate::linker_script::Expression;
 use crate::output_section_id::OutputSections;
 use crate::output_section_map::OutputSectionMap;
@@ -21,11 +20,12 @@ use crate::platform::ObjectFile;
 use crate::resolution::SectionSlot;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
+use crate::timing_phase;
 use hashbrown::HashMap;
 
 /// BYTE/SHORT/LONG/QUAD advance the location counter via a trailing secondary section that has no
 /// input parts. Grow the primary section so the writer buffer covers those bytes.
-pub(crate) fn extend_sections_for_script_output_data<P: EnginePlatform>(
+pub fn extend_sections_for_script_output_data<P: EnginePlatform>(
     output_sections: &OutputSections<P>,
     section_layouts: &mut OutputSectionMap<OutputRecordLayout>,
     resolved_location_counters: &[ResolvedLocationCounter],
@@ -47,7 +47,7 @@ pub(crate) fn extend_sections_for_script_output_data<P: EnginePlatform>(
 
 /// GNU ld copies `PF_W` from an assigned `PT_LOAD` onto script-only output
 /// sections that have no input flags to inherit (kernel `.orc_lookup`).
-pub(crate) fn script_phdrs_writable<P: EnginePlatform>(
+pub fn script_phdrs_writable<P: EnginePlatform>(
     phdr_names: &[&[u8]],
     symbol_db: &SymbolDb<P>,
 ) -> bool {
@@ -88,7 +88,7 @@ pub(crate) fn script_phdrs_writable<P: EnginePlatform>(
 ///
 /// Named symbols are GNU ld "absolute" addresses, so `. = symbol | mask` applies the mask
 /// to the VMA rather than adding it as a section offset.
-pub(crate) fn layout_time_symbol_value<'data, P: EnginePlatform>(
+pub fn layout_time_symbol_value<'data, P: EnginePlatform>(
     name: &[u8],
     symbol_db: &SymbolDb<'data, P>,
     section_layouts: &OutputSectionMap<OutputRecordLayout>,
@@ -194,7 +194,7 @@ pub(crate) fn layout_time_symbol_value<'data, P: EnginePlatform>(
     }
 }
 
-pub(crate) fn script_def_layout_value<'data, P: EnginePlatform>(
+pub fn script_def_layout_value<'data, P: EnginePlatform>(
     name: &[u8],
     def: &InternalSymDefInfo<'data, P>,
     symbol_db: &SymbolDb<'data, P>,
@@ -246,7 +246,7 @@ pub(crate) fn script_def_layout_value<'data, P: EnginePlatform>(
 }
 
 /// Last non-PROVIDE linker-script assignment of `name`, if any.
-pub(crate) fn script_assignment_def<'data, 's, P: EnginePlatform>(
+pub fn script_assignment_def<'data, 's, P: EnginePlatform>(
     name: &[u8],
     symbol_db: &'s SymbolDb<'data, P>,
 ) -> Option<&'s InternalSymDefInfo<'data, P>> {
@@ -266,7 +266,7 @@ pub(crate) fn script_assignment_def<'data, 's, P: EnginePlatform>(
     found
 }
 
-pub(crate) fn collect_const_script_symbols<'data, P: EnginePlatform>(
+pub fn collect_const_script_symbols<'data, P: EnginePlatform>(
     symbol_db: &SymbolDb<'data, P>,
 ) -> HashMap<&'data [u8], u64> {
     let mut candidates = Vec::new();
@@ -330,7 +330,7 @@ fn resolve_const_candidates<'data>(
     map
 }
 
-pub(crate) fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
+pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
     group_states: &mut [GroupState<'data, P>],
     output_sections: &OutputSections<P>,
     section_part_ids: &[PartId],

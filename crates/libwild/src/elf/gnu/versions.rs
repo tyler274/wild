@@ -10,16 +10,16 @@ use crate::elf::part_id;
 use crate::elf::types::*;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::layout::DynamicSymbolDefinition;
 use crate::output_kind::OutputKind;
-use crate::output_section_part_map::OutputSectionPartMap;
 use crate::platform;
 use crate::platform::Platform;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
 use hashbrown::HashMap;
 use object::LittleEndian;
 use rayon::prelude::*;
+use wild_layout::DynamicSymbolDefinition;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::symbol_db::SymbolDb;
+use wild_layout::symbol_db::SymbolId;
 
 pub(crate) struct VersionNames<'data> {
     pub(crate) names: Vec<Option<&'data [u8]>>,

@@ -62,7 +62,7 @@ impl crate::platform::Arch for WasmWasm32 {
         std::borrow::Cow::Borrowed(relocation_type_to_string(r_type))
     }
 
-    fn tp_offset_start(_layout: &crate::layout::Layout<Self::Platform>) -> u64 {
+    fn tp_offset_start(_layout: &wild_layout::Layout<Self::Platform>) -> u64 {
         // Wasm has no TLS yet.
         0
     }

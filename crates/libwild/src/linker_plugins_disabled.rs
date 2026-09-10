@@ -8,16 +8,16 @@ use crate::elf::Elf;
 use crate::elf::ElfClass;
 use crate::error::Result;
 use crate::fs::FileSystem;
-use crate::grouping::LtoInput;
 use crate::input_data::FileLoader;
-use crate::layout_rules::LayoutRulesBuilder;
-use crate::output_section_id::OutputSections;
-use crate::resolution::Resolver;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
 use crate::value_flags::PerSymbolFlags;
 use rayon::Scope;
 use std::marker::PhantomData;
+use wild_layout::grouping::LtoInput;
+use wild_layout::layout_rules::LayoutRulesBuilder;
+use wild_layout::output_section_id::OutputSections;
+use wild_layout::resolution::Resolver;
+use wild_layout::symbol_db::SymbolDb;
+use wild_layout::symbol_db::SymbolId;
 
 pub(crate) struct LoadedPlugin {}
 
@@ -30,7 +30,7 @@ pub(crate) struct LtoInputInfo<'data> {
 }
 
 impl<'data> LtoInputInfo<'data> {
-    pub(crate) fn into_unsequenced(self) -> crate::grouping::UnsequencedLtoInput<'data> {
+    pub(crate) fn into_unsequenced(self) -> wild_layout::grouping::UnsequencedLtoInput<'data> {
         unreachable!()
     }
 }
@@ -74,7 +74,7 @@ impl<'data> LinkerPlugin<'data> {
 
 pub(crate) fn resolve_lto_symbols<'data, 'scope, C: ElfClass>(
     _obj: &LtoInput<'data>,
-    _resources: &'scope crate::resolution::ResolutionResources<'data, 'scope, Elf<C>>,
+    _resources: &'scope wild_layout::resolution::ResolutionResources<'data, 'scope, Elf<C>>,
     _definitions_out: &mut [SymbolId],
     _scope: &Scope<'scope>,
 ) -> Result {

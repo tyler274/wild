@@ -16,10 +16,6 @@ use crate::error::Context as _;
 use crate::error::Result;
 use crate::file_writer::excessive_allocation;
 use crate::file_writer::insufficient_allocation;
-use crate::layout::Layout;
-use crate::layout::Resolution;
-use crate::layout::compute_allocations;
-use crate::output_section_part_map::OutputSectionPartMap;
 use crate::platform::Arch;
 use crate::writable_elf::WritableRela as _;
 use crate::writable_elf::WritableRelr as _;
@@ -28,6 +24,10 @@ use linker_utils::utils::slice_from_all_bytes_mut;
 use std::ops::Not as _;
 use std::ops::Range;
 use std::ops::Sub;
+use wild_layout::Layout;
+use wild_layout::Resolution;
+use wild_layout::compute_allocations;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
 use zerocopy::FromBytes;
 
 pub(crate) type ElfLayout<'data, C> = Layout<'data, elf::Elf<C>>;
@@ -226,7 +226,7 @@ impl<'layout, 'out, C: ElfClass> TableWriter<'layout, 'out, C> {
         if res.flags.needs_ifunc_got_for_address() {
             let ifunc_got_address = got_address + C::GOT_ENTRY_SIZE;
             let got_entry = self.take_next_got_entry()?;
-            let plt_address = res.plt_address()?;
+            let plt_address = elf::plt_address(*res)?;
             let value = if self.output_kind.is_position_independent() {
                 self.write_relr_entry_flat::<A>(ifunc_got_address, plt_address)?
             } else {
@@ -776,7 +776,7 @@ impl<'layout, 'out, C: ElfClass> TableWriter<'layout, 'out, C> {
     /// Takes a prefix of dynsym, dynstr and versym suitable for writing the supplied definitions.
     pub(crate) fn take_dynsym_prefix(
         &mut self,
-        defs: &[crate::layout::DynamicSymbolDefinition<elf::Elf<C>>],
+        defs: &[wild_layout::DynamicSymbolDefinition<elf::Elf<C>>],
     ) -> VersionedDynsymWriter<'layout, 'out, C> {
         let num_symbols = defs.len();
         let strtab_size = defs.iter().map(|d| d.name.len() + 1).sum();

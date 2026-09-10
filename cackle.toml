@@ -123,6 +123,10 @@ allow_apis = ["fs"]
 [pkg.wild-util]
 allow_unsafe = true
 
+[pkg.wild-layout]
+allow_unsafe = true
+allow_apis = ["fs"]
+
 [pkg.wild-error]
 allow_apis = ["process"]
 

@@ -1,3 +1,4 @@
+use crate::EnginePlatform;
 use crate::OutputKind;
 use crate::OutputSections;
 use crate::args::InputLinkerScript;
@@ -5,9 +6,6 @@ use crate::args::InputRef;
 use crate::args::Modifiers;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::layout::EnginePlatform;
-use crate::layout::timing_phase;
-use crate::layout::verbose_timing_phase;
 use crate::layout_rules::LayoutRulesBuilder;
 use crate::layout_rules::LocationCounter;
 use crate::linker_script::Expression;
@@ -21,8 +19,10 @@ use crate::platform::Symbol;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolId;
 use crate::symbol_db::SymbolIdRange;
+use crate::timing_phase;
+use crate::verbose_timing_phase;
 
-pub(crate) fn process_linker_scripts<'data, P: EnginePlatform>(
+pub fn process_linker_scripts<'data, P: EnginePlatform>(
     linker_scripts_in: &[InputLinkerScript<'data>],
     output_sections: &mut OutputSections<'data, P>,
     layout_rules_builder: &mut LayoutRulesBuilder<'data>,
@@ -37,46 +37,46 @@ pub(crate) fn process_linker_scripts<'data, P: EnginePlatform>(
 }
 
 #[derive(Debug)]
-pub(crate) struct Prelude<'data, P: Platform> {
-    pub(crate) symbol_definitions: Vec<InternalSymDefInfo<'data, P>>,
+pub struct Prelude<'data, P: Platform> {
+    pub symbol_definitions: Vec<InternalSymDefInfo<'data, P>>,
 }
 
 #[derive(Debug)]
-pub(crate) struct ParsedInputObject<'data, P: Platform> {
-    pub(crate) input: InputRef<'data>,
-    pub(crate) object: P::File<'data>,
-    pub(crate) modifiers: Modifiers,
+pub struct ParsedInputObject<'data, P: Platform> {
+    pub input: InputRef<'data>,
+    pub object: P::File<'data>,
+    pub modifiers: Modifiers,
 }
 
 #[derive(Debug)]
-pub(crate) struct ProcessedLinkerScript<'data, P: Platform> {
-    pub(crate) input: InputRef<'data>,
-    pub(crate) symbol_defs: Vec<InternalSymDefInfo<'data, P>>,
-    pub(crate) memory_regions: Vec<crate::linker_script::MemoryRegion<'data>>,
-    pub(crate) program_headers: Vec<crate::linker_script::Phdr<'data>>,
-    pub(crate) location_counters: Vec<LocationCounter<'data>>,
-    pub(crate) ordered_sections: Vec<OutputSectionId>,
+pub struct ProcessedLinkerScript<'data, P: Platform> {
+    pub input: InputRef<'data>,
+    pub symbol_defs: Vec<InternalSymDefInfo<'data, P>>,
+    pub memory_regions: Vec<crate::linker_script::MemoryRegion<'data>>,
+    pub program_headers: Vec<crate::linker_script::Phdr<'data>>,
+    pub location_counters: Vec<LocationCounter<'data>>,
+    pub ordered_sections: Vec<OutputSectionId>,
 }
 
 #[derive(Debug)]
-pub(crate) struct SyntheticSymbols {
-    pub(crate) file_id: FileId,
-    pub(crate) symbol_id_range: SymbolIdRange,
+pub struct SyntheticSymbols {
+    pub file_id: FileId,
+    pub symbol_id_range: SymbolIdRange,
 }
 
 #[derive(Clone, derive_more::Debug)]
-pub(crate) struct InternalSymDefInfo<'data, P: Platform> {
-    pub(crate) symbol: P::SymtabEntry,
-    pub(crate) placement: SymbolPlacement<'data, P>,
+pub struct InternalSymDefInfo<'data, P: Platform> {
+    pub symbol: P::SymtabEntry,
+    pub placement: SymbolPlacement<'data, P>,
     #[debug("{:?}", String::from_utf8_lossy(name))]
-    pub(crate) name: &'data [u8],
+    pub name: &'data [u8],
     /// `PROVIDE` / `PROVIDE_HIDDEN`. Unused PROVIDE is ignored, including when the
     /// right-hand side is an undefined symbol (GNU ld).
-    pub(crate) is_provide: bool,
+    pub is_provide: bool,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub(crate) enum SymbolPlacement<'data, P: Platform> {
+pub enum SymbolPlacement<'data, P: Platform> {
     /// Symbol 0 - the undefined symbol.
     Undefined,
 
@@ -105,7 +105,7 @@ pub(crate) enum SymbolPlacement<'data, P: Platform> {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub(crate) enum SymbolLoc {
+pub enum SymbolLoc {
     SectionStartRelative(OutputSectionId),
     SectionEndRelative(OutputSectionId),
     SectionEnd(OutputSectionId),
@@ -115,7 +115,7 @@ pub(crate) enum SymbolLoc {
 }
 
 impl SymbolLoc {
-    pub(crate) fn section_id(&self) -> Option<OutputSectionId> {
+    pub fn section_id(&self) -> Option<OutputSectionId> {
         match self {
             SymbolLoc::SectionStartRelative(id)
             | SymbolLoc::SectionEndRelative(id)
@@ -125,7 +125,7 @@ impl SymbolLoc {
         }
     }
 
-    pub(crate) fn relative_section_id(&self) -> Option<OutputSectionId> {
+    pub fn relative_section_id(&self) -> Option<OutputSectionId> {
         match self {
             SymbolLoc::SectionStartRelative(id)
             | SymbolLoc::SectionEndRelative(id)
@@ -136,20 +136,20 @@ impl SymbolLoc {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Redirect<'data> {
-    pub(crate) kind: RedirectKind,
-    pub(crate) expression: Expression<'data>,
-    pub(crate) loc: SymbolLoc,
+pub struct Redirect<'data> {
+    pub kind: RedirectKind,
+    pub expression: Expression<'data>,
+    pub loc: SymbolLoc,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RedirectKind {
+pub enum RedirectKind {
     DefSym,
     Script,
 }
 
 impl<'data, P: Platform> InternalSymDefInfo<'data, P> {
-    pub(crate) fn new(placement: SymbolPlacement<'data, P>, name: &'data [u8]) -> Self {
+    pub fn new(placement: SymbolPlacement<'data, P>, name: &'data [u8]) -> Self {
         Self {
             placement,
             name,
@@ -158,33 +158,33 @@ impl<'data, P: Platform> InternalSymDefInfo<'data, P> {
         }
     }
 
-    pub(crate) fn with_provide(self) -> Self {
+    pub fn with_provide(self) -> Self {
         Self {
             is_provide: true,
             ..self
         }
     }
 
-    pub(crate) fn with_hidden(self, hidden: bool) -> Self {
+    pub fn with_hidden(self, hidden: bool) -> Self {
         Self {
             symbol: self.symbol.with_hidden(hidden),
             ..self
         }
     }
 
-    pub(crate) fn hide(&mut self) -> &mut Self {
+    pub fn hide(&mut self) -> &mut Self {
         self.symbol = self.symbol.with_hidden(true);
         self
     }
 
-    pub(crate) fn set_hidden(&mut self, hidden: bool) -> &mut Self {
+    pub fn set_hidden(&mut self, hidden: bool) -> &mut Self {
         self.symbol = self.symbol.with_hidden(hidden);
         self
     }
 }
 
 impl<'data, P: Platform> ParsedInputObject<'data, P> {
-    pub(crate) fn new(
+    pub fn new(
         input: InputRef<'data>,
         data: &'data [u8],
         modifiers: Modifiers,
@@ -203,17 +203,17 @@ impl<'data, P: Platform> ParsedInputObject<'data, P> {
         }))
     }
 
-    pub(crate) fn is_dynamic(&self) -> bool {
+    pub fn is_dynamic(&self) -> bool {
         self.object.is_dynamic()
     }
 
-    pub(crate) fn num_symbols(&self) -> usize {
+    pub fn num_symbols(&self) -> usize {
         self.object.num_symbols()
     }
 }
 
 impl<'data, P: EnginePlatform> Prelude<'data, P> {
-    pub(crate) fn new(args: &'data P::Args, output_kind: OutputKind) -> Result<Self> {
+    pub fn new(args: &'data P::Args, output_kind: OutputKind) -> Result<Self> {
         verbose_timing_phase!("Construct prelude");
 
         let mut symbols = InternalSymbolsBuilder::default();
@@ -251,23 +251,23 @@ impl<'data, P: EnginePlatform> Prelude<'data, P> {
 }
 
 impl<'data, P: Platform> Prelude<'data, P> {
-    pub(crate) fn symbol_name(&self, symbol_id: SymbolId) -> UnversionedSymbolName<'data> {
+    pub fn symbol_name(&self, symbol_id: SymbolId) -> UnversionedSymbolName<'data> {
         let def = &self.symbol_definitions[symbol_id.as_usize()];
         UnversionedSymbolName::new(def.name)
     }
 
-    pub(crate) fn symbol_def(&self, symbol_id: SymbolId) -> &InternalSymDefInfo<'data, P> {
+    pub fn symbol_def(&self, symbol_id: SymbolId) -> &InternalSymDefInfo<'data, P> {
         &self.symbol_definitions[symbol_id.as_usize()]
     }
 }
 
 #[derive(Default)]
-pub(crate) struct InternalSymbolsBuilder<'data, P: Platform> {
+pub struct InternalSymbolsBuilder<'data, P: Platform> {
     symbol_definitions: Vec<InternalSymDefInfo<'data, P>>,
 }
 
 impl<'data, P: Platform> InternalSymbolsBuilder<'data, P> {
-    pub(crate) fn add_symbol(
+    pub fn add_symbol(
         &mut self,
         def: InternalSymDefInfo<'data, P>,
     ) -> &mut InternalSymDefInfo<'data, P> {
@@ -276,7 +276,7 @@ impl<'data, P: Platform> InternalSymbolsBuilder<'data, P> {
         &mut self.symbol_definitions[index]
     }
 
-    pub(crate) fn section_start(
+    pub fn section_start(
         &mut self,
         section_id: OutputSectionId,
         name: &'static str,
@@ -287,7 +287,7 @@ impl<'data, P: Platform> InternalSymbolsBuilder<'data, P> {
         ))
     }
 
-    pub(crate) fn section_end(
+    pub fn section_end(
         &mut self,
         section_id: OutputSectionId,
         name: &'static str,
@@ -298,7 +298,7 @@ impl<'data, P: Platform> InternalSymbolsBuilder<'data, P> {
         ))
     }
 
-    pub(crate) fn section_group_end(
+    pub fn section_group_end(
         &mut self,
         section_id: OutputSectionId,
         name: &'static str,
@@ -309,7 +309,7 @@ impl<'data, P: Platform> InternalSymbolsBuilder<'data, P> {
         ))
     }
 
-    pub(crate) fn platform_specific(
+    pub fn platform_specific(
         &mut self,
         name: &'static [u8],
         specific: P::PlatformSpecificSymbol,
@@ -322,7 +322,7 @@ impl<'data, P: Platform> InternalSymbolsBuilder<'data, P> {
 }
 
 impl<'data, P: Platform> ProcessedLinkerScript<'data, P> {
-    pub(crate) fn num_symbols(&self) -> usize {
+    pub fn num_symbols(&self) -> usize {
         self.symbol_defs.len()
     }
 }
@@ -340,7 +340,7 @@ impl<'data, P: Platform> std::fmt::Display for ProcessedLinkerScript<'data, P> {
 }
 
 impl Redirect<'_> {
-    pub(crate) fn missing_target(&self, target_name: &[u8]) -> crate::error::Error {
+    pub fn missing_target(&self, target_name: &[u8]) -> crate::error::Error {
         crate::error!(
             "Symbol '{name}' referenced by {kind} does not exist",
             name = String::from_utf8_lossy(target_name),
@@ -348,7 +348,7 @@ impl Redirect<'_> {
         )
     }
 
-    pub(crate) fn missing_resolution(&self, target_name: &[u8]) -> crate::error::Error {
+    pub fn missing_resolution(&self, target_name: &[u8]) -> crate::error::Error {
         crate::error!(
             "Symbol '{name}' referenced by {kind} has no resolution.",
             name = String::from_utf8_lossy(target_name),

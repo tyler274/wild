@@ -2,8 +2,8 @@ use crate::FileSystem;
 use crate::args::elf::ElfArgs;
 use crate::bail;
 use crate::error::Result;
-use crate::output_section_id::OutputSectionId;
-use crate::part_id::PartId;
+use wild_layout::output_section_id::OutputSectionId;
+use wild_layout::part_id::PartId;
 
 pub(crate) mod abi;
 pub(crate) mod file;
@@ -64,7 +64,7 @@ pub(crate) fn link_for_arch<'data, F: FileSystem>(
 #[repr(u32)]
 #[derive(Clone, Copy)]
 pub(crate) enum SinglePartSectionId {
-    ProgramHeaders = crate::output_section_id::NUM_COMMON_SINGLE_PART_SECTIONS,
+    ProgramHeaders = wild_layout::output_section_id::NUM_COMMON_SINGLE_PART_SECTIONS,
     SectionHeaders,
     Shstrtab,
     Strtab,
@@ -131,7 +131,7 @@ pub(crate) const ELF_NUM_BUILT_IN_SECTIONS: usize =
 
 pub(crate) mod part_id {
     use super::SinglePartSectionId;
-    use crate::part_id::PartId;
+    use wild_layout::part_id::PartId;
 
     pub(crate) const PROGRAM_HEADERS: PartId = SinglePartSectionId::ProgramHeaders.part_id();
     pub(crate) const SECTION_HEADERS: PartId = SinglePartSectionId::SectionHeaders.part_id();
@@ -168,7 +168,7 @@ pub(crate) mod part_id {
 pub(crate) mod output_section_id {
     use super::RegularSectionId;
     use super::SinglePartSectionId;
-    use crate::output_section_id::OutputSectionId;
+    use wild_layout::output_section_id::OutputSectionId;
 
     pub(crate) const PROGRAM_HEADERS: OutputSectionId =
         SinglePartSectionId::ProgramHeaders.output_section_id();

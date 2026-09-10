@@ -188,7 +188,7 @@ impl crate::platform::Arch for MachOAArch64 {
         }
     }
 
-    fn tp_offset_start(layout: &crate::layout::Layout<Self::Platform>) -> u64 {
+    fn tp_offset_start(layout: &wild_layout::Layout<Self::Platform>) -> u64 {
         todo!()
     }
 

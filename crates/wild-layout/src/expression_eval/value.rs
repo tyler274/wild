@@ -1,11 +1,11 @@
 use super::*;
+use crate as layout;
+use crate::EnginePlatform;
+use crate::OutputRecordLayout;
 use crate::args::InputRef;
 use crate::bail;
 use crate::error::Context;
 use crate::error::Result;
-use crate::layout;
-use crate::layout::EnginePlatform;
-use crate::layout::OutputRecordLayout;
 use crate::linker_script::Expression;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
@@ -27,12 +27,12 @@ fn line_number(file_bytes: &[u8], remainder: &[u8]) -> u32 {
 }
 
 #[derive(Clone, Default, Debug)]
-pub(crate) struct ResolvedLocationCounter {
-    pub(crate) value: u64,
-    pub(crate) section_offset: Option<u64>,
+pub struct ResolvedLocationCounter {
+    pub value: u64,
+    pub section_offset: Option<u64>,
 }
 
-pub(crate) enum SymbolValue {
+pub enum SymbolValue {
     Absolute(u64),
     PartRelative {
         part_id: PartId,
@@ -204,7 +204,7 @@ fn absolute_location_counter<'data, P: EnginePlatform>(
     Ok(relative.wrapping_add(base))
 }
 
-pub(crate) fn evaluate_expression<'data, P: EnginePlatform>(
+pub fn evaluate_expression<'data, P: EnginePlatform>(
     expr: &Expression<'data>,
     expr_loc: &SymbolLoc,
     input_ref: Option<&InputRef<'data>>,
@@ -252,7 +252,7 @@ pub(crate) fn evaluate_expression<'data, P: EnginePlatform>(
 
 /// GNU `DATA_SEGMENT_ALIGN(maxpagesize, _)` first pass: next `maxpagesize` boundary plus the
 /// current in-page offset, so the data segment does not share a page with the text segment.
-pub(crate) fn data_segment_align(dot: u64, maxpagesize: u64) -> u64 {
+pub fn data_segment_align(dot: u64, maxpagesize: u64) -> u64 {
     if maxpagesize <= 1 {
         return dot;
     }

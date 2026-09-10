@@ -1,5 +1,5 @@
+use crate::EnginePlatform;
 use crate::grouping::SequencedInput;
-use crate::layout::EnginePlatform;
 use crate::platform::Args as _;
 use crate::platform::FileId;
 use crate::platform::ObjectFile;
@@ -18,12 +18,12 @@ use std::fmt::Write as _;
 /// Prints information about a symbol when dropped. We do this when dropped so that we can print
 /// either after resolution flags have been computed, or, if layout gets an error, then before we
 /// unwind.
-pub(crate) enum SymbolInfoPrinter {
+pub enum SymbolInfoPrinter {
     Disabled,
     Enabled(Box<State>),
 }
 
-pub(crate) struct State {
+pub struct State {
     loaded_file_ids: hashbrown::HashSet<FileId>,
     name: String,
 
@@ -39,7 +39,7 @@ impl Drop for SymbolInfoPrinter {
 }
 
 impl SymbolInfoPrinter {
-    pub(crate) fn new<'data, P: EnginePlatform>(
+    pub fn new<'data, P: EnginePlatform>(
         args: &P::Args,
         groups: &[ResolvedGroup<'data, P>],
     ) -> Self {
@@ -71,7 +71,7 @@ impl SymbolInfoPrinter {
         }))
     }
 
-    pub(crate) fn update<'data, P: EnginePlatform>(
+    pub fn update<'data, P: EnginePlatform>(
         &mut self,
         symbol_db: &SymbolDb<'data, P>,
         per_symbol_flags: &AtomicPerSymbolFlags<'_>,

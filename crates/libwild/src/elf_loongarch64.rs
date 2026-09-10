@@ -87,7 +87,7 @@ impl crate::platform::Arch for ElfLoongArch64 {
         0
     }
 
-    fn tp_offset_start(layout: &crate::layout::Layout<Elf64>) -> u64 {
+    fn tp_offset_start(layout: &wild_layout::Layout<Elf64>) -> u64 {
         layout.tls_start_address_aligned()
     }
 

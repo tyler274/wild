@@ -54,7 +54,7 @@ impl crate::platform::Arch for ElfPpc64 {
     }
 
     /// The thread pointer (`r13`) points 0x7000 bytes past the start of the static TLS block.
-    fn tp_offset_start(layout: &crate::layout::Layout<Elf64>) -> u64 {
+    fn tp_offset_start(layout: &wild_layout::Layout<Elf64>) -> u64 {
         layout.tls_start_address() + 0x7000
     }
 

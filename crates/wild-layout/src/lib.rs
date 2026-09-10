@@ -2,7 +2,45 @@
 //! referenced. Determines which sections need to be linked, sums their sizes decides what goes
 //! where in the output file then allocates addresses for each symbol.
 
-use crate::error;
+pub use wild_args as args;
+pub use wild_error::bail;
+pub use wild_error::debug_assert_bail;
+pub use wild_error::ensure;
+pub use wild_error::error;
+pub use wild_error::malfunction;
+pub use wild_error::malfunction_point_ret;
+pub use wild_platform as platform;
+pub use wild_platform::OutputKind;
+pub use wild_platform::output_kind;
+pub use wild_platform::output_section_map;
+pub use wild_platform::program_segments;
+pub use wild_platform::value_flags;
+pub use wild_scripts::ScriptData;
+pub use wild_scripts::export_list;
+pub use wild_scripts::linker_script;
+pub use wild_scripts::version_script;
+pub use wild_util::alignment;
+pub use wild_util::arch;
+pub use wild_util::arena;
+pub use wild_util::hash;
+pub use wild_util::input_section_id;
+pub use wild_util::sharding;
+
+pub mod expression_eval;
+pub mod gc_stats;
+pub mod grouping;
+pub mod incremental;
+pub mod layout_rules;
+pub mod output_section_id;
+pub mod output_section_part_map;
+pub mod parsing;
+pub mod part_id;
+pub mod resolution;
+pub mod string_merging;
+pub mod symbol;
+pub mod symbol_db;
+pub mod thunks;
+
 use crate::error::Context;
 use crate::error::Result;
 use crate::expression_eval::evaluate_const;
@@ -26,34 +64,35 @@ use diagnostics::SymbolInfoPrinter;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 use itertools::Itertools;
+pub use layout_rules::LayoutRules;
 use linker_utils::elf::RelocationKind;
 use std::sync::Mutex;
 
-pub(crate) mod addresses;
+pub mod addresses;
 mod diagnostics;
-pub(crate) mod engine;
-pub(crate) mod graph;
-pub(crate) mod script;
-pub(crate) mod sections;
-pub(crate) mod sizes;
-pub(crate) mod types;
-pub(crate) mod verification;
+pub mod engine;
+pub mod graph;
+pub mod script;
+pub mod sections;
+pub mod sizes;
+pub mod types;
+pub mod verification;
 
-pub(crate) use addresses::*;
-pub(crate) use engine::EnginePlatform;
-pub(crate) use engine::EngineScope;
-pub(crate) use engine::EngineWriter;
-pub(crate) use engine::platform_finalise_layout;
-pub(crate) use engine::platform_finalise_sizes;
-pub(crate) use engine::platform_graph;
+pub use addresses::*;
+pub use engine::EnginePlatform;
+pub use engine::EngineScope;
+pub use engine::EngineWriter;
+pub use engine::platform_finalise_layout;
+pub use engine::platform_finalise_sizes;
+pub use engine::platform_graph;
 #[cfg(all(feature = "plugins", unix))]
-pub(crate) use engine::platform_resolution;
-pub(crate) use engine::platform_resolution_writer;
-pub(crate) use graph::*;
-pub(crate) use script::*;
-pub(crate) use sections::*;
-pub(crate) use sizes::*;
-pub(crate) use types::*;
+pub use engine::platform_resolution;
+pub use engine::platform_resolution_writer;
+pub use graph::*;
+pub use script::*;
+pub use sections::*;
+pub use sizes::*;
+pub use types::*;
 
 macro_rules! timing_phase {
     ($($args:tt)*) => {
@@ -74,7 +113,7 @@ pub(crate) use verbose_timing_phase;
 
 /// Extra bytes reserved at the end of each allocated output section so a later incremental update
 /// can grow without shifting later sections.
-pub(crate) const INCREMENTAL_SECTION_PADDING: u64 = 256;
+pub const INCREMENTAL_SECTION_PADDING: u64 = 256;
 
 pub fn compute<'data, P, A>(
     symbol_db: SymbolDb<'data, A::Platform>,
@@ -545,7 +584,7 @@ where
     Ok(layout)
 }
 
-pub(crate) fn objects_iter<'groups, 'data, P: EnginePlatform>(
+pub fn objects_iter<'groups, 'data, P: EnginePlatform>(
     group_states: &'groups [GroupState<'data, P>],
 ) -> impl Iterator<Item = &'groups ObjectLayoutState<'data, P>> + Clone {
     group_states.iter().flat_map(|group| {
@@ -556,7 +595,7 @@ pub(crate) fn objects_iter<'groups, 'data, P: EnginePlatform>(
     })
 }
 
-pub(crate) fn section_debug<P: EnginePlatform>(
+pub fn section_debug<P: EnginePlatform>(
     object: &P::File<'_>,
     section_index: object::SectionIndex,
 ) -> impl std::fmt::Display {
@@ -567,15 +606,15 @@ pub(crate) fn section_debug<P: EnginePlatform>(
     std::fmt::from_fn(move |f| write!(f, "`{name}`"))
 }
 
-pub(crate) fn needs_tlsld(relocation_kind: RelocationKind) -> bool {
+pub fn needs_tlsld(relocation_kind: RelocationKind) -> bool {
     matches!(
         relocation_kind,
         RelocationKind::TlsLd | RelocationKind::TlsLdGot | RelocationKind::TlsLdGotBase
     )
 }
 
-/// Span name must match [`crate::debug_trace::TRACE_SPAN_NAME`].
-pub(crate) fn span_for_file(
+/// Span name must match libwild debug_trace TRACE_SPAN_NAME (`trace_file`).
+pub fn span_for_file(
     args: &impl crate::platform::Args,
     file_id: FileId,
 ) -> Option<tracing::span::EnteredSpan> {

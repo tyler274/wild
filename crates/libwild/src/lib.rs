@@ -18,21 +18,13 @@ pub(crate) mod elf_writer;
 pub(crate) mod elf_x86_64;
 pub(crate) use wild_error::env;
 pub use wild_error::error;
-pub(crate) use wild_scripts::ScriptData;
 pub(crate) use wild_scripts::export_list;
-pub(crate) mod expression_eval;
 pub(crate) mod file_kind;
 pub(crate) mod file_writer;
 pub(crate) use wild_fs::fs;
-pub(crate) mod gc_stats;
 pub(crate) mod gdb_index;
-pub(crate) mod grouping;
 pub(crate) use wild_util::hash;
-pub(crate) mod incremental;
 pub(crate) mod input_data;
-pub(crate) use wild_util::input_section_id;
-pub(crate) mod layout;
-pub(crate) mod layout_rules;
 #[cfg_attr(
     not(all(feature = "plugins", unix)),
     path = "linker_plugins_disabled.rs"
@@ -50,12 +42,8 @@ pub use wild_error::malfunction;
 pub use wild_error::malfunction_point_ret;
 pub(crate) mod output_kind;
 pub(crate) use output_kind::OutputKind;
-pub(crate) mod output_section_id;
 pub(crate) mod output_section_map;
-pub(crate) mod output_section_part_map;
 pub(crate) mod output_trace;
-pub(crate) mod parsing;
-pub(crate) mod part_id;
 #[cfg(all(
     target_os = "linux",
     any(target_arch = "x86_64", target_arch = "aarch64")
@@ -75,21 +63,16 @@ pub(crate) mod perf;
 #[path = "perf_unsupported.rs"]
 pub(crate) mod perf;
 pub(crate) mod program_segments;
-pub(crate) mod resolution;
 pub(crate) mod save_dir;
 pub(crate) mod sframe;
 pub(crate) use wild_util::sharding;
 #[cfg(test)]
 mod layout_stack_elf_tests;
-pub(crate) mod string_merging;
 #[cfg(all(feature = "fork", unix))]
 pub(crate) mod subprocess;
 #[cfg(not(all(feature = "fork", unix)))]
 #[path = "subprocess_unsupported.rs"]
 pub(crate) mod subprocess;
-pub(crate) mod symbol;
-pub(crate) mod symbol_db;
-pub(crate) mod thunks;
 #[cfg(all(test, not(target_family = "wasm")))]
 mod tidy_tests;
 pub(crate) mod timing;
@@ -105,8 +88,6 @@ pub(crate) mod writable_elf;
 use crate::args::HasCommonArgs as _;
 use crate::error::Context;
 use crate::error::Result;
-use crate::layout::EnginePlatform;
-use crate::layout_rules::LayoutRulesBuilder;
 use crate::platform::Arch;
 use crate::platform::Args as _;
 use crate::platform::Platform;
@@ -127,8 +108,6 @@ pub use fs::make_executable;
 use hashbrown::HashSet;
 use input_data::FileLoader;
 use input_data::InputFile as LoadedInputFile;
-use layout_rules::LayoutRules;
-use output_section_id::OutputSections;
 use std::io::BufWriter;
 use std::io::IsTerminal;
 use std::io::Write;
@@ -138,6 +117,9 @@ use tracing_subscriber::EnvFilter;
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
+use wild_layout::EnginePlatform;
+use wild_layout::layout_rules::LayoutRulesBuilder;
+use wild_layout::output_section_id::OutputSections;
 
 /// Runs the linker in a Rayon thread pool configured from the supplied arguments or the available
 /// jobserver tokens, then cleans up associated resources. Only use this function if you've OK with
@@ -372,7 +354,7 @@ impl<F: FileSystem> Linker<F> {
         let auxiliary =
             input_data::AuxiliaryFiles::new(args, &self.inputs_arena, self.file_system.as_ref())?;
 
-        let mut symbol_db = symbol_db::SymbolDb::new(
+        let mut symbol_db = wild_layout::symbol_db::SymbolDb::new(
             args,
             output_kind,
             auxiliary.version_script_data,
@@ -390,14 +372,14 @@ impl<F: FileSystem> Linker<F> {
 
         symbol_db.apply_wrapped_symbol_overrides();
 
-        let mut resolver = resolution::Resolver::default();
+        let mut resolver = wild_layout::resolution::Resolver::default();
 
         resolver
             .resolve_symbols_and_select_archive_entries(&mut symbol_db, &mut per_symbol_flags)?;
 
         // Now that we know which archive entries are being loaded, we can resolve alternative
         // symbol definitions.
-        crate::symbol_db::resolve_alternative_symbol_definitions(
+        wild_layout::symbol_db::resolve_alternative_symbol_definitions(
             &mut symbol_db,
             &mut per_symbol_flags,
             &resolver.resolved_groups,
@@ -433,20 +415,22 @@ impl<F: FileSystem> Linker<F> {
         )?;
 
         let mut layout =
-            layout::compute::<P, A>(symbol_db, per_symbol_flags, resolved, output_sections)?;
+            wild_layout::compute::<P, A>(symbol_db, per_symbol_flags, resolved, output_sections)?;
 
-        output.set_size(layout::compute_total_file_size(&layout.section_layouts));
-        crate::gc_stats::maybe_write_gc_stats(&layout.group_layouts, &layout.symbol_db)?;
+        output.set_size(wild_layout::compute_total_file_size(
+            &layout.section_layouts,
+        ));
+        wild_layout::gc_stats::maybe_write_gc_stats(&layout.group_layouts, &layout.symbol_db)?;
 
         let plugin_active = plugin.as_ref().is_some_and(|p| p.is_initialised());
         let mut incremental_session = if args.incremental() {
-            crate::incremental::IncrementalSession::from_args(args)
+            wild_layout::incremental::IncrementalSession::from_args(args)
         } else {
             None
         };
         if let Some(session) = incremental_session.as_mut() {
             if let Some(reason) =
-                crate::incremental::fallback_for_plugin_or_gc::<P>(args, plugin_active)
+                wild_layout::incremental::fallback_for_plugin_or_gc::<P>(args, plugin_active)
             {
                 session.record_fallback(reason);
             }
@@ -468,10 +452,11 @@ impl<F: FileSystem> Linker<F> {
                     session.previous_resolutions.take(),
                     session.previous_reverse_relocs.take(),
                 ) {
-                    layout.incremental_patch = Some(crate::incremental::IncrementalPatchJob {
-                        old_resolutions,
-                        reverse_relocs,
-                    });
+                    layout.incremental_patch =
+                        Some(wild_layout::incremental::IncrementalPatchJob {
+                            old_resolutions,
+                            reverse_relocs,
+                        });
                 }
             }
         }
@@ -531,8 +516,8 @@ impl Drop for LinkerOutput<'_> {
 }
 
 fn incremental_section_snapshot<P: EnginePlatform>(
-    layout: &layout::Layout<P>,
-) -> (Vec<crate::incremental::PersistedSection>, bool) {
+    layout: &wild_layout::Layout<P>,
+) -> (Vec<wild_layout::incremental::PersistedSection>, bool) {
     let mut sections = Vec::new();
     let mut has_strict_order_sections = false;
     layout.section_layouts.for_each(|id, rec| {
@@ -544,7 +529,7 @@ fn incremental_section_snapshot<P: EnginePlatform>(
         if rec.mem_size > 0 && (name == ".init" || name == ".fini") {
             has_strict_order_sections = true;
         }
-        sections.push(crate::incremental::PersistedSection {
+        sections.push(wild_layout::incremental::PersistedSection {
             name,
             file_offset: rec.file_offset,
             file_size: rec.file_size,

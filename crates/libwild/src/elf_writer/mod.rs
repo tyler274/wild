@@ -91,12 +91,14 @@ pub(crate) fn apply_incremental_reloc_patches<C: ElfClass, A: Arch<Platform = el
     }
 
     let new_res: Vec<u64> = layout.symbol_resolutions.raw_values().collect();
-    let atom_to_file: hashbrown::HashMap<crate::incremental::AtomId, crate::input_data::FileId> =
-        layout
-            .incremental_atoms
-            .iter()
-            .map(|(file_id, atom)| (*atom, *file_id))
-            .collect();
+    let atom_to_file: hashbrown::HashMap<
+        wild_layout::incremental::AtomId,
+        crate::input_data::FileId,
+    > = layout
+        .incremental_atoms
+        .iter()
+        .map(|(file_id, atom)| (*atom, *file_id))
+        .collect();
     let out = &mut sized_output.out;
     let mut patched = 0u64;
     let mut patch_error = None;
@@ -139,7 +141,7 @@ pub(crate) fn apply_incremental_reloc_patches<C: ElfClass, A: Arch<Platform = el
 
 pub(crate) fn patch_skipped_reloc_site<C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
     out: &mut [u8],
-    node: &crate::incremental::ReverseRelocNode,
+    node: &wild_layout::incremental::ReverseRelocNode,
     new_s: u64,
 ) -> Result {
     let r_type = object::elf::RelocationType(node.r_type);

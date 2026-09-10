@@ -43,7 +43,7 @@ pub(crate) struct WasmObjectLayoutInput<'data> {
     pub(crate) symbols: &'data [WasmSymbol],
     pub(crate) init_funcs: &'data [WasmInitFunc],
     pub(crate) target_features: &'data [WasmTargetFeature<'data>],
-    pub(crate) symbol_id_range: crate::symbol_db::SymbolIdRange,
+    pub(crate) symbol_id_range: wild_layout::symbol_db::SymbolIdRange,
     pub(crate) file_id: crate::input_data::FileId,
     pub(crate) defined_function_live_ordinal: Vec<u32>,
     pub(crate) defined_global_live_ordinal: Vec<u32>,

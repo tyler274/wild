@@ -6,7 +6,6 @@ use crate::elf::output_section_id;
 use crate::ensure;
 use crate::error;
 use crate::error::Result;
-use crate::layout::Layout;
 use crate::malfunction_point_ret;
 use crate::platform::ObjectFile as _;
 use crate::platform::Platform;
@@ -26,6 +25,7 @@ use linker_utils::elf::aarch64_rel_type_to_string;
 use linker_utils::elf::shf;
 use linker_utils::relaxation::RelocationModifier;
 use object::elf::GNU_PROPERTY_AARCH64_FEATURE_1_AND;
+use wild_layout::Layout;
 
 pub(crate) struct ElfAArch64;
 

@@ -2,46 +2,46 @@
 //! entries are needed. We also resolve which output section, if any, each input section should be
 //! assigned to.
 
+use crate::EnginePlatform;
 use crate::LayoutRules;
 use crate::bail;
 use crate::error::Result;
 use crate::grouping::Group;
-use crate::layout::EnginePlatform;
-use crate::layout::timing_phase;
-use crate::layout::verbose_timing_phase;
 use crate::output_section_id::OutputSections;
 use crate::platform::PRELUDE_FILE_ID;
 use crate::platform::Platform;
 use crate::symbol_db::SymbolDb;
 use crate::symbol_db::SymbolId;
+use crate::timing_phase;
 use crate::value_flags::PerSymbolFlags;
+use crate::verbose_timing_phase;
 use atomic_take::AtomicTake;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 
-pub(crate) mod sections;
-pub(crate) mod symbols;
-pub(crate) mod types;
+pub mod sections;
+pub mod symbols;
+pub mod types;
 
 use sections::assign_section_ids;
 use sections::populate_start_stop_sections;
 use sections::resolve_sections;
 #[allow(unused_imports)]
-pub(crate) use sections::*;
+pub use sections::*;
 use symbols::canonicalise_undefined_symbols;
 use symbols::process_object;
 use symbols::work_items_do;
 #[allow(unused_imports)]
-pub(crate) use symbols::*;
+pub use symbols::*;
 use types::LoadObjectSymbolsRequest;
 use types::Outputs;
 use types::UndefinedSymbol;
 #[allow(unused_imports)]
-pub(crate) use types::*;
+pub use types::*;
 
-pub(crate) struct Resolver<'data, P: Platform> {
+pub struct Resolver<'data, P: Platform> {
     undefined_symbols: Vec<UndefinedSymbol<'data>>,
-    pub(crate) resolved_groups: Vec<ResolvedGroup<'data, P>>,
+    pub resolved_groups: Vec<ResolvedGroup<'data, P>>,
 }
 
 impl<'data, P: EnginePlatform> Resolver<'data, P> {
@@ -49,7 +49,7 @@ impl<'data, P: EnginePlatform> Resolver<'data, P> {
     /// entries to load. Some symbols may not have definitions, in which case we'll note those for
     /// later processing. Can be called multiple times with additional groups having been added to
     /// the SymbolDb in between.
-    pub(crate) fn resolve_symbols_and_select_archive_entries(
+    pub fn resolve_symbols_and_select_archive_entries(
         &mut self,
         symbol_db: &mut SymbolDb<'data, P>,
         per_symbol_flags: &mut PerSymbolFlags,
@@ -61,7 +61,7 @@ impl<'data, P: EnginePlatform> Resolver<'data, P> {
     /// Canonicalises undefined symbols. Some undefined symbols might be able to become defined if
     /// we can identify them as start/stop symbols for which we found a custom section with the
     /// appropriate name.
-    pub(crate) fn resolve_sections_and_canonicalise_undefined(
+    pub fn resolve_sections_and_canonicalise_undefined(
         mut self,
         symbol_db: &mut SymbolDb<'data, P>,
         per_symbol_flags: &mut PerSymbolFlags,

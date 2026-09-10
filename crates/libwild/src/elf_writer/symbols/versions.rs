@@ -15,8 +15,8 @@ use crate::error::Context as _;
 use crate::error::Result;
 use crate::file_writer::excessive_allocation;
 use crate::file_writer::insufficient_allocation;
-use crate::output_section_part_map::OutputSectionPartMap;
 use object::LittleEndian;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
 
 #[derive(Default)]
 pub(crate) struct VersionWriter<'out> {

@@ -1,12 +1,10 @@
 use super::*;
+use crate::EnginePlatform;
 use crate::bail;
 use crate::error::Context;
 use crate::error::Error;
 use crate::error::Result;
-use crate::layout::EnginePlatform;
-use crate::layout::graph::*;
-use crate::layout::section_debug;
-use crate::layout::sections::*;
+use crate::graph::*;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
 use crate::platform::Arch;
@@ -18,6 +16,8 @@ use crate::platform::Symbol as _;
 use crate::resolution::ScriptSortedSectionDetail;
 use crate::resolution::SectionSlot;
 use crate::resolution::UnloadedSection;
+use crate::section_debug;
+use crate::sections::*;
 use crate::string_merging::get_merged_string_output_address;
 use crate::symbol_db::SymbolDb;
 use crate::symbol_db::SymbolId;
@@ -31,20 +31,14 @@ use std::num::NonZeroU32;
 
 impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
     #[inline(always)]
-    pub(crate) fn activate<'scope, A: Arch<Platform = P>>(
+    pub fn activate<'scope, A: Arch<Platform = P>>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
         resources: &'scope GraphResources<'data, 'scope, P>,
         queue: &mut LocalWorkQueue<P>,
         scope: &Scope<'scope>,
     ) -> Result {
-        P::activate_object_gc::<A>(
-            self,
-            common,
-            crate::layout::platform_graph(resources),
-            queue,
-            scope,
-        )?;
+        P::activate_object_gc::<A>(self, common, crate::platform_graph(resources), queue, scope)?;
 
         if let Some(mode) = export_symbols_mode(resources.symbol_db, &self.input) {
             self.load_non_hidden_symbols::<A>(common, resources, queue, mode, scope)?;
@@ -55,13 +49,13 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ExportSymbolsMode {
+pub enum ExportSymbolsMode {
     Selected,
     All,
 }
 
 impl<'data, P: EnginePlatform<GcUnit = SectionGcUnit>> ObjectLayoutState<'data, P> {
-    pub(crate) fn activate_section_gc<'scope, A>(
+    pub fn activate_section_gc<'scope, A>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
         resources: &'scope GraphResources<'data, 'scope, P>,
@@ -117,7 +111,7 @@ impl<'data, P: EnginePlatform<GcUnit = SectionGcUnit>> ObjectLayoutState<'data, 
                 self,
                 common,
                 frame_data_section_index,
-                crate::layout::platform_graph(resources),
+                crate::platform_graph(resources),
                 queue,
                 scope,
             )?;
@@ -142,7 +136,7 @@ impl<'data, P: EnginePlatform<GcUnit = SectionGcUnit>> ObjectLayoutState<'data, 
 }
 
 impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
-    pub(crate) fn handle_section_load_request<'scope, A: Arch<Platform = P>>(
+    pub fn handle_section_load_request<'scope, A: Arch<Platform = P>>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
         resources: &'scope GraphResources<'data, 'scope, P>,
@@ -185,7 +179,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn load_section<'scope, A: Arch<Platform = P>>(
+    pub fn load_section<'scope, A: Arch<Platform = P>>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
         queue: &mut LocalWorkQueue<P>,
@@ -212,7 +206,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
             self,
             common,
             queue,
-            crate::layout::platform_graph(resources),
+            crate::platform_graph(resources),
             section,
             section_index,
             scope,
@@ -256,7 +250,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
                 common,
                 queue,
                 unloaded,
-                crate::layout::platform_graph(resources),
+                crate::platform_graph(resources),
                 scope,
             )?;
         } else if P::is_zero_sized_section_content(section_id) {
@@ -267,7 +261,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
             self,
             common,
             queue,
-            crate::layout::platform_graph(resources),
+            crate::platform_graph(resources),
             section_index,
             scope,
         )?;
@@ -275,7 +269,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn load_debug_section<'scope, A: Arch<Platform = P>>(
+    pub fn load_debug_section<'scope, A: Arch<Platform = P>>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
         section_index: SectionIndex,
@@ -304,7 +298,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn finalise_sizes(
+    pub fn finalise_sizes(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
         per_symbol_flags: &AtomicPerSymbolFlags,
@@ -330,23 +324,23 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn allocate_symtab_space(
+    pub fn allocate_symtab_space(
         &self,
         common: &mut CommonGroupState<'data, P>,
         symbol_db: &SymbolDb<'data, P>,
         per_symbol_flags: &AtomicPerSymbolFlags,
     ) -> Result {
-        let _file_span = crate::layout::span_for_file(symbol_db.args, self.file_id());
+        let _file_span = crate::span_for_file(symbol_db.args, self.file_id());
         P::allocate_object_symtab_space(self, common, symbol_db, per_symbol_flags)
     }
 
-    pub(crate) fn finalise_layout(
+    pub fn finalise_layout(
         mut self,
         memory_offsets: &mut OutputSectionPartMap<u64>,
         resolutions_out: &mut ResolutionWriter<P>,
         resources: &FinaliseLayoutResources<'_, 'data, P>,
     ) -> Result<ObjectLayout<'data, P>> {
-        let _file_span = crate::layout::span_for_file(resources.symbol_db.args, self.file_id());
+        let _file_span = crate::span_for_file(resources.symbol_db.args, self.file_id());
         let symbol_id_range = self.symbol_id_range();
 
         let sframe_section_id = P::SFRAME_SECTION_ID;
@@ -459,7 +453,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
         })
     }
 
-    pub(crate) fn finalise_symbol<'scope>(
+    pub fn finalise_symbol<'scope>(
         &self,
         resources: &FinaliseLayoutResources<'scope, 'data, P>,
         flags: ValueFlags,
@@ -481,7 +475,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
         resolutions_out.write(resolution)
     }
 
-    pub(crate) fn create_symbol_resolution<'scope>(
+    pub fn create_symbol_resolution<'scope>(
         &self,
         resources: &FinaliseLayoutResources<'scope, 'data, P>,
         flags: ValueFlags,
@@ -565,7 +559,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
         )))
     }
 
-    pub(crate) fn load_non_hidden_symbols<'scope, A: Arch<Platform = P>>(
+    pub fn load_non_hidden_symbols<'scope, A: Arch<Platform = P>>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
         resources: &'scope GraphResources<'data, 'scope, P>,
@@ -602,7 +596,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn export_dynamic<'scope, A: Arch<Platform = P>>(
+    pub fn export_dynamic<'scope, A: Arch<Platform = P>>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
         symbol_id: SymbolId,
@@ -644,11 +638,11 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn relocations(&self, index: SectionIndex) -> Result<P::RelocationList<'data>> {
+    pub fn relocations(&self, index: SectionIndex) -> Result<P::RelocationList<'data>> {
         self.object.relocations(index, &self.relocations)
     }
 
-    pub(crate) fn section_part_id(
+    pub fn section_part_id(
         &self,
         section_index: SectionIndex,
         global_part_ids: &[PartId],
@@ -657,8 +651,8 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
     }
 }
 
-pub(crate) struct SymbolCopyInfo<'data> {
-    pub(crate) name: &'data [u8],
+pub struct SymbolCopyInfo<'data> {
+    pub name: &'data [u8],
 }
 
 impl<'data> SymbolCopyInfo<'data> {
@@ -666,7 +660,7 @@ impl<'data> SymbolCopyInfo<'data> {
     /// the symtab. In the process, we also return the name of the symbol, to avoid needing to read
     /// it again.
     #[inline(always)]
-    pub(crate) fn new<P: EnginePlatform>(
+    pub fn new<P: EnginePlatform>(
         object: &P::File<'data>,
         sym_index: object::SymbolIndex,
         sym: &P::SymtabEntry,
@@ -711,15 +705,11 @@ impl<'data> SymbolCopyInfo<'data> {
 }
 
 impl<'data, P: EnginePlatform> ObjectLayout<'data, P> {
-    pub(crate) fn relocations(&self, index: SectionIndex) -> Result<P::RelocationList<'data>> {
+    pub fn relocations(&self, index: SectionIndex) -> Result<P::RelocationList<'data>> {
         self.object.relocations(index, &self.relocations)
     }
 
-    pub(crate) fn section_part_id(
-        &self,
-        section_index: SectionIndex,
-        part_ids: &[PartId],
-    ) -> PartId {
+    pub fn section_part_id(&self, section_index: SectionIndex, part_ids: &[PartId]) -> PartId {
         part_ids[self.section_id_range.input_to_id(section_index).as_usize()]
     }
 }
@@ -727,14 +717,14 @@ impl<'data, P: EnginePlatform> ObjectLayout<'data, P> {
 /// A GC unit for use on platform where GC is done by section. Effectively an object::SectionIndex,
 /// but stored as a u32 for compactness.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct SectionGcUnit(u32);
+pub struct SectionGcUnit(u32);
 
 impl SectionGcUnit {
-    pub(crate) fn new(section_index: object::SectionIndex) -> Self {
+    pub fn new(section_index: object::SectionIndex) -> Self {
         Self(section_index.0 as u32)
     }
 
-    pub(crate) fn section_index(self) -> object::SectionIndex {
+    pub fn section_index(self) -> object::SectionIndex {
         object::SectionIndex(self.0 as usize)
     }
 }

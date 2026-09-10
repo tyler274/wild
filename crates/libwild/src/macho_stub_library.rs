@@ -13,10 +13,10 @@
 use crate::ensure;
 use crate::error;
 use crate::error::Result;
-use crate::grouping::DefinedStubLibrary;
 use itertools::Itertools;
 use serde::Deserialize;
 use std::collections::HashSet;
+use wild_layout::grouping::DefinedStubLibrary;
 
 const ARM64_LIB_ARCH: &str = "arm64e-macos";
 

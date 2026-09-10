@@ -1,29 +1,29 @@
 use crate::elf::Elf;
 use crate::elf::ElfClass;
 use crate::error::Result;
-use crate::grouping::LtoInput;
-use crate::grouping::SymbolKind;
-use crate::layout::EnginePlatform;
 use crate::platform::Args as _;
 use crate::platform::Platform;
-use crate::resolution::ResolutionResources;
-use crate::resolution::ResolvedFile;
-use crate::resolution::ResolvedGroup;
-use crate::resolution::SymbolAttributes;
-use crate::symbol::UnversionedSymbolName;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
 use crate::value_flags::FlagsForSymbol;
 use crate::value_flags::PerSymbolFlags;
 use crate::value_flags::ValueFlags;
 use rayon::Scope;
+use wild_layout::EnginePlatform;
+use wild_layout::grouping::LtoInput;
+use wild_layout::grouping::SymbolKind;
+use wild_layout::resolution::ResolutionResources;
+use wild_layout::resolution::ResolvedFile;
+use wild_layout::resolution::ResolvedGroup;
+use wild_layout::resolution::SymbolAttributes;
+use wild_layout::symbol::UnversionedSymbolName;
+use wild_layout::symbol_db::SymbolDb;
+use wild_layout::symbol_db::SymbolId;
 
 pub(crate) fn mark_lto_symbols_for_dynamic_export<C: ElfClass>(
     symbol_db: &SymbolDb<Elf<C>>,
     per_symbol_flags: &mut PerSymbolFlags,
     resolved_groups: &[ResolvedGroup<Elf<C>>],
 ) {
-    use crate::grouping::Group;
+    use wild_layout::grouping::Group;
 
     for group in resolved_groups {
         for file in &group.files {
@@ -33,14 +33,14 @@ pub(crate) fn mark_lto_symbols_for_dynamic_export<C: ElfClass>(
                 };
                 let file = &files[lto_input.file_id.file()];
 
-                let Some(mode) = crate::layout::export_symbols_mode(symbol_db, &file.input_ref)
+                let Some(mode) = wild_layout::export_symbols_mode(symbol_db, &file.input_ref)
                 else {
                     continue;
                 };
 
                 for (symbol_id, symbol) in file.symbols_iter() {
                     if symbol.is_definition()
-                        && crate::layout::can_export_global_def(
+                        && wild_layout::can_export_global_def(
                             symbol_db,
                             symbol.visibility,
                             symbol_id,
@@ -93,7 +93,7 @@ pub(crate) fn resolve_lto_symbols<'data, 'scope, C: ElfClass>(
                         is_weak: local_symbol.kind == Some(SymbolKind::WeakUndef),
                     };
 
-                    crate::resolution::resolve_symbol(
+                    wild_layout::resolution::resolve_symbol(
                         obj.symbol_id_range.offset_to_id(local_symbol_index),
                         &symbol_attributes,
                         definition,

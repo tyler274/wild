@@ -11,23 +11,10 @@ use crate::alignment;
 use crate::alignment::Alignment;
 use crate::args::macho::MachOArgs;
 use crate::error::Result;
-use crate::grouping::SequencedInput;
 use crate::input_data::FileId;
-use crate::layout;
-use crate::layout::Layout;
-use crate::layout::OutputRecordLayout;
-use crate::layout_rules::SectionKind;
-use crate::layout_rules::SectionRule;
-use crate::output_section_id::OrderEvent;
-use crate::output_section_id::OutputOrderBuilder;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::SectionIdentity;
-use crate::output_section_id::SectionName;
-use crate::output_section_part_map::OutputSectionPartMap;
 use crate::platform;
 use crate::platform::ObjectFile;
 use crate::program_segments::ProgramSegmentId;
-use crate::symbol_db::SymbolId;
 use crate::value_flags::ValueFlags;
 use anyhow::Context;
 use object::SymbolIndex;
@@ -36,10 +23,23 @@ use object::macho::SEG_LINKEDIT;
 pub use object::macho::SectionFlags;
 use std::num::NonZeroU8;
 use std::num::NonZeroU64;
+use wild_layout as layout;
+use wild_layout::Layout;
+use wild_layout::OutputRecordLayout;
+use wild_layout::grouping::SequencedInput;
+use wild_layout::layout_rules::SectionKind;
+use wild_layout::layout_rules::SectionRule;
+use wild_layout::output_section_id::OrderEvent;
+use wild_layout::output_section_id::OutputOrderBuilder;
+use wild_layout::output_section_id::OutputSectionId;
+use wild_layout::output_section_id::SectionIdentity;
+use wild_layout::output_section_id::SectionName;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::symbol_db::SymbolId;
 
 pub(crate) fn install_name<'data>(
     file_id: FileId,
-    symbol_db: &crate::symbol_db::SymbolDb<'data, MachO>,
+    symbol_db: &wild_layout::symbol_db::SymbolDb<'data, MachO>,
 ) -> &'data [u8] {
     match symbol_db.file(file_id) {
         SequencedInput::StubLibrary(stub) => stub.defined_symbols.install_name.as_bytes(),
@@ -70,12 +70,12 @@ pub(super) fn create_dynamic_layout_ext<'data>(
 }
 
 pub(super) const NUM_BUILT_IN_SECTIONS: usize =
-    crate::output_section_id::num_built_in_sections::<MachO>();
+    wild_layout::output_section_id::num_built_in_sections::<MachO>();
 
 pub(super) const SECTION_DEFINITIONS: [BuiltInSectionDetails; NUM_BUILT_IN_SECTIONS] = {
     let mut defs = [DEFAULT_DEFS; NUM_BUILT_IN_SECTIONS];
 
-    defs[crate::output_section_id::FILE_HEADER.as_usize()] = BuiltInSectionDetails {
+    defs[wild_layout::output_section_id::FILE_HEADER.as_usize()] = BuiltInSectionDetails {
         kind: SectionKind::Primary(SectionIdentity::new(SectionName(b"FILE_HEADER"), None)),
         ..DEFAULT_DEFS
     };
@@ -181,7 +181,7 @@ pub(super) const DEFAULT_SECTION_RULES: &[SectionRule<'static>] = &[
 ];
 
 pub(super) fn section_header_name_for_segment<'data>(
-    output_sections: &crate::output_section_id::OutputSections<'data, MachO>,
+    output_sections: &wild_layout::output_section_id::OutputSections<'data, MachO>,
     section_id: OutputSectionId,
     segment_def: ProgramSegmentDef,
 ) -> Option<SectionName<'data>> {
@@ -197,7 +197,7 @@ pub(super) fn section_header_name_for_segment<'data>(
 }
 
 pub(super) fn count_sections_for_segment(
-    output_sections: &crate::output_section_id::OutputSections<MachO>,
+    output_sections: &wild_layout::output_section_id::OutputSections<MachO>,
     segment_def: ProgramSegmentDef,
 ) -> usize {
     output_sections
@@ -248,7 +248,7 @@ pub(crate) fn get_segment_sections<'data>(
 
 pub(super) fn add_sections_in_segment<'data>(
     builder: &mut OutputOrderBuilder<'_, 'data, MachO>,
-    output_sections: &crate::output_section_id::OutputSections<'data, MachO>,
+    output_sections: &wild_layout::output_section_id::OutputSections<'data, MachO>,
     sections: &[OutputSectionId],
     segment: SegmentName,
 ) {

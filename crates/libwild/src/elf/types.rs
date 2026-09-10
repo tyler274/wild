@@ -148,12 +148,12 @@ pub(super) type SymbolTable<'data, C> = object::read::elf::SymbolTable<'data, Fi
 #[derive(Debug, Copy, Clone, Default)]
 pub(crate) struct Elf<C: ElfClass>(PhantomData<C>);
 
-impl<C: ElfClass> crate::layout::EnginePlatform for Elf<C> {}
-impl<'data, 'scope, C: ElfClass> crate::layout::EngineScope<'data, 'scope> for Elf<C> where
+impl<C: ElfClass> wild_layout::EnginePlatform for Elf<C> {}
+impl<'data, 'scope, C: ElfClass> wild_layout::EngineScope<'data, 'scope> for Elf<C> where
     'data: 'scope
 {
 }
-impl<'writer, 'out, C: ElfClass> crate::layout::EngineWriter<'writer, 'out> for Elf<C> where
+impl<'writer, 'out, C: ElfClass> wild_layout::EngineWriter<'writer, 'out> for Elf<C> where
     'out: 'writer
 {
 }

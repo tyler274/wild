@@ -7,10 +7,10 @@ use crate::elf::gnu::*;
 use crate::elf::output_section_id;
 #[allow(unused_imports)]
 use crate::elf::types::*;
-use crate::layout;
-use crate::layout_rules::SectionRule;
-use crate::layout_rules::SectionRuleOutcome;
 use linker_utils::elf::secnames;
+use wild_layout as layout;
+use wild_layout::layout_rules::SectionRule;
+use wild_layout::layout_rules::SectionRuleOutcome;
 
 /// Rules that map input sections to built-in output sections when no linker script is in use.
 pub(crate) const DEFAULT_SECTION_PLACEMENT_RULES: &[SectionRule<'static>] = &[

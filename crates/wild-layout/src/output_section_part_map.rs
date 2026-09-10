@@ -1,18 +1,18 @@
+use crate::EnginePlatform;
 use crate::alignment;
 use crate::alignment::Alignment;
-use crate::layout::EnginePlatform;
 use crate::output_section_id::OrderEvent;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSections;
 use crate::part_id::PartId;
 #[allow(unused_imports)]
-pub(crate) use crate::platform::output_section_part_map::*;
+pub use crate::platform::output_section_part_map::*;
 use std::ops::Range;
 
 /// Iterate through all contained T in output order, producing a new map of U from the values
 /// returned by the callback. Note, the alignment is the alignment of the PartId, but capped at
 /// the maximum alignment of the highest alignment PartId with a non-default value.
-pub(crate) fn output_order_map<T, U, P>(
+pub fn output_order_map<T, U, P>(
     part_map: &OutputSectionPartMap<T>,
     output_order: &OutputOrder,
     output_sections: &OutputSections<P>,
@@ -47,7 +47,7 @@ where
 /// Returns the maximum alignment for any part with a non-default value starting from
 /// `base_part_id` for the next `count` parts. The returned value will not be any less than the
 /// minimum alignment for the section.
-pub(crate) fn max_alignment<T, P>(
+pub fn max_alignment<T, P>(
     part_map: &OutputSectionPartMap<T>,
     range: Range<PartId>,
     output_sections: &OutputSections<P>,

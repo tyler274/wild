@@ -1,0 +1,45 @@
+[package]
+name = "wild-layout"
+description = "Layout, resolution, and symbol-db engine for the Wild linker"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+
+[dependencies]
+atomic-take.workspace = true
+bytesize.workspace = true
+colored.workspace = true
+crossbeam-queue.workspace = true
+crossbeam-utils.workspace = true
+derive_more.workspace = true
+hashbrown.workspace = true
+itertools.workspace = true
+linker-layout = { path = "../linker-layout", version = "0.10.0" }
+linker-utils = { path = "../linker-utils", version = "0.10.0" }
+memchr.workspace = true
+object.workspace = true
+perfetto-recorder.workspace = true
+rayon.workspace = true
+sharded-offset-map.workspace = true
+sharded-vec-writer.workspace = true
+smallvec.workspace = true
+symbolic-demangle.workspace = true
+thread_local.workspace = true
+tracing.workspace = true
+wild-args = { path = "../wild-args", version = "0.10.0" }
+wild-error = { path = "../wild-error", version = "0.10.0" }
+wild-platform = { path = "../wild-platform", version = "0.10.0" }
+wild-scripts = { path = "../wild-scripts", version = "0.10.0" }
+wild-util = { path = "../wild-util", version = "0.10.0" }
+winnow.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[features]
+plugins = []
+
+[lints]
+workspace = true

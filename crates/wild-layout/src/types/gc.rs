@@ -1,14 +1,12 @@
 use super::*;
+use crate::EnginePlatform;
 use crate::alignment::Alignment;
 use crate::bail;
 use crate::debug_assert_bail;
 use crate::error::Context;
 use crate::error::Error;
 use crate::error::Result;
-use crate::layout::EnginePlatform;
-use crate::layout::graph::*;
-use crate::layout::sizes::*;
-use crate::layout::verbose_timing_phase;
+use crate::graph::*;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
 use crate::output_section_map::OutputSectionMap;
@@ -21,12 +19,14 @@ use crate::platform::Platform;
 use crate::platform::SectionAttributes as _;
 use crate::platform::Symbol as _;
 use crate::resolution::SectionSlot;
+use crate::sizes::*;
 use crate::symbol_db::SymbolDebug;
 use crate::symbol_db::SymbolId;
 use crate::symbol_db::SymbolIdRange;
 use crate::value_flags::AtomicPerSymbolFlags;
 use crate::value_flags::FlagsForSymbol as _;
 use crate::value_flags::ValueFlags;
+use crate::verbose_timing_phase;
 use rayon::Scope;
 use std::fmt::Display;
 use std::mem::size_of;
@@ -34,15 +34,13 @@ use std::mem::swap;
 use std::mem::take;
 use std::sync::atomic;
 
-pub(crate) trait HandlerData {
+pub trait HandlerData {
     fn symbol_id_range(&self) -> SymbolIdRange;
 
     fn file_id(&self) -> FileId;
 }
 
-pub(crate) trait SymbolRequestHandler<'data, P: EnginePlatform>:
-    std::fmt::Display + HandlerData
-{
+pub trait SymbolRequestHandler<'data, P: EnginePlatform>: std::fmt::Display + HandlerData {
     fn finalise_symbol_sizes<A: Arch<Platform = P>>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
@@ -51,7 +49,7 @@ pub(crate) trait SymbolRequestHandler<'data, P: EnginePlatform>:
     ) -> Result {
         let symbol_db = resources.symbol_db;
 
-        let _file_span = crate::layout::span_for_file(symbol_db.args, self.file_id());
+        let _file_span = crate::span_for_file(symbol_db.args, self.file_id());
         let symbol_id_range = self.symbol_id_range();
 
         for (local_index, atomic_flags) in symbol_flags.range(symbol_id_range).iter().enumerate() {
@@ -286,7 +284,7 @@ impl<'data, P: EnginePlatform> SymbolRequestHandler<'data, P>
 }
 
 impl<'data, P: EnginePlatform> CommonGroupState<'data, P> {
-    pub(crate) fn new(output_sections: &OutputSections<P>) -> Self {
+    pub fn new(output_sections: &OutputSections<P>) -> Self {
         Self {
             mem_sizes: output_sections.new_part_map(),
             section_attributes: Default::default(),
@@ -295,11 +293,11 @@ impl<'data, P: EnginePlatform> CommonGroupState<'data, P> {
         }
     }
 
-    pub(crate) fn validate_sizes(&self) -> Result {
+    pub fn validate_sizes(&self) -> Result {
         P::validate_sizes(&self.mem_sizes)
     }
 
-    pub(crate) fn finalise_layout(
+    pub fn finalise_layout(
         &self,
         memory_offsets: &mut OutputSectionPartMap<u64>,
         section_layouts: &OutputSectionMap<OutputRecordLayout>,
@@ -335,11 +333,11 @@ impl<'data, P: EnginePlatform> CommonGroupState<'data, P> {
         strtab_offset_start
     }
 
-    pub(crate) fn allocate(&mut self, part_id: PartId, size: u64) {
+    pub fn allocate(&mut self, part_id: PartId, size: u64) {
         self.mem_sizes.increment(part_id, size);
     }
 
-    pub(crate) fn store_section_attributes(&mut self, part_id: PartId, header: &P::SectionHeader) {
+    pub fn store_section_attributes(&mut self, part_id: PartId, header: &P::SectionHeader) {
         let new_attributes = P::section_attributes(header);
 
         match self
@@ -357,7 +355,7 @@ impl<'data, P: EnginePlatform> CommonGroupState<'data, P> {
 }
 
 impl<'data, P: EnginePlatform> GroupActivationInputs<'data, P> {
-    pub(crate) fn activate_group<'scope, A: Arch<Platform = P>>(
+    pub fn activate_group<'scope, A: Arch<Platform = P>>(
         self,
         resources: &'scope GraphResources<'data, '_, P>,
         scope: &Scope<'scope>,
@@ -399,7 +397,7 @@ impl<'data, P: EnginePlatform> GroupActivationInputs<'data, P> {
 impl<'data, P: EnginePlatform> GroupState<'data, P> {
     /// Does work until there's nothing left in the queue, then returns our worker to its slot and
     /// shuts down.
-    pub(crate) fn do_pending_work<'scope, A: Arch<Platform = P>>(
+    pub fn do_pending_work<'scope, A: Arch<Platform = P>>(
         mut self,
         resources: &'scope GraphResources<'data, '_, P>,
         scope: &Scope<'scope>,
@@ -430,7 +428,7 @@ impl<'data, P: EnginePlatform> GroupState<'data, P> {
         }
     }
 
-    pub(crate) fn finalise_sizes<A: Arch<Platform = P>>(
+    pub fn finalise_sizes<A: Arch<Platform = P>>(
         &mut self,
         per_symbol_flags: &AtomicPerSymbolFlags,
         resources: &FinaliseSizesResources<'data, '_, P>,
@@ -443,7 +441,7 @@ impl<'data, P: EnginePlatform> GroupState<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn finalise_layout(
+    pub fn finalise_layout(
         self,
         memory_offsets: &mut OutputSectionPartMap<u64>,
         resolutions_out: &mut sharded_vec_writer::Shard<Option<Resolution<P>>>,
@@ -507,7 +505,7 @@ impl<'data, P: EnginePlatform> GroupState<'data, P> {
 
 impl<P: EnginePlatform> LocalWorkQueue<P> {
     #[inline(always)]
-    pub(crate) fn send_work<'data, 'scope, A: Arch<Platform = P>>(
+    pub fn send_work<'data, 'scope, A: Arch<Platform = P>>(
         &mut self,
         resources: &'scope GraphResources<'data, '_, A::Platform>,
         file_id: FileId,
@@ -521,7 +519,7 @@ impl<P: EnginePlatform> LocalWorkQueue<P> {
         }
     }
 
-    pub(crate) fn new(index: usize) -> LocalWorkQueue<P> {
+    pub fn new(index: usize) -> LocalWorkQueue<P> {
         Self {
             index,
             local_work: Default::default(),
@@ -529,7 +527,7 @@ impl<P: EnginePlatform> LocalWorkQueue<P> {
     }
 
     #[inline(always)]
-    pub(crate) fn send_symbol_request<'data, 'scope, A: Arch<Platform = P>>(
+    pub fn send_symbol_request<'data, 'scope, A: Arch<Platform = P>>(
         &mut self,
         symbol_id: SymbolId,
         resources: &'scope GraphResources<'data, '_, A::Platform>,
@@ -545,7 +543,7 @@ impl<P: EnginePlatform> LocalWorkQueue<P> {
         );
     }
 
-    pub(crate) fn send_gc_unit_request<'data, 'scope, A: Arch<Platform = P>>(
+    pub fn send_gc_unit_request<'data, 'scope, A: Arch<Platform = P>>(
         &mut self,
         file_id: FileId,
         gc_unit: P::GcUnit,
@@ -560,7 +558,7 @@ impl<P: EnginePlatform> LocalWorkQueue<P> {
         );
     }
 
-    pub(crate) fn send_copy_relocation_request<'data, 'scope, A: Arch<Platform = P>>(
+    pub fn send_copy_relocation_request<'data, 'scope, A: Arch<Platform = P>>(
         &mut self,
         symbol_id: SymbolId,
         resources: &'scope GraphResources<'data, '_, A::Platform>,
@@ -578,14 +576,14 @@ impl<P: EnginePlatform> LocalWorkQueue<P> {
 }
 
 impl<'data, P: EnginePlatform> GraphResources<'data, '_, P> {
-    pub(crate) fn report_error(&self, error: Error) {
+    pub fn report_error(&self, error: Error) {
         self.errors.lock().unwrap().push(error);
     }
 
     /// Sends all work in `work` to the worker for `file_id`. Leaves `work` empty so that it can be
     /// reused.
     #[inline(always)]
-    pub(crate) fn send_work<'scope, A: Arch<Platform = P>>(
+    pub fn send_work<'scope, A: Arch<Platform = P>>(
         &self,
         file_id: FileId,
         work: WorkItem<P>,
@@ -606,16 +604,16 @@ impl<'data, P: EnginePlatform> GraphResources<'data, '_, P> {
         }
     }
 
-    pub(crate) fn local_flags_for_symbol(&self, symbol_id: SymbolId) -> ValueFlags {
+    pub fn local_flags_for_symbol(&self, symbol_id: SymbolId) -> ValueFlags {
         self.per_symbol_flags.flags_for_symbol(symbol_id)
     }
 
-    pub(crate) fn symbol_debug<'a>(&'a self, symbol_id: SymbolId) -> SymbolDebug<'a, 'data, P> {
+    pub fn symbol_debug<'a>(&'a self, symbol_id: SymbolId) -> SymbolDebug<'a, 'data, P> {
         self.symbol_db
             .symbol_debug(self.per_symbol_flags, symbol_id)
     }
 
-    pub(crate) fn keep_section(&self, section_id: OutputSectionId) {
+    pub fn keep_section(&self, section_id: OutputSectionId) {
         let keep = self.must_keep_sections.get(section_id);
 
         // We only write after reading and determining that we need to write. This likely makes the
@@ -629,7 +627,7 @@ impl<'data, P: EnginePlatform> GraphResources<'data, '_, P> {
 }
 
 impl<'data, P: EnginePlatform> FileLayoutState<'data, P> {
-    pub(crate) fn finalise_sizes<A: Arch<Platform = P>>(
+    pub fn finalise_sizes<A: Arch<Platform = P>>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
         per_symbol_flags: &AtomicPerSymbolFlags,
@@ -670,7 +668,7 @@ impl<'data, P: EnginePlatform> FileLayoutState<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn do_work<'scope, A: Arch<Platform = P>>(
+    pub fn do_work<'scope, A: Arch<Platform = P>>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
         work_item: WorkItem<P>,
@@ -688,11 +686,9 @@ impl<'data, P: EnginePlatform> FileLayoutState<'data, P> {
                     )
                 }),
             WorkItem::CopyRelocateSymbol(symbol_id) => match self {
-                FileLayoutState::Dynamic(state) => P::copy_relocate_symbol(
-                    state,
-                    symbol_id,
-                    crate::layout::platform_graph(resources),
-                ),
+                FileLayoutState::Dynamic(state) => {
+                    P::copy_relocate_symbol(state, symbol_id, crate::platform_graph(resources))
+                }
 
                 _ => {
                     bail!(
@@ -705,7 +701,7 @@ impl<'data, P: EnginePlatform> FileLayoutState<'data, P> {
                 FileLayoutState::Object(object_layout_state) => P::load_gc_unit::<A>(
                     object_layout_state,
                     common,
-                    crate::layout::platform_graph(resources),
+                    crate::platform_graph(resources),
                     queue,
                     request.gc_unit,
                     scope,
@@ -725,7 +721,7 @@ impl<'data, P: EnginePlatform> FileLayoutState<'data, P> {
         }
     }
 
-    pub(crate) fn handle_symbol_request<'scope, A: Arch<Platform = P>>(
+    pub fn handle_symbol_request<'scope, A: Arch<Platform = P>>(
         &mut self,
         common: &mut CommonGroupState<'data, P>,
         symbol_id: SymbolId,
@@ -768,7 +764,7 @@ impl<'data, P: EnginePlatform> FileLayoutState<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn finalise_layout<'scope, 'writer, 'out>(
+    pub fn finalise_layout<'scope, 'writer, 'out>(
         self,
         memory_offsets: &mut OutputSectionPartMap<u64>,
         resolutions_out: &'writer mut sharded_vec_writer::Shard<'out, Option<Resolution<P>>>,
@@ -947,7 +943,7 @@ impl<'data, P: Platform> std::fmt::Display for ObjectLayout<'data, P> {
 }
 
 impl Section {
-    pub(crate) fn create<'data, P: EnginePlatform>(
+    pub fn create<'data, P: EnginePlatform>(
         header: &P::SectionHeader,
         object_state: &ObjectLayoutState<'data, P>,
         _part_id: PartId,
@@ -961,7 +957,7 @@ impl Section {
 
     // How much space we take up. This is our size rounded up to the next multiple of our
     // alignment, unless we're in a packed section, in which case it's just our size.
-    pub(crate) fn capacity<P: EnginePlatform>(
+    pub fn capacity<P: EnginePlatform>(
         self,
         part_id: PartId,
         output_sections: &OutputSections<P>,
@@ -975,7 +971,7 @@ impl Section {
         }
     }
 
-    pub(crate) fn place(self, offset: u64) -> (u64, u64) {
+    pub fn place(self, offset: u64) -> (u64, u64) {
         let address = self.alignment.align_up(offset);
         (address, address + self.size)
     }
@@ -1001,22 +997,22 @@ impl<'data, P: Platform> std::fmt::Debug for FileLayoutState<'data, P> {
 }
 
 impl<P: EnginePlatform> GcLoadRequest<P> {
-    pub(crate) fn new(file_id: FileId, gc_unit: P::GcUnit) -> Self {
+    pub fn new(file_id: FileId, gc_unit: P::GcUnit) -> Self {
         Self { file_id, gc_unit }
     }
 }
 
 /// An input section that needs to be sorted due to a `SORT*` directive or `--sort-section`.
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct InputSortedSection {
-    pub(crate) file_id: FileId,
-    pub(crate) section_index: object::SectionIndex,
-    pub(crate) part_id: PartId,
-    pub(crate) size: u64,
-    pub(crate) alignment: Alignment,
+pub struct InputSortedSection {
+    pub file_id: FileId,
+    pub section_index: object::SectionIndex,
+    pub part_id: PartId,
+    pub size: u64,
+    pub alignment: Alignment,
 }
 
-pub(crate) fn assign_addresses_to_sorted_sections<P: EnginePlatform>(
+pub fn assign_addresses_to_sorted_sections<P: EnginePlatform>(
     group_states: &mut [GroupState<P>],
     starting_mem_offsets_by_group: &[OutputSectionPartMap<u64>],
     sorted_sections: &mut [InputSortedSection],

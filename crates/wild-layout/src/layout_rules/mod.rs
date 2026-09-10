@@ -3,22 +3,22 @@
 mod builder;
 mod types;
 
+use crate::EnginePlatform;
 use crate::hash::hash_bytes;
-use crate::layout::EnginePlatform;
 use crate::output_section_id::OutputSectionId;
 use crate::platform::SectionHeader;
 #[allow(unused_imports)]
-pub(crate) use crate::platform::SectionRule;
+pub use crate::platform::SectionRule;
 #[allow(unused_imports)]
-pub(crate) use crate::platform::SectionRuleOutcome;
+pub use crate::platform::SectionRuleOutcome;
 #[allow(unused_imports)]
-pub(crate) use crate::platform::section_rules::SectionOutputInfo;
+pub use crate::platform::section_rules::SectionOutputInfo;
 #[allow(unused_imports)]
-pub(crate) use builder::*;
+pub use builder::*;
 use hashbrown::HashSet;
 use hashbrown::HashTable;
 #[allow(unused_imports)]
-pub(crate) use types::*;
+pub use types::*;
 
 /// Multiplier for the rule-hashtable's capacity, relative to the number of entries. We want a
 /// relatively sparse hashtable, since we may have a small number of entries with the same prefix
@@ -28,7 +28,7 @@ pub(crate) use types::*;
 const RULE_TABLE_CAPACITY_MULTIPLIER: usize = 2;
 
 impl<'data> SectionRules<'data> {
-    pub(crate) fn from_rules(rules: &[SectionRule<'data>]) -> Self {
+    pub fn from_rules(rules: &[SectionRule<'data>]) -> Self {
         let mut map = SectionRules {
             rules: HashTable::with_capacity(rules.len() * RULE_TABLE_CAPACITY_MULTIPLIER),
         };
@@ -44,7 +44,7 @@ impl<'data> SectionRules<'data> {
     }
 
     #[inline(always)]
-    pub(crate) fn lookup<P: EnginePlatform>(
+    pub fn lookup<P: EnginePlatform>(
         &self,
         section_name: &[u8],
         file_name: Option<&[u8]>,
@@ -80,7 +80,7 @@ impl<'data> SectionRules<'data> {
     /// Record output sections whose `ONLY_IF_*` matchers see a writable input.
     /// GNU then uses the `ONLY_IF_RW` copy for every matching input, including
     /// read-only ones.
-    pub(crate) fn note_writable_only_if(
+    pub fn note_writable_only_if(
         &self,
         section_name: &[u8],
         file_name: Option<&[u8]>,
@@ -114,7 +114,7 @@ fn section_name_prefix_hash(name: &[u8]) -> Option<u64> {
 }
 
 /// Determines, where if anywhere, we should place an input section with no name.
-pub(crate) fn unnamed_section_output<P: EnginePlatform>(
+pub fn unnamed_section_output<P: EnginePlatform>(
     section_header: &impl SectionHeader,
 ) -> SectionRuleOutcome {
     if !section_header.is_alloc() {

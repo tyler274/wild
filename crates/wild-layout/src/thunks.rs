@@ -22,11 +22,9 @@
 //! * Prmary part references anything: ValueFlags::HAS_RANGE_LIMITED_REL set for local symbol in the
 //!   object that made the reference.
 
-use crate::layout;
-use crate::layout::EnginePlatform;
-use crate::layout::FileLayoutState;
-use crate::layout::timing_phase;
-use crate::layout::verbose_timing_phase;
+use crate as layout;
+use crate::EnginePlatform;
+use crate::FileLayoutState;
 use crate::output_section_id::OutputSections;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
@@ -36,8 +34,10 @@ use crate::platform::Platform;
 use crate::platform::SectionAttributes as _;
 use crate::resolution;
 use crate::symbol_db::SymbolId;
+use crate::timing_phase;
 use crate::value_flags::FlagsForSymbol;
 use crate::value_flags::ValueFlags;
+use crate::verbose_timing_phase;
 use crossbeam_queue::SegQueue;
 use itertools::Itertools as _;
 use rayon::iter::IntoParallelIterator;
@@ -47,20 +47,20 @@ use std::collections::HashSet;
 
 /// Identifies a ThunkBlock within a Vec.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct ThunkBlockId(u32);
+pub struct ThunkBlockId(u32);
 
 impl ThunkBlockId {
     /// The first ThunkBlock. Covers non-primary parts as well as the start of the primary part.
-    pub(crate) const FIRST: ThunkBlockId = ThunkBlockId(0);
+    pub const FIRST: ThunkBlockId = ThunkBlockId(0);
 
-    pub(crate) fn as_usize(self) -> usize {
+    pub fn as_usize(self) -> usize {
         self.0 as usize
     }
 }
 
-pub(crate) struct ThunkBlock {
+pub struct ThunkBlock {
     /// Sorted and deduplicated SymbolIds for which we need thunks.
-    pub(crate) symbols: Vec<SymbolId>,
+    pub symbols: Vec<SymbolId>,
 }
 
 struct ThunkBlockBuilder<'data, 'state, P: Platform> {
@@ -78,7 +78,7 @@ impl<'data, 'state, P: EnginePlatform> Default for ThunkBlockBuilder<'data, 'sta
 }
 
 #[derive(Debug)]
-pub(crate) struct ThunkLayoutBuilder {
+pub struct ThunkLayoutBuilder {
     /// The range beyond which we'll allocate thunks, allowing a bit of overhead for the thunks
     /// themselves.
     branch_range: u64,
@@ -102,7 +102,7 @@ const MAXIMUM_THUNK_BYTES_PER_BLOCK: u64 = 2 * 1024 * 1024;
 impl ThunkLayoutBuilder {
     /// Creates a thunk layout builder or returns None if thunks either aren't supported or aren't
     /// needed.
-    pub(crate) fn new<A: Arch>(
+    pub fn new<A: Arch>(
         groups: &[resolution::ResolvedGroup<A::Platform>],
     ) -> Option<ThunkLayoutBuilder>
     where
@@ -137,7 +137,7 @@ impl ThunkLayoutBuilder {
     }
 
     /// Assigns thunk blocks to objects and builds the final `Vec<ThunkBlock>`.
-    pub(crate) fn build<'data, P: EnginePlatform>(
+    pub fn build<'data, P: EnginePlatform>(
         mut self,
         group_states: &mut [layout::GroupState<'data, P>],
         symbol_db: &crate::symbol_db::SymbolDb<'data, P>,
@@ -320,7 +320,7 @@ fn collect_primary_ranges<P: EnginePlatform>(
 
 /// Records that a thunkable relocation was encountered during the GC phase. The actual decision
 /// about whether a thunk is needed is deferred to `ThunkLayoutBuilder::build()`.
-pub(crate) fn handle_thunk_extensions_for_relocation<A: Arch>(
+pub fn handle_thunk_extensions_for_relocation<A: Arch>(
     section_part_id: PartId,
     resources: &layout::GraphResources<'_, '_, A::Platform>,
     local_symbol_id: SymbolId,

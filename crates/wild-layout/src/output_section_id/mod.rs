@@ -14,16 +14,16 @@
 //! platform's `RegularSectionId` enum and only define an `OutputSectionId` constant. Insert it
 //! later in `SECTION_DEFINITIONS`.
 
-pub(crate) mod ids;
-pub(crate) mod order;
-pub(crate) mod sections;
-pub(crate) mod types;
+pub mod ids;
+pub mod order;
+pub mod sections;
+pub mod types;
 
 #[allow(unused_imports)]
-pub(crate) use ids::*;
+pub use ids::*;
 #[allow(unused_imports)]
-pub(crate) use order::*;
+pub use order::*;
 #[allow(unused_imports)]
-pub(crate) use sections::*;
+pub use sections::*;
 #[allow(unused_imports)]
-pub(crate) use types::*;
+pub use types::*;

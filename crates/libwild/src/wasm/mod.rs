@@ -1,9 +1,9 @@
 use crate::FileSystem;
 use crate::args::wasm::WasmArgs;
 use crate::bail;
-use crate::output_section_id::OutputSectionId;
-use crate::part_id::PartId;
 use crate::platform::Args as _;
+use wild_layout::output_section_id::OutputSectionId;
+use wild_layout::part_id::PartId;
 
 pub(crate) mod abi;
 pub(crate) mod file;
@@ -27,9 +27,9 @@ pub(crate) use symbols::*;
 #[derive(Debug, Copy, Clone, Default)]
 pub(crate) struct Wasm;
 
-impl crate::layout::EnginePlatform for Wasm {}
-impl<'data, 'scope> crate::layout::EngineScope<'data, 'scope> for Wasm where 'data: 'scope {}
-impl<'writer, 'out> crate::layout::EngineWriter<'writer, 'out> for Wasm where 'out: 'writer {}
+impl wild_layout::EnginePlatform for Wasm {}
+impl<'data, 'scope> wild_layout::EngineScope<'data, 'scope> for Wasm where 'data: 'scope {}
+impl<'writer, 'out> wild_layout::EngineWriter<'writer, 'out> for Wasm where 'out: 'writer {}
 
 pub(crate) fn link_for_arch<'data, F: FileSystem>(
     linker: &'data crate::Linker<F>,
@@ -45,7 +45,7 @@ pub(crate) fn link_for_arch<'data, F: FileSystem>(
 #[repr(u32)]
 #[derive(Clone, Copy)]
 pub(crate) enum SinglePartSectionId {
-    WasmType = crate::output_section_id::NUM_COMMON_SINGLE_PART_SECTIONS,
+    WasmType = wild_layout::output_section_id::NUM_COMMON_SINGLE_PART_SECTIONS,
     WasmImport,
     WasmFunction,
     WasmTable,
@@ -66,7 +66,7 @@ pub(crate) enum SinglePartSectionId {
 
 pub(crate) mod part_id {
     use super::SinglePartSectionId;
-    use crate::part_id::PartId;
+    use wild_layout::part_id::PartId;
 
     pub(crate) const WASM_TYPE: PartId = SinglePartSectionId::WasmType.part_id();
     pub(crate) const WASM_IMPORT: PartId = SinglePartSectionId::WasmImport.part_id();
@@ -91,7 +91,7 @@ pub(crate) mod part_id {
 
 pub(crate) mod output_section_id {
     use super::SinglePartSectionId;
-    use crate::output_section_id::OutputSectionId;
+    use wild_layout::output_section_id::OutputSectionId;
 
     pub(crate) const WASM_TYPE: OutputSectionId = SinglePartSectionId::WasmType.output_section_id();
     pub(crate) const WASM_IMPORT: OutputSectionId =
@@ -225,7 +225,7 @@ mod tests {
             symbols: &[],
             init_funcs: &[],
             target_features: features,
-            symbol_id_range: crate::symbol_db::SymbolIdRange::empty(),
+            symbol_id_range: wild_layout::symbol_db::SymbolIdRange::empty(),
             file_id: crate::input_data::FileId::new(0, file),
             defined_function_live_ordinal: Vec::new(),
             defined_global_live_ordinal: Vec::new(),

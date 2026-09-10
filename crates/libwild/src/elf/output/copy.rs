@@ -11,15 +11,8 @@ use crate::elf::part_id;
 use crate::elf::types::*;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::layout;
-use crate::layout::CommonGroupState;
-use crate::layout::EnginePlatform;
-use crate::layout::HandlerData as _;
-use crate::output_section_part_map::OutputSectionPartMap;
 use crate::platform::ObjectFile;
 use crate::platform::Symbol as _;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
 use crate::timing_phase;
 use crate::value_flags::AtomicPerSymbolFlags;
 use crate::value_flags::ValueFlags;
@@ -27,6 +20,13 @@ use crate::verbose_timing_phase;
 use hashbrown::HashMap;
 use itertools::Itertools as _;
 use rayon::prelude::*;
+use wild_layout as layout;
+use wild_layout::CommonGroupState;
+use wild_layout::EnginePlatform;
+use wild_layout::HandlerData as _;
+use wild_layout::output_section_part_map::OutputSectionPartMap;
+use wild_layout::symbol_db::SymbolDb;
+use wild_layout::symbol_db::SymbolId;
 
 /// Where we've decided that we need copy relocations, look for symbols with the same address as the
 /// symbols with copy relocations. If the other symbol is non-weak, then we do the copy relocation

@@ -9,6 +9,7 @@ use super::select::SymbolPrioritySelector;
 use super::select::SymbolStrength;
 use super::select::Visibility;
 use super::select::is_mapping_symbol_name;
+use crate::EnginePlatform;
 use crate::OutputKind;
 use crate::args::InputLinkerScript;
 use crate::bail;
@@ -21,9 +22,6 @@ use crate::grouping::SequencedInput;
 use crate::grouping::UnsequencedLtoInput;
 use crate::hash::PassThroughHashMap;
 use crate::hash::PreHashed;
-use crate::layout::EnginePlatform;
-use crate::layout::timing_phase;
-use crate::layout::verbose_timing_phase;
 use crate::layout_rules::LayoutRulesBuilder;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
@@ -47,9 +45,11 @@ use crate::sharding::ShardKey;
 use crate::symbol::PreHashedSymbolName;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol::VersionedSymbolName;
+use crate::timing_phase;
 use crate::value_flags::FlagsForSymbol;
 use crate::value_flags::PerSymbolFlags;
 use crate::value_flags::ValueFlags;
+use crate::verbose_timing_phase;
 use crate::version_script::RustVersionScript;
 use crate::version_script::VersionScript;
 use hashbrown::HashMap;
@@ -62,28 +62,28 @@ use std::mem::take;
 use symbolic_demangle::demangle;
 
 #[derive(Default)]
-pub(crate) struct LoadedInputs<'data, P: Platform> {
+pub struct LoadedInputs<'data, P: Platform> {
     /// The results of parsing all the input files and archive entries. We defer checking for
     /// success until later, since otherwise a parse error would mean that the save-dir mechanism
     /// wouldn't capture all the input files.
-    pub(crate) objects: Vec<Result<Box<ParsedInputObject<'data, P>>>>,
+    pub objects: Vec<Result<Box<ParsedInputObject<'data, P>>>>,
 
-    pub(crate) linker_scripts: Vec<InputLinkerScript<'data>>,
+    pub linker_scripts: Vec<InputLinkerScript<'data>>,
 
-    pub(crate) stub_libraries: Vec<LoadedStubLibrary<'data>>,
+    pub stub_libraries: Vec<LoadedStubLibrary<'data>>,
 
-    pub(crate) lto_objects: Vec<Result<Box<UnsequencedLtoInput<'data>>>>,
+    pub lto_objects: Vec<Result<Box<UnsequencedLtoInput<'data>>>>,
 
     /// Number of regular objects seen on the command line before the first LTO input. Used to
     /// place plugin codegen at that position (#1935).
-    pub(crate) objects_before_first_lto: Option<usize>,
+    pub objects_before_first_lto: Option<usize>,
 }
 
 #[derive(Debug)]
 pub struct SymbolDb<'data, P: Platform> {
-    pub(crate) args: &'data P::Args,
+    pub args: &'data P::Args,
 
-    pub(crate) groups: Vec<Group<'data, P>>,
+    pub groups: Vec<Group<'data, P>>,
 
     pub(super) buckets: Vec<SymbolBucket<'data>>,
 
@@ -99,28 +99,28 @@ pub struct SymbolDb<'data, P: Platform> {
     /// offset into the SyntheticSymbols' symbol IDs.
     start_stop_symbol_names: Vec<UnversionedSymbolName<'data>>,
 
-    pub(crate) version_script: VersionScript<'data>,
-    pub(crate) export_list: Option<ExportList<'data>>,
+    pub version_script: VersionScript<'data>,
+    pub export_list: Option<ExportList<'data>>,
 
     /// The name of the entry symbol if overridden by a linker script.
     entry: Option<&'data [u8]>,
 
-    pub(crate) output_kind: OutputKind,
-    pub(crate) herd: &'data crate::arena::Herd,
+    pub output_kind: OutputKind,
+    pub herd: &'data crate::arena::Herd,
 
     /// The next input section ID to assign. Updated by `create_groups` so that subsequent calls
     /// (e.g. for LTO output objects) continue from where the previous call left off.
-    pub(crate) next_input_section_id: crate::input_section_id::InputSectionId,
+    pub next_input_section_id: crate::input_section_id::InputSectionId,
 
     /// Output part IDs for all input sections across all files, indexed by `InputSectionId`.
     /// Populated after section resolution and `assign_section_ids`. Note that for non-loaded
     /// sections, this will indicate the part that the section would have been placed in had it
     /// been loaded.
-    pub(crate) section_part_ids: Vec<PartId>,
+    pub section_part_ids: Vec<PartId>,
 
     /// Link-order assigned to plugin codegen objects so they are placed where the first LTO
     /// input appeared on the command line (#1935). SymbolIds stay at the end of the ID space.
-    pub(crate) plugin_codegen_link_order: Option<u32>,
+    pub plugin_codegen_link_order: Option<u32>,
 }
 
 /// Borrows from a SymbolDb, but allows temporary atomic access to some of the tables. These tables
@@ -167,7 +167,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
     /// If the version script is optimized fur rust, we downgraded all symbols to local visibility.
     /// This promotes symbols marked for global visibility in a Rust version script back to global.
     /// Also adds the non-interposable flag to all local symbols.
-    pub(crate) fn handle_rust_version_script(
+    pub fn handle_rust_version_script(
         &self,
         rust_vscript: &RustVersionScript<'data>,
         per_symbol_flags: &mut PerSymbolFlags,
@@ -198,7 +198,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
             });
     }
 
-    pub(crate) fn new(
+    pub fn new(
         args: &'data P::Args,
         output_kind: OutputKind,
         version_script_data: Option<crate::ScriptData<'data>>,
@@ -248,7 +248,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         Ok(symbol_db)
     }
 
-    pub(crate) fn add_inputs(
+    pub fn add_inputs(
         &mut self,
         per_symbol_flags: &mut PerSymbolFlags,
         output_sections: &mut OutputSections<'data, P>,
@@ -403,7 +403,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
     }
 
     /// Adds a new synthetic symbol. `syn` must have been the most recently added group.
-    pub(crate) fn add_synthetic_symbol(
+    pub fn add_synthetic_symbol(
         &mut self,
         per_symbol_flags: &mut PerSymbolFlags,
         symbol_name: PreHashed<UnversionedSymbolName<'data>>,
@@ -443,7 +443,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
     /// defines it will not go via the wrapper. This is in contrast to LLD where wrapping also
     /// affects references to symbols in compilation units where those symbols are defined. Our main
     /// reason for this choice of behaviour is that it's much simpler to implement.
-    pub(crate) fn apply_wrapped_symbol_overrides(&mut self) {
+    pub fn apply_wrapped_symbol_overrides(&mut self) {
         let wrap = self.args.symbol_names_to_wrap();
         if wrap.is_empty() {
             return;
@@ -480,7 +480,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
 
     /// Restores name-table entries for wrapped symbols to their original (pre-wrap) definitions.
     #[cfg(all(feature = "plugins", unix))]
-    pub(crate) fn restore_wrapped_symbol_names(&mut self) {
+    pub fn restore_wrapped_symbol_names(&mut self) {
         let wrap = self.args.symbol_names_to_wrap();
         if wrap.is_empty() {
             return;
@@ -513,7 +513,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
     }
 
     /// Reads the symbol visibility from the original object.
-    pub(crate) fn input_symbol_visibility(&self, symbol_id: SymbolId) -> Visibility {
+    pub fn input_symbol_visibility(&self, symbol_id: SymbolId) -> Visibility {
         let file_id = self.file_id_for_symbol(symbol_id);
         debug_assert!(self.file(file_id).symbol_id_range().contains(symbol_id));
         match &self.groups[file_id.group()] {
@@ -539,7 +539,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
     }
 
     /// Returns a struct that can be used to print debug information about the specified symbol.
-    pub(crate) fn symbol_debug<'a>(
+    pub fn symbol_debug<'a>(
         &'a self,
         per_symbol_flags: &'a dyn FlagsForSymbol,
         symbol_id: SymbolId,
@@ -551,14 +551,14 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         }
     }
 
-    pub(crate) fn symbol_name_for_display(&self, symbol_id: SymbolId) -> SymbolNameDisplay<'data> {
+    pub fn symbol_name_for_display(&self, symbol_id: SymbolId) -> SymbolNameDisplay<'data> {
         SymbolNameDisplay {
             name: self.symbol_name(symbol_id).ok(),
             demangle: self.args.demangle(),
         }
     }
 
-    pub(crate) fn symbol_name(&self, symbol_id: SymbolId) -> Result<UnversionedSymbolName<'data>> {
+    pub fn symbol_name(&self, symbol_id: SymbolId) -> Result<UnversionedSymbolName<'data>> {
         let file_id = self.file_id_for_symbol(symbol_id);
         match &self.groups[file_id.group()] {
             Group::Prelude(prelude) => Ok(prelude.symbol_name(symbol_id)),
@@ -576,10 +576,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
     }
 
     /// Returns the prelude definition for `symbol_id` when it belongs to the prelude.
-    pub(crate) fn prelude_symbol_def(
-        &self,
-        symbol_id: SymbolId,
-    ) -> Option<&InternalSymDefInfo<'data, P>> {
+    pub fn prelude_symbol_def(&self, symbol_id: SymbolId) -> Option<&InternalSymDefInfo<'data, P>> {
         let file_id = self.file_id_for_symbol(symbol_id);
         if file_id != PRELUDE_FILE_ID {
             return None;
@@ -591,7 +588,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
     }
 
     /// Get the version of a symbol. Only intended for diagnostic purposes.
-    pub(crate) fn symbol_version_debug(&self, symbol_id: SymbolId) -> Option<String> {
+    pub fn symbol_version_debug(&self, symbol_id: SymbolId) -> Option<String> {
         let file_id = self.file_id_for_symbol(symbol_id);
         match &self.groups[file_id.group()] {
             Group::Objects(parsed_input_objects) => {
@@ -601,7 +598,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         }
     }
 
-    pub(crate) fn flags_for_symbol(
+    pub fn flags_for_symbol(
         &self,
         per_symbol_flags: &PerSymbolFlags,
         symbol_id: SymbolId,
@@ -611,11 +608,11 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         flags
     }
 
-    pub(crate) fn num_symbols(&self) -> usize {
+    pub fn num_symbols(&self) -> usize {
         self.symbol_definitions.len()
     }
 
-    pub(crate) fn num_regular_objects(&self) -> usize {
+    pub fn num_regular_objects(&self) -> usize {
         self.groups
             .iter()
             .map(|group| match group {
@@ -625,7 +622,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
             .sum()
     }
 
-    pub(crate) fn num_lto_objects(&self) -> usize {
+    pub fn num_lto_objects(&self) -> usize {
         self.groups
             .iter()
             .map(|group| match group {
@@ -639,7 +636,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
     /// If we have a symbol that when demangled produces `target_name`, then return the mangled
     /// name. Note, this scans every symbol, so should only be used for debugging / diagnostic
     /// purposes.
-    pub(crate) fn find_mangled_name(&self, target_name: &str) -> Option<String> {
+    pub fn find_mangled_name(&self, target_name: &str) -> Option<String> {
         for i in 1..self.num_symbols() {
             let symbol_id = SymbolId(i as u32);
             let Ok(name) = self.symbol_name(symbol_id) else {
@@ -661,11 +658,11 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
     /// Returns our mapping from symbol IDs to the IDs that define them. Definitions should be
     /// restored later by calling `restore_definitions`. While the definitions are taken, any method
     /// that requires definitions will fail.
-    pub(crate) fn take_definitions(&mut self) -> Vec<SymbolId> {
+    pub fn take_definitions(&mut self) -> Vec<SymbolId> {
         take(&mut self.symbol_definitions)
     }
 
-    pub(crate) fn restore_definitions(&mut self, definitions: Vec<SymbolId>) {
+    pub fn restore_definitions(&mut self, definitions: Vec<SymbolId>) {
         self.symbol_definitions = definitions;
     }
 
@@ -682,18 +679,18 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         }
     }
 
-    pub(crate) fn file_id_for_symbol(&self, symbol_id: SymbolId) -> FileId {
+    pub fn file_id_for_symbol(&self, symbol_id: SymbolId) -> FileId {
         self.symbol_file_ids[symbol_id.as_usize()]
     }
 
     /// Returns whether the supplied symbol ID is the canonical ID. A symbol won't be canonical, if
     /// it resolves to a different symbol. The symbol may still be undefined.
-    pub(crate) fn is_canonical(&self, symbol_id: SymbolId) -> bool {
+    pub fn is_canonical(&self, symbol_id: SymbolId) -> bool {
         let resolution = self.symbol_definitions[symbol_id.as_usize()];
         resolution == symbol_id
     }
 
-    pub(crate) fn definition(&self, symbol_id: SymbolId) -> SymbolId {
+    pub fn definition(&self, symbol_id: SymbolId) -> SymbolId {
         // We need to do two steps when finding the definition for a symbol, since the definition
         // may have changed since we did the original name lookup. It would be possible to avoid
         // this, by resolving all definitions before we resolve references, except then, due to
@@ -703,11 +700,11 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         self.symbol_definitions[step1.as_usize()]
     }
 
-    pub(crate) fn replace_definition(&mut self, symbol_id: SymbolId, new_definition: SymbolId) {
+    pub fn replace_definition(&mut self, symbol_id: SymbolId, new_definition: SymbolId) {
         self.symbol_definitions[symbol_id.as_usize()] = new_definition;
     }
 
-    pub(crate) fn file<'db>(&'db self, file_id: FileId) -> SequencedInput<'db, 'data, P> {
+    pub fn file<'db>(&'db self, file_id: FileId) -> SequencedInput<'db, 'data, P> {
         match &self.groups[file_id.group()] {
             Group::Prelude(prelude) => SequencedInput::Prelude(prelude),
             Group::Objects(parsed_input_objects) => {
@@ -721,7 +718,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         }
     }
 
-    pub(crate) fn output_section_id(&self, symbol_id: SymbolId) -> Option<OutputSectionId> {
+    pub fn output_section_id(&self, symbol_id: SymbolId) -> Option<OutputSectionId> {
         let file_id = self.file_id_for_symbol(symbol_id);
         match self.file(file_id) {
             SequencedInput::Object(obj) => {
@@ -746,7 +743,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         }
     }
 
-    pub(crate) fn is_mapping_symbol(&self, symbol_id: SymbolId) -> bool {
+    pub fn is_mapping_symbol(&self, symbol_id: SymbolId) -> bool {
         let Ok(name) = self.symbol_name(symbol_id) else {
             // We don't want to bother the caller with an error here. If there's a problem getting
             // the name, it will be reported elsewhere.
@@ -755,7 +752,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         is_mapping_symbol_name(name.bytes())
     }
 
-    pub(crate) fn get_unversioned(
+    pub fn get_unversioned(
         &self,
         prehashed: &PreHashed<UnversionedSymbolName>,
     ) -> Option<SymbolId> {
@@ -767,7 +764,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
     }
 
     #[inline(always)]
-    pub(crate) fn get(&self, key: &PreHashedSymbolName, allow_dynamic: bool) -> Option<SymbolId> {
+    pub fn get(&self, key: &PreHashedSymbolName, allow_dynamic: bool) -> Option<SymbolId> {
         let num_buckets = self.buckets.len();
 
         match key {
@@ -794,14 +791,14 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         }
     }
 
-    pub(crate) fn all_unversioned_symbols(
+    pub fn all_unversioned_symbols(
         &self,
     ) -> impl Iterator<Item = (&PreHashed<UnversionedSymbolName<'data>>, &SymbolId)> {
         self.buckets.iter().flat_map(|b| b.name_to_id.iter())
     }
 
     #[inline(always)]
-    pub(crate) fn symbol_strength(
+    pub fn symbol_strength(
         &self,
         symbol_id: SymbolId,
         resolved: &[ResolvedGroup<'data, P>],
@@ -848,11 +845,11 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         header.is_group()
     }
 
-    pub(crate) fn entry_point(&self) -> crate::platform::EntryPoint<'_> {
+    pub fn entry_point(&self) -> crate::platform::EntryPoint<'_> {
         self.args.entry_point(self.entry)
     }
 
-    pub(crate) fn entry_symbol_name(&self) -> Option<&[u8]> {
+    pub fn entry_symbol_name(&self) -> Option<&[u8]> {
         match self.entry_point() {
             crate::platform::EntryPoint::Symbol(name) => Some(name),
             crate::platform::EntryPoint::None | crate::platform::EntryPoint::Address(_) => None,
@@ -867,14 +864,14 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         }
     }
 
-    pub(crate) fn next_symbol_id(&self) -> SymbolId {
+    pub fn next_symbol_id(&self) -> SymbolId {
         self.groups.last().map_or(SymbolId::undefined(), |group| {
             let range = group.symbol_id_range();
             range.start().add_usize(range.len())
         })
     }
 
-    pub(crate) fn new_synthetic_symbols_group(
+    pub fn new_synthetic_symbols_group(
         &mut self,
         start_stop_sections: Option<
             OutputSectionMap<Vec<crate::resolution::StartStopCandidate<P>>>,
@@ -916,15 +913,15 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         Ok(())
     }
 
-    pub(crate) fn groups_reserve(&mut self, additional: usize) {
+    pub fn groups_reserve(&mut self, additional: usize) {
         self.groups.reserve(additional);
     }
 
-    pub(crate) fn next_group_index(&self) -> u32 {
+    pub fn next_group_index(&self) -> u32 {
         self.groups.len() as u32
     }
 
-    pub(crate) fn add_group(&mut self, group: Group<'data, P>) {
+    pub fn add_group(&mut self, group: Group<'data, P>) {
         self.groups.push(group);
     }
 
@@ -938,7 +935,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
     }
 
     #[cfg(all(feature = "plugins", unix))]
-    pub(crate) fn disable_lto_inputs(&mut self) {
+    pub fn disable_lto_inputs(&mut self) {
         for group in &mut self.groups {
             if let Group::LtoInputs(objects) = group {
                 for obj in objects {
@@ -948,7 +945,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         }
     }
 
-    pub(crate) fn is_undefined(&self, symbol_id: SymbolId) -> bool {
+    pub fn is_undefined(&self, symbol_id: SymbolId) -> bool {
         let file_id = self.file_id_for_symbol(symbol_id);
         match &self.groups[file_id.group()] {
             Group::Objects(objects) => {
@@ -966,11 +963,11 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         }
     }
 
-    pub(crate) fn warning(&self, message: impl Into<String>) {
+    pub fn warning(&self, message: impl Into<String>) {
         self.args.warning(message);
     }
 
-    pub(crate) fn part_id_for_symbol(&self, symbol_id: SymbolId) -> PartId {
+    pub fn part_id_for_symbol(&self, symbol_id: SymbolId) -> PartId {
         let file_id = self.file_id_for_symbol(symbol_id);
         let file = self.file(file_id);
         if file.is_dynamic() {
@@ -1039,7 +1036,7 @@ impl<'data> SymbolBucket<'data> {
     }
 }
 #[derive(Clone, Copy)]
-pub(crate) struct SymbolDebug<'a, 'data, P: Platform> {
+pub struct SymbolDebug<'a, 'data, P: Platform> {
     db: &'a SymbolDb<'data, P>,
     symbol_id: SymbolId,
     per_symbol_flags: &'a dyn FlagsForSymbol,
