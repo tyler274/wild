@@ -2,7 +2,8 @@ use crate::args::InputRef;
 use crate::error::Result;
 use crate::input_section_id::InputSectionId;
 use crate::input_section_id::SectionIdRange;
-use crate::macho_stub_library::DefinedStubLibrary;
+use crate::layout::timing_phase;
+use crate::layout::verbose_timing_phase;
 use crate::parsing::ParsedInputObject;
 use crate::parsing::Prelude;
 use crate::parsing::ProcessedLinkerScript;
@@ -18,9 +19,25 @@ use crate::symbol_db::SymbolDb;
 use crate::symbol_db::SymbolId;
 use crate::symbol_db::SymbolIdRange;
 use crate::symbol_db::SymbolStrength;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
 use std::fmt::Display;
+
+#[derive(Debug, Clone)]
+pub(crate) struct DefinedStubLibrary<'a> {
+    /// Install name of the dynamic library, including its `.dylib` suffix.
+    pub(crate) install_name: &'a str,
+    /// Current version recorded for the library, if present.
+    pub(crate) current_version: &'a str,
+    /// Global symbols defined by the library or by any reexported child library.
+    pub(crate) symbols: Vec<&'a str>,
+    /// Weak symbols defined by the library or by any reexported child library.
+    pub(crate) weak_symbols: Vec<&'a str>,
+}
+
+impl DefinedStubLibrary<'_> {
+    pub(crate) fn total_symbols(&self) -> usize {
+        self.symbols.len() + self.weak_symbols.len()
+    }
+}
 
 pub(crate) struct LoadedStubLibrary<'data> {
     pub(crate) input: InputRef<'data>,

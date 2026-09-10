@@ -1,8 +1,8 @@
 use crate::args::InputRef;
 use crate::error::Error;
+use crate::grouping::DefinedStubLibrary;
 use crate::grouping::SequencedInputObject;
 use crate::input_section_id::SectionIdRange;
-use crate::macho_stub_library::DefinedStubLibrary;
 use crate::output_section_id::CustomSectionDetails;
 use crate::output_section_id::InitFiniSectionDetail;
 use crate::parsing::InternalSymDefInfo;

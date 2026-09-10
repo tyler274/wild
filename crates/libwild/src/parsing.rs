@@ -6,6 +6,8 @@ use crate::args::Modifiers;
 use crate::error::Context as _;
 use crate::error::Result;
 use crate::layout::EnginePlatform;
+use crate::layout::timing_phase;
+use crate::layout::verbose_timing_phase;
 use crate::layout_rules::LayoutRulesBuilder;
 use crate::layout_rules::LocationCounter;
 use crate::linker_script::Expression;
@@ -19,8 +21,6 @@ use crate::platform::Symbol;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolId;
 use crate::symbol_db::SymbolIdRange;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
 
 pub(crate) fn process_linker_scripts<'data, P: EnginePlatform>(
     linker_scripts_in: &[InputLinkerScript<'data>],

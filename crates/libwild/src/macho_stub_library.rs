@@ -13,6 +13,7 @@
 use crate::ensure;
 use crate::error;
 use crate::error::Result;
+use crate::grouping::DefinedStubLibrary;
 use itertools::Itertools;
 use serde::Deserialize;
 use std::collections::HashSet;
@@ -74,25 +75,6 @@ struct Exports<'a> {
     #[serde(default)]
     #[serde(borrow)]
     weak_symbols: Vec<&'a str>,
-}
-// TODO: remove
-#[allow(unused)]
-#[derive(Debug, Clone)]
-pub(crate) struct DefinedStubLibrary<'a> {
-    /// Install name of the dynamic library, including its `.dylib` suffix.    
-    pub(crate) install_name: &'a str,
-    /// Current version recorded for the library, if present.
-    pub(crate) current_version: &'a str,
-    /// Global symbols defined by the library or by any reexported child library.
-    pub(crate) symbols: Vec<&'a str>,
-    /// Weak symbols defined by the library or by any reexported child library.
-    pub(crate) weak_symbols: Vec<&'a str>,
-}
-
-impl DefinedStubLibrary<'_> {
-    pub(crate) fn total_symbols(&self) -> usize {
-        self.symbols.len() + self.weak_symbols.len()
-    }
 }
 
 pub fn parse_defined_library<'data>(input: &'data str) -> Result<DefinedStubLibrary<'data>> {
