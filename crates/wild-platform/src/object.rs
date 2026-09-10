@@ -137,7 +137,7 @@ pub trait ObjectFile<'data>: Sized + Send + Sync + std::fmt::Debug + 'data {
     fn section_data(
         &self,
         section: &<Self::Platform as Platform>::SectionHeader,
-        member: &bumpalo_herd::Member<'data>,
+        member: &wild_util::arena::Member<'data>,
         loaded_metrics: &<Self::Platform as Platform>::LoadedMetrics,
     ) -> Result<&'data [u8]>;
 

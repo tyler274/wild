@@ -213,7 +213,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
     fn section_data(
         &self,
         _section: &SectionHeader,
-        _member: &bumpalo_herd::Member<'data>,
+        _member: &crate::arena::Member<'data>,
         _loaded_metrics: &crate::resolution::LoadedMetrics,
     ) -> Result<&'data [u8]> {
         todo!()

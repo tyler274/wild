@@ -1,4 +1,5 @@
 use super::*;
+use crate::arena::Herd;
 use crate::bail;
 use crate::elf::Elf;
 use crate::elf::ElfClass;
@@ -17,7 +18,6 @@ use crate::symbol_db::SymbolIdRange;
 use crate::value_flags::FlagsForSymbol;
 use crate::value_flags::PerSymbolFlags;
 use crate::value_flags::ValueFlags;
-use bumpalo_herd::Herd;
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::ffi::CStr;

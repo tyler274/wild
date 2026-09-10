@@ -9,7 +9,6 @@ edition.workspace = true
 
 [dependencies]
 bitflags.workspace = true
-bumpalo-herd.workspace = true
 colosseum.workspace = true
 derive_more.workspace = true
 glob.workspace = true

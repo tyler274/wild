@@ -143,7 +143,7 @@ impl<'data, C: ElfClass> platform::ObjectFile<'data> for File<'data, C> {
     fn section_data(
         &self,
         section: &SectionHeader<C>,
-        member: &bumpalo_herd::Member<'data>,
+        member: &crate::arena::Member<'data>,
         loaded_metrics: &LoadedMetrics,
     ) -> Result<&'data [u8]> {
         let data = section.data(LittleEndian, self.data)?;

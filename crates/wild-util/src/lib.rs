@@ -1,5 +1,6 @@
 pub mod alignment;
 pub mod arch;
+pub mod arena;
 pub mod glob_match;
 pub mod hash;
 pub mod input_section_id;

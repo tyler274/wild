@@ -21,7 +21,6 @@ anyhow.workspace = true
 atomic-take.workspace = true
 bitflags.workspace = true
 blake3.workspace = true
-bumpalo-herd.workspace = true
 bytesize.workspace = true
 colored.workspace = true
 colosseum.workspace = true

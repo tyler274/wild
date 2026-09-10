@@ -211,7 +211,7 @@ pub trait Platform: Copy + Send + Sync + Sized + Default + std::fmt::Debug + 'st
     fn maybe_init_linker_plugin<'data>(
         _args: &'data Self::Args,
         _linker_plugin_arena: &'data colosseum::sync::Arena<Self::LoadedPlugin>,
-        _herd: &'data bumpalo_herd::Herd,
+        _herd: &'data wild_util::arena::Herd,
     ) -> Result<Option<Self::LinkerPlugin<'data>>> {
         Ok(None)
     }
@@ -838,7 +838,7 @@ pub trait Platform: Copy + Send + Sync + Sized + Default + std::fmt::Debug + 'st
         _obj: &mut Self::ResolvedObject<'data>,
         _section_index: object::SectionIndex,
         _input_section: &'data Self::SectionHeader,
-        _member: &bumpalo_herd::Member<'data>,
+        _member: &wild_util::arena::Member<'data>,
         _loaded_metrics: &Self::LoadedMetrics,
     ) -> Result {
         Ok(())

@@ -374,7 +374,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
     fn section_data(
         &self,
         section: &<Self::Platform as platform::Platform>::SectionHeader,
-        _member: &bumpalo_herd::Member<'data>,
+        _member: &crate::arena::Member<'data>,
         _loaded_metrics: &crate::resolution::LoadedMetrics,
     ) -> crate::error::Result<&'data [u8]> {
         // Wasm sections are never compressed.

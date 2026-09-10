@@ -4,6 +4,7 @@ pub(crate) use wild_fs::archive;
 pub(crate) use wild_platform as platform;
 pub(crate) use wild_util::alignment;
 pub(crate) use wild_util::arch;
+pub(crate) use wild_util::arena;
 pub(crate) mod compression;
 pub(crate) mod debug_trace;
 pub(crate) mod diff;
@@ -183,7 +184,7 @@ pub struct Linker<F: FileSystem = OsFileSystem> {
 
     /// Anything that doesn't need a custom Drop implementation can go in here. In practice, it's
     /// mostly just the decompressed copy of compressed string-merge sections.
-    herd: bumpalo_herd::Herd,
+    herd: arena::Herd,
 
     /// We'll fill this in when we're done linking and start shutting down. Once this is dropped,
     /// that signals the end of shutdown for the purposes of timing measurement.

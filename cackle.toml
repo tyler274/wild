@@ -311,9 +311,6 @@ allow_unsafe = true
 [pkg.linux-raw-sys]
 allow_unsafe = true
 
-[pkg.bumpalo-herd]
-allow_unsafe = true
-
 [pkg.futures-timer]
 allow_unsafe = true
 

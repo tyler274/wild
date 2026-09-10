@@ -296,7 +296,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     fn maybe_init_linker_plugin<'data>(
         args: &'data Self::Args,
         linker_plugin_arena: &'data colosseum::sync::Arena<crate::linker_plugins::LoadedPlugin>,
-        herd: &'data bumpalo_herd::Herd,
+        herd: &'data crate::arena::Herd,
     ) -> Result<Option<crate::linker_plugins::LinkerPlugin<'data>>> {
         crate::linker_plugins::LinkerPlugin::from_args::<C>(args, linker_plugin_arena, herd)
     }
@@ -2658,7 +2658,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         obj: &mut crate::resolution::ResolvedObject<'data, Self>,
         section_index: object::SectionIndex,
         input_section: &'data Self::SectionHeader,
-        member: &bumpalo_herd::Member<'data>,
+        member: &crate::arena::Member<'data>,
         loaded_metrics: &LoadedMetrics,
     ) -> Result {
         let data = obj

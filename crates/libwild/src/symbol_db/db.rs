@@ -106,7 +106,7 @@ pub struct SymbolDb<'data, P: Platform> {
     entry: Option<&'data [u8]>,
 
     pub(crate) output_kind: OutputKind,
-    pub(crate) herd: &'data bumpalo_herd::Herd,
+    pub(crate) herd: &'data crate::arena::Herd,
 
     /// The next input section ID to assign. Updated by `create_groups` so that subsequent calls
     /// (e.g. for LTO output objects) continue from where the previous call left off.
@@ -203,7 +203,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         output_kind: OutputKind,
         version_script_data: Option<crate::ScriptData<'data>>,
         export_list_data: Option<crate::ScriptData<'data>>,
-        herd: &'data bumpalo_herd::Herd,
+        herd: &'data crate::arena::Herd,
     ) -> Result<Self> {
         let version_script = version_script_data
             .map(VersionScript::parse)

@@ -212,7 +212,7 @@ fn apply_init_fini_secondaries<'data, P: EnginePlatform>(
 fn resolve_sections_for_object<'data, P: EnginePlatform>(
     obj: &mut ResolvedObject<'data, P>,
     args: &P::Args,
-    allocator: &bumpalo_herd::Member<'data>,
+    allocator: &crate::arena::Member<'data>,
     loaded_metrics: &LoadedMetrics,
     rules: &SectionRules,
     output_sections: &OutputSections<'data, P>,
@@ -270,7 +270,7 @@ fn resolve_section<'data, P: EnginePlatform>(
     input_section: &'data P::SectionHeader,
     obj: &mut ResolvedObject<'data, P>,
     args: &P::Args,
-    allocator: &bumpalo_herd::Member<'data>,
+    allocator: &crate::arena::Member<'data>,
     loaded_metrics: &LoadedMetrics,
     rules: &SectionRules,
     output_sections: &OutputSections<'data, P>,
@@ -486,7 +486,7 @@ fn emit_relocs_section_name<'data, P: EnginePlatform>(
     file_name: Option<&[u8]>,
     rules: &SectionRules,
     output_sections: &OutputSections<'data, P>,
-    allocator: &bumpalo_herd::Member<'data>,
+    allocator: &crate::arena::Member<'data>,
     only_if_writable: &HashSet<crate::output_section_id::OutputSectionId>,
 ) -> Option<&'data [u8]> {
     let prefix = input_section.reloc_output_name_prefix()?;

@@ -10,6 +10,7 @@
 //! be.
 
 use crate::FileSystem;
+use crate::arena::Herd;
 use crate::args::Input;
 use crate::args::Modifiers;
 use crate::args::elf::ElfArgs;
@@ -36,7 +37,6 @@ use crate::symbol_db::SymbolDb;
 use crate::timing_phase;
 use crate::value_flags::PerSymbolFlags;
 use crate::verbose_timing_phase;
-use bumpalo_herd::Herd;
 use colosseum::sync::Arena;
 use crossbeam_utils::atomic::AtomicCell;
 use libloading::Library;
