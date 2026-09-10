@@ -5,10 +5,10 @@ use crate::debug_assert_bail;
 use crate::error::Context;
 use crate::error::Error;
 use crate::error::Result;
-use crate::input_data::FileId;
 use crate::layout::EnginePlatform;
 use crate::layout::graph::*;
 use crate::layout::sizes::*;
+use crate::layout::verbose_timing_phase;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
 use crate::output_section_map::OutputSectionMap;
@@ -27,7 +27,6 @@ use crate::symbol_db::SymbolIdRange;
 use crate::value_flags::AtomicPerSymbolFlags;
 use crate::value_flags::FlagsForSymbol as _;
 use crate::value_flags::ValueFlags;
-use crate::verbose_timing_phase;
 use rayon::Scope;
 use std::fmt::Display;
 use std::mem::size_of;
@@ -52,7 +51,7 @@ pub(crate) trait SymbolRequestHandler<'data, P: EnginePlatform>:
     ) -> Result {
         let symbol_db = resources.symbol_db;
 
-        let _file_span = crate::debug_trace::span_for_file(symbol_db.args, self.file_id());
+        let _file_span = crate::layout::span_for_file(symbol_db.args, self.file_id());
         let symbol_id_range = self.symbol_id_range();
 
         for (local_index, atomic_flags) in symbol_flags.range(symbol_id_range).iter().enumerate() {

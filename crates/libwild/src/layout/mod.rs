@@ -2,30 +2,27 @@
 //! referenced. Determines which sections need to be linked, sums their sizes decides what goes
 //! where in the output file then allocates addresses for each symbol.
 
-use crate::FileSystem;
-use crate::diagnostics::SymbolInfoPrinter;
 use crate::error;
 use crate::error::Context;
 use crate::error::Result;
 use crate::expression_eval::evaluate_const;
-use crate::file_writer;
 use crate::grouping::Group;
 use crate::grouping::SequencedLinkerScript;
-use crate::input_data::FileId;
 use crate::output_section_id::OutputSections;
 use crate::output_section_map::OutputSectionMap;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
 use crate::platform::Arch;
 use crate::platform::Args as _;
+use crate::platform::FileId;
 use crate::platform::ObjectFile;
 use crate::platform::Platform;
 use crate::platform::SectionAttributes as _;
 use crate::resolution::ResolvedGroup;
 use crate::string_merging::MergedStringStartAddresses;
 use crate::symbol_db::SymbolDb;
-use crate::timing_phase;
 use crate::value_flags::PerSymbolFlags;
+use diagnostics::SymbolInfoPrinter;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 use itertools::Itertools;
@@ -33,12 +30,14 @@ use linker_utils::elf::RelocationKind;
 use std::sync::Mutex;
 
 pub(crate) mod addresses;
+mod diagnostics;
 pub(crate) mod engine;
 pub(crate) mod graph;
 pub(crate) mod script;
 pub(crate) mod sections;
 pub(crate) mod sizes;
 pub(crate) mod types;
+pub(crate) mod verification;
 
 pub(crate) use addresses::*;
 pub(crate) use engine::EnginePlatform;
@@ -56,17 +55,36 @@ pub(crate) use sections::*;
 pub(crate) use sizes::*;
 pub(crate) use types::*;
 
-pub fn compute<'data, P, A, F>(
+macro_rules! timing_phase {
+    ($($args:tt)*) => {
+        let _guard = (
+            tracing::info_span!($($args)*).entered(),
+            perfetto_recorder::start_span!($($args)*),
+        );
+    };
+}
+pub(crate) use timing_phase;
+
+macro_rules! verbose_timing_phase {
+    ($($args:tt)*) => {
+        perfetto_recorder::scope!($($args)*);
+    };
+}
+pub(crate) use verbose_timing_phase;
+
+/// Extra bytes reserved at the end of each allocated output section so a later incremental update
+/// can grow without shifting later sections.
+pub(crate) const INCREMENTAL_SECTION_PADDING: u64 = 256;
+
+pub fn compute<'data, P, A>(
     symbol_db: SymbolDb<'data, A::Platform>,
     mut per_symbol_flags: PerSymbolFlags,
     mut groups: Vec<ResolvedGroup<'data, A::Platform>>,
     mut output_sections: OutputSections<'data, P>,
-    output: &mut file_writer::Output<F>,
 ) -> Result<Layout<'data, A::Platform>>
 where
     P: EnginePlatform,
     A: Arch<Platform = P>,
-    F: FileSystem,
 {
     timing_phase!("Layout");
 
@@ -225,8 +243,7 @@ where
             let mut part_id = PartId::from_usize(range.end.as_usize().saturating_sub(1));
             while part_id.as_usize() >= range.start.as_usize() {
                 if section_part_sizes.get(part_id) > 0 {
-                    section_part_sizes
-                        .increment(part_id, crate::incremental::INCREMENTAL_SECTION_PADDING);
+                    section_part_sizes.increment(part_id, INCREMENTAL_SECTION_PADDING);
                     break;
                 }
                 if part_id.as_usize() == range.start.as_usize() {
@@ -478,8 +495,6 @@ where
         &memory_regions,
         &resolved_location_counters,
     )?;
-    crate::gc_stats::maybe_write_gc_stats(&group_layouts, &symbol_db)?;
-
     let thunk_block_addresses = thunk_block_addresses_out
         .into_iter()
         .map(|m| m.into_inner().unwrap())
@@ -527,8 +542,6 @@ where
 
     P::maybe_compress_debug_sections::<A>(&mut layout)?;
 
-    output.set_size(compute_total_file_size(&layout.section_layouts));
-
     Ok(layout)
 }
 
@@ -559,4 +572,13 @@ pub(crate) fn needs_tlsld(relocation_kind: RelocationKind) -> bool {
         relocation_kind,
         RelocationKind::TlsLd | RelocationKind::TlsLdGot | RelocationKind::TlsLdGotBase
     )
+}
+
+/// Span name must match [`crate::debug_trace::TRACE_SPAN_NAME`].
+pub(crate) fn span_for_file(
+    args: &impl crate::platform::Args,
+    file_id: FileId,
+) -> Option<tracing::span::EnteredSpan> {
+    args.should_trace_file(file_id)
+        .then(|| tracing::trace_span!("trace_file").entered())
 }

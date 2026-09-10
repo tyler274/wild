@@ -6,7 +6,6 @@ pub(crate) use wild_util::alignment;
 pub(crate) use wild_util::arch;
 pub(crate) mod compression;
 pub(crate) mod debug_trace;
-pub(crate) mod diagnostics;
 pub(crate) mod diff;
 pub(crate) mod dwarf_address_info;
 pub(crate) mod elf;
@@ -18,6 +17,7 @@ pub(crate) mod elf_writer;
 pub(crate) mod elf_x86_64;
 pub(crate) use wild_error::env;
 pub use wild_error::error;
+pub(crate) use wild_scripts::ScriptData;
 pub(crate) use wild_scripts::export_list;
 pub(crate) mod expression_eval;
 pub(crate) mod file_kind;
@@ -93,7 +93,6 @@ pub(crate) mod timing;
 pub(crate) use wild_util::trie;
 pub(crate) mod validation;
 pub(crate) mod value_flags;
-pub(crate) mod verification;
 pub(crate) use wild_scripts::version_script;
 pub(crate) mod wasm;
 pub(crate) mod wasm_wasm32;
@@ -125,7 +124,6 @@ pub use fs::make_executable;
 use hashbrown::HashSet;
 use input_data::FileLoader;
 use input_data::InputFile as LoadedInputFile;
-use input_data::InputLinkerScript;
 use layout_rules::LayoutRules;
 use output_section_id::OutputSections;
 use std::io::BufWriter;
@@ -286,7 +284,10 @@ impl<F: FileSystem> Linker<F> {
     where
         P: EnginePlatform
             + Platform<FileLoader<'data, F> = input_data::FileLoader<'data, F>>
-            + Platform<FileWriterOutput<F> = file_writer::Output<F>>,
+            + Platform<FileWriterOutput<F> = file_writer::Output<F>>
+            + Platform<LoadedPlugin = crate::linker_plugins::LoadedPlugin>
+            + Platform<LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>>
+            + Platform<FileKind = crate::file_kind::FileKind>,
         A: Arch<Platform = P>,
         P::Args: crate::args::HasCommonArgs,
     {
@@ -340,7 +341,10 @@ impl<F: FileSystem> Linker<F> {
     where
         P: EnginePlatform
             + Platform<FileLoader<'data, F> = input_data::FileLoader<'data, F>>
-            + Platform<FileWriterOutput<F> = file_writer::Output<F>>,
+            + Platform<FileWriterOutput<F> = file_writer::Output<F>>
+            + Platform<LoadedPlugin = crate::linker_plugins::LoadedPlugin>
+            + Platform<LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>>
+            + Platform<FileKind = crate::file_kind::FileKind>,
         A: Arch<Platform = P>,
         P::Args: crate::args::HasCommonArgs,
     {
@@ -365,7 +369,13 @@ impl<F: FileSystem> Linker<F> {
         let auxiliary =
             input_data::AuxiliaryFiles::new(args, &self.inputs_arena, self.file_system.as_ref())?;
 
-        let mut symbol_db = symbol_db::SymbolDb::new(args, output_kind, &auxiliary, &self.herd)?;
+        let mut symbol_db = symbol_db::SymbolDb::new(
+            args,
+            output_kind,
+            auxiliary.version_script_data,
+            auxiliary.export_list_data,
+            &self.herd,
+        )?;
         let mut per_symbol_flags = PerSymbolFlags::new();
 
         symbol_db.add_inputs(
@@ -419,13 +429,11 @@ impl<F: FileSystem> Linker<F> {
             &layout_rules,
         )?;
 
-        let mut layout = layout::compute::<P, A, F>(
-            symbol_db,
-            per_symbol_flags,
-            resolved,
-            output_sections,
-            &mut output,
-        )?;
+        let mut layout =
+            layout::compute::<P, A>(symbol_db, per_symbol_flags, resolved, output_sections)?;
+
+        output.set_size(layout::compute_total_file_size(&layout.section_layouts));
+        crate::gc_stats::maybe_write_gc_stats(&layout.group_layouts, &layout.symbol_db)?;
 
         let plugin_active = plugin.as_ref().is_some_and(|p| p.is_initialised());
         let mut incremental_session = if args.incremental() {
@@ -444,9 +452,14 @@ impl<F: FileSystem> Linker<F> {
                 session.record_fallback("strict-order .init/.fini");
             }
             let records = layout.incremental_file_records();
+            let input_paths: Vec<&Path> = file_loader
+                .loaded_files
+                .iter()
+                .map(|f| f.filename.as_path())
+                .collect();
             layout.incremental_atoms = session.bind_files(&records);
             layout.incremental_skip_payloads =
-                session.plan_in_place_update(&sections, &records, &file_loader.loaded_files);
+                session.plan_in_place_update(&sections, &records, &input_paths);
             if !layout.incremental_skip_payloads.is_empty() {
                 if let (Some(old_resolutions), Some(reverse_relocs)) = (
                     session.previous_resolutions.take(),
@@ -469,7 +482,11 @@ impl<F: FileSystem> Linker<F> {
             let resolutions = layout.incremental_resolutions();
             let reverse_relocs = layout.take_reverse_relocs();
             session.finish(
-                &file_loader.loaded_files,
+                &file_loader
+                    .loaded_files
+                    .iter()
+                    .map(|f| f.filename.as_path())
+                    .collect::<Vec<_>>(),
                 plugin_active,
                 has_strict_order_sections,
                 &sections,

@@ -116,11 +116,14 @@ pub mod macho;
 pub mod wasm;
 
 mod declare;
+pub mod input_ref;
 pub mod parse;
 pub mod types;
 
 #[allow(unused_imports)]
 pub use declare::*;
+#[allow(unused_imports)]
+pub use input_ref::*;
 #[allow(unused_imports)]
 pub use parse::*;
 #[allow(unused_imports)]

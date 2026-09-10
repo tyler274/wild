@@ -1,13 +1,13 @@
+use crate::args::InputRef;
 use crate::error::Error;
 use crate::grouping::SequencedInputObject;
-use crate::input_data::FileId;
-use crate::input_data::InputRef;
 use crate::input_section_id::SectionIdRange;
 use crate::macho_stub_library::DefinedStubLibrary;
 use crate::output_section_id::CustomSectionDetails;
 use crate::output_section_id::InitFiniSectionDetail;
 use crate::parsing::InternalSymDefInfo;
 use crate::platform::DynamicTagValues as _;
+use crate::platform::FileId;
 use crate::platform::FrameIndex;
 use crate::platform::ObjectFile;
 use crate::platform::Platform;

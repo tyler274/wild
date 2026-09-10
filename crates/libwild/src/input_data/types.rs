@@ -1,19 +1,12 @@
 use crate::FileSystem;
 use crate::InputFileData;
-use crate::archive;
+pub(crate) use crate::args::InputFileRef;
+pub(crate) use crate::args::InputLinkerScript;
+pub(crate) use crate::args::InputRef;
 use crate::args::Modifiers;
-use crate::error::Result;
-use crate::file_kind::FileKind;
-use crate::linker_plugins::LtoInputInfo;
-use crate::linker_script::LinkerScript;
-use crate::macho_stub_library::DefinedStubLibrary;
-use crate::parsing::ParsedInputObject;
-use crate::platform::Platform;
 #[allow(unused_imports)]
 pub(crate) use crate::platform::file_id::*;
 use colosseum::sync::Arena;
-use std::fmt::Display;
-use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -30,36 +23,6 @@ pub(crate) struct FileLoader<'data, F: FileSystem> {
     pub(crate) file_system: Arc<F>,
 }
 
-#[derive(Default)]
-pub(crate) struct LoadedInputs<'data, P: Platform> {
-    /// The results of parsing all the input files and archive entries. We defer checking for
-    /// success until later, since otherwise a parse error would mean that the save-dir mechanism
-    /// wouldn't capture all the input files.
-    pub(crate) objects: Vec<Result<Box<ParsedInputObject<'data, P>>>>,
-
-    pub(crate) linker_scripts: Vec<InputLinkerScript<'data>>,
-
-    pub(crate) stub_libraries: Vec<LoadedStubLibrary<'data>>,
-
-    pub(crate) lto_objects: Vec<Result<Box<LtoInputInfo<'data>>>>,
-
-    /// Number of regular objects seen on the command line before the first LTO input. Used to
-    /// place plugin codegen at that position (#1935).
-    pub(crate) objects_before_first_lto: Option<usize>,
-}
-
-pub(crate) struct LoadedStubLibrary<'data> {
-    pub(crate) input: InputRef<'data>,
-    pub(crate) defined_symbols: DefinedStubLibrary<'data>,
-}
-
-pub(crate) struct InputBytes<'data> {
-    pub(crate) input: InputRef<'data>,
-    pub(crate) kind: FileKind,
-    pub(crate) data: &'data [u8],
-    pub(crate) modifiers: Modifiers,
-}
-
 pub(crate) use wild_scripts::ScriptData;
 
 #[derive(Debug)]
@@ -72,25 +35,6 @@ pub(crate) struct InputFile<D: InputFileData> {
     pub(crate) modifiers: Modifiers,
 
     pub(crate) data: Option<D>,
-}
-
-// A type used for Type-erasure reasons.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct InputFileRef<'data> {
-    pub(crate) filename: &'data Path,
-    pub(crate) original_filename: &'data Path,
-    pub(crate) modifiers: Modifiers,
-}
-
-impl InputFileRef<'_> {
-    #[cfg(test)]
-    pub(crate) fn for_testing() -> Self {
-        Self {
-            filename: Path::new(""),
-            original_filename: Path::new(""),
-            modifiers: Modifiers::default(),
-        }
-    }
 }
 
 impl<I: InputFileData> InputFile<I> {
@@ -107,15 +51,6 @@ impl<I: InputFileData> InputFile<I> {
     }
 }
 
-/// Identifies an input object that may not be a regular file on disk, or may be an entry in an
-/// archive.
-#[derive(Clone, Copy)]
-pub(crate) struct InputRef<'data> {
-    pub(crate) file: InputFileRef<'data>,
-    pub(crate) data: &'data [u8],
-    pub(crate) entry: Option<archive::EntryMeta<'data>>,
-}
-
 #[derive(Debug)]
 pub(crate) struct InputPath {
     /// An absolute path to the file.
@@ -126,56 +61,7 @@ pub(crate) struct InputPath {
     pub(crate) original: PathBuf,
 }
 
-#[derive(Debug)]
-pub(crate) struct InputLinkerScript<'data> {
-    pub(crate) script: LinkerScript<'data>,
-    pub(crate) input_file: InputFileRef<'data>,
-    /// Raw bytes of the script file. Used to compute line numbers from `AssertCommand::remainder`.
-    pub(crate) script_bytes: &'data [u8],
-}
-
 pub(crate) struct AuxiliaryFiles<'data> {
     pub(crate) version_script_data: Option<ScriptData<'data>>,
     pub(crate) export_list_data: Option<ScriptData<'data>>,
-}
-
-impl std::fmt::Display for InputRef<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.file.filename.display(), f)?;
-        if let Some(entry) = &self.entry {
-            std::fmt::Display::fmt(" @ ", f)?;
-            std::fmt::Display::fmt(&String::from_utf8_lossy(entry.identifier.as_slice()), f)?;
-        }
-        Ok(())
-    }
-}
-
-impl std::fmt::Debug for InputRef<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self, f)
-    }
-}
-
-impl<'data> InputRef<'data> {
-    pub(crate) fn lib_name(&self) -> &'data [u8] {
-        self.file.original_filename.as_os_str().as_encoded_bytes()
-    }
-
-    pub(crate) fn has_archive_semantics(&self) -> bool {
-        self.entry.is_some() || self.file.modifiers.archive_semantics
-    }
-
-    pub(crate) fn data(&self) -> &'data [u8] {
-        self.data
-    }
-
-    pub(crate) fn is_archive_entry(&self) -> bool {
-        self.entry.is_some()
-    }
-}
-
-impl Display for InputBytes<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self.input, f)
-    }
 }

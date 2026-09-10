@@ -1,8 +1,5 @@
+use crate::args::InputRef;
 use crate::error::Result;
-use crate::input_data::FileId;
-use crate::input_data::InputRef;
-use crate::input_data::LoadedStubLibrary;
-use crate::input_data::MAX_FILES_PER_GROUP;
 use crate::input_section_id::InputSectionId;
 use crate::input_section_id::SectionIdRange;
 use crate::macho_stub_library::DefinedStubLibrary;
@@ -11,6 +8,8 @@ use crate::parsing::Prelude;
 use crate::parsing::ProcessedLinkerScript;
 use crate::parsing::SyntheticSymbols;
 use crate::platform;
+use crate::platform::FileId;
+use crate::platform::MAX_FILES_PER_GROUP;
 use crate::platform::ObjectFile;
 use crate::platform::Platform;
 use crate::sharding::ShardKey as _;
@@ -22,6 +21,11 @@ use crate::symbol_db::SymbolStrength;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
 use std::fmt::Display;
+
+pub(crate) struct LoadedStubLibrary<'data> {
+    pub(crate) input: InputRef<'data>,
+    pub(crate) defined_symbols: DefinedStubLibrary<'data>,
+}
 
 #[derive(Debug)]
 pub(crate) enum Group<'data, P: Platform> {
@@ -445,7 +449,7 @@ fn determine_max_files_per_group(args: &impl platform::Args) -> usize {
 
     // We may eventually find that a lower value based on the number of threads is better, but for
     // now, if files are small, we allow lots of them in a single group.
-    crate::input_data::MAX_FILES_PER_GROUP as usize
+    crate::platform::MAX_FILES_PER_GROUP as usize
 }
 
 /// Compute the total number of symbols in the supplied objects.

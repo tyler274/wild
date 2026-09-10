@@ -8,6 +8,8 @@ use crate::ensure;
 use crate::error::Context;
 use crate::error::Result;
 use crate::layout::EnginePlatform;
+use crate::layout::timing_phase;
+use crate::layout::verbose_timing_phase;
 use crate::layout_rules::SectionKind;
 use crate::output_section_id;
 use crate::output_section_id::OutputOrder;
@@ -19,8 +21,6 @@ use crate::platform::SectionAttributes as _;
 use crate::platform::SectionFlags as _;
 use crate::program_segments::ProgramSegmentId;
 use crate::program_segments::ProgramSegments;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
 #[allow(unused_imports)]
 pub(crate) use compute::*;
 #[allow(unused_imports)]
@@ -152,14 +152,14 @@ pub(crate) fn compute_symbols_and_layouts<'data, P: EnginePlatform>(
             verbose_timing_phase!("Assign addresses for group");
 
             if cfg!(debug_assertions) {
-                let offset_verifier = crate::verification::OffsetVerifier::new::<P>(
+                let offset_verifier = crate::layout::verification::OffsetVerifier::new::<P>(
                     &memory_offsets,
                     &state.common.mem_sizes,
                 );
 
                 // Make sure that ignored offsets really aren't used by `finalise_layout` by setting
                 // them to an arbitrary value. If they are used, we'll quickly notice.
-                crate::verification::clear_ignored::<P>(&mut memory_offsets);
+                crate::layout::verification::clear_ignored::<P>(&mut memory_offsets);
 
                 let layout = state.finalise_layout(&mut memory_offsets, symbols_out, resources)?;
 
@@ -381,7 +381,6 @@ pub(crate) fn compute_segment_layout<'data, P: EnginePlatform>(
 /// overlap and that sections don't overlap.
 #[test]
 fn test_no_disallowed_overlaps() {
-    use crate::OsFileSystem;
     use crate::elf::Elf64;
     use crate::output_section_id::OrderEvent;
     use crate::output_section_id::OutputSectionId;
@@ -416,13 +415,9 @@ fn test_no_disallowed_overlaps() {
         }
     });
 
-    let output_kind =
-        crate::output_kind::OutputKind::StaticExecutable(crate::args::RelocationModel::Fixed);
-    let arena = colosseum::sync::Arena::new();
-    let auxiliary = crate::input_data::AuxiliaryFiles::new(&args, &arena, &OsFileSystem).unwrap();
     let herd = Default::default();
     let symbol_db =
-        crate::symbol_db::SymbolDb::<Elf64>::new(&args, output_kind, &auxiliary, &herd).unwrap();
+        crate::symbol_db::SymbolDb::<Elf64>::new(&args, output_kind, None, None, &herd).unwrap();
 
     let (_, section_layouts, _) = compute_layout_sections::<Elf64>(
         &[],

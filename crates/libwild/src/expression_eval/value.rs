@@ -1,8 +1,8 @@
 use super::*;
+use crate::args::InputRef;
 use crate::bail;
 use crate::error::Context;
 use crate::error::Result;
-use crate::input_data::InputRef;
 use crate::layout;
 use crate::layout::EnginePlatform;
 use crate::layout::OutputRecordLayout;

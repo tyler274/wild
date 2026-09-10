@@ -8,31 +8,32 @@ use super::select::SymbolPrioritySelector;
 use super::select::SymbolStrength;
 use super::select::Visibility;
 use super::select::is_mapping_symbol_name;
-use crate::InputLinkerScript;
 use crate::OutputKind;
+use crate::args::InputLinkerScript;
 use crate::bail;
 use crate::error::Result;
 use crate::export_list::ExportList;
 use crate::grouping;
 use crate::grouping::Group;
+use crate::grouping::LoadedStubLibrary;
 use crate::grouping::SequencedInput;
 use crate::hash::PassThroughHashMap;
 use crate::hash::PreHashed;
-use crate::input_data::AuxiliaryFiles;
-use crate::input_data::FileId;
-use crate::input_data::LoadedInputs;
-use crate::input_data::PRELUDE_FILE_ID;
 use crate::layout::EnginePlatform;
 use crate::layout_rules::LayoutRulesBuilder;
+use crate::linker_plugins::LtoInputInfo;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
 use crate::output_section_map::OutputSectionMap;
 use crate::parsing;
 use crate::parsing::InternalSymDefInfo;
+use crate::parsing::ParsedInputObject;
 use crate::parsing::SyntheticSymbols;
 use crate::part_id::PartId;
 use crate::platform::Args;
+use crate::platform::FileId;
 use crate::platform::ObjectFile;
+use crate::platform::PRELUDE_FILE_ID;
 use crate::platform::Platform;
 use crate::platform::SectionHeader;
 use crate::platform::Symbol;
@@ -58,6 +59,24 @@ use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
 use std::mem::take;
 use symbolic_demangle::demangle;
+
+#[derive(Default)]
+pub(crate) struct LoadedInputs<'data, P: Platform> {
+    /// The results of parsing all the input files and archive entries. We defer checking for
+    /// success until later, since otherwise a parse error would mean that the save-dir mechanism
+    /// wouldn't capture all the input files.
+    pub(crate) objects: Vec<Result<Box<ParsedInputObject<'data, P>>>>,
+
+    pub(crate) linker_scripts: Vec<InputLinkerScript<'data>>,
+
+    pub(crate) stub_libraries: Vec<LoadedStubLibrary<'data>>,
+
+    pub(crate) lto_objects: Vec<Result<Box<LtoInputInfo<'data>>>>,
+
+    /// Number of regular objects seen on the command line before the first LTO input. Used to
+    /// place plugin codegen at that position (#1935).
+    pub(crate) objects_before_first_lto: Option<usize>,
+}
 
 #[derive(Debug)]
 pub struct SymbolDb<'data, P: Platform> {
@@ -181,19 +200,16 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
     pub(crate) fn new(
         args: &'data P::Args,
         output_kind: OutputKind,
-        auxiliary: &AuxiliaryFiles<'data>,
+        version_script_data: Option<crate::ScriptData<'data>>,
+        export_list_data: Option<crate::ScriptData<'data>>,
         herd: &'data bumpalo_herd::Herd,
     ) -> Result<Self> {
-        let version_script = auxiliary
-            .version_script_data
+        let version_script = version_script_data
             .map(VersionScript::parse)
             .transpose()?
             .unwrap_or_default();
 
-        let export_list = auxiliary
-            .export_list_data
-            .map(ExportList::parse)
-            .transpose()?;
+        let export_list = export_list_data.map(ExportList::parse).transpose()?;
 
         let num_buckets = num_symbol_hash_buckets(args);
         let mut buckets = Vec::new();
@@ -344,7 +360,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
 
         for group_objects in &lto_objects
             .into_iter()
-            .chunks(crate::input_data::MAX_FILES_PER_GROUP as usize)
+            .chunks(crate::platform::MAX_FILES_PER_GROUP as usize)
         {
             let mut next_symbol_id = self.next_symbol_id();
             let group_index = self.next_group_index();
@@ -902,7 +918,7 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
                     bail!("Multiple version scripts provided");
                 }
 
-                self.version_script = VersionScript::parse(crate::input_data::ScriptData {
+                self.version_script = VersionScript::parse(crate::ScriptData {
                     raw: version_content,
                 })?;
             }

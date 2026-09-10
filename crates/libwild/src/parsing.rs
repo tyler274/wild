@@ -1,12 +1,10 @@
 use crate::OutputKind;
 use crate::OutputSections;
+use crate::args::InputLinkerScript;
+use crate::args::InputRef;
 use crate::args::Modifiers;
 use crate::error::Context as _;
 use crate::error::Result;
-use crate::input_data::FileId;
-use crate::input_data::InputBytes;
-use crate::input_data::InputLinkerScript;
-use crate::input_data::InputRef;
 use crate::layout::EnginePlatform;
 use crate::layout_rules::LayoutRulesBuilder;
 use crate::layout_rules::LocationCounter;
@@ -14,6 +12,7 @@ use crate::linker_script::Expression;
 use crate::output_section_id::LocationCounterIndex;
 use crate::output_section_id::OutputSectionId;
 use crate::platform::Args;
+use crate::platform::FileId;
 use crate::platform::ObjectFile;
 use crate::platform::Platform;
 use crate::platform::Symbol;
@@ -185,16 +184,22 @@ impl<'data, P: Platform> InternalSymDefInfo<'data, P> {
 }
 
 impl<'data, P: Platform> ParsedInputObject<'data, P> {
-    pub(crate) fn new(input: &InputBytes<'data>, args: &P::Args) -> Result<Box<Self>> {
+    pub(crate) fn new(
+        input: InputRef<'data>,
+        data: &'data [u8],
+        modifiers: Modifiers,
+        is_dynamic: bool,
+        args: &P::Args,
+    ) -> Result<Box<Self>> {
         verbose_timing_phase!("Parse file");
 
-        let object = P::File::parse(input.data, input.kind.is_dynamic(), args)
+        let object = P::File::parse(data, is_dynamic, args)
             .with_context(|| format!("Failed to parse object file `{input}`"))?;
 
         Ok(Box::new(Self {
-            input: input.input,
+            input,
             object,
-            modifiers: input.modifiers,
+            modifiers,
         }))
     }
 

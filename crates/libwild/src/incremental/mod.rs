@@ -11,10 +11,9 @@ mod atoms;
 
 use crate::error::Result;
 use crate::hash::hash_bytes;
-use crate::input_data::FileId;
-use crate::input_data::InputFile;
 use crate::layout::EnginePlatform;
 use crate::platform::Args as _;
+use crate::platform::FileId;
 pub(crate) use atoms::AtomId;
 pub(crate) use atoms::AtomResolutions;
 pub(crate) use atoms::AtomTable;
@@ -29,10 +28,6 @@ use std::io::Write as _;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::SystemTime;
-
-/// Extra bytes reserved at the end of each allocated output section so a later incremental update
-/// can grow without shifting later sections.
-pub(crate) const INCREMENTAL_SECTION_PADDING: u64 = 256;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum IncrementalMode {
@@ -179,11 +174,11 @@ impl IncrementalSession {
 
     /// Decide which objects can keep their existing section payloads. Returns a fallback reason
     /// when the update cannot be applied in place.
-    pub(crate) fn plan_in_place_update<D: crate::InputFileData>(
+    pub(crate) fn plan_in_place_update(
         &mut self,
         sections: &[PersistedSection],
         records: &[IncrementalFileRecord],
-        loaded_files: &[&InputFile<D>],
+        loaded_paths: &[impl AsRef<Path>],
     ) -> HashSet<FileId> {
         if self.mode != IncrementalMode::Update || self.fallback_reason.is_some() {
             return HashSet::new();
@@ -192,7 +187,7 @@ impl IncrementalSession {
             &self.state_dir,
             sections,
             records,
-            loaded_files,
+            loaded_paths,
             &self.reused_files,
         ) {
             Ok(skip) => {
@@ -213,9 +208,9 @@ impl IncrementalSession {
         }
     }
 
-    pub(crate) fn finish<D: crate::InputFileData>(
+    pub(crate) fn finish(
         &self,
-        loaded_files: &[&InputFile<D>],
+        loaded_paths: &[impl AsRef<Path>],
         plugin_active: bool,
         has_strict_order_sections: bool,
         sections: &[PersistedSection],
@@ -257,8 +252,9 @@ impl IncrementalSession {
         )?;
 
         let mut inputs = fs::File::create(self.state_dir.join("inputs.txt"))?;
-        for file in loaded_files {
-            let meta = fs::metadata(&file.filename).ok();
+        for file in loaded_paths {
+            let filename = file.as_ref();
+            let meta = fs::metadata(filename).ok();
             let mtime = meta
                 .as_ref()
                 .and_then(|m| m.modified().ok())
@@ -267,11 +263,8 @@ impl IncrementalSession {
                 .unwrap_or(0);
             let ino = meta.as_ref().map(file_inode).unwrap_or(0);
             let size = meta.map(|m| m.len()).unwrap_or(0);
-            writeln!(inputs, "{mtime} {ino} {size} {}", file.filename.display())?;
-            snapshot_input(
-                &file.filename,
-                &input_copy_path(&self.state_dir, &file.filename),
-            )?;
+            writeln!(inputs, "{mtime} {ino} {size} {}", filename.display())?;
+            snapshot_input(filename, &input_copy_path(&self.state_dir, filename))?;
         }
 
         let mut sections_file = fs::File::create(self.state_dir.join("sections.txt"))?;
@@ -363,11 +356,11 @@ fn load_object_sizes(state_dir: &Path) -> Option<HashMap<String, Vec<u64>>> {
     Some(map)
 }
 
-fn plan_skip_payloads<D: crate::InputFileData>(
+fn plan_skip_payloads(
     state_dir: &Path,
     sections: &[PersistedSection],
     records: &[IncrementalFileRecord],
-    loaded_files: &[&InputFile<D>],
+    loaded_paths: &[impl AsRef<Path>],
     reused_files: &HashSet<FileId>,
 ) -> std::result::Result<HashSet<FileId>, String> {
     let previous_sections = load_persisted_sections(state_dir)
@@ -387,7 +380,7 @@ fn plan_skip_payloads<D: crate::InputFileData>(
         load_object_sizes(state_dir).ok_or_else(|| "missing previous object sizes".to_owned())?;
     check_object_sizes(&previous_sizes, records)?;
 
-    let diff = diff_input_paths(state_dir, loaded_files);
+    let diff = diff_input_paths(state_dir, loaded_paths);
     let mut skip = HashSet::new();
     for rec in records {
         if rec.skippable
@@ -433,13 +426,13 @@ struct InputDiff {
     changed: HashSet<PathBuf>,
 }
 
-fn diff_input_paths<D: crate::InputFileData>(
-    state_dir: &Path,
-    loaded_files: &[&InputFile<D>],
-) -> InputDiff {
+fn diff_input_paths(state_dir: &Path, loaded_paths: &[impl AsRef<Path>]) -> InputDiff {
     let Ok(previous) = fs::read_to_string(state_dir.join("inputs.txt")) else {
         return InputDiff {
-            changed: loaded_files.iter().map(|f| f.filename.clone()).collect(),
+            changed: loaded_paths
+                .iter()
+                .map(|f| f.as_ref().to_path_buf())
+                .collect(),
         };
     };
     let mut previous_by_path: HashMap<String, String> = HashMap::new();
@@ -451,14 +444,15 @@ fn diff_input_paths<D: crate::InputFileData>(
     }
 
     let mut changed = HashSet::new();
-    for file in loaded_files {
-        let path_key = file.filename.as_os_str().to_string_lossy();
+    for file in loaded_paths {
+        let filename = file.as_ref();
+        let path_key = filename.as_os_str().to_string_lossy();
         let Some(prev) = previous_by_path.get(path_key.as_ref()) else {
-            changed.insert(file.filename.clone());
+            changed.insert(filename.to_path_buf());
             continue;
         };
         let current = {
-            let meta = fs::metadata(&file.filename).ok();
+            let meta = fs::metadata(filename).ok();
             let mtime = meta
                 .as_ref()
                 .and_then(|m| m.modified().ok())
@@ -467,18 +461,18 @@ fn diff_input_paths<D: crate::InputFileData>(
                 .unwrap_or(0);
             let ino = meta.as_ref().map(file_inode).unwrap_or(0);
             let size = meta.map(|m| m.len()).unwrap_or(0);
-            format!("{mtime} {ino} {size} {}", file.filename.display())
+            format!("{mtime} {ino} {size} {}", filename.display())
         };
         let identity_changed = current.trim() != prev.as_str();
         let bytes_changed = {
-            let copy = input_copy_path(state_dir, &file.filename);
-            match (fs::read(&copy), fs::read(&file.filename)) {
+            let copy = input_copy_path(state_dir, filename);
+            match (fs::read(&copy), fs::read(filename)) {
                 (Ok(old), Ok(new)) => old != new,
                 _ => identity_changed,
             }
         };
         if identity_changed || bytes_changed {
-            changed.insert(file.filename.clone());
+            changed.insert(filename.to_path_buf());
         }
     }
     InputDiff { changed }

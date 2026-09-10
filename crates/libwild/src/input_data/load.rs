@@ -12,6 +12,7 @@ use crate::error::Context as _;
 use crate::error::Error;
 use crate::error::Result;
 use crate::file_kind::FileKind;
+use crate::grouping::LoadedStubLibrary;
 use crate::layout::EnginePlatform;
 use crate::linker_plugins::LinkerPlugin;
 use crate::linker_script::LinkerScript;
@@ -21,8 +22,12 @@ use crate::parsing::ParsedInputObject;
 use crate::platform;
 use crate::platform::Args;
 use crate::platform::Platform;
+use crate::symbol_db::LoadedInputs;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
+
+pub(crate) trait LoadPlatform: EnginePlatform + Platform<FileKind = FileKind> {}
+impl<P: EnginePlatform + Platform<FileKind = FileKind>> LoadPlatform for P {}
 use colosseum::sync::Arena;
 use crossbeam_queue::SegQueue;
 use hashbrown::HashMap;
@@ -155,7 +160,7 @@ impl<'data, F: FileSystem> FileLoader<'data, F> {
         }
     }
 
-    pub(crate) fn load_inputs<P: EnginePlatform>(
+    pub(crate) fn load_inputs<P: LoadPlatform>(
         &mut self,
         inputs: &[Input],
         args: &'data P::Args,
@@ -249,7 +254,7 @@ impl<'data, F: FileSystem> FileLoader<'data, F> {
     /// linker script is loaded, its files appear at the point at which the linker script appeared
     /// on the command-line, even though the FileLoadIndex for files loaded by linker scripts is
     /// later.
-    fn extract_all<P: EnginePlatform>(
+    fn extract_all<P: LoadPlatform>(
         &mut self,
         files: &mut [Option<LoadedFileState<'data, P, F::Input>>],
         plugin: &mut Option<LinkerPlugin<'data>>,
@@ -269,7 +274,7 @@ impl<'data, F: FileSystem> FileLoader<'data, F> {
         Ok(loaded)
     }
 
-    fn extract_file<P: EnginePlatform>(
+    fn extract_file<P: LoadPlatform>(
         &mut self,
         index: FileLoadIndex,
         files: &mut [Option<LoadedFileState<'data, P, F::Input>>],
@@ -282,15 +287,15 @@ impl<'data, F: FileSystem> FileLoader<'data, F> {
                 if parse_result.is_dynamic_object() {
                     self.has_dynamic = true;
                 }
-                loaded.add_record(parse_result, plugin);
+                add_record(loaded, parse_result, plugin);
                 self.loaded_files.push(input_file);
             }
             Some(LoadedFileState::Archive(input_file, parsed_parts)) => {
-                loaded.add_records(parsed_parts, plugin);
+                add_records(loaded, parsed_parts, plugin);
                 self.loaded_files.push(input_file);
             }
             Some(LoadedFileState::ThinArchive(mut input_files, parsed_parts)) => {
-                loaded.add_records(parsed_parts, plugin);
+                add_records(loaded, parsed_parts, plugin);
                 self.loaded_files.append(&mut input_files);
             }
             Some(LoadedFileState::LinkerScript(input_file, loaded_linker_script_state)) => {
@@ -413,7 +418,7 @@ fn load_included_linker_script<'data, F: FileSystem>(
     crate::bail!("cannot open INCLUDE file `{}`", path.display())
 }
 
-fn process_archive<'data, P: EnginePlatform, F: FileSystem>(
+fn process_archive<'data, P: LoadPlatform, F: FileSystem>(
     opened: &'data InputFile<F::Input>,
     input_ref: &InputRef<'data>,
     file: Option<&Arc<std::fs::File>>,
@@ -462,7 +467,7 @@ fn process_archive<'data, P: EnginePlatform, F: FileSystem>(
     Ok(LoadedFileState::Archive(opened, outputs))
 }
 
-fn process_thin_archive<'data, P: EnginePlatform, F: FileSystem>(
+fn process_thin_archive<'data, P: LoadPlatform, F: FileSystem>(
     input_file: &'data InputFile<F::Input>,
     state: &TemporaryState<'data, P, F>,
 ) -> Result<LoadedFileState<'data, P, F::Input>> {
@@ -528,7 +533,7 @@ fn process_thin_archive<'data, P: EnginePlatform, F: FileSystem>(
     Ok(LoadedFileState::ThinArchive(files, parsed_files))
 }
 
-fn process_fat_macho_object<'data, P: EnginePlatform, F: FileSystem>(
+fn process_fat_macho_object<'data, P: LoadPlatform, F: FileSystem>(
     file: &'data InputFile<F::Input>,
     input_ref: InputRef<'data>,
     native_file: Option<&Arc<std::fs::File>>,
@@ -555,7 +560,7 @@ fn process_fat_macho_object<'data, P: EnginePlatform, F: FileSystem>(
     }
 }
 
-impl<'data, P: EnginePlatform, F: FileSystem> TemporaryState<'data, P, F> {
+impl<'data, P: LoadPlatform, F: FileSystem> TemporaryState<'data, P, F> {
     fn process_and_record_open_file_request<'scope>(
         &'scope self,
         request: OpenFileRequest,
@@ -727,14 +732,13 @@ impl<'data, P: EnginePlatform, F: FileSystem> TemporaryState<'data, P, F> {
             bail!("Unexpected archive member of kind {kind:?}: {input_ref}");
         }
 
-        let input_bytes = InputBytes {
-            kind,
-            input: input_ref,
+        let object = InputRecord::Object(ParsedInputObject::new(
+            input_ref,
             data,
-            modifiers: input_ref.file.modifiers,
-        };
-
-        let object = InputRecord::Object(ParsedInputObject::new(&input_bytes, self.args));
+            input_ref.file.modifiers,
+            kind.is_dynamic(),
+            self.args,
+        ));
 
         if object.is_dynamic_object() && !input_ref.file.modifiers.allow_shared {
             bail!(
@@ -919,56 +923,55 @@ fn search_for_files(
         .or_else(|| lib_search_path.iter().find_map(|dir| search_dir(dir)))
 }
 
-impl<'data, P: EnginePlatform> LoadedInputs<'data, P> {
-    fn add_record(
-        &mut self,
-        record: InputRecord<'data, P>,
-        plugin: &mut Option<LinkerPlugin<'data>>,
-    ) {
-        match record {
-            InputRecord::Object(obj) => self.objects.push(obj),
-            InputRecord::LtoInput(obj) => {
-                if self.objects_before_first_lto.is_none() {
-                    self.objects_before_first_lto = Some(self.objects.len());
-                }
-                let UnclaimedLtoInput {
-                    input_ref,
-                    file,
-                    kind,
-                } = *obj;
-                let plugin_result = plugin.as_mut()
-                    .with_context(|| {
-                        format!(
-                            "Input file {input_ref} contains {kind}, but linker plugin was not supplied"
-                        )
-                    })
-                    .and_then(|plugin| {
-                        let file = file
-                            .as_deref()
-                            .context("Linker plugins require a native filesystem input")?;
-                        plugin.process_input(input_ref, file, kind)
-                    });
-                match plugin_result {
-                    Ok(Some(info)) => self.lto_objects.push(Ok(info)),
-                    Ok(None) => {} // Skipped, e.g. unclaimed IR member inside an archive
-                    Err(e) => self.lto_objects.push(Err(e)),
-                }
+fn add_record<'data, P: LoadPlatform>(
+    loaded: &mut LoadedInputs<'data, P>,
+    record: InputRecord<'data, P>,
+    plugin: &mut Option<LinkerPlugin<'data>>,
+) {
+    match record {
+        InputRecord::Object(obj) => loaded.objects.push(obj),
+        InputRecord::LtoInput(obj) => {
+            if loaded.objects_before_first_lto.is_none() {
+                loaded.objects_before_first_lto = Some(loaded.objects.len());
             }
-        }
-    }
-
-    fn add_records(
-        &mut self,
-        parsed_parts: Vec<InputRecord<'data, P>>,
-        plugin: &mut Option<LinkerPlugin<'data>>,
-    ) {
-        for part in parsed_parts {
-            self.add_record(part, plugin);
+            let UnclaimedLtoInput {
+                input_ref,
+                file,
+                kind,
+            } = *obj;
+            let plugin_result = plugin
+                .as_mut()
+                .with_context(|| {
+                    format!(
+                        "Input file {input_ref} contains {kind}, but linker plugin was not supplied"
+                    )
+                })
+                .and_then(|plugin| {
+                    let file = file
+                        .as_deref()
+                        .context("Linker plugins require a native filesystem input")?;
+                    plugin.process_input(input_ref, file, kind)
+                });
+            match plugin_result {
+                Ok(Some(info)) => loaded.lto_objects.push(Ok(info)),
+                Ok(None) => {} // Skipped, e.g. unclaimed IR member inside an archive
+                Err(e) => loaded.lto_objects.push(Err(e)),
+            }
         }
     }
 }
 
-impl<'data, P: EnginePlatform> InputRecord<'data, P> {
+fn add_records<'data, P: LoadPlatform>(
+    loaded: &mut LoadedInputs<'data, P>,
+    parsed_parts: Vec<InputRecord<'data, P>>,
+    plugin: &mut Option<LinkerPlugin<'data>>,
+) {
+    for part in parsed_parts {
+        add_record(loaded, part, plugin);
+    }
+}
+
+impl<'data, P: LoadPlatform> InputRecord<'data, P> {
     fn is_dynamic_object(&self) -> bool {
         match self {
             InputRecord::Object(Ok(obj)) => obj.is_dynamic(),

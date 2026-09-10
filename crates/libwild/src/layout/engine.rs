@@ -20,9 +20,6 @@ use crate::layout::ResolutionWriter;
 use crate::layout::StubLibraryLayoutState;
 use crate::layout::SymbolResolutions;
 use crate::layout_rules::LayoutRulesBuilder;
-use crate::linker_plugins::LinkerPlugin;
-use crate::linker_plugins::LoadedPlugin;
-use crate::linker_plugins::LtoInput;
 use crate::parsing::InternalSymDefInfo;
 use crate::parsing::InternalSymbolsBuilder;
 use crate::platform::Platform;
@@ -50,8 +47,6 @@ pub(crate) trait EnginePlatform:
         ResolvedObject<'data> = ResolvedObject<'data, Self>,
         ResolvedDynamic<'data> = ResolvedDynamic<'data, Self>,
         ResolvedStubLibrary<'data> = ResolvedStubLibrary<'data>,
-        LinkerPlugin<'data> = LinkerPlugin<'data>,
-        LtoInput<'data> = LtoInput<'data>,
         Group<'data> = Group<'data, Self>,
         SequencedLinkerScript<'data> = SequencedLinkerScript<'data, Self>,
         LayoutRulesBuilder<'data> = LayoutRulesBuilder<'data>,
@@ -70,9 +65,7 @@ pub(crate) trait EnginePlatform:
         Resolution = Resolution<Self>,
         UnloadedSection = UnloadedSection,
         LoadedMetrics = LoadedMetrics,
-        LoadedPlugin = LoadedPlugin,
         CustomSectionIds = crate::output_section_id::CustomSectionIds,
-        FileKind = crate::file_kind::FileKind,
     >
 {
 }

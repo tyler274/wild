@@ -22,7 +22,6 @@
 //! * Prmary part references anything: ValueFlags::HAS_RANGE_LIMITED_REL set for local symbol in the
 //!   object that made the reference.
 
-use crate::input_data::FileId;
 use crate::layout;
 use crate::layout::EnginePlatform;
 use crate::layout::FileLayoutState;
@@ -30,6 +29,7 @@ use crate::output_section_id::OutputSections;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
 use crate::platform::Arch;
+use crate::platform::FileId;
 use crate::platform::Platform;
 use crate::platform::SectionAttributes as _;
 use crate::resolution;

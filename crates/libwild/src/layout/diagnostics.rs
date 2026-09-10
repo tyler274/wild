@@ -1,9 +1,9 @@
 use crate::grouping::SequencedInput;
-use crate::input_data::FileId;
-use crate::input_data::PRELUDE_FILE_ID;
 use crate::layout::EnginePlatform;
 use crate::platform::Args as _;
+use crate::platform::FileId;
 use crate::platform::ObjectFile;
+use crate::platform::PRELUDE_FILE_ID;
 use crate::platform::Symbol as _;
 use crate::resolution::ResolvedFile;
 use crate::resolution::ResolvedGroup;

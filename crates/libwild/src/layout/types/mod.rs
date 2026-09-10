@@ -4,17 +4,16 @@ mod units;
 
 use super::graph::*;
 use crate::alignment::Alignment;
+use crate::args::InputRef;
 use crate::bail;
-use crate::compression::CompressedSection;
 use crate::error::Context;
 use crate::error::Error;
 use crate::error::Result;
 use crate::expression_eval::ResolvedLocationCounter;
 use crate::grouping::SequencedInputObject;
-use crate::input_data::FileId;
-use crate::input_data::InputRef;
 use crate::input_section_id::SectionIdRange;
 use crate::layout::EnginePlatform;
+use crate::layout::timing_phase;
 use crate::output_section_id::OrderEvent;
 use crate::output_section_id::OutputOrder;
 use crate::output_section_id::OutputSectionId;
@@ -24,6 +23,7 @@ use crate::output_section_part_map::OutputSectionPartMap;
 use crate::parsing::InternalSymDefInfo;
 use crate::part_id::PartId;
 use crate::platform::Args as _;
+use crate::platform::FileId;
 use crate::platform::ObjectFile;
 use crate::platform::Platform;
 use crate::platform::RelaxSymbolInfo;
@@ -45,7 +45,6 @@ use crate::symbol_db::SymbolId;
 use crate::symbol_db::SymbolIdRange;
 use crate::thunks::ThunkBlockId;
 use crate::thunks::ThunkLayoutBuilder;
-use crate::timing_phase;
 use crate::value_flags::AtomicPerSymbolFlags;
 use crate::value_flags::FlagsForSymbol as _;
 use crate::value_flags::PerSymbolFlags;
@@ -75,6 +74,13 @@ pub(crate) struct FinaliseSizesResources<'data, 'scope, P: Platform> {
     pub(crate) merged_strings: &'scope OutputSectionMap<MergedStringsSection<'data>>,
     pub(crate) format_specific: &'scope P::FinaliseSizesExt<'data>,
     pub(crate) script_sorted_sections: &'scope [InputSortedSection],
+}
+
+/// Compressed debug-section payload stored on [`Layout`] for later writing.
+#[derive(Debug)]
+pub(crate) struct CompressedSection {
+    pub(crate) compressed_chunks: Vec<Vec<u8>>,
+    pub(crate) total_compressed_size: usize,
 }
 
 /// Information about what goes where. Also includes relocation data, since that's computed at the
@@ -621,7 +627,7 @@ impl<'data, P: EnginePlatform> Layout<'data, P> {
                 match file {
                     FileLayout::Prelude(prelude) => {
                         records.push(crate::incremental::IncrementalFileRecord {
-                            file_id: crate::input_data::PRELUDE_FILE_ID,
+                            file_id: crate::platform::PRELUDE_FILE_ID,
                             key: "<prelude>".into(),
                             source_path: PathBuf::new(),
                             sizes: Vec::new(),

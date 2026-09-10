@@ -8,6 +8,7 @@ use crate::elf::ElfClass;
 use crate::elf_writer;
 use crate::elf_writer::apply_debug_relocations;
 use crate::error::Result;
+use crate::layout::CompressedSection;
 use crate::layout::EnginePlatform;
 use crate::layout::FileLayout;
 use crate::layout::Layout;
@@ -31,12 +32,6 @@ use zlib_rs::DeflateFlush;
 use zlib_rs::Status;
 use zlib_rs::adler32::adler32;
 use zlib_rs::adler32::adler32_combine;
-
-#[derive(Debug)]
-pub(crate) struct CompressedSection {
-    pub(crate) compressed_chunks: Vec<Vec<u8>>,
-    total_compressed_size: usize,
-}
 
 /// Size in bytes below which we won't try to further split the input.
 const MIN_CHUNK_SIZE: usize = 64 * 1024;

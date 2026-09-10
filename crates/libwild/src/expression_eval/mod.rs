@@ -13,11 +13,9 @@ pub(crate) use wild_scripts::evaluate_const_with_symbols;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::OsFileSystem;
     use crate::elf::Elf64;
     use crate::error::Result;
     use crate::grouping::SequencedLinkerScript;
-    use crate::input_data::FileId;
     use crate::layout::MemoryRegion;
     use crate::layout::OutputRecordLayout;
     use crate::linker_script::AssertCommand;
@@ -31,9 +29,9 @@ mod tests {
     use crate::parsing::RedirectKind;
     use crate::parsing::SymbolLoc;
     use crate::parsing::SymbolPlacement;
+    use crate::platform::FileId;
     use crate::symbol_db::SymbolDb;
     use crate::symbol_db::SymbolIdRange;
-    use colosseum::sync::Arena;
     use hashbrown::HashMap;
 
     fn with_dummy_context<R>(
@@ -47,11 +45,8 @@ mod tests {
         let layouts = sections.new_section_map::<OutputRecordLayout>();
         let args = crate::args::elf::ElfArgs::new().unwrap();
         let output_kind = crate::output_kind::OutputKind::PartialLink;
-        let arena = Arena::new();
-        let auxiliary =
-            crate::input_data::AuxiliaryFiles::new(&args, &arena, &OsFileSystem).unwrap();
         let herd = Default::default();
-        let mut symbol_db = SymbolDb::<Elf64>::new(&args, output_kind, &auxiliary, &herd).unwrap();
+        let mut symbol_db = SymbolDb::<Elf64>::new(&args, output_kind, None, None, &herd).unwrap();
         f(&layouts, &sections, &mut symbol_db)
     }
 
@@ -416,8 +411,8 @@ mod tests {
     ) -> SequencedLinkerScript<'data, Elf64> {
         SequencedLinkerScript {
             parsed: ProcessedLinkerScript {
-                input: crate::input_data::InputRef {
-                    file: crate::input_data::InputFileRef::for_testing(),
+                input: crate::args::InputRef {
+                    file: crate::args::InputFileRef::for_testing(),
                     data: &[],
                     entry: None,
                 },

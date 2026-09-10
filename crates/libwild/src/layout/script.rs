@@ -8,6 +8,7 @@ use crate::expression_eval::evaluate_const_with_symbols;
 use crate::grouping::Group;
 use crate::grouping::SequencedInput;
 use crate::layout::EnginePlatform;
+use crate::layout::timing_phase;
 use crate::linker_script::Expression;
 use crate::output_section_id::OutputSections;
 use crate::output_section_map::OutputSectionMap;
@@ -20,7 +21,6 @@ use crate::platform::ObjectFile;
 use crate::resolution::SectionSlot;
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
-use crate::timing_phase;
 use hashbrown::HashMap;
 
 /// BYTE/SHORT/LONG/QUAD advance the location counter via a trailing secondary section that has no
