@@ -9,16 +9,13 @@ edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-bitflags.workspace = true
 blake3.workspace = true
-bytesize.workspace = true
 crossbeam-utils.workspace = true
 derive_more.workspace = true
 flate2.workspace = true
 foldhash.workspace = true
 gimli.workspace = true
 hashbrown.workspace = true
-hex.workspace = true
 indexmap.workspace = true
 itertools.workspace = true
 leb128.workspace = true
@@ -29,10 +26,7 @@ memchr.workspace = true
 object = { workspace = true, features = ["write_std"] }
 perfetto-recorder.workspace = true
 rayon.workspace = true
-sha2.workspace = true
-sharded-vec-writer.workspace = true
 smallvec.workspace = true
-thread_local.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 wild-args = { path = "../wild-args", version = "0.10.0" }
