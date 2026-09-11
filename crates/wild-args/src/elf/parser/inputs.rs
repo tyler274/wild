@@ -51,11 +51,9 @@ pub fn add_search_and_output_flags(parser: &mut ArgumentParser<ElfArgs>) {
             |args, modifier_stack, value| {
                 let stripped = value.strip_prefix(':').unwrap_or(value);
                 let spec = InputSpec::File(Box::from(Path::new(stripped)));
-                args.common_mut().inputs.push(Input {
-                    spec,
-                    search_first: None,
-                    modifiers: *modifier_stack.last().unwrap(),
-                });
+                args.common_mut()
+                    .inputs
+                    .push(Input::new(spec, *modifier_stack.last().unwrap()));
                 Ok(())
             },
         )
@@ -64,11 +62,9 @@ pub fn add_search_and_output_flags(parser: &mut ArgumentParser<ElfArgs>) {
             "Link with library libname.so or libname.a",
             |args, modifier_stack, value| {
                 let spec = InputSpec::Lib(Box::from(value));
-                args.common_mut().inputs.push(Input {
-                    spec,
-                    search_first: None,
-                    modifiers: *modifier_stack.last().unwrap(),
-                });
+                args.common_mut()
+                    .inputs
+                    .push(Input::new(spec, *modifier_stack.last().unwrap()));
                 Ok(())
             },
         )
@@ -78,11 +74,9 @@ pub fn add_search_and_output_flags(parser: &mut ArgumentParser<ElfArgs>) {
             } else {
                 InputSpec::Lib(Box::from(value))
             };
-            args.common_mut().inputs.push(Input {
-                spec,
-                search_first: None,
-                modifiers: *modifier_stack.last().unwrap(),
-            });
+            args.common_mut()
+                .inputs
+                .push(Input::new(spec, *modifier_stack.last().unwrap()));
             Ok(())
         });
 
@@ -338,6 +332,7 @@ pub fn add_search_and_output_flags(parser: &mut ArgumentParser<ElfArgs>) {
         .help("Set the output filename")
         .execute(|args, _modifier_stack, value| {
             args.common.output = Arc::from(Path::new(value));
+            args.common.output_from_cli = true;
             Ok(())
         });
 

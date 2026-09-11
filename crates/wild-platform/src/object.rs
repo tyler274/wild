@@ -373,6 +373,8 @@ pub trait RelocationSequence<'data> {
 
 pub trait RelocationList<'data>: Send + Sync + 'data {
     fn num_relocations(&self) -> usize;
+
+    fn for_each_symbol(&self, _f: &mut dyn FnMut(object::SymbolIndex)) {}
 }
 
 pub trait RawSymbolName<'data>: Send + Sync + std::fmt::Display + 'data {

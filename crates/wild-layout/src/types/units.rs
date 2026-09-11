@@ -111,6 +111,7 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
         }
 
         self.load_entry_point::<A>(resources, queue, scope);
+        self.load_force_undefined_symbols::<A>(resources, queue, scope);
 
         P::allocate_prelude(common, resources.symbol_db);
 
@@ -157,6 +158,33 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
                     );
                 }
                 _ => {}
+            }
+        }
+    }
+
+    /// GNU `-u` / `--require-defined` are GC roots: keep the defining object even if nothing
+    /// else references the symbol.
+    pub fn load_force_undefined_symbols<'scope, A: Arch<Platform = P>>(
+        &self,
+        resources: &'scope GraphResources<'data, '_, P>,
+        queue: &mut LocalWorkQueue<P>,
+        scope: &Scope<'scope>,
+    ) {
+        for (index, def_info) in self.internal_symbols.symbol_definitions.iter().enumerate() {
+            if !matches!(def_info.placement, SymbolPlacement::ForceUndefined) {
+                continue;
+            }
+            let symbol_id = self.symbol_id_range.offset_to_id(index);
+            let canonical = resources.symbol_db.definition(symbol_id);
+            if canonical == symbol_id {
+                continue;
+            }
+            let old_flags = resources
+                .per_symbol_flags
+                .get_atomic(canonical)
+                .fetch_or(ValueFlags::DIRECT);
+            if !old_flags.has_resolution() {
+                queue.send_symbol_request::<A>(canonical, resources, scope);
             }
         }
     }

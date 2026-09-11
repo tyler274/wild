@@ -760,6 +760,7 @@ impl<P: EnginePlatform> WorkItem<P> {
     }
 }
 
+#[derive(Clone)]
 pub struct MemoryRegion {
     pub origin: u64,
     pub length: u64,

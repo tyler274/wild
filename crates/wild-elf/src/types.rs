@@ -307,6 +307,25 @@ impl<'data, C: ElfClass> platform::RelocationList<'data> for RelocationList<'dat
             RelocationList::Crel(crel) => crel.len(),
         }
     }
+
+    fn for_each_symbol(&self, f: &mut dyn FnMut(object::SymbolIndex)) {
+        match self {
+            RelocationList::Rela(rela) => {
+                for raw in *rela {
+                    if let Some(sym) = object::read::elf::Rela::symbol(raw, LittleEndian, false) {
+                        f(sym);
+                    }
+                }
+            }
+            RelocationList::Crel(crel) => {
+                for rel in crel.clone().flatten() {
+                    if let Some(sym) = object::read::elf::Crel::symbol(&rel) {
+                        f(sym);
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy)]

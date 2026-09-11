@@ -75,6 +75,31 @@ impl<'data> LinkerScript<'data> {
             _ => None,
         })
     }
+
+    pub fn search_dirs(&self) -> Vec<&'data [u8]> {
+        collect_search_dirs(&self.commands)
+    }
+
+    pub fn output_filename(&self) -> Option<&'data [u8]> {
+        self.commands.iter().rev().find_map(|cmd| match cmd {
+            Command::Output(filename) => Some(*filename),
+            _ => None,
+        })
+    }
+}
+
+fn collect_search_dirs<'data>(commands: &[Command<'data>]) -> Vec<&'data [u8]> {
+    let mut dirs = Vec::new();
+    for command in commands {
+        match command {
+            Command::SearchDir(path) => dirs.push(*path),
+            Command::Group(subs) | Command::AsNeeded(subs) => {
+                dirs.extend(collect_search_dirs(subs));
+            }
+            _ => {}
+        }
+    }
+    dirs
 }
 
 pub fn parse_token<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
@@ -159,6 +184,23 @@ pub fn parse_command<'input>(input: &mut &'input BStr) -> winnow::Result<Command
                 after,
                 section_name,
             }
+        }
+        b"OUTPUT" => Command::Output(parse_paren_arg(input)?),
+        b"REGION_ALIAS" => {
+            let (alias, region) = parse_region_alias(input)?;
+            Command::RegionAlias { alias, region }
+        }
+        b"SEARCH_DIR" => Command::SearchDir(parse_paren_arg(input)?),
+        b"STARTUP" => Command::Startup(parse_paren_arg(input)?),
+        b"TARGET" => Command::Target(parse_paren_arg(input)?),
+        b"NOCROSSREFS" => Command::Nocrossrefs(parse_paren_token_list(input)?),
+        b"NOCROSSREFS_TO" => {
+            let mut sections = parse_paren_token_list(input)?;
+            if sections.is_empty() {
+                return Err(ContextError::default());
+            }
+            let to = sections.remove(0);
+            Command::NocrossrefsTo { to, from: sections }
         }
         other => {
             if let Some(op) = opt(parse_assignment_op).parse_next(input)? {
@@ -576,6 +618,51 @@ pub fn parse_entry<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [
     Ok(symbol_name)
 }
 
+pub fn parse_paren_arg<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
+    let value = parse_entry(input)?;
+    skip_comments_and_whitespace(input)?;
+    opt(';').parse_next(input)?;
+    Ok(value)
+}
+
+pub fn parse_region_alias<'input>(
+    input: &mut &'input BStr,
+) -> winnow::Result<(&'input [u8], &'input [u8])> {
+    skip_comments_and_whitespace(input)?;
+    '('.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    let alias = parse_token(input)?;
+    skip_comments_and_whitespace(input)?;
+    ','.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    let region = parse_token(input)?;
+    skip_comments_and_whitespace(input)?;
+    ')'.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    opt(';').parse_next(input)?;
+    Ok((alias, region))
+}
+
+pub fn parse_paren_token_list<'input>(
+    input: &mut &'input BStr,
+) -> winnow::Result<Vec<&'input [u8]>> {
+    skip_comments_and_whitespace(input)?;
+    '('.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    let mut tokens = Vec::new();
+    while !input.starts_with(b")") {
+        tokens.push(parse_token(input)?);
+        skip_comments_and_whitespace(input)?;
+        if opt(',').parse_next(input)?.is_some() {
+            skip_comments_and_whitespace(input)?;
+        }
+    }
+    ')'.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    opt(';').parse_next(input)?;
+    Ok(tokens)
+}
+
 pub fn parse_version<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
     skip_comments_and_whitespace(input)?;
     '{'.parse_next(input)?;
@@ -607,38 +694,65 @@ pub fn parse_version<'input>(input: &mut &'input BStr) -> winnow::Result<&'input
     Ok(version_content)
 }
 
+fn input_from_token(arg: &[u8], modifiers: Modifiers, startup: bool) -> Result<Input> {
+    let spec = if let Some(lib_name) = arg.strip_prefix(b"-l") {
+        InputSpec::Lib(Box::from(to_str(lib_name)?))
+    } else {
+        InputSpec::File(Box::from(Path::new(to_str(arg)?)))
+    };
+    let mut input = Input::new(spec, modifiers);
+    input.startup = startup;
+    Ok(input)
+}
+
 /// Call `cb` for each input file requested by `commands`.
+/// GNU `STARTUP` files are reported first, then `INPUT` / `GROUP` / `AS_NEEDED`.
 pub fn foreach_input(
+    commands: &[Command],
+    modifiers: Modifiers,
+    cb: &mut impl FnMut(Input) -> Result,
+) -> Result {
+    foreach_startup_inputs(commands, modifiers, cb)?;
+    foreach_regular_inputs(commands, modifiers, cb)?;
+    Ok(())
+}
+
+fn foreach_startup_inputs(
     commands: &[Command],
     modifiers: Modifiers,
     cb: &mut impl FnMut(Input) -> Result,
 ) -> Result {
     for command in commands {
         match command {
-            Command::Arg(arg) => {
-                let spec = if let Some(lib_name) = arg.strip_prefix(b"-l") {
-                    InputSpec::Lib(Box::from(to_str(lib_name)?))
-                } else {
-                    InputSpec::File(Box::from(Path::new(to_str(arg)?)))
-                };
-                cb(Input {
-                    spec,
-                    search_first: None,
-                    modifiers,
-                })?;
+            Command::Startup(arg) => cb(input_from_token(arg, modifiers, true)?)?,
+            Command::Group(subs) | Command::AsNeeded(subs) => {
+                foreach_startup_inputs(subs, modifiers, cb)?;
             }
-            Command::Group(subs) => foreach_input(subs, modifiers, cb)?,
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn foreach_regular_inputs(
+    commands: &[Command],
+    modifiers: Modifiers,
+    cb: &mut impl FnMut(Input) -> Result,
+) -> Result {
+    for command in commands {
+        match command {
+            Command::Arg(arg) => cb(input_from_token(arg, modifiers, false)?)?,
+            Command::Group(subs) => foreach_regular_inputs(subs, modifiers, cb)?,
             Command::AsNeeded(subs) => {
                 let sub_modifiers = Modifiers {
                     as_needed: true,
                     ..modifiers
                 };
-                foreach_input(subs, sub_modifiers, cb)?;
+                foreach_regular_inputs(subs, sub_modifiers, cb)?;
             }
             _ => {}
         }
     }
-
     Ok(())
 }
 

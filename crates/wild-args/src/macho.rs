@@ -276,11 +276,9 @@ fn setup_argument_parser() -> ArgumentParser<MachOArgs> {
             |args, modifier_stack, value| {
                 let stripped = value.strip_prefix(':').unwrap_or(value);
                 let spec = InputSpec::File(Box::from(Path::new(stripped)));
-                args.common_mut().inputs.push(Input {
-                    spec,
-                    search_first: None,
-                    modifiers: *modifier_stack.last().unwrap(),
-                });
+                args.common_mut()
+                    .inputs
+                    .push(Input::new(spec, *modifier_stack.last().unwrap()));
                 Ok(())
             },
         )
@@ -289,11 +287,9 @@ fn setup_argument_parser() -> ArgumentParser<MachOArgs> {
             "Link with library libname.dylib or libname.a",
             |args, modifier_stack, value| {
                 let spec = InputSpec::Lib(Box::from(value));
-                args.common_mut().inputs.push(Input {
-                    spec,
-                    search_first: None,
-                    modifiers: *modifier_stack.last().unwrap(),
-                });
+                args.common_mut()
+                    .inputs
+                    .push(Input::new(spec, *modifier_stack.last().unwrap()));
                 Ok(())
             },
         )
@@ -303,11 +299,9 @@ fn setup_argument_parser() -> ArgumentParser<MachOArgs> {
             } else {
                 InputSpec::Lib(Box::from(value))
             };
-            args.common_mut().inputs.push(Input {
-                spec,
-                search_first: None,
-                modifiers: *modifier_stack.last().unwrap(),
-            });
+            args.common_mut()
+                .inputs
+                .push(Input::new(spec, *modifier_stack.last().unwrap()));
             Ok(())
         });
 
@@ -328,6 +322,7 @@ fn setup_argument_parser() -> ArgumentParser<MachOArgs> {
         .help("Set the output filename")
         .execute(|args, _modifier_stack, value| {
             args.common_mut().output = Arc::from(Path::new(value));
+            args.common_mut().output_from_cli = true;
             Ok(())
         });
 

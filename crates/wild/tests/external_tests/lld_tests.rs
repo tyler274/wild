@@ -37,7 +37,7 @@ pub(crate) fn collect_tests(
     filter: &crate::Filter,
     test_config: &TestConfig,
 ) -> Result {
-    let test_dir = crate::base_dir().join("../external_test_suites/lld/test");
+    let test_dir = crate::repo_root().join("external_test_suites/lld/test");
     if !test_dir.exists() {
         return Ok(());
     }

@@ -201,6 +201,7 @@ fn setup_argument_parser() -> ArgumentParser<WasmArgs> {
         .help("Set the output filename")
         .execute(|args, _modifier_stack, value| {
             args.common.output = Arc::from(Path::new(value));
+            args.common.output_from_cli = true;
             Ok(())
         });
 
@@ -227,11 +228,7 @@ fn setup_argument_parser() -> ArgumentParser<WasmArgs> {
             } else {
                 InputSpec::Lib(Box::from(value))
             };
-            args.common.inputs.push(Input {
-                spec,
-                search_first: None,
-                modifiers,
-            });
+            args.common.inputs.push(Input::new(spec, modifiers));
             Ok(())
         });
 

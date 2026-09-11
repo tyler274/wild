@@ -530,14 +530,13 @@ pub(crate) extern "C" fn add_input_file(path: *const libc::c_char) -> Status {
         let path = OsStr::from_bytes(path.to_bytes());
         let path = Box::from(Path::new(path));
         PLUGIN_OUTPUTS.with_borrow_mut(|state| {
-            state.generated_inputs.push(Input {
-                spec: wild_args::InputSpec::File(path),
-                search_first: None,
-                modifiers: Modifiers {
+            state.generated_inputs.push(Input::new(
+                wild_args::InputSpec::File(path),
+                Modifiers {
                     temporary: true,
                     ..Default::default()
                 },
-            });
+            ));
         });
         Status::Ok
     })
@@ -554,14 +553,13 @@ pub(crate) extern "C" fn add_input_library(lib_name: *const libc::c_char) -> Sta
     };
 
     PLUGIN_OUTPUTS.with_borrow_mut(|state| {
-        state.generated_inputs.push(Input {
-            spec: wild_args::InputSpec::Lib(Box::from(lib_name)),
-            search_first: None,
-            modifiers: Modifiers {
+        state.generated_inputs.push(Input::new(
+            wild_args::InputSpec::Lib(Box::from(lib_name)),
+            Modifiers {
                 as_needed: true,
                 ..Default::default()
             },
-        });
+        ));
     });
 
     Status::Ok

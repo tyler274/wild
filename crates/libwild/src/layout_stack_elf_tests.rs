@@ -641,6 +641,8 @@ mod expression_eval {
                 location_counters: Vec::new(),
                 ordered_sections: Vec::new(),
                 insert: None,
+                region_aliases: Vec::new(),
+                nocrossrefs: Vec::new(),
             },
             symbol_id_range: SymbolIdRange::empty(),
             file_id: FileId::new(0, 0),

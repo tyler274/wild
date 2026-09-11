@@ -89,6 +89,8 @@ struct UnclaimedLtoInput<'data> {
 }
 
 struct LoadedLinkerScriptState<'data> {
+    /// Files from GNU `STARTUP`. Extracted before other inputs so they are first in the link.
+    startup_file_indexes: Vec<FileLoadIndex>,
     /// The indexes of the files requested by the linker script. Some of these indexes may turn out
     /// to have been claimed earlier in the command-line, so we'll only load those that haven't.
     file_indexes: Vec<FileLoadIndex>,
@@ -119,6 +121,7 @@ struct OpenFileRequest {
 struct LoadedLinkerScript<'data> {
     script: InputLinkerScript<'data>,
     extra_inputs: Vec<Input>,
+    startup_inputs: Vec<Input>,
 }
 
 pub(crate) fn load_auxiliary_files<'data, F: FileSystem>(
@@ -129,7 +132,8 @@ pub(crate) fn load_auxiliary_files<'data, F: FileSystem>(
     let resolve_script_path = |path: &Path| -> PathBuf {
         if file_system.file_type(path).is_ok() {
             path.to_owned()
-        } else if let Some(found) = search_for_file(file_system, args.lib_search_path(), None, path)
+        } else if let Some(found) =
+            search_for_file(file_system, args.lib_search_path(), None, &[], path)
         {
             found
         } else {
@@ -255,7 +259,7 @@ impl<'data, F: FileSystem> FileLoaderExt<'data, F> for FileLoader<'data, F> {
 /// is loaded multiple times, it will only appear the first time it's encountered and (b) when a
 /// linker script is loaded, its files appear at the point at which the linker script appeared
 /// on the command-line, even though the FileLoadIndex for files loaded by linker scripts is
-/// later.
+/// later. GNU `STARTUP` files are extracted first so they are the first inputs of the link.
 fn extract_all<'data, P: LoadPlatform, F: FileSystem>(
     loader: &mut FileLoader<'data, F>,
     files: &mut [Option<LoadedFileState<'data, P, F::Input>>],
@@ -268,6 +272,16 @@ fn extract_all<'data, P: LoadPlatform, F: FileSystem>(
         lto_objects: Vec::new(),
         objects_before_first_lto: None,
     };
+
+    let mut startup_indexes = Vec::new();
+    for file in files.iter().flatten() {
+        if let LoadedFileState::LinkerScript(_, state) = file {
+            startup_indexes.extend(state.startup_file_indexes.iter().copied());
+        }
+    }
+    for index in startup_indexes {
+        extract_file(loader, index, files, &mut loaded, plugin)?;
+    }
 
     for i in 0..files.len() {
         extract_file(loader, FileLoadIndex(i), files, &mut loaded, plugin)?;
@@ -348,10 +362,17 @@ fn process_linker_script<'data, F: FileSystem>(
         load_included_linker_script(include_path, directory, args, file_system, inputs_arena)
     })?;
 
+    let mut extra_search_dirs = Vec::new();
+    for path in script.search_dirs() {
+        extra_search_dirs.push(resolve_search_dir(path, args.sysroot())?);
+    }
+
     let mut extra_inputs = Vec::new();
+    let mut startup_inputs = Vec::new();
 
     script.foreach_input(input_file.modifiers, |mut input| {
         input.search_first = Some(directory.to_owned());
+        input.extra_search_dirs.clone_from(&extra_search_dirs);
 
         if let (Some(sysroot), InputSpec::File(file)) = (args.sysroot(), &mut input.spec)
             && let Some(new_file) =
@@ -360,7 +381,11 @@ fn process_linker_script<'data, F: FileSystem>(
             *file = new_file;
         }
 
-        extra_inputs.push(input);
+        if input.startup {
+            startup_inputs.push(input);
+        } else {
+            extra_inputs.push(input);
+        }
 
         Ok(())
     })?;
@@ -372,7 +397,20 @@ fn process_linker_script<'data, F: FileSystem>(
             script_bytes: bytes,
         },
         extra_inputs,
+        startup_inputs,
     })
+}
+
+fn resolve_search_dir(path: &[u8], sysroot: Option<&Path>) -> Result<PathBuf> {
+    let path_str = std::str::from_utf8(path)
+        .with_context(|| format!("Expected UTF-8, found `{}`", String::from_utf8_lossy(path)))?;
+    let path = Path::new(path_str);
+    if let Some(sysroot) = sysroot
+        && let Some(new_path) = wild_scripts::linker_script::maybe_forced_sysroot(path, sysroot)
+    {
+        return Ok(new_path.into_path_buf());
+    }
+    Ok(path.to_path_buf())
 }
 
 fn load_included_linker_script<'data, F: FileSystem>(
@@ -625,21 +663,21 @@ impl<'data, P: LoadPlatform, F: FileSystem> TemporaryState<'data, P, F> {
                     self.inputs_arena,
                 )?;
 
-                let file_indexes = script
-                    .extra_inputs
-                    .into_iter()
-                    .map(|input| {
-                        self.load_input(
-                            &input,
-                            scope,
-                            Some(script.script.input_file.filename.to_owned()),
-                        )
-                    })
-                    .collect::<Result<Vec<FileLoadIndex>>>()?;
+                let referenced_by = Some(script.script.input_file.filename.to_owned());
+                let load_extras = |inputs: Vec<Input>| -> Result<Vec<FileLoadIndex>> {
+                    inputs
+                        .into_iter()
+                        .map(|input| self.load_input(&input, scope, referenced_by.clone()))
+                        .collect()
+                };
+
+                let startup_file_indexes = load_extras(script.startup_inputs)?;
+                let file_indexes = load_extras(script.extra_inputs)?;
 
                 Ok(LoadedFileState::LinkerScript(
                     input_file,
                     LoadedLinkerScriptState {
+                        startup_file_indexes,
                         file_indexes,
                         script: script.script,
                     },
@@ -815,11 +853,12 @@ fn input_path(
 ) -> Result<InputPath> {
     match &input.spec {
         InputSpec::File(p) => {
-            if input.search_first.is_some()
+            if (input.search_first.is_some() || !input.extra_search_dirs.is_empty())
                 && let Some(path) = search_for_file(
                     file_system,
                     args.lib_search_path(),
                     input.search_first.as_ref(),
+                    &input.extra_search_dirs,
                     p.as_ref(),
                 )
             {
@@ -843,6 +882,7 @@ fn input_path(
                 file_system,
                 args.lib_search_path(),
                 input.search_first.as_ref(),
+                &input.extra_search_dirs,
                 &filenames,
             ) {
                 return Ok(InputPath {
@@ -855,6 +895,7 @@ fn input_path(
                 file_system,
                 args.lib_search_path(),
                 input.search_first.as_ref(),
+                &input.extra_search_dirs,
                 &filename,
             ) {
                 return Ok(InputPath {
@@ -869,6 +910,7 @@ fn input_path(
                 file_system,
                 args.lib_search_path(),
                 input.search_first.as_ref(),
+                &input.extra_search_dirs,
                 filename.as_ref(),
             ) {
                 return Ok(InputPath {
@@ -885,11 +927,18 @@ fn search_for_file(
     file_system: &impl FileSystem,
     lib_search_path: &[Box<Path>],
     search_first: Option<&PathBuf>,
+    extra_search_dirs: &[PathBuf],
     filename: impl AsRef<Path>,
 ) -> Option<PathBuf> {
     let filename = filename.as_ref();
     if let Some(search_first) = search_first {
         let path = search_first.join(filename);
+        if file_system.file_type(&path).is_ok() {
+            return Some(path);
+        }
+    }
+    for dir in extra_search_dirs {
+        let path = dir.join(filename);
         if file_system.file_type(&path).is_ok() {
             return Some(path);
         }
@@ -907,6 +956,7 @@ fn search_for_files(
     file_system: &impl FileSystem,
     lib_search_path: &[Box<Path>],
     search_first: Option<&PathBuf>,
+    extra_search_dirs: &[PathBuf],
     filenames: &[PathBuf],
 ) -> Option<(PathBuf, usize)> {
     let search_dir = |dir: &Path| {
@@ -921,6 +971,7 @@ fn search_for_files(
 
     search_first
         .and_then(|dir| search_dir(dir))
+        .or_else(|| extra_search_dirs.iter().find_map(|dir| search_dir(dir)))
         .or_else(|| lib_search_path.iter().find_map(|dir| search_dir(dir)))
 }
 

@@ -284,11 +284,10 @@ impl<T: platform::Args + super::HasCommonArgs> ArgumentParser<T> {
 
         let common = args.common_mut();
         common.handle_file(arg);
-        common.inputs.push(Input {
-            spec: InputSpec::File(Box::from(Path::new(arg))),
-            search_first: None,
-            modifiers: *modifier_stack.last().unwrap(),
-        });
+        common.inputs.push(Input::new(
+            InputSpec::File(Box::from(Path::new(arg))),
+            *modifier_stack.last().unwrap(),
+        ));
 
         Ok(())
     }

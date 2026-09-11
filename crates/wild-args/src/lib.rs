@@ -24,7 +24,7 @@ use wild_platform::Args as _;
 macro_rules! impl_platform_args_from_common {
     () => {
         fn output(&self) -> &std::sync::Arc<std::path::Path> {
-            &self.common.output
+            self.common.effective_output()
         }
 
         fn relocation_model(&self) -> wild_platform::RelocationModel {

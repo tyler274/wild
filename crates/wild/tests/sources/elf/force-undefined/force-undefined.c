@@ -17,9 +17,9 @@
 //#ExpectSym:is_archive0_loaded
 
 // `--require-defined` is `-u` plus an error if the symbol is never defined.
+// The archive member is kept by `--require-defined=bar` alone (no other refs).
 //#Config:require-defined:default
 //#Archive:archive_activation0.c
-//#CompArgs:-DEXPECT_ARCH0
 //#LinkArgs:--require-defined=bar
 //#ExpectSym:bar
 //#ExpectSym:is_archive0_loaded

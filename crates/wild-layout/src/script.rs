@@ -11,7 +11,9 @@ use crate::expression_eval::evaluate_const;
 use crate::expression_eval::evaluate_const_with_symbols;
 use crate::grouping::Group;
 use crate::grouping::SequencedInput;
+use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::OutputSections;
+use crate::output_section_id::SectionName;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::parsing::InternalSymDefInfo;
 use crate::parsing::SymbolLoc;
@@ -22,11 +24,15 @@ use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
 use crate::timing_phase;
 use hashbrown::HashMap;
+use hashbrown::HashSet;
+use object::SectionIndex;
 use wild_error::bail;
 use wild_error::error::Result;
 use wild_platform::ObjectFile;
+use wild_platform::RelocationList as _;
 use wild_platform::output_section_map::OutputSectionMap;
 use wild_scripts::linker_script::Expression;
+use wild_scripts::linker_script::NocrossrefConstraint;
 
 /// BYTE/SHORT/LONG/QUAD advance the location counter via a trailing secondary section that has no
 /// input parts. Grow the primary section so the writer buffer covers those bytes.
@@ -416,4 +422,128 @@ pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
         .into_iter()
         .map(|(_, _, _, harvested)| harvested)
         .collect()
+}
+
+struct ResolvedNocrossref {
+    to: Option<OutputSectionId>,
+    sections: HashSet<OutputSectionId>,
+}
+
+pub fn check_nocrossrefs<'data, P: EnginePlatform>(
+    group_states: &[GroupState<'data, P>],
+    symbol_db: &SymbolDb<'data, P>,
+    output_sections: &OutputSections<'data, P>,
+) -> Result {
+    let mut constraints = Vec::new();
+    for group in &symbol_db.groups {
+        let Group::LinkerScripts(scripts) = group else {
+            continue;
+        };
+        for script in scripts {
+            for constraint in &script.parsed.nocrossrefs {
+                if let Some(resolved) = resolve_nocrossref(constraint, output_sections) {
+                    constraints.push(resolved);
+                }
+            }
+        }
+    }
+    if constraints.is_empty() {
+        return Ok(());
+    }
+
+    for group in group_states {
+        for file in &group.files {
+            let FileLayoutState::Object(obj) = file else {
+                continue;
+            };
+            for (sec_idx, slot) in obj.sections.iter().enumerate() {
+                if !section_slot_has_relocs(slot) {
+                    continue;
+                }
+                let from_id = output_sections.primary_output_section(
+                    obj.section_part_id(SectionIndex(sec_idx), &symbol_db.section_part_ids)
+                        .output_section_id::<P>(),
+                );
+                let Ok(relocs) = obj
+                    .object
+                    .relocations(SectionIndex(sec_idx), &obj.relocations)
+                else {
+                    continue;
+                };
+                let mut error = None;
+                relocs.for_each_symbol(&mut |sym_idx| {
+                    if error.is_some() {
+                        return;
+                    }
+                    let local_id = obj.symbol_id_range.input_to_id(sym_idx);
+                    let def_id = symbol_db.definition(local_id);
+                    let Some(to_id) = symbol_db.output_section_id(def_id) else {
+                        return;
+                    };
+                    let to_id = output_sections.primary_output_section(to_id);
+                    if from_id == to_id {
+                        return;
+                    }
+                    if !constraints.iter().any(|c| c.forbids(from_id, to_id)) {
+                        return;
+                    }
+                    let from_name = output_sections.display_name(from_id);
+                    let to_name = output_sections.display_name(to_id);
+                    let symbol_name = symbol_db.symbol_name_for_display(def_id);
+                    error = Some(wild_error::error!(
+                        "prohibited cross reference from {from_name} to `{symbol_name}` in {to_name}"
+                    ));
+                });
+                if let Some(error) = error {
+                    return Err(error);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn resolve_nocrossref<'data, P: EnginePlatform>(
+    constraint: &NocrossrefConstraint<'data>,
+    output_sections: &OutputSections<'data, P>,
+) -> Option<ResolvedNocrossref> {
+    let lookup = |name: &[u8]| output_sections.section_id_by_name(SectionName(name));
+    let to = constraint.to.and_then(lookup);
+    if constraint.to.is_some() && to.is_none() {
+        return None;
+    }
+    let sections: HashSet<OutputSectionId> = constraint
+        .sections
+        .iter()
+        .copied()
+        .filter_map(lookup)
+        .collect();
+    if constraint.to.is_none() && sections.len() < 2 {
+        return None;
+    }
+    if constraint.to.is_some() && sections.is_empty() {
+        return None;
+    }
+    Some(ResolvedNocrossref { to, sections })
+}
+
+impl ResolvedNocrossref {
+    fn forbids(&self, from: OutputSectionId, to: OutputSectionId) -> bool {
+        if let Some(forbidden_to) = self.to {
+            return to == forbidden_to && self.sections.contains(&from);
+        }
+        self.sections.contains(&from) && self.sections.contains(&to)
+    }
+}
+
+fn section_slot_has_relocs(slot: &SectionSlot) -> bool {
+    matches!(
+        slot,
+        SectionSlot::Loaded(_)
+            | SectionSlot::Sorted(_)
+            | SectionSlot::LoadedDebugInfo(_)
+            | SectionSlot::MergeStrings(_)
+            | SectionSlot::PartialLinkSingleton(_)
+    )
 }

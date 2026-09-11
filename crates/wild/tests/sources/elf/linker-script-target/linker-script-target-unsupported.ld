@@ -1,0 +1,1 @@
+TARGET(elf32-i386)

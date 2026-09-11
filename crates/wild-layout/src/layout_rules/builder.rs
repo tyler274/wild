@@ -76,6 +76,8 @@ impl<'data> LayoutRulesBuilder<'data> {
         let mut location_counters = Vec::new();
         let mut ordered_sections = Vec::new();
         let mut insert = None;
+        let mut region_aliases = Vec::new();
+        let mut nocrossrefs = Vec::new();
 
         let mut current_section_id = None;
         let mut loc = SymbolLoc::FirstSection;
@@ -553,6 +555,16 @@ impl<'data> LayoutRulesBuilder<'data> {
                                     ));
                                 }
                             }
+                            if overlay.nocrossrefs {
+                                nocrossrefs.push(linker_script::NocrossrefConstraint {
+                                    to: None,
+                                    sections: overlay
+                                        .sections
+                                        .iter()
+                                        .map(|sec| sec.output_section_name)
+                                        .collect(),
+                                });
+                            }
                         }
                         SectionCommand::Include(_) => {
                             wild_error::bail!(
@@ -615,6 +627,28 @@ impl<'data> LayoutRulesBuilder<'data> {
                     after: *after,
                     section_name,
                 });
+            } else if let linker_script::Command::Target(bfdname) = cmd {
+                let target_arch = Architecture::parse_output_format(bfdname);
+                if target_arch == Architecture::Unsupported {
+                    wild_error::bail!("{} is not yet supported", String::from_utf8_lossy(bfdname));
+                }
+                if args.architecture() != target_arch {
+                    wild_error::bail!(
+                        "Setting the input format using TARGET is currently unsupported"
+                    );
+                }
+            } else if let linker_script::Command::RegionAlias { alias, region } = cmd {
+                region_aliases.push((*alias, *region));
+            } else if let linker_script::Command::Nocrossrefs(sections) = cmd {
+                nocrossrefs.push(linker_script::NocrossrefConstraint {
+                    to: None,
+                    sections: sections.clone(),
+                });
+            } else if let linker_script::Command::NocrossrefsTo { to, from } = cmd {
+                nocrossrefs.push(linker_script::NocrossrefConstraint {
+                    to: Some(*to),
+                    sections: from.clone(),
+                });
             }
         }
 
@@ -636,6 +670,8 @@ impl<'data> LayoutRulesBuilder<'data> {
             location_counters,
             ordered_sections,
             insert,
+            region_aliases,
+            nocrossrefs,
         })
     }
 

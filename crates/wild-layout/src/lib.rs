@@ -226,6 +226,8 @@ where
         .flatten()
         .collect();
 
+    check_nocrossrefs(&group_states, &symbol_db, &output_sections)?;
+
     let mut location_counters = Vec::new();
     for script in &linker_scripts {
         location_counters.extend(script.parsed.location_counters.iter().cloned());
@@ -338,6 +340,22 @@ where
                     )
                 })?;
             memory_region_order.push(region.name);
+        }
+    }
+    for s in &linker_scripts {
+        for &(alias, region) in &s.parsed.region_aliases {
+            let Some(existing) = memory_regions.get(region).cloned() else {
+                wild_error::bail!(
+                    "memory region '{}' not declared",
+                    String::from_utf8_lossy(region)
+                );
+            };
+            memory_regions.try_insert(alias, existing).map_err(|_| {
+                wild_error::error!(
+                    "region '{}' already defined",
+                    String::from_utf8_lossy(alias)
+                )
+            })?;
         }
     }
 

@@ -36,6 +36,42 @@ pub enum Command<'a> {
         #[debug("{}", String::from_utf8_lossy(section_name))]
         section_name: &'a [u8],
     },
+    /// GNU `OUTPUT(filename)` — same as `-o`. Command-line `-o` wins.
+    #[debug("{}", String::from_utf8_lossy(_0))]
+    Output(&'a [u8]),
+    /// GNU `REGION_ALIAS(alias, region)` — `alias` names the same MEMORY region.
+    RegionAlias {
+        #[debug("{}", String::from_utf8_lossy(alias))]
+        alias: &'a [u8],
+        #[debug("{}", String::from_utf8_lossy(region))]
+        region: &'a [u8],
+    },
+    /// GNU `SEARCH_DIR(path)` — same as `-L`.
+    #[debug("{}", String::from_utf8_lossy(_0))]
+    SearchDir(&'a [u8]),
+    /// GNU `STARTUP(filename)` — like `INPUT`, but that file is first in the link.
+    #[debug("{}", String::from_utf8_lossy(_0))]
+    Startup(&'a [u8]),
+    /// GNU `TARGET(bfdname)` — BFD format for subsequent inputs.
+    #[debug("{}", String::from_utf8_lossy(_0))]
+    Target(&'a [u8]),
+    /// GNU `NOCROSSREFS(section...)` — error if the named output sections reference each other.
+    Nocrossrefs(Vec<&'a [u8]>),
+    /// GNU `NOCROSSREFS_TO(to, from...)` — error if `from` sections reference `to`.
+    NocrossrefsTo {
+        #[debug("{}", String::from_utf8_lossy(to))]
+        to: &'a [u8],
+        from: Vec<&'a [u8]>,
+    },
+}
+
+/// GNU `NOCROSSREFS` / `NOCROSSREFS_TO` / overlay `NOCROSSREFS`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NocrossrefConstraint<'a> {
+    /// `Some` for `NOCROSSREFS_TO(to, ...)` — only references to this section are forbidden.
+    /// `None` for `NOCROSSREFS` — any pair among `sections` is forbidden.
+    pub to: Option<&'a [u8]>,
+    pub sections: Vec<&'a [u8]>,
 }
 
 #[derive(Debug, PartialEq, Eq)]

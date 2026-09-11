@@ -293,6 +293,13 @@ impl<F: FileSystem> Linker<F> {
 
         let loaded = loaded?;
 
+        for script in loaded.linker_scripts.iter().rev() {
+            if let Some(name) = script.script.output_filename() {
+                args.common().apply_script_output(name);
+                break;
+            }
+        }
+
         let output_kind = crate::output_kind::new(args, file_loader);
 
         let mut output = file_writer::Output::new::<P>(args, output_kind, self.file_system.clone());

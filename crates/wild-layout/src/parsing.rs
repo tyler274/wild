@@ -58,6 +58,8 @@ pub struct ProcessedLinkerScript<'data, P: Platform> {
     pub ordered_sections: Vec<OutputSectionId>,
     /// GNU `INSERT AFTER` / `INSERT BEFORE`, if this script is a fragment.
     pub insert: Option<ScriptInsert<'data>>,
+    pub region_aliases: Vec<(&'data [u8], &'data [u8])>,
+    pub nocrossrefs: Vec<wild_scripts::linker_script::NocrossrefConstraint<'data>>,
 }
 
 impl<'data, P: Platform> ProcessedLinkerScript<'data, P> {

@@ -19,7 +19,7 @@ matching all three.
 | `INCLUDE(file)` | ✅ | Recursively expanded with cycle detection; searched relative to the including script, then `-L` / sysroot |
 | `OUTPUT_FORMAT(...)` | ✅ | Accepted when it matches the link target (`-EL`/`-EB` select the three-arg form). Does not switch architecture; mismatch or unsupported BFD names error |
 | `OUTPUT_ARCH(arch)` | ✅ | Accepted when it matches the link target (kernel `i386:x86-64`, `aarch64`, `riscv`, `loongarch`, `powerpc:common64`). Does not switch architecture |
-| `OUTPUT(filename)` | ❌ | |
+| `OUTPUT(filename)` | ✅ | Same as `-o`. Command-line `-o` / `--output` wins |
 | `SECTIONS { ... }` | ✅ | |
 | `ENTRY(symbol)` | ✅ | |
 | `VERSION { ... }` | ✅ | |
@@ -27,11 +27,11 @@ matching all three.
 | `PROVIDE_HIDDEN(sym = expr)` | ✅ | |
 | `ASSERT(expr, "msg")` | ✅ | |
 | `MEMORY { ... }` | ✅ | Regions, `(rwx)` flags, `>region`, and `AT>region` |
-| `REGION_ALIAS(alias, region)` | ❌ | |
-| `SEARCH_DIR(path)` | ❌ | |
-| `STARTUP(filename)` | ❌ | |
-| `TARGET(bfdname)` | ❌ | |
-| `NOCROSSREFS(sections...)` | ❌ | |
+| `REGION_ALIAS(alias, region)` | ✅ | `alias` names the same MEMORY region for `>alias`, `ORIGIN`, and `LENGTH` |
+| `SEARCH_DIR(path)` | ✅ | Same as `-L`, including sysroot-relative `=/path`. Applies to later `INPUT` / `GROUP` / `STARTUP` in the same script |
+| `STARTUP(filename)` | ✅ | Like `INPUT`, but that file is the first input of the link |
+| `TARGET(bfdname)` | ✅ | Accepted when it matches the link target, using the same BFD names as `OUTPUT_FORMAT`. Does not switch architecture; mismatch or unsupported names error |
+| `NOCROSSREFS(sections...)` | ✅ | Errors if the named output sections cross-reference each other. Overlay `NOCROSSREFS` and `NOCROSSREFS_TO(to, from...)` are also enforced |
 | `INSERT [AFTER\|BEFORE] section` | ✅ | Snippet scripts splice their `SECTIONS` into the default (or previous `-T`) layout at the named output section |
 | Top-level symbol assignment (`sym = expr`) | ✅ | Constant assignments are available during layout. `st_shndx` follows GNU ld: a single relocatable residual (symbol or `.`) copies that section, including assignments before `SECTIONS` whose target is in a later matcher (kernel `jiffies = jiffies_64`); `ABSOLUTE()`, differences of two section symbols, and constants are `SHN_ABS` |
 | Compound assignment operators (`+=`, `-=`, etc.) | ✅ | |

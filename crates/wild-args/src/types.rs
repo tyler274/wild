@@ -17,6 +17,7 @@ use std::num::NonZeroUsize;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::sync::atomic::AtomicI64;
 use wild_error::bail;
 use wild_error::ensure;
@@ -32,6 +33,10 @@ pub struct CommonArgs {
     pub unrecognized_options: Vec<String>,
 
     pub output: Arc<Path>,
+    /// True when the command line supplied `-o` / `--output`. GNU `OUTPUT` is ignored then.
+    pub output_from_cli: bool,
+    /// Set from a linker-script `OUTPUT(filename)` when `-o` was not given.
+    pub script_output: OnceLock<Arc<Path>>,
     pub relocation_model: RelocationModel,
 
     /// The number of actually available threads (considering jobserver)
@@ -124,6 +129,8 @@ impl Default for CommonArgs {
     fn default() -> Self {
         Self {
             output: Arc::from(Path::new("a.out")),
+            output_from_cli: false,
+            script_output: OnceLock::new(),
             relocation_model: RelocationModel::Fixed,
             available_threads: NonZeroUsize::new(1).unwrap(),
             num_threads: None,
@@ -170,6 +177,18 @@ fn default_warning_callback(warning: Warning) {
 }
 
 impl CommonArgs {
+    pub fn effective_output(&self) -> &Arc<Path> {
+        self.script_output.get().unwrap_or(&self.output)
+    }
+
+    pub fn apply_script_output(&self, filename: &[u8]) {
+        if self.output_from_cli {
+            return;
+        }
+        let path = String::from_utf8_lossy(filename);
+        let _ = self.script_output.set(Arc::from(Path::new(path.as_ref())));
+    }
+
     pub fn report_unrecognized(&self) -> Result {
         if !self.unrecognized_options.is_empty() {
             let options_list = self.unrecognized_options.join(", ");
@@ -243,11 +262,10 @@ impl CommonArgs {
     /// Adds a linker script to our outputs. Note, this is only called for scripts specified via
     /// flags like -T. Where a linker script is just listed as an argument, this won't be called.
     pub fn add_script(&mut self, path: &str) {
-        self.inputs.push(Input {
-            spec: InputSpec::File(Box::from(Path::new(path))),
-            search_first: None,
-            modifiers: Modifiers::default(),
-        });
+        self.inputs.push(Input::new(
+            InputSpec::File(Box::from(Path::new(path))),
+            Modifiers::default(),
+        ));
     }
 
     /// Uses 1 debug fuel, returning how much fuel remains. Debug fuel is intended to be used when

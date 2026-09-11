@@ -1230,6 +1230,72 @@ fn test_insert_before() {
 }
 
 #[test]
+fn test_output_search_dir_startup_target() {
+    let script = parse_script(
+        r#"
+        OUTPUT("a.out")
+        SEARCH_DIR(/usr/lib)
+        STARTUP(crt0.o)
+        TARGET(elf64-x86-64)
+        "#,
+    )
+    .unwrap();
+    assert_eq!(
+        script.commands,
+        vec![
+            Command::Output(b"a.out"),
+            Command::SearchDir(b"/usr/lib"),
+            Command::Startup(b"crt0.o"),
+            Command::Target(b"elf64-x86-64"),
+        ]
+    );
+    assert_eq!(script.output_filename(), Some(&b"a.out"[..]));
+    assert_eq!(script.search_dirs(), vec![&b"/usr/lib"[..]]);
+}
+
+#[test]
+fn test_region_alias_and_nocrossrefs() {
+    let script = parse_script(
+        r#"
+        REGION_ALIAS("ALIAS_RAM", RAM)
+        NOCROSSREFS(.text .data)
+        NOCROSSREFS_TO(.text .init .fini)
+        "#,
+    )
+    .unwrap();
+    assert_eq!(
+        script.commands,
+        vec![
+            Command::RegionAlias {
+                alias: b"ALIAS_RAM",
+                region: b"RAM"
+            },
+            Command::Nocrossrefs(vec![b".text", b".data"]),
+            Command::NocrossrefsTo {
+                to: b".text",
+                from: vec![b".init", b".fini"]
+            },
+        ]
+    );
+}
+
+#[test]
+fn test_startup_is_first_foreach_input() {
+    let inputs = inputs_from_script("INPUT(second.o) STARTUP(first.o) INPUT(third.o)").unwrap();
+    assert_eq!(
+        inputs
+            .iter()
+            .map(|i| (i.startup, i.spec.clone()))
+            .collect::<Vec<_>>(),
+        vec![
+            (true, InputSpec::File(Box::from(Path::new("first.o")))),
+            (false, InputSpec::File(Box::from(Path::new("second.o")))),
+            (false, InputSpec::File(Box::from(Path::new("third.o")))),
+        ]
+    );
+}
+
+#[test]
 fn test_nested_sort_is_unsupported() {
     let script = parse_script(
         r"

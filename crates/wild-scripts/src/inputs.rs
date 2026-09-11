@@ -41,10 +41,26 @@ pub struct Input {
     /// A directory to search first. Only present when the input came from a linker script, in
     /// which case this is the directory containing the linker script.
     pub search_first: Option<PathBuf>,
+    /// Extra directories from GNU `SEARCH_DIR` in the same linker script (like `-L`).
+    pub extra_search_dirs: Vec<PathBuf>,
     pub modifiers: Modifiers,
+    /// GNU `STARTUP`: this file is the first input of the link.
+    pub startup: bool,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+impl Input {
+    pub fn new(spec: InputSpec, modifiers: Modifiers) -> Self {
+        Self {
+            spec,
+            search_first: None,
+            extra_search_dirs: Vec::new(),
+            modifiers,
+            startup: false,
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum InputSpec {
     /// Path (possibly just a filename) to the file.
     File(Box<Path>),
