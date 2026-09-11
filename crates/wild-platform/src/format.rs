@@ -180,7 +180,6 @@ pub trait Platform: Copy + Send + Sync + Sized + Default + std::fmt::Debug + 'st
     type ResolvedDynamic<'data>;
     type ResolvedStubLibrary<'data>;
     type LinkerPlugin<'data>;
-    type LoadedPlugin;
     type LtoInput<'data>;
     type Group<'data>;
     type SequencedLinkerScript<'data>;
@@ -210,10 +209,14 @@ pub trait Platform: Copy + Send + Sync + Sized + Default + std::fmt::Debug + 'st
     /// that one should be used.
     fn maybe_init_linker_plugin<'data>(
         _args: &'data Self::Args,
-        _linker_plugin_arena: &'data colosseum::sync::Arena<Self::LoadedPlugin>,
         _herd: &'data wild_util::arena::Herd,
     ) -> Result<Option<Self::LinkerPlugin<'data>>> {
         Ok(None)
+    }
+
+    /// Whether a plugin returned by [`Self::maybe_init_linker_plugin`] has actually been loaded.
+    fn plugin_is_initialised(_plugin: &Self::LinkerPlugin<'_>) -> bool {
+        false
     }
 
     /// Called once all symbols have been read, but only if a linker plugin is active.

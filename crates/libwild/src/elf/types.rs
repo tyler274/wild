@@ -149,7 +149,18 @@ pub(super) type SymbolTable<'data, C> = object::read::elf::SymbolTable<'data, Fi
 #[derive(Debug, Copy, Clone, Default)]
 pub(crate) struct Elf<C: ElfClass>(PhantomData<C>);
 
-impl<C: ElfClass> wild_layout::EnginePlatform for Elf<C> {}
+impl<C: ElfClass> wild_layout::EnginePlatform for Elf<C> {
+    fn process_plugin_input<'data>(
+        plugin: &mut Self::LinkerPlugin<'data>,
+        input_ref: wild_args::InputRef<'data>,
+        file: &std::fs::File,
+        kind: wild_platform::FileKind,
+    ) -> wild_error::error::Result<Option<wild_layout::grouping::UnsequencedLtoInput<'data>>> {
+        Ok(plugin
+            .process_input(input_ref, file, kind)?
+            .map(|info| info.into_unsequenced()))
+    }
+}
 impl<'data, 'scope, C: ElfClass> wild_layout::EngineScope<'data, 'scope> for Elf<C> where
     'data: 'scope
 {

@@ -280,7 +280,6 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     type ResolvedDynamic<'data> = wild_layout::resolution::ResolvedDynamic<'data, Self>;
     type ResolvedStubLibrary<'data> = wild_layout::resolution::ResolvedStubLibrary<'data>;
     type LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>;
-    type LoadedPlugin = crate::linker_plugins::LoadedPlugin;
     type LtoInput<'data> = wild_layout::grouping::LtoInput<'data>;
     type Group<'data> = wild_layout::grouping::Group<'data, Self>;
     type SequencedLinkerScript<'data> = wild_layout::grouping::SequencedLinkerScript<'data, Self>;
@@ -311,10 +310,13 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
 
     fn maybe_init_linker_plugin<'data>(
         args: &'data Self::Args,
-        linker_plugin_arena: &'data colosseum::sync::Arena<crate::linker_plugins::LoadedPlugin>,
         herd: &'data wild_util::arena::Herd,
     ) -> Result<Option<crate::linker_plugins::LinkerPlugin<'data>>> {
-        crate::linker_plugins::LinkerPlugin::from_args::<C>(args, linker_plugin_arena, herd)
+        crate::linker_plugins::LinkerPlugin::from_args::<C>(args, herd)
+    }
+
+    fn plugin_is_initialised(plugin: &Self::LinkerPlugin<'_>) -> bool {
+        plugin.is_initialised()
     }
 
     fn plugin_all_symbols_read<'data, F: FileSystem>(

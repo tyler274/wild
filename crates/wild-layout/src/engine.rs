@@ -69,6 +69,17 @@ pub trait EnginePlatform:
         CustomSectionIds = crate::output_section_id::CustomSectionIds,
     >
 {
+    /// Claim LTO IR for a linker plugin. The default reports that no plugin was supplied.
+    fn process_plugin_input<'data>(
+        _plugin: &mut Self::LinkerPlugin<'data>,
+        input_ref: wild_args::InputRef<'data>,
+        _file: &std::fs::File,
+        kind: wild_platform::FileKind,
+    ) -> wild_error::error::Result<Option<crate::grouping::UnsequencedLtoInput<'data>>> {
+        wild_error::bail!(
+            "Input file {input_ref} contains {kind}, but linker plugin was not supplied"
+        )
+    }
 }
 
 /// Convert concrete engine values to `Platform` GATs. Sound because every format's `Platform`

@@ -147,8 +147,6 @@ pub struct Linker<F: FileSystem = OsFileSystem> {
     /// We store our input files here once we've read them.
     inputs_arena: Arena<input_data::InputFile<F::Input>>,
 
-    linker_plugin_arena: Arena<linker_plugins::LoadedPlugin>,
-
     /// Anything that doesn't need a custom Drop implementation can go in here. In practice, it's
     /// mostly just the decompressed copy of compressed string-merge sections.
     herd: wild_util::arena::Herd,
@@ -188,7 +186,6 @@ impl<F: FileSystem> Linker<F> {
         Self {
             file_system: std::sync::Arc::new(file_system),
             inputs_arena: Arena::new(),
-            linker_plugin_arena: Arena::new(),
             herd: Default::default(),
             shutdown_scope: Default::default(),
             _link_scope: vec![Box::new(guard_a), Box::new(guard_b)],
@@ -252,9 +249,7 @@ impl<F: FileSystem> Linker<F> {
     where
         P: EnginePlatform
             + Platform<FileLoader<'data, F> = wild_layout::input_data::FileLoader<'data, F>>
-            + Platform<FileWriterOutput<F> = file_writer::Output<F>>
-            + Platform<LoadedPlugin = crate::linker_plugins::LoadedPlugin>
-            + Platform<LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>>,
+            + Platform<FileWriterOutput<F> = file_writer::Output<F>>,
         A: Arch<Platform = P>,
         P::Args: crate::args::HasCommonArgs,
     {
@@ -308,13 +303,11 @@ impl<F: FileSystem> Linker<F> {
     where
         P: EnginePlatform
             + Platform<FileLoader<'data, F> = wild_layout::input_data::FileLoader<'data, F>>
-            + Platform<FileWriterOutput<F> = file_writer::Output<F>>
-            + Platform<LoadedPlugin = crate::linker_plugins::LoadedPlugin>
-            + Platform<LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>>,
+            + Platform<FileWriterOutput<F> = file_writer::Output<F>>,
         A: Arch<Platform = P>,
         P::Args: crate::args::HasCommonArgs,
     {
-        let mut plugin = P::maybe_init_linker_plugin(args, &self.linker_plugin_arena, &self.herd)?;
+        let mut plugin = P::maybe_init_linker_plugin(args, &self.herd)?;
 
         let loaded = file_loader.load_inputs::<P>(&args.common().inputs, args, &mut plugin);
 
@@ -376,7 +369,7 @@ impl<F: FileSystem> Linker<F> {
         )?;
 
         if let Some(plugin) = plugin.as_mut()
-            && plugin.is_initialised()
+            && P::plugin_is_initialised(plugin)
         {
             P::plugin_all_symbols_read::<F>(
                 plugin,
@@ -412,7 +405,7 @@ impl<F: FileSystem> Linker<F> {
         ));
         wild_layout::gc_stats::maybe_write_gc_stats(&layout.group_layouts, &layout.symbol_db)?;
 
-        let plugin_active = plugin.as_ref().is_some_and(|p| p.is_initialised());
+        let plugin_active = plugin.as_ref().is_some_and(P::plugin_is_initialised);
         let mut incremental_session = if args.incremental() {
             wild_layout::incremental::IncrementalSession::from_args(args)
         } else {

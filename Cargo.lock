@@ -2268,7 +2268,6 @@ name = "wild-platform"
 version = "0.10.0"
 dependencies = [
  "bitflags",
- "colosseum",
  "derive_more",
  "glob",
  "hashbrown 0.17.1",

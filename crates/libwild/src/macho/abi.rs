@@ -213,8 +213,7 @@ impl platform::Platform for MachO {
     type ResolvedObject<'data> = wild_layout::resolution::ResolvedObject<'data, Self>;
     type ResolvedDynamic<'data> = wild_layout::resolution::ResolvedDynamic<'data, Self>;
     type ResolvedStubLibrary<'data> = wild_layout::resolution::ResolvedStubLibrary<'data>;
-    type LinkerPlugin<'data> = crate::linker_plugins::LinkerPlugin<'data>;
-    type LoadedPlugin = crate::linker_plugins::LoadedPlugin;
+    type LinkerPlugin<'data> = ();
     type LtoInput<'data> = wild_layout::grouping::LtoInput<'data>;
     type Group<'data> = wild_layout::grouping::Group<'data, Self>;
     type SequencedLinkerScript<'data> = wild_layout::grouping::SequencedLinkerScript<'data, Self>;

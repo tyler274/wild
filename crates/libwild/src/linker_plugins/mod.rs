@@ -26,7 +26,6 @@ use crate::input_data::FileLoaderExt as _;
 use crate::input_data::InputRef;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
-use colosseum::sync::Arena;
 use crossbeam_utils::atomic::AtomicCell;
 use libloading::Library;
 use std::ffi::CStr;
@@ -72,12 +71,11 @@ pub(crate) struct LinkerPlugin<'data> {
 
 enum Store<'data> {
     Unloaded(LoadInfo<'data>),
-    Loaded(&'data mut LoadedPlugin),
+    Loaded(Box<LoadedPlugin>),
 }
 
 struct LoadInfo<'data> {
     args: &'data ElfArgs,
-    arena: &'data Arena<LoadedPlugin>,
     get_symbols_v3: GetSymbols,
 }
 
@@ -132,7 +130,6 @@ pub(crate) struct PluginOutputs {
 impl<'data> LinkerPlugin<'data> {
     pub(crate) fn from_args<C: ElfClass>(
         args: &'data ElfArgs,
-        arena: &'data Arena<LoadedPlugin>,
         herd: &'data Herd,
     ) -> Result<Option<LinkerPlugin<'data>>> {
         let wrap_symbols = WrapSymbols::new(&args.wrap, herd)?;
@@ -146,7 +143,6 @@ impl<'data> LinkerPlugin<'data> {
             path,
             store: Store::Unloaded(LoadInfo {
                 args,
-                arena,
                 get_symbols_v3: get_symbols_v3::<C>,
             }),
             herd,
@@ -601,24 +597,22 @@ impl<'data> Store<'data> {
                     crate::bail!("No linker plugin path");
                 }
 
-                *self = Store::Loaded(
-                    load_info.arena.alloc(
-                        LoadedPlugin::new(plugin_path, load_info.args, load_info.get_symbols_v3)
-                            .with_context(|| {
-                                format!(
-                                    "Failed to initialise linker plugin `{}`",
-                                    plugin_path.display()
-                                )
-                            })?,
-                    ),
-                );
+                *self = Store::Loaded(Box::new(
+                    LoadedPlugin::new(plugin_path, load_info.args, load_info.get_symbols_v3)
+                        .with_context(|| {
+                            format!(
+                                "Failed to initialise linker plugin `{}`",
+                                plugin_path.display()
+                            )
+                        })?,
+                ));
                 let Store::Loaded(loaded) = self else {
                     unreachable!();
                 };
 
-                Ok(*loaded)
+                Ok(loaded)
             }
-            Store::Loaded(loaded_plugin) => Ok(*loaded_plugin),
+            Store::Loaded(loaded_plugin) => Ok(loaded_plugin),
         }
     }
 }

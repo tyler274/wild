@@ -15,7 +15,6 @@ use crate::error::Context as _;
 use crate::error::Error;
 use crate::error::Result;
 use crate::file_kind::FileKind;
-use crate::linker_plugins::LinkerPlugin;
 use crate::macho_stub_library::parse_defined_library;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
@@ -155,7 +154,7 @@ pub(crate) trait FileLoaderExt<'data, F: FileSystem> {
         &mut self,
         inputs: &[Input],
         args: &'data P::Args,
-        plugin: &mut Option<LinkerPlugin<'data>>,
+        plugin: &mut Option<P::LinkerPlugin<'data>>,
     ) -> Result<LoadedInputs<'data, P>>;
 
     fn verify_inputs_unchanged(&self) -> Result;
@@ -166,7 +165,7 @@ impl<'data, F: FileSystem> FileLoaderExt<'data, F> for FileLoader<'data, F> {
         &mut self,
         inputs: &[Input],
         args: &'data P::Args,
-        plugin: &mut Option<LinkerPlugin<'data>>,
+        plugin: &mut Option<P::LinkerPlugin<'data>>,
     ) -> Result<LoadedInputs<'data, P>> {
         timing_phase!("Open input files");
 
@@ -260,7 +259,7 @@ impl<'data, F: FileSystem> FileLoaderExt<'data, F> for FileLoader<'data, F> {
 fn extract_all<'data, P: LoadPlatform, F: FileSystem>(
     loader: &mut FileLoader<'data, F>,
     files: &mut [Option<LoadedFileState<'data, P, F::Input>>],
-    plugin: &mut Option<LinkerPlugin<'data>>,
+    plugin: &mut Option<P::LinkerPlugin<'data>>,
 ) -> Result<LoadedInputs<'data, P>> {
     let mut loaded = LoadedInputs {
         objects: Vec::with_capacity(files.len()),
@@ -282,7 +281,7 @@ fn extract_file<'data, P: LoadPlatform, F: FileSystem>(
     index: FileLoadIndex,
     files: &mut [Option<LoadedFileState<'data, P, F::Input>>],
     loaded: &mut LoadedInputs<'data, P>,
-    plugin: &mut Option<LinkerPlugin<'data>>,
+    plugin: &mut Option<P::LinkerPlugin<'data>>,
 ) -> Result {
     match core::mem::take(&mut files[index.0]) {
         None => {}
@@ -928,7 +927,7 @@ fn search_for_files(
 fn add_record<'data, P: LoadPlatform>(
     loaded: &mut LoadedInputs<'data, P>,
     record: InputRecord<'data, P>,
-    plugin: &mut Option<LinkerPlugin<'data>>,
+    plugin: &mut Option<P::LinkerPlugin<'data>>,
 ) {
     match record {
         InputRecord::Object(obj) => loaded.objects.push(obj),
@@ -952,12 +951,10 @@ fn add_record<'data, P: LoadPlatform>(
                     let file = file
                         .as_deref()
                         .context("Linker plugins require a native filesystem input")?;
-                    plugin.process_input(input_ref, file, kind)
+                    P::process_plugin_input(plugin, input_ref, file, kind)
                 });
             match plugin_result {
-                Ok(Some(info)) => loaded
-                    .lto_objects
-                    .push(Ok(Box::new(info.into_unsequenced()))),
+                Ok(Some(info)) => loaded.lto_objects.push(Ok(Box::new(info))),
                 Ok(None) => {} // Skipped, e.g. unclaimed IR member inside an archive
                 Err(e) => loaded.lto_objects.push(Err(e)),
             }
@@ -968,7 +965,7 @@ fn add_record<'data, P: LoadPlatform>(
 fn add_records<'data, P: LoadPlatform>(
     loaded: &mut LoadedInputs<'data, P>,
     parsed_parts: Vec<InputRecord<'data, P>>,
-    plugin: &mut Option<LinkerPlugin<'data>>,
+    plugin: &mut Option<P::LinkerPlugin<'data>>,
 ) {
     for part in parsed_parts {
         add_record(loaded, part, plugin);

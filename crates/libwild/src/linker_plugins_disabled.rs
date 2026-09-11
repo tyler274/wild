@@ -49,7 +49,6 @@ impl<'data> LinkerPlugin<'data> {
 
     pub(crate) fn from_args<C: ElfClass>(
         _args: &'data ElfArgs,
-        _linker_plugin_arena: &'data colosseum::sync::Arena<LoadedPlugin>,
         _herd: &'data wild_util::arena::Herd,
     ) -> Result<Option<LinkerPlugin<'data>>> {
         Ok(None)
