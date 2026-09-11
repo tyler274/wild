@@ -32,7 +32,7 @@ matching all three.
 | `STARTUP(filename)` | ❌ | |
 | `TARGET(bfdname)` | ❌ | |
 | `NOCROSSREFS(sections...)` | ❌ | |
-| `INSERT [AFTER\|BEFORE] section` | ❌ | |
+| `INSERT [AFTER\|BEFORE] section` | ✅ | Snippet scripts splice their `SECTIONS` into the default (or previous `-T`) layout at the named output section |
 | Top-level symbol assignment (`sym = expr`) | ✅ | Constant assignments are available during layout. `st_shndx` follows GNU ld: a single relocatable residual (symbol or `.`) copies that section, including assignments before `SECTIONS` whose target is in a later matcher (kernel `jiffies = jiffies_64`); `ABSOLUTE()`, differences of two section symbols, and constants are `SHN_ABS` |
 | Compound assignment operators (`+=`, `-=`, etc.) | ✅ | |
 | `PHDRS` command for explicit program header definition | ✅ | `FILEHDR`, `PHDRS`, `FLAGS`, and `AT(expr)`. Without `FILEHDR`, ELF headers occupy file space only and do not advance the VMA. A `. = ALIGN(...)` immediately before a new `PT_LOAD` is applied before the LOAD starts, so `p_vaddr` is the script address rather than `max-page-size` plus that address |

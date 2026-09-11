@@ -22,8 +22,9 @@ pub struct CustomSectionIds {
     pub nonalloc: Vec<OutputSectionId>,
     pub tdata: Vec<OutputSectionId>,
     pub tbss: Vec<OutputSectionId>,
-    /// When a linker script is present, place unnamed (orphan) output sections
-    /// after the last section with the same flags, matching GNU ld.
+    /// When a replacing linker script is present, place unnamed (orphan) output
+    /// sections after the last section with the same flags, matching GNU ld.
+    /// `INSERT` fragments splice into the default layout and do not set this.
     pub place_after_similar: bool,
 }
 

@@ -142,6 +142,24 @@ pub fn parse_command<'input>(input: &mut &'input BStr) -> winnow::Result<Command
             let path = parse_include_path(input)?;
             Command::Include(path)
         }
+        b"INSERT" => {
+            skip_comments_and_whitespace(input)?;
+            let after = if opt("AFTER").parse_next(input)?.is_some() {
+                true
+            } else if opt("BEFORE").parse_next(input)?.is_some() {
+                false
+            } else {
+                return Err(ContextError::default());
+            };
+            skip_comments_and_whitespace(input)?;
+            let section_name = parse_token(input)?;
+            skip_comments_and_whitespace(input)?;
+            opt(';').parse_next(input)?;
+            Command::Insert {
+                after,
+                section_name,
+            }
+        }
         other => {
             if let Some(op) = opt(parse_assignment_op).parse_next(input)? {
                 // Symbol definition

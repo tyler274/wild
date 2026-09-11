@@ -1200,6 +1200,36 @@ fn test_output_arch_parsing() {
 }
 
 #[test]
+fn test_insert_after() {
+    let script = parse_script(
+        r#"
+        SECTIONS { .foo : { *(.foo) } }
+        INSERT AFTER .text;
+        "#,
+    )
+    .unwrap();
+    assert!(matches!(
+        script.commands.last(),
+        Some(Command::Insert {
+            after: true,
+            section_name: b".text"
+        })
+    ));
+}
+
+#[test]
+fn test_insert_before() {
+    let script = parse_script("INSERT BEFORE .data;").unwrap();
+    assert_eq!(
+        script.commands,
+        vec![Command::Insert {
+            after: false,
+            section_name: b".data"
+        }]
+    );
+}
+
+#[test]
 fn test_nested_sort_is_unsupported() {
     let script = parse_script(
         r"

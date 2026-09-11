@@ -533,9 +533,17 @@ impl<'data, P: Platform> OutputSections<'data, P> {
         let has_custom_phdrs = linker_scripts
             .iter()
             .any(|s| !s.parsed.program_headers.is_empty());
+        let replacing_script = linker_scripts
+            .iter()
+            .any(|script| script.parsed.replaces_default_layout());
+        // `INSERT` fragments splice into the default layout, so orphans keep builtin
+        // placement. Any non-INSERT script still uses GNU "after similar" orphans.
+        let place_after_similar = linker_scripts
+            .iter()
+            .any(|script| script.parsed.insert.is_none());
 
         let mut custom = CustomSectionIds {
-            place_after_similar: !linker_scripts.is_empty(),
+            place_after_similar,
             ..Default::default()
         };
 
@@ -590,21 +598,6 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             }
         });
 
-        let script_section_order: Vec<OutputSectionId> = linker_scripts
-            .iter()
-            .flat_map(|script| {
-                script
-                    .parsed
-                    .ordered_sections
-                    .iter()
-                    .copied()
-                    .enumerate()
-                    .filter_map(|(index, id)| {
-                        self.should_emit_only_if_order_slot(id, index).then_some(id)
-                    })
-            })
-            .collect();
-
         let (mut output_order, program_segments) = if has_custom_phdrs {
             P::build_custom_output_order_and_program_segments(
                 &custom,
@@ -623,6 +616,44 @@ impl<'data, P: Platform> OutputSections<'data, P> {
                 location_counters,
             )
         };
+
+        let mut script_section_order: Vec<OutputSectionId> = if replacing_script {
+            linker_scripts
+                .iter()
+                .filter(|script| script.parsed.insert.is_none())
+                .flat_map(|script| {
+                    script
+                        .parsed
+                        .ordered_sections
+                        .iter()
+                        .copied()
+                        .enumerate()
+                        .filter_map(|(index, id)| {
+                            self.should_emit_only_if_order_slot(id, index).then_some(id)
+                        })
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        for script in linker_scripts {
+            let Some(insert) = script.parsed.insert else {
+                continue;
+            };
+            let sections = script.parsed.ordered_sections.clone();
+            if replacing_script {
+                splice_named_sections(
+                    &mut script_section_order,
+                    self,
+                    insert.section_name,
+                    insert.after,
+                    &sections,
+                )?;
+            }
+            output_order.splice_insert(self, insert.section_name, insert.after, &sections)?;
+        }
+
         output_order.set_script_section_order(script_section_order);
         Ok((output_order, program_segments))
     }
@@ -796,6 +827,29 @@ impl<'data, P: Platform> OutputSections<'data, P> {
         output_sections
     }
 }
+
+fn splice_named_sections<P: Platform>(
+    order: &mut Vec<OutputSectionId>,
+    output_sections: &OutputSections<P>,
+    anchor_name: &[u8],
+    after: bool,
+    sections: &[OutputSectionId],
+) -> Result {
+    let Some(pos) = order.iter().position(|&id| {
+        output_sections
+            .name(id)
+            .is_some_and(|name| name.0 == anchor_name)
+    }) else {
+        wild_error::bail!(
+            "unable to find insert point `{}`",
+            String::from_utf8_lossy(anchor_name)
+        );
+    };
+    let insert_at = if after { pos + 1 } else { pos };
+    order.splice(insert_at..insert_at, sections.iter().copied());
+    Ok(())
+}
+
 impl<P: Platform> Display for OutputSections<'_, P> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.section_infos.for_each(|section_id, info| {

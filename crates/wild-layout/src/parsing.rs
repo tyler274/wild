@@ -56,6 +56,22 @@ pub struct ProcessedLinkerScript<'data, P: Platform> {
     pub program_headers: Vec<wild_scripts::linker_script::Phdr<'data>>,
     pub location_counters: Vec<LocationCounter<'data>>,
     pub ordered_sections: Vec<OutputSectionId>,
+    /// GNU `INSERT AFTER` / `INSERT BEFORE`, if this script is a fragment.
+    pub insert: Option<ScriptInsert<'data>>,
+}
+
+impl<'data, P: Platform> ProcessedLinkerScript<'data, P> {
+    /// GNU `-T` without `INSERT` replaces the default layout. `INSERT` fragments
+    /// splice into the default (or a previous replacing `-T`) instead.
+    pub fn replaces_default_layout(&self) -> bool {
+        self.insert.is_none() && !self.ordered_sections.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ScriptInsert<'data> {
+    pub after: bool,
+    pub section_name: &'data [u8],
 }
 
 #[derive(Debug)]

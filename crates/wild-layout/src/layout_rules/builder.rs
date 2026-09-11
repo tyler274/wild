@@ -35,6 +35,8 @@ pub struct LayoutRulesBuilder<'data> {
     rules: Vec<SectionRule<'data>>,
     num_location_counters: usize,
     overlay_group: u32,
+    /// True if any processed script is a replacing `-T` (SECTIONS without `INSERT`).
+    replaces_default_script: bool,
 }
 fn matcher_uses_input_order(matcher: &linker_script::Matcher<'_>) -> bool {
     matcher
@@ -73,6 +75,7 @@ impl<'data> LayoutRulesBuilder<'data> {
         let mut program_headers = Vec::new();
         let mut location_counters = Vec::new();
         let mut ordered_sections = Vec::new();
+        let mut insert = None;
 
         let mut current_section_id = None;
         let mut loc = SymbolLoc::FirstSection;
@@ -603,10 +606,23 @@ impl<'data> LayoutRulesBuilder<'data> {
                         "Setting the output architecture using OUTPUT_ARCH is currently unsupported"
                     );
                 }
+            } else if let linker_script::Command::Insert {
+                after,
+                section_name,
+            } = cmd
+            {
+                insert = Some(crate::parsing::ScriptInsert {
+                    after: *after,
+                    section_name,
+                });
             }
         }
 
         self.num_location_counters += location_counters.len();
+
+        if insert.is_none() && !ordered_sections.is_empty() {
+            self.replaces_default_script = true;
+        }
 
         Ok(ProcessedLinkerScript {
             symbol_defs,
@@ -619,15 +635,22 @@ impl<'data> LayoutRulesBuilder<'data> {
             program_headers,
             location_counters,
             ordered_sections,
+            insert,
         })
     }
 
     pub fn build<P: EnginePlatform>(mut self, args: &P::Args) -> LayoutRules<'data> {
         let section_rules = if self.rules.is_empty() {
             SectionRules::from_rules(&P::default_layout_rules(args))
-        } else {
+        } else if self.replaces_default_script {
             P::linker_script_rules_pre_build(&mut self);
             SectionRules::from_rules(&self.rules)
+        } else {
+            // `INSERT` fragments keep their matchers but inherit builtin placement, matching
+            // GNU `-T` with `INSERT` which splices into the default script.
+            let mut rules = std::mem::take(&mut self.rules);
+            rules.extend(P::default_layout_rules(args));
+            SectionRules::from_rules(&rules)
         };
 
         LayoutRules { section_rules }

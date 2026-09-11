@@ -640,6 +640,7 @@ mod expression_eval {
                 program_headers: Vec::new(),
                 location_counters: Vec::new(),
                 ordered_sections: Vec::new(),
+                insert: None,
             },
             symbol_id_range: SymbolIdRange::empty(),
             file_id: FileId::new(0, 0),

@@ -29,6 +29,13 @@ pub enum Command<'a> {
     #[debug("{}", String::from_utf8_lossy(_0))]
     OutputArch(&'a [u8]),
     Include(&'a [u8]),
+    /// GNU `INSERT AFTER` / `INSERT BEFORE`: splice this script's `SECTIONS` into
+    /// the default (or previously loaded) script at `section_name`.
+    Insert {
+        after: bool,
+        #[debug("{}", String::from_utf8_lossy(section_name))]
+        section_name: &'a [u8],
+    },
 }
 
 #[derive(Debug, PartialEq, Eq)]

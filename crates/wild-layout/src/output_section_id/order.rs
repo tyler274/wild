@@ -409,6 +409,84 @@ impl<'data> OutputOrder<'data> {
         self.script_section_order = order;
     }
 
+    /// Move `sections` (and their secondaries) to immediately after or before the
+    /// output section named `anchor_name`, matching GNU `INSERT AFTER` / `INSERT BEFORE`.
+    pub fn splice_insert<P: EnginePlatform>(
+        &mut self,
+        output_sections: &OutputSections<P>,
+        anchor_name: &[u8],
+        after: bool,
+        sections: &[OutputSectionId],
+    ) -> crate::Result {
+        if sections.is_empty() {
+            return Ok(());
+        }
+
+        let insert_ids = insert_section_ids(output_sections, sections);
+        self.events.retain(|event| match event {
+            OrderEvent::Section(id) => !insert_ids.contains(id),
+            _ => true,
+        });
+
+        let Some(anchor_index) = self.find_insert_index(output_sections, anchor_name, after) else {
+            wild_error::bail!(
+                "unable to find insert point `{}`",
+                String::from_utf8_lossy(anchor_name)
+            );
+        };
+
+        let mut to_insert = Vec::new();
+        for &id in sections {
+            to_insert.push(OrderEvent::Section(id));
+            for (sid, info) in output_sections.ids_with_info() {
+                if let SectionKind::Secondary(primary) = info.kind
+                    && primary == id
+                {
+                    to_insert.push(OrderEvent::Section(sid));
+                }
+            }
+        }
+        self.events.splice(anchor_index..anchor_index, to_insert);
+        Ok(())
+    }
+
+    fn find_insert_index<P: EnginePlatform>(
+        &self,
+        output_sections: &OutputSections<P>,
+        anchor_name: &[u8],
+        after: bool,
+    ) -> Option<usize> {
+        let mut i = 0;
+        while i < self.events.len() {
+            if let OrderEvent::Section(id) = self.events[i]
+                && output_sections
+                    .name(id)
+                    .is_some_and(|name| name.0 == anchor_name)
+            {
+                if !after {
+                    return Some(i);
+                }
+                i += 1;
+                while i < self.events.len() {
+                    match self.events[i] {
+                        OrderEvent::Section(sid)
+                            if matches!(
+                                output_sections.output_info(sid).kind,
+                                SectionKind::Secondary(primary) if primary == id
+                            ) =>
+                        {
+                            i += 1;
+                        }
+                        _ => break,
+                    }
+                }
+                return Some(i);
+            }
+            i += 1;
+        }
+        None
+    }
+
     pub fn display<'a, P: EnginePlatform>(
         &'a self,
         sections: &'a OutputSections<'data, P>,
@@ -420,6 +498,24 @@ impl<'data> OutputOrder<'data> {
             program_segments,
         }
     }
+}
+
+fn insert_section_ids<P: EnginePlatform>(
+    output_sections: &OutputSections<P>,
+    sections: &[OutputSectionId],
+) -> HashSet<OutputSectionId> {
+    let mut ids = HashSet::new();
+    for &id in sections {
+        ids.insert(id);
+        for (sid, info) in output_sections.ids_with_info() {
+            if let SectionKind::Secondary(primary) = info.kind
+                && primary == id
+            {
+                ids.insert(sid);
+            }
+        }
+    }
+    ids
 }
 
 /// Section-header order matching GNU ld `--emit-relocs`: each copied `SHT_REL` /
