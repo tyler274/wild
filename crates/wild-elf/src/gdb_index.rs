@@ -5,10 +5,8 @@
 //!
 //! Format reference: <https://sourceware.org/gdb/current/onlinedocs/gdb.html/Index-Section-Format.html>
 
-use crate::elf::Elf;
-use crate::elf::ElfClass;
-use crate::error::Context as _;
-use crate::error::Result;
+use crate::Elf;
+use crate::ElfClass;
 use hashbrown::HashMap;
 use itertools::Itertools as _;
 use linker_utils::bit_misc::BitExtraction;
@@ -22,6 +20,8 @@ use rayon::iter::IntoParallelRefIterator as _;
 use rayon::iter::ParallelIterator as _;
 use std::borrow::Cow;
 use std::mem::size_of;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout::FileLayout;
 use wild_layout::FileLayoutState;
 use wild_layout::GroupState;
@@ -143,7 +143,7 @@ fn parse_cu_boundaries(data: &[u8]) -> Result<Vec<CuBoundary>> {
     while offset + 4 <= data.len() {
         let init_len = u32_from_slice(&data[offset..]);
         let total = if init_len == 0xFFFF_FFFF {
-            crate::ensure!(
+            wild_error::ensure!(
                 offset + 12 <= data.len(),
                 "Truncated DWARF64 initial length in .debug_info at offset {offset}"
             );
@@ -152,7 +152,7 @@ fn parse_cu_boundaries(data: &[u8]) -> Result<Vec<CuBoundary>> {
         } else {
             4 + init_len as usize
         };
-        crate::ensure!(
+        wild_error::ensure!(
             total > 0 && offset + total <= data.len(),
             "Invalid CU length {total} in .debug_info at offset {offset}"
         );
@@ -191,7 +191,7 @@ fn parse_pubnames_sets<'data>(data: &'data [u8]) -> Result<Vec<PubnamesSet<'data
 
 /// Read section data from an input object by name.
 fn section_by_name<'data, C: ElfClass>(
-    object: &crate::elf::File<'data, C>,
+    object: &crate::File<'data, C>,
     name: &str,
 ) -> Result<Option<Cow<'data, [u8]>>> {
     let Some((_index, header)) = object.section_by_name(name) else {
@@ -334,7 +334,7 @@ struct SymbolBucket<'data> {
     name_bytes_count: usize,
 }
 
-pub(crate) struct GdbIndexScanResult<'data> {
+pub struct GdbIndexScanResult<'data> {
     all_cus: Vec<CuBoundary>,
     total_addr_entries: usize,
     buckets: Vec<SymbolBucket<'data>>,
@@ -653,7 +653,7 @@ fn build_address_entries<C: ElfClass>(
 
 /// Build a mapping from section index to local CU index for an input object with multiple CUs.
 fn build_section_cu_map<C: ElfClass>(
-    object: &crate::elf::File<'_, C>,
+    object: &crate::File<'_, C>,
     cu_count: u32,
 ) -> Result<HashMap<usize, u32>> {
     let boundaries = match section_by_name(object, DEBUG_INFO_SECTION_NAME_STR)? {
@@ -794,7 +794,7 @@ fn write_hash_table(
                     break;
                 }
                 slot = (slot + step) & mask;
-                crate::ensure!(slot != initial_slot, "gdb_index hash table is full");
+                wild_error::ensure!(slot != initial_slot, "gdb_index hash table is full");
             }
         }
     }

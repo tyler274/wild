@@ -80,6 +80,30 @@ pub trait EnginePlatform:
             "Input file {input_ref} contains {kind}, but linker plugin was not supplied"
         )
     }
+
+    /// Run linker-plugin codegen after all symbols have been read. Returns `None` if LTO should be
+    /// skipped, or the extra inputs the plugin produced (possibly empty).
+    fn plugin_lto_codegen<'data>(
+        _plugin: &mut Self::LinkerPlugin<'data>,
+        _symbol_db: &mut crate::symbol_db::SymbolDb<'data, Self>,
+        _resolver: &mut Resolver<'data, Self>,
+        _per_symbol_flags: &mut wild_platform::value_flags::PerSymbolFlags,
+    ) -> wild_error::error::Result<Option<Vec<wild_args::Input>>> {
+        Ok(None)
+    }
+
+    /// Integrate objects produced by linker-plugin codegen after the driver has loaded them.
+    fn plugin_integrate_lto_objects<'data>(
+        _plugin: &mut Self::LinkerPlugin<'data>,
+        _symbol_db: &mut crate::symbol_db::SymbolDb<'data, Self>,
+        _resolver: &mut Resolver<'data, Self>,
+        _per_symbol_flags: &mut wild_platform::value_flags::PerSymbolFlags,
+        _output_sections: &mut crate::output_section_id::OutputSections<'data, Self>,
+        _layout_rules_builder: &mut LayoutRulesBuilder<'data>,
+        _loaded: crate::symbol_db::LoadedInputs<'data, Self>,
+    ) -> wild_error::error::Result {
+        Ok(())
+    }
 }
 
 /// Convert concrete engine values to `Platform` GATs. Sound because every format's `Platform`

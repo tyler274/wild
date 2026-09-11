@@ -1,12 +1,12 @@
 #[allow(unused_imports)]
-use crate::elf::abi::*;
+use crate::abi::*;
 #[allow(unused_imports)]
-use crate::elf::file::*;
+use crate::file::*;
 #[allow(unused_imports)]
-use crate::elf::gnu::*;
-use crate::elf::output_section_id;
+use crate::gnu::*;
+use crate::output_section_id;
 #[allow(unused_imports)]
-use crate::elf::types::ElfClass;
+use crate::types::ElfClass;
 use linker_utils::elf::secnames;
 use wild_layout as layout;
 use wild_layout::layout_rules::SectionRule;

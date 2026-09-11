@@ -1,19 +1,19 @@
 #[allow(unused_imports)]
-use crate::elf::abi::*;
+use crate::abi::*;
 #[allow(unused_imports)]
-use crate::elf::file::*;
+use crate::file::*;
 #[allow(unused_imports)]
-use crate::elf::gnu::*;
-use crate::elf::output_section_id;
-use crate::elf::part_id;
+use crate::gnu::*;
+use crate::output_section_id;
+use crate::part_id;
 #[allow(unused_imports)]
-use crate::elf::types::Elf;
-use crate::elf::types::ElfClass;
-use crate::error::Context as _;
-use crate::error::Result;
+use crate::types::Elf;
+use crate::types::ElfClass;
 use hashbrown::HashMap;
 use itertools::Itertools as _;
 use rayon::prelude::*;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout as layout;
 use wild_layout::CommonGroupState;
 use wild_layout::EnginePlatform;

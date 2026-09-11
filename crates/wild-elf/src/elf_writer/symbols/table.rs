@@ -1,14 +1,10 @@
 use super::super::types::*;
-use crate::bail;
-use crate::elf;
-use crate::elf::ElfClass;
-use crate::elf::GLOBAL_POINTER_SYMBOL_NAME;
-use crate::elf::RawSymbolName;
-use crate::elf::output_section_id;
-use crate::elf::part_id;
-use crate::error;
-use crate::error::Context as _;
-use crate::error::Result;
+use crate as elf;
+use crate::ElfClass;
+use crate::GLOBAL_POINTER_SYMBOL_NAME;
+use crate::RawSymbolName;
+use crate::output_section_id;
+use crate::part_id;
 use crate::writable_elf::WritableSymbol as _;
 use linker_utils::elf::RISCV_TLS_DTV_OFFSET;
 use linker_utils::elf::secnames::DYNSYM_SECTION_NAME_STR;
@@ -21,6 +17,10 @@ use object::read::elf::Sym as _;
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelRefIterator as _;
 use rayon::iter::ParallelIterator as _;
+use wild_error::bail;
+use wild_error::error;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout::FileLayout;
 use wild_layout::InternalSymbols;
 use wild_layout::ObjectLayout;
@@ -405,9 +405,9 @@ impl<'layout, 'out, C: ElfClass> SymbolTableWriter<'layout, 'out, C> {
             let name = if self.is_dynamic {
                 // .dynsym encodes version info separately in .gnu.version, so strip it from the
                 // name.
-                crate::elf::RawSymbolName::parse(name).name
+                crate::RawSymbolName::parse(name).name
             } else {
-                crate::elf::symtab_name_for_strtab(name)
+                crate::symtab_name_for_strtab(name)
             };
             if let Some(lookup) = self.strtab_lookup {
                 lookup.offset(name)?

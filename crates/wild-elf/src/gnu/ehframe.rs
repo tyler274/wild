@@ -1,13 +1,13 @@
 #[allow(unused_imports)]
-use crate::elf::abi::*;
+use crate::abi::*;
 #[allow(unused_imports)]
-use crate::elf::file::*;
+use crate::file::*;
 #[allow(unused_imports)]
-use crate::elf::output::*;
+use crate::output::*;
 #[allow(unused_imports)]
-use crate::elf::types::ElfClass;
-use crate::elf::types::ElfCrel;
-use crate::elf::types::ElfRela;
+use crate::types::ElfClass;
+use crate::types::ElfCrel;
+use crate::types::ElfRela;
 use std::mem::offset_of;
 use wild_platform::FrameIndex;
 use wild_platform::Relocation;

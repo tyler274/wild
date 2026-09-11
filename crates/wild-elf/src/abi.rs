@@ -223,7 +223,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     type PreludeLayoutExt = PreludeLayoutExt;
     type ArchIdentifier = object::elf::Machine;
     type SectionIterator<'a> = core::slice::Iter<'a, SectionHeader<C>>;
-    type DynamicTagValues<'data> = crate::elf::DynamicTagValues<'data>;
+    type DynamicTagValues<'data> = crate::DynamicTagValues<'data>;
     type RelocationList<'data> = RelocationList<'data, C>;
     type VersionNames<'data> = VersionNames<'data>;
     type RawSymbolName<'data> = RawSymbolName<'data>;
@@ -317,25 +317,6 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
 
     fn plugin_is_initialised(plugin: &Self::LinkerPlugin<'_>) -> bool {
         plugin.is_initialised()
-    }
-
-    fn plugin_all_symbols_read<'data, F: FileSystem>(
-        plugin: &mut crate::linker_plugins::LinkerPlugin<'data>,
-        symbol_db: &mut SymbolDb<'data, Self>,
-        resolver: &mut wild_layout::resolution::Resolver<'data, Self>,
-        file_loader: &mut wild_layout::input_data::FileLoader<'data, F>,
-        per_symbol_flags: &mut wild_platform::value_flags::PerSymbolFlags,
-        output_sections: &mut OutputSections<'data, Self>,
-        layout_rules_builder: &mut wild_layout::layout_rules::LayoutRulesBuilder<'data>,
-    ) -> Result {
-        plugin.all_symbols_read(
-            symbol_db,
-            resolver,
-            file_loader,
-            per_symbol_flags,
-            output_sections,
-            layout_rules_builder,
-        )
     }
 
     fn resolve_lto_symbols<'data, 'scope>(
@@ -512,8 +493,8 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         {
             memory_offsets.increment(
                 part_id::GNU_VERSION_R,
-                size_of::<crate::elf::Verneed>() as u64
-                    + u64::from(v.version_count) * size_of::<crate::elf::Vernaux>() as u64,
+                size_of::<crate::Verneed>() as u64
+                    + u64::from(v.version_count) * size_of::<crate::Vernaux>() as u64,
             );
 
             let version_r_layout = resources
@@ -1035,14 +1016,11 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         symbols.section_end(output_section_id::BSS, "__end").hide();
 
         if args.architecture() == Architecture::RiscV64 {
-            symbols.section_start(
-                output_section_id::DATA,
-                crate::elf::GLOBAL_POINTER_SYMBOL_NAME,
-            );
+            symbols.section_start(output_section_id::DATA, crate::GLOBAL_POINTER_SYMBOL_NAME);
         }
 
         if args.architecture() == Architecture::Ppc64 {
-            symbols.section_start(output_section_id::GOT, crate::elf::TOC_SYMBOL_NAME);
+            symbols.section_start(output_section_id::GOT, crate::TOC_SYMBOL_NAME);
         }
 
         symbols
@@ -1391,9 +1369,8 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             let dependencies_count = symbol_db.version_script.parent_count();
             mem_sizes.increment(
                 part_id::GNU_VERSION_D,
-                (size_of::<crate::elf::Verdef>() as u16 * version_count
-                    + size_of::<crate::elf::Verdaux>() as u16
-                        * (version_count + dependencies_count))
+                (size_of::<crate::Verdef>() as u16 * version_count
+                    + size_of::<crate::Verdaux>() as u16 * (version_count + dependencies_count))
                     .into(),
             );
             state.verdefs.replace(verdefs);
@@ -1427,7 +1404,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
 
         memory_offsets.increment(
             part_id::NOTE_GNU_PROPERTY,
-            crate::elf::gnu_property_notes_section_size::<C>(&common_state.gnu_property_notes),
+            crate::gnu_property_notes_section_size::<C>(&common_state.gnu_property_notes),
         );
 
         memory_offsets.increment(
@@ -1449,8 +1426,8 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         if let Some(verdefs) = &epilogue_state.verdefs {
             memory_offsets.increment(
                 part_id::GNU_VERSION_D,
-                (size_of::<crate::elf::Verdef>() * verdefs.len()
-                    + size_of::<crate::elf::Verdaux>()
+                (size_of::<crate::Verdef>() * verdefs.len()
+                    + size_of::<crate::Verdaux>()
                         * (verdefs.len() + symbol_db.version_script.parent_count() as usize))
                     as u64,
             );
@@ -1460,7 +1437,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     }
 
     fn apply_late_size_adjustments_epilogue(
-        state: &mut crate::elf::EpilogueLayoutExt,
+        state: &mut crate::EpilogueLayoutExt,
         current_sizes: &OutputSectionPartMap<u64>,
         extra_sizes: &mut OutputSectionPartMap<u64>,
         dynamic_symbol_defs: &[DynamicSymbolDefinition<Self>],
@@ -2097,10 +2074,9 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             part_id::SECTION_HEADERS,
             section_headers_size::<C>(header_info),
         );
-        prelude.format_specific.shstrtab_size = crate::elf::shstrtab_from_sections(output_sections)
-            .bytes
-            .len() as u64
-            + header_info.partial_link_section_name_bytes;
+        prelude.format_specific.shstrtab_size =
+            crate::shstrtab_from_sections(output_sections).bytes.len() as u64
+                + header_info.partial_link_section_name_bytes;
         sizes.increment(part_id::SHSTRTAB, prelude.format_specific.shstrtab_size);
     }
 

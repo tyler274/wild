@@ -1,19 +1,19 @@
 use super::super::dynamic::*;
 use super::super::types::*;
-use crate::bail;
-use crate::elf;
-use crate::elf::ElfClass;
-use crate::elf::Verdaux;
-use crate::elf::Verdef;
-use crate::elf::Vernaux;
-use crate::elf::Verneed;
-use crate::elf::VersionDef;
-use crate::elf::Versym;
-use crate::elf::part_id;
-use crate::error;
-use crate::error::Context as _;
-use crate::error::Result;
+use crate as elf;
+use crate::ElfClass;
+use crate::Verdaux;
+use crate::Verdef;
+use crate::Vernaux;
+use crate::Verneed;
+use crate::VersionDef;
+use crate::Versym;
+use crate::part_id;
 use object::LittleEndian;
+use wild_error::bail;
+use wild_error::error;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout::file_writer::excessive_allocation;
 use wild_layout::file_writer::insufficient_allocation;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
@@ -175,13 +175,10 @@ pub(crate) fn write_verdef<C: ElfClass>(
         let aux_count = if verdef.parent_index.is_some() { 2 } else { 1 };
         verdef_out.vd_cnt.set(e, aux_count);
         verdef_out.vd_hash.set(e, object::elf::hash(name));
-        verdef_out
-            .vd_aux
-            .set(e, size_of::<crate::elf::Verdef>() as u32);
+        verdef_out.vd_aux.set(e, size_of::<crate::Verdef>() as u32);
         // Offset to the next entry, unless it's the last one
         let offset = if i < verdefs.len() - 1 {
-            (size_of::<crate::elf::Verdef>()
-                + size_of::<crate::elf::Verdaux>() * aux_count as usize) as u32
+            (size_of::<crate::Verdef>() + size_of::<crate::Verdaux>() * aux_count as usize) as u32
         } else {
             0
         };
@@ -190,7 +187,7 @@ pub(crate) fn write_verdef<C: ElfClass>(
         let verdaux = table_writer.version_writer.take_verdaux()?;
         verdaux.vda_name.set(e, name_offset);
         let next_vda = if verdef.parent_index.is_some() {
-            size_of::<crate::elf::Verdaux>() as u32
+            size_of::<crate::Verdaux>() as u32
         } else {
             0
         };

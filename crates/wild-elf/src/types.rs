@@ -6,8 +6,6 @@ use super::file::*;
 use super::gnu::*;
 #[allow(unused_imports)]
 use super::output::*;
-use crate::error;
-use crate::error::Result;
 use crate::writable_elf::WritableCompressionHeader;
 use crate::writable_elf::WritableDynamicEntry;
 use crate::writable_elf::WritableFileHeader;
@@ -22,6 +20,8 @@ use object::read::elf::Crel;
 use object::read::elf::CrelIterator;
 use std::marker::PhantomData;
 use std::ops::Range;
+use wild_error::error;
+use wild_error::error::Result;
 use wild_platform as platform;
 use wild_platform::Relocation;
 use wild_platform::RelocationSequence;
@@ -30,7 +30,7 @@ use wild_util::arch::Architecture;
 use zerocopy::FromBytes;
 use zerocopy::IntoBytes;
 
-pub(crate) trait ElfWord: Copy + FromBytes + IntoBytes + Into<u64> + Send + Sync {
+pub trait ElfWord: Copy + FromBytes + IntoBytes + Into<u64> + Send + Sync {
     fn from_u64(value: u64) -> Result<Self>;
     fn from_le_bytes(bytes: &[u8]) -> Self;
 }
@@ -55,7 +55,7 @@ impl ElfWord for u64 {
     }
 }
 
-pub(crate) trait ElfClass: Copy + Default + Send + Sync + std::fmt::Debug + 'static {
+pub trait ElfClass: Copy + Default + Send + Sync + std::fmt::Debug + 'static {
     type FileHeader: object::read::elf::FileHeader<
             Endian = LittleEndian,
             Word: ElfWord,
@@ -97,7 +97,7 @@ pub(crate) trait ElfClass: Copy + Default + Send + Sync + std::fmt::Debug + 'sta
         Self::GNU_PROPERTY_ALIGNMENT.align_up(size_of::<NoteProperty>() as u64);
 }
 
-pub(crate) trait ElfSymbol:
+pub trait ElfSymbol:
     object::read::elf::Sym<Endian = LittleEndian>
     + WritableSymbol
     + platform::Symbol
@@ -112,7 +112,7 @@ pub(crate) trait ElfSymbol:
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-pub(crate) struct Class64;
+pub struct Class64;
 
 impl ElfClass for Class64 {
     type FileHeader = object::elf::FileHeader64<LittleEndian>;
@@ -133,7 +133,6 @@ pub(crate) type CompressionHeaderEntry<C> =
 pub(crate) type Rela<C> = <FileHeader<C> as object::read::elf::FileHeader>::Rela;
 pub(crate) type Relr<C> = <FileHeader<C> as object::read::elf::FileHeader>::Relr;
 pub(crate) type NoteHeader<C> = <FileHeader<C> as object::read::elf::FileHeader>::NoteHeader;
-pub(crate) type FileHeader64 = FileHeader<Class64>;
 pub(crate) type GnuHashHeader = object::elf::GnuHashHeader<LittleEndian>;
 pub(crate) type Verdef = object::elf::Verdef<LittleEndian>;
 pub(crate) type Verdaux = object::elf::Verdaux<LittleEndian>;
@@ -147,7 +146,7 @@ pub(super) type SectionTable<'data, C> = object::read::elf::SectionTable<'data, 
 pub(super) type SymbolTable<'data, C> = object::read::elf::SymbolTable<'data, FileHeader<C>>;
 
 #[derive(Debug, Copy, Clone, Default)]
-pub(crate) struct Elf<C: ElfClass>(PhantomData<C>);
+pub struct Elf<C: ElfClass>(PhantomData<C>);
 
 impl<C: ElfClass> wild_layout::EnginePlatform for Elf<C> {
     fn process_plugin_input<'data>(
@@ -160,6 +159,34 @@ impl<C: ElfClass> wild_layout::EnginePlatform for Elf<C> {
             .process_input(input_ref, file, kind)?
             .map(|info| info.into_unsequenced()))
     }
+
+    fn plugin_lto_codegen<'data>(
+        plugin: &mut Self::LinkerPlugin<'data>,
+        symbol_db: &mut wild_layout::symbol_db::SymbolDb<'data, Self>,
+        resolver: &mut wild_layout::resolution::Resolver<'data, Self>,
+        per_symbol_flags: &mut wild_platform::value_flags::PerSymbolFlags,
+    ) -> wild_error::error::Result<Option<Vec<wild_args::Input>>> {
+        plugin.lto_codegen(symbol_db, resolver, per_symbol_flags)
+    }
+
+    fn plugin_integrate_lto_objects<'data>(
+        plugin: &mut Self::LinkerPlugin<'data>,
+        symbol_db: &mut wild_layout::symbol_db::SymbolDb<'data, Self>,
+        resolver: &mut wild_layout::resolution::Resolver<'data, Self>,
+        per_symbol_flags: &mut wild_platform::value_flags::PerSymbolFlags,
+        output_sections: &mut wild_layout::output_section_id::OutputSections<'data, Self>,
+        layout_rules_builder: &mut wild_layout::layout_rules::LayoutRulesBuilder<'data>,
+        loaded: wild_layout::symbol_db::LoadedInputs<'data, Self>,
+    ) -> wild_error::error::Result {
+        plugin.integrate_lto_objects(
+            symbol_db,
+            resolver,
+            per_symbol_flags,
+            output_sections,
+            layout_rules_builder,
+            loaded,
+        )
+    }
 }
 impl<'data, 'scope, C: ElfClass> wild_layout::EngineScope<'data, 'scope> for Elf<C> where
     'data: 'scope
@@ -170,12 +197,11 @@ impl<'writer, 'out, C: ElfClass> wild_layout::EngineWriter<'writer, 'out> for El
 {
 }
 
-pub(crate) type Elf64 = Elf<Class64>;
 pub(crate) type File64<'data> = File<'data, Class64>;
 pub(crate) type RelocationList64<'data> = RelocationList<'data, Class64>;
 
 #[derive(derive_more::Debug)]
-pub(crate) struct File<'data, C: ElfClass> {
+pub struct File<'data, C: ElfClass> {
     pub(crate) arch: Architecture,
     #[debug(skip)]
     pub(crate) data: &'data [u8],
@@ -275,7 +301,7 @@ impl<C: ElfClass> Relocation for ElfCrel<C> {
 
 /// A list of relocations that supports iteration.
 #[derive(Clone)]
-pub(crate) enum RelocationList<'data, C: ElfClass> {
+pub enum RelocationList<'data, C: ElfClass> {
     Rela(&'data [Rela<C>]),
     Crel(CrelIterator<'data>),
 }

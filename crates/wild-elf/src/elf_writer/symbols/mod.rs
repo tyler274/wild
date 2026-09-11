@@ -3,14 +3,11 @@ mod versions;
 
 use super::types::ElfLayout;
 use super::types::TableWriter;
-use crate::bail;
+use crate as elf;
+use crate::ElfClass;
+use crate::Versym;
 use crate::debug_assert_bail;
-use crate::elf;
-use crate::elf::ElfClass;
-use crate::elf::Versym;
-use crate::elf::output_section_id;
-use crate::error::Context as _;
-use crate::error::Result;
+use crate::output_section_id;
 use crate::writable_elf::WritableSymbol as _;
 use object::read::elf::Sym as _;
 use rayon::iter::ParallelBridge as _;
@@ -19,6 +16,9 @@ use rayon::iter::ParallelIterator as _;
 pub(crate) use table::*;
 #[allow(unused_imports)]
 pub(crate) use versions::*;
+use wild_error::bail;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout::DynamicLayout;
 use wild_layout::FileLayout;
 use wild_layout::LinkerScriptLayoutState;

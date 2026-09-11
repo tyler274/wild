@@ -4,12 +4,8 @@ mod rela;
 
 use super::types::ElfLayout;
 use super::types::TableWriter;
-use crate::bail;
-use crate::elf;
-use crate::elf::ElfClass;
-use crate::ensure;
-use crate::error::Context as _;
-use crate::error::Result;
+use crate as elf;
+use crate::ElfClass;
 #[allow(unused_imports)]
 pub(crate) use apply::*;
 #[allow(unused_imports)]
@@ -28,6 +24,10 @@ pub(crate) use rela::*;
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::ops::BitAnd;
+use wild_error::bail;
+use wild_error::ensure;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout::FileLayout;
 use wild_layout::Layout;
 use wild_layout::ObjectLayout;

@@ -1,25 +1,11 @@
 pub use wild_args as args;
 pub use wild_args::Args;
-pub(crate) mod compression;
 pub(crate) mod debug_trace;
 pub(crate) mod diff;
-pub(crate) mod dwarf_address_info;
 pub(crate) mod elf;
-pub(crate) mod elf_aarch64;
-pub(crate) mod elf_loongarch64;
-pub(crate) mod elf_ppc64;
-pub(crate) mod elf_riscv64;
-pub(crate) mod elf_writer;
-pub(crate) mod elf_x86_64;
 pub use wild_error::error;
 pub(crate) mod file_kind;
-pub(crate) mod gdb_index;
 pub(crate) mod input_data;
-#[cfg_attr(
-    not(all(feature = "plugins", unix)),
-    path = "linker_plugins_disabled.rs"
-)]
-mod linker_plugins;
 pub(crate) mod macho;
 pub use wild_error::bail;
 pub use wild_error::debug_assert_bail;
@@ -48,7 +34,6 @@ pub(crate) mod perf;
 #[path = "perf_unsupported.rs"]
 pub(crate) mod perf;
 pub(crate) mod save_dir;
-pub(crate) mod sframe;
 #[cfg(all(feature = "fork", unix))]
 pub(crate) mod subprocess;
 #[cfg(not(all(feature = "fork", unix)))]
@@ -57,9 +42,7 @@ pub(crate) mod subprocess;
 #[cfg(all(test, not(target_family = "wasm")))]
 mod tidy_tests;
 pub(crate) mod timing;
-pub(crate) mod validation;
 pub(crate) mod wasm;
-pub(crate) mod writable_elf;
 
 use crate::args::HasCommonArgs as _;
 use crate::error::Context;
@@ -365,15 +348,18 @@ impl<F: FileSystem> Linker<F> {
 
         if let Some(plugin) = plugin.as_mut()
             && P::plugin_is_initialised(plugin)
+            && let Some(generated) =
+                P::plugin_lto_codegen(plugin, &mut symbol_db, &mut resolver, &mut per_symbol_flags)?
         {
-            P::plugin_all_symbols_read::<F>(
+            let plugin_loaded = file_loader.load_inputs(&generated, args, &mut None)?;
+            P::plugin_integrate_lto_objects(
                 plugin,
                 &mut symbol_db,
                 &mut resolver,
-                file_loader,
                 &mut per_symbol_flags,
                 &mut output_sections,
                 &mut layout_rules_builder,
+                plugin_loaded,
             )?;
         }
 

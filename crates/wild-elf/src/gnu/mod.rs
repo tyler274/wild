@@ -16,9 +16,6 @@ use super::types::File;
 use super::types::SectionTable;
 use super::types::SymbolTable;
 use super::types::Versym;
-use crate::bail;
-use crate::error::Context as _;
-use crate::error::Result;
 #[allow(unused_imports)]
 pub(crate) use ehframe::*;
 use foldhash::HashSet;
@@ -39,6 +36,9 @@ use std::marker::PhantomData;
 use std::sync::atomic::AtomicBool;
 #[allow(unused_imports)]
 pub(crate) use versions::*;
+use wild_error::bail;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout as layout;
 use wild_layout::grouping::Group;
 use wild_layout::layout_rules::SectionKind;
@@ -119,7 +119,7 @@ pub(crate) const SYMTAB_SHNDX_ENTRY_SIZE: u64 = size_of::<SymtabShndxEntry>() as
 pub(crate) const GNU_VERSION_ENTRY_SIZE: u64 = size_of::<Versym>() as u64;
 
 #[derive(Default, Debug, Clone, Copy)]
-pub(crate) struct DynamicTagValues<'data> {
+pub struct DynamicTagValues<'data> {
     pub(crate) verdefnum: u64,
     pub(crate) soname: Option<&'data [u8]>,
 }
@@ -160,7 +160,7 @@ impl<'data> platform::DynamicTagValues<'data> for DynamicTagValues<'data> {
 /// Attributes that we'll take from an input section and apply to the output section into which it's
 /// placed.
 #[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct SectionAttributes<C: ElfClass> {
+pub struct SectionAttributes<C: ElfClass> {
     pub(crate) flags: SectionFlags,
     pub(crate) ty: SectionType,
     pub(crate) entsize: u64,
@@ -317,12 +317,12 @@ impl<C: ElfClass> platform::SectionAttributes for SectionAttributes<C> {
 }
 
 #[derive(Debug)]
-pub(crate) struct GroupLayoutExt {
+pub struct GroupLayoutExt {
     pub(crate) eh_frame_start_address: u64,
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct CommonGroupStateExt {
+pub struct CommonGroupStateExt {
     pub(crate) exception_frame_relocations: usize,
     pub(crate) exception_frame_count: usize,
     /// Symbol names that will be written to `.strtab`. Collected during allocation so they can be
@@ -363,7 +363,7 @@ pub(super) fn has_complete_deps<'data, C: ElfClass>(
 }
 
 #[derive(Debug)]
-pub(crate) struct LayoutResourcesExt<'data> {
+pub struct LayoutResourcesExt<'data> {
     pub(super) sonames: Sonames<'data>,
     pub(super) uses_tlsld: AtomicBool,
 }
@@ -411,7 +411,7 @@ impl EpilogueLayoutExt {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ProgramSegmentDef {
+pub struct ProgramSegmentDef {
     pub(crate) segment_type: SegmentType,
     pub(crate) segment_flags: SegmentFlags,
 }
@@ -542,7 +542,7 @@ impl std::fmt::Display for ProgramSegmentDef {
 }
 
 #[derive(Debug)]
-pub(crate) struct BuiltInSectionDetails<C: ElfClass> {
+pub struct BuiltInSectionDetails<C: ElfClass> {
     pub(crate) kind: SectionKind<'static, Elf<C>>,
     pub(crate) section_flags: SectionFlags,
     /// Sections to try to link to. The first section that we're outputting is the one used.

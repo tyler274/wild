@@ -3,12 +3,9 @@
 //! work unless they're performed. e.g. it uses GOT relocations in _start, which cannot work in a
 //! static-PIE binary because dynamic relocations haven't yet been applied to the GOT yet.
 
-use crate::elf::Elf64;
-use crate::elf::PLT_ENTRY_SIZE;
-use crate::elf::PropertyClass;
-use crate::error;
-use crate::error::Result;
-use crate::malfunction_point_ret;
+use crate::Elf64;
+use crate::PLT_ENTRY_SIZE;
+use crate::PropertyClass;
 use linker_utils::elf::DynamicRelocationKind;
 use linker_utils::elf::RelocationKindInfo;
 use linker_utils::elf::SectionFlags;
@@ -27,12 +24,15 @@ use object::elf::GNU_PROPERTY_X86_UINT32_OR_AND_HI;
 use object::elf::GNU_PROPERTY_X86_UINT32_OR_AND_LO;
 use object::elf::GNU_PROPERTY_X86_UINT32_OR_HI;
 use object::elf::GNU_PROPERTY_X86_UINT32_OR_LO;
+use wild_error::error;
+use wild_error::error::Result;
+use wild_error::malfunction_point_ret;
 use wild_platform::OutputKind;
 use wild_platform::Platform;
 use wild_platform::PreviousRelocationInfo;
 use wild_platform::value_flags::ValueFlags;
 
-pub(crate) struct ElfX86_64;
+pub struct ElfX86_64;
 
 const PLT_ENTRY_TEMPLATE: &[u8] = &[
     0xf3, 0x0f, 0x1e, 0xfa, // endbr64
@@ -101,7 +101,7 @@ impl wild_platform::Arch for ElfX86_64 {
         plt_entry: &mut [u8],
         got_address: u64,
         plt_address: u64,
-    ) -> crate::error::Result {
+    ) -> wild_error::error::Result {
         plt_entry.copy_from_slice(PLT_ENTRY_TEMPLATE);
         let offset: i32 = (got_address.wrapping_sub(plt_address + 0xb) as i64)
             .try_into()
@@ -118,7 +118,7 @@ impl wild_platform::Arch for ElfX86_64 {
         layout.tls_end_address()
     }
 
-    fn get_property_class(property_type: u32) -> Option<crate::elf::PropertyClass> {
+    fn get_property_class(property_type: u32) -> Option<crate::PropertyClass> {
         match property_type {
             GNU_PROPERTY_X86_UINT32_AND_LO..=GNU_PROPERTY_X86_UINT32_AND_HI => {
                 Some(PropertyClass::And)
@@ -493,7 +493,7 @@ impl wild_platform::Arch for ElfX86_64 {
         section: &<Self::Platform as Platform>::SectionHeader,
         offset_in_section: u64,
     ) -> Result<wild_platform::SourceInfo> {
-        crate::dwarf_address_info::get_source_info::<crate::elf::Class64, Self>(
+        crate::dwarf_address_info::get_source_info::<crate::Class64, Self>(
             object,
             relocations,
             section,
@@ -515,7 +515,7 @@ impl wild_platform::Arch for ElfX86_64 {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Relaxation {
+pub struct Relaxation {
     kind: RelaxationKind,
     rel_info: RelocationKindInfo,
     mandatory: bool,
@@ -585,7 +585,7 @@ impl TlsGdForm {
 
 #[test]
 fn test_relaxation() {
-    use crate::args::RelocationModel;
+    use wild_args::RelocationModel;
     use wild_platform::Arch as _;
     use wild_platform::Relaxation as _;
 

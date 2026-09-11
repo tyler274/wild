@@ -1,11 +1,7 @@
-use crate::elf::Elf64;
-use crate::elf::PLT_ENTRY_SIZE;
-use crate::elf::PropertyClass;
-use crate::elf::output_section_id;
-use crate::ensure;
-use crate::error;
-use crate::error::Result;
-use crate::malfunction_point_ret;
+use crate::Elf64;
+use crate::PLT_ENTRY_SIZE;
+use crate::PropertyClass;
+use crate::output_section_id;
 use linker_utils::aarch64::RelaxationKind;
 use linker_utils::aarch64::relocation_type_from_raw;
 use linker_utils::bit_misc::BitExtraction;
@@ -21,13 +17,17 @@ use linker_utils::elf::aarch64_rel_type_to_string;
 use linker_utils::elf::shf;
 use linker_utils::relaxation::RelocationModifier;
 use object::elf::GNU_PROPERTY_AARCH64_FEATURE_1_AND;
+use wild_error::ensure;
+use wild_error::error;
+use wild_error::error::Result;
+use wild_error::malfunction_point_ret;
 use wild_layout::Layout;
 use wild_platform::ObjectFile as _;
 use wild_platform::Platform;
 use wild_platform::PreviousRelocationInfo;
 use wild_util::alignment::Alignment;
 
-pub(crate) struct ElfAArch64;
+pub struct ElfAArch64;
 
 const PLT_ENTRY_TEMPLATE: &[u8] = &[
     0x10, 0x00, 0x00, 0x90, // adrp x16, page(&(.got.plt[n]))
@@ -112,7 +112,7 @@ impl wild_platform::Arch for ElfAArch64 {
         plt_entry: &mut [u8],
         got_address: u64,
         plt_address: u64,
-    ) -> crate::error::Result {
+    ) -> wild_error::error::Result {
         // TODO: For simplicity, we assume now the PLT entry precedes the GOT entry, so we can
         // make the offset calculation in the unsigned type.
         debug_assert!(plt_address < got_address);
@@ -381,7 +381,7 @@ impl wild_platform::Arch for ElfAArch64 {
         section: &<Self::Platform as Platform>::SectionHeader,
         offset_in_section: u64,
     ) -> Result<wild_platform::SourceInfo> {
-        crate::dwarf_address_info::get_source_info::<crate::elf::Class64, Self>(
+        crate::dwarf_address_info::get_source_info::<crate::Class64, Self>(
             object,
             relocations,
             section,
@@ -418,7 +418,7 @@ impl wild_platform::Arch for ElfAArch64 {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Relaxation {
+pub struct Relaxation {
     kind: RelaxationKind,
     rel_info: RelocationKindInfo,
     mandatory: bool,

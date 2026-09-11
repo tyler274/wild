@@ -822,7 +822,6 @@ dependencies = [
  "bitflags",
  "blake3",
  "bytesize",
- "cc",
  "colored",
  "colosseum",
  "crossbeam-queue",
@@ -839,7 +838,6 @@ dependencies = [
  "jobserver",
  "leb128",
  "libc",
- "libloading",
  "linker-layout",
  "linker-utils",
  "memchr",
@@ -864,6 +862,7 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "wild-args",
+ "wild-elf",
  "wild-error",
  "wild-fs",
  "wild-layout",
@@ -875,7 +874,6 @@ dependencies = [
  "winnow",
  "zerocopy",
  "zlib-rs",
- "zstd",
 ]
 
 [[package]]
@@ -2171,6 +2169,51 @@ dependencies = [
  "wild-platform",
  "wild-scripts",
  "wild-util",
+]
+
+[[package]]
+name = "wild-elf"
+version = "0.10.0"
+dependencies = [
+ "anyhow",
+ "bitflags",
+ "blake3",
+ "bytesize",
+ "cc",
+ "crossbeam-utils",
+ "derive_more",
+ "flate2",
+ "foldhash 0.2.0",
+ "gimli 0.34.0",
+ "hashbrown 0.17.1",
+ "hex",
+ "indexmap",
+ "itertools 0.15.0",
+ "leb128",
+ "libc",
+ "libloading",
+ "linker-utils",
+ "memchr",
+ "nix",
+ "object 0.40.0",
+ "perfetto-recorder",
+ "rayon",
+ "sha2",
+ "sharded-vec-writer",
+ "smallvec",
+ "thread_local",
+ "tracing",
+ "uuid",
+ "wild-args",
+ "wild-error",
+ "wild-fs",
+ "wild-layout",
+ "wild-platform",
+ "wild-scripts",
+ "wild-util",
+ "zerocopy",
+ "zlib-rs",
+ "zstd",
 ]
 
 [[package]]

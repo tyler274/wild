@@ -3,13 +3,13 @@
 //! Output validation stays with the ELF write path (`elf_writer` calls this when
 //! `--validate-output` / `WILD_VALIDATE_OUTPUT=1` is set). Integration tests always enable that.
 
-use crate::elf;
-use crate::elf::ElfClass;
-use crate::error::Context as _;
-use crate::error::Result;
+use crate as elf;
+use crate::ElfClass;
 use linker_utils::elf::secnames::GOT_SECTION_NAME_STR;
 use object::LittleEndian;
 use object::read::elf::SectionHeader as _;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout::Layout;
 use wild_platform::ObjectFile as _;
 use wild_platform::Platform;

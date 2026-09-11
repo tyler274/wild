@@ -17,11 +17,7 @@ use super::types::Elf;
 use super::types::ElfClass;
 use super::types::File;
 use super::types::Versym;
-use crate::args::elf::ElfArgs;
-use crate::bail;
 use crate::debug_assert_bail;
-use crate::error::Context as _;
-use crate::error::Result;
 use crate::gdb_index::InputDebugIndexSection;
 #[allow(unused_imports)]
 pub(crate) use copy::*;
@@ -39,6 +35,10 @@ pub(crate) use relr::*;
 #[allow(unused_imports)]
 pub(crate) use rules::*;
 use std::num::NonZeroU64;
+use wild_args::elf::ElfArgs;
+use wild_error::bail;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout as layout;
 use wild_layout::CommonGroupState;
 use wild_layout::ObjectLayout;
@@ -126,7 +126,7 @@ impl<C: ElfClass> Elf<C> {
             kind: Self::primary_section(PLT_GOT_SECTION_NAME),
             ty: sht::PROGBITS,
             section_flags: shf::ALLOC.with(shf::EXECINSTR),
-            element_size: crate::elf::PLT_ENTRY_SIZE,
+            element_size: crate::PLT_ENTRY_SIZE,
             min_alignment: alignment::PLT,
             ..Self::DEFAULT_DEFS
         };
@@ -424,7 +424,7 @@ impl<C: ElfClass> Elf<C> {
 impl<C: ElfClass> platform::BuiltInSectionDetails for BuiltInSectionDetails<C> {}
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct DynamicSymbolDefinitionExt {
+pub struct DynamicSymbolDefinitionExt {
     pub(crate) hash: u32,
     pub(crate) version: object::elf::VersymIndex,
     /// GNU ld emits an empty `STT_OBJECT` / `SHN_ABS` dynamic symbol named after
@@ -482,19 +482,19 @@ pub(super) fn load_section_relocations<
 }
 
 #[derive(Default, Debug)]
-pub(crate) struct PreludeLayoutStateExt {
+pub struct PreludeLayoutStateExt {
     pub(super) needs_tlsld_got_entry: bool,
     pub(super) shstrtab_size: u64,
 }
 
 #[derive(Default, Debug)]
-pub(crate) struct PreludeLayoutExt {
+pub struct PreludeLayoutExt {
     pub(crate) got_plt_header_entries: u64,
     pub(crate) tlsld_got_entry: Option<NonZeroU64>,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
-pub(crate) struct ResolutionExt {
+pub struct ResolutionExt {
     /// The base GOT address for this resolution. For pointers to symbols the GOT entry will
     /// contain a single pointer. For TLS variables there can be up to 3 pointers. If
     /// ValueFlags::GOT_TLS_OFFSET is set, then that will be the first value. If
@@ -505,7 +505,7 @@ pub(crate) struct ResolutionExt {
 }
 
 #[derive(Debug, Default, Clone, Copy)]
-pub(crate) struct SymtabShndxEntry {
+pub struct SymtabShndxEntry {
     pub(crate) _shndx: u32,
 }
 
@@ -659,7 +659,7 @@ pub(crate) fn value_with_addend<'data, C: ElfClass>(
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct ResolvedObjectExt<'data> {
+pub struct ResolvedObjectExt<'data> {
     pub(super) debug_index_sections: Vec<InputDebugIndexSection<'data>>,
 }
 

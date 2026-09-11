@@ -1,13 +1,13 @@
 use super::*;
-use crate::elf;
-use crate::elf::ElfClass;
-use crate::ensure;
-use crate::error::Result;
+use crate as elf;
+use crate::ElfClass;
 use object::LittleEndian;
 use object::read::elf::Crel;
 use object::read::elf::SectionHeader as _;
 use std::collections::BTreeMap;
 use tracing::debug_span;
+use wild_error::ensure;
+use wild_error::error::Result;
 use wild_layout::ObjectLayout;
 use wild_layout::PartialLinkSingleton;
 use wild_layout::Section;
@@ -186,7 +186,7 @@ pub(crate) fn write_thunks<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(
                 .symbol_name(*symbol_id)
                 .map(|n| n.bytes().to_vec())
                 .unwrap_or_default();
-            let mut thunk_name = crate::elf::THUNK_SYMBOL_PREFIX.as_bytes().to_vec();
+            let mut thunk_name = crate::THUNK_SYMBOL_PREFIX.as_bytes().to_vec();
             thunk_name.extend_from_slice(&orig_name);
             let entry = symbol_writer.define_symbol(
                 true,

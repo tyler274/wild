@@ -10,7 +10,7 @@ mod section_mapping {
 
     #[test]
     fn test_section_mapping() {
-        let rules = SectionRules::from_rules(&crate::elf::Elf64::default_layout_rules(
+        let rules = SectionRules::from_rules(&wild_elf::Elf64::default_layout_rules(
             &crate::args::elf::ElfArgs::new().unwrap(),
         ));
         let header = object::elf::SectionHeader64::<object::LittleEndian> {
@@ -26,13 +26,13 @@ mod section_mapping {
             sh_entsize: Default::default(),
         };
         let lookup_name = |name: &str| {
-            rules.lookup::<crate::elf::Elf64>(name.as_bytes(), None, &header, &HashSet::new())
+            rules.lookup::<wild_elf::Elf64>(name.as_bytes(), None, &header, &HashSet::new())
         };
 
         assert_eq!(
             lookup_name(".comment"),
             SectionRuleOutcome::Section(SectionOutputInfo {
-                section_id: crate::elf::output_section_id::COMMENT,
+                section_id: wild_elf::output_section_id::COMMENT,
                 must_keep: true,
                 sorted: false,
                 sort_by_init_priority: false,
@@ -46,7 +46,7 @@ mod section_mapping {
             ..header
         };
         assert_eq!(
-            rules.lookup::<crate::elf::Elf64>(b".rela.data", None, &rela_header, &HashSet::new()),
+            rules.lookup::<wild_elf::Elf64>(b".rela.data", None, &rela_header, &HashSet::new()),
             SectionRuleOutcome::Discard
         );
 
@@ -55,7 +55,7 @@ mod section_mapping {
             ..header
         };
         assert_eq!(
-            rules.lookup::<crate::elf::Elf64>(b".symtab", None, &symtab_header, &HashSet::new()),
+            rules.lookup::<wild_elf::Elf64>(b".symtab", None, &symtab_header, &HashSet::new()),
             SectionRuleOutcome::Discard
         );
     }
@@ -72,8 +72,8 @@ mod no_disallowed_overlaps {
 
     #[test]
     fn test_no_disallowed_overlaps() {
-        use crate::elf::Elf64;
         use hashbrown::HashMap;
+        use wild_elf::Elf64;
         use wild_layout::output_section_id::OrderEvent;
         use wild_layout::output_section_id::OutputSectionId;
 
@@ -219,9 +219,9 @@ mod no_disallowed_overlaps {
 }
 
 mod expression_eval {
-    use crate::elf::Elf64;
     use crate::error::Result;
     use hashbrown::HashMap;
+    use wild_elf::Elf64;
     use wild_layout::MemoryRegion;
     use wild_layout::OutputRecordLayout;
     use wild_layout::expression_eval::*;
@@ -842,7 +842,7 @@ mod part_ids {
 
     #[test]
     fn test_platform_part_id_invariants() {
-        check_platform_part_ids::<crate::elf::Elf64>();
+        check_platform_part_ids::<wild_elf::Elf64>();
         check_platform_part_ids::<wild_macho::MachO>();
         check_platform_part_ids::<wild_wasm::Wasm>();
     }
@@ -858,7 +858,7 @@ mod output_section_part_map {
 
     #[test]
     fn test_merge_parts() {
-        use crate::elf::Elf64;
+        use wild_elf::Elf64;
 
         let output_sections =
             wild_layout::output_section_id::OutputSections::<Elf64>::for_testing();
@@ -942,14 +942,14 @@ mod output_section_part_map {
         });
 
         assert_eq!(*merged.get(wild_layout::output_section_id::FILE_HEADER), 42);
-        assert_eq!(*merged.get(crate::elf::output_section_id::TEXT), 0);
-        assert_eq!(*merged.get(crate::elf::output_section_id::BSS), 0);
+        assert_eq!(*merged.get(wild_elf::output_section_id::TEXT), 0);
+        assert_eq!(*merged.get(wild_elf::output_section_id::BSS), 0);
     }
 
     #[test]
     fn test_mut_with_map() {
         let output_sections =
-            wild_layout::output_section_id::OutputSections::<crate::elf::Elf64>::for_testing();
+            wild_layout::output_section_id::OutputSections::<wild_elf::Elf64>::for_testing();
         let mut input1 = output_sections.new_part_map::<u32>().map(|_, _| 1);
         let input2 = output_sections.new_part_map::<u32>().map(|_, _| 2);
         let expected = output_sections.new_part_map::<u32>().map(|_, _| 3);
@@ -960,7 +960,7 @@ mod output_section_part_map {
     #[test]
     fn test_merge() {
         let output_sections =
-            wild_layout::output_section_id::OutputSections::<crate::elf::Elf64>::for_testing();
+            wild_layout::output_section_id::OutputSections::<wild_elf::Elf64>::for_testing();
         let mut input1 = output_sections.new_part_map::<u32>().map(|_, _| 1);
         let input2 = output_sections.new_part_map::<u32>().map(|_, _| 2);
         let expected = output_sections.new_part_map::<u32>().map(|_, _| 3);
@@ -974,11 +974,11 @@ mod output_section_part_map {
     /// being anyway.
     #[test]
     fn test_output_order_map_consistent() {
-        use crate::elf::Elf64;
         use itertools::Itertools;
+        use wild_elf::Elf64;
 
         let output_sections =
-            wild_layout::output_section_id::OutputSections::<crate::elf::Elf64>::for_testing();
+            wild_layout::output_section_id::OutputSections::<wild_elf::Elf64>::for_testing();
         let (output_order, _program_segments) = output_sections
             .output_order(
                 wild_platform::OutputKind::StaticExecutable(crate::args::RelocationModel::Fixed),
@@ -1048,8 +1048,8 @@ mod output_section_part_map {
 
     #[test]
     fn test_output_order_map() {
-        use crate::elf::Elf64;
-        use crate::elf::output_section_id;
+        use wild_elf::Elf64;
+        use wild_elf::output_section_id;
 
         let output_sections =
             wild_layout::output_section_id::OutputSections::<Elf64>::for_testing();
@@ -1098,8 +1098,8 @@ mod output_section_part_map {
 
     #[test]
     fn test_max_alignment() {
-        use crate::elf::Elf64;
-        use crate::elf::output_section_id;
+        use wild_elf::Elf64;
+        use wild_elf::output_section_id;
 
         let output_sections =
             wild_layout::output_section_id::OutputSections::<Elf64>::for_testing();

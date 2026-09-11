@@ -1,6 +1,6 @@
-use crate::error::Result;
 use std::path::Path;
 use std::path::PathBuf;
+use wild_error::error::Result;
 
 pub(super) fn discover_llvm_gold_plugin() -> Result<PathBuf> {
     let rustc_llvm = rustc_llvm_version();
@@ -39,7 +39,7 @@ pub(super) fn discover_llvm_gold_plugin() -> Result<PathBuf> {
     }
 
     candidates.into_iter().find(|p| p.is_file()).ok_or_else(|| {
-        crate::error!(
+        wild_error::error!(
             "Input file contains LLVM-IR, but linker plugin was not supplied and LLVMgold.so could not be found"
         )
     })
@@ -53,7 +53,7 @@ pub(super) fn discover_gcc_lto_plugin() -> Result<PathBuf> {
             return Ok(PathBuf::from(path));
         }
     }
-    crate::bail!(
+    wild_error::bail!(
         "Input file contains GCC-IR, but linker plugin was not supplied and liblto_plugin.so could not be found"
     )
 }

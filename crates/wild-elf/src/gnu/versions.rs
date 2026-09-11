@@ -1,23 +1,23 @@
-use crate::args::elf::ElfArgs;
 #[allow(unused_imports)]
-use crate::elf::abi::*;
+use crate::abi::*;
 #[allow(unused_imports)]
-use crate::elf::file::*;
+use crate::file::*;
 #[allow(unused_imports)]
-use crate::elf::output::*;
-use crate::elf::part_id;
+use crate::output::*;
+use crate::part_id;
 #[allow(unused_imports)]
-use crate::elf::types::Elf;
-use crate::elf::types::ElfClass;
-use crate::elf::types::File;
-use crate::elf::types::GnuHashHeader;
-use crate::elf::types::VerdefIterator;
-use crate::elf::types::Versym;
-use crate::error::Context as _;
-use crate::error::Result;
+use crate::types::Elf;
+use crate::types::ElfClass;
+use crate::types::File;
+use crate::types::GnuHashHeader;
+use crate::types::VerdefIterator;
+use crate::types::Versym;
 use hashbrown::HashMap;
 use object::LittleEndian;
 use rayon::prelude::*;
+use wild_args::elf::ElfArgs;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout::DynamicSymbolDefinition;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::symbol_db::SymbolDb;
@@ -26,12 +26,12 @@ use wild_platform as platform;
 use wild_platform::OutputKind;
 use wild_platform::Platform;
 
-pub(crate) struct VersionNames<'data> {
+pub struct VersionNames<'data> {
     pub(crate) names: Vec<Option<&'data [u8]>>,
 }
 
 #[derive(Debug)]
-pub(crate) struct RawSymbolName<'data> {
+pub struct RawSymbolName<'data> {
     pub(crate) name: &'data [u8],
 
     pub(crate) version_name: Option<&'data [u8]>,
@@ -94,7 +94,7 @@ impl std::fmt::Display for RawSymbolName<'_> {
     }
 }
 
-pub(crate) struct VerneedTable<'data> {
+pub struct VerneedTable<'data> {
     pub(crate) versym: &'data [Versym],
     pub(crate) version_names_by_index: Vec<Option<&'data [u8]>>,
 }
@@ -158,7 +158,7 @@ pub(crate) struct VerneedInfo<'data, C: ElfClass> {
 }
 
 #[derive(Default)]
-pub(crate) struct DynamicLayoutStateExt<'data, C: ElfClass> {
+pub struct DynamicLayoutStateExt<'data, C: ElfClass> {
     /// Which symbol versions are needed. A symbol version is needed if a symbol with that version
     /// has been loaded. The first version has index 1, so we store it at offset 0.
     pub(crate) symbol_versions_needed: Vec<bool>,
@@ -172,7 +172,7 @@ pub(crate) struct DynamicLayoutStateExt<'data, C: ElfClass> {
 }
 
 #[derive(Debug)]
-pub(crate) struct DynamicLayoutExt<'data, C: ElfClass> {
+pub struct DynamicLayoutExt<'data, C: ElfClass> {
     /// Mapping from input versions to output versions. Input version 1 is at index 0.
     pub(crate) version_mapping: Vec<object::elf::VersionIndex>,
 
@@ -185,7 +185,7 @@ pub(crate) struct DynamicLayoutExt<'data, C: ElfClass> {
 }
 
 #[derive(Clone, Copy, Default)]
-pub(crate) struct NonAddressableIndexes {
+pub struct NonAddressableIndexes {
     /// The version index that will be used for the next `.gnu.version_r` entry that we define.
     pub(crate) next_gnu_version_r_index: object::elf::VersionIndex,
 }
@@ -212,7 +212,7 @@ pub(crate) struct CopyRelocationInfo {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-pub(crate) struct NonAddressableCounts {
+pub struct NonAddressableCounts {
     /// The number of shared objects that want to emit a verneed record.
     pub(crate) verneed_count: u64,
     /// The number of verdef records provided in version script.
@@ -220,7 +220,7 @@ pub(crate) struct NonAddressableCounts {
 }
 
 #[derive(Debug)]
-pub(crate) struct EpilogueLayoutExt {
+pub struct EpilogueLayoutExt {
     pub(crate) sysv_hash_layout: Option<SysvHashLayout>,
     pub(crate) gnu_hash_layout: Option<GnuHashLayout>,
     pub(crate) verdefs: Option<Vec<VersionDef>>,
@@ -315,7 +315,7 @@ impl SysvHashLayout {
 
 pub(crate) fn finalise_gnu_version_size<'data, C: ElfClass>(
     mem_sizes: &mut OutputSectionPartMap<u64>,
-    symbol_db: &SymbolDb<'data, crate::elf::Elf<C>>,
+    symbol_db: &SymbolDb<'data, crate::Elf<C>>,
 ) {
     if symbol_db.output_kind.should_output_symbol_versions() {
         let num_dynamic_symbols = mem_sizes.get(part_id::DYNSYM) / C::SYMTAB_ENTRY_SIZE;
@@ -325,6 +325,6 @@ pub(crate) fn finalise_gnu_version_size<'data, C: ElfClass>(
         // done finalising the group sizes, the GNU_VERSION size should be consistent with the
         // DYNSYM size.
         *mem_sizes.get_mut(part_id::GNU_VERSION) =
-            num_dynamic_symbols * crate::elf::GNU_VERSION_ENTRY_SIZE;
+            num_dynamic_symbols * crate::GNU_VERSION_ENTRY_SIZE;
     }
 }

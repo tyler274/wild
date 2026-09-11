@@ -1,17 +1,17 @@
-use crate::bail;
-use crate::elf::Elf64;
-use crate::error;
-use crate::error::Result;
+use crate::Elf64;
 use linker_utils::bit_misc::BitExtraction;
 use linker_utils::elf::DynamicRelocationKind;
 use linker_utils::elf::RelocationKindInfo;
 use linker_utils::elf::ppc64_rel_type_to_string;
 use linker_utils::ppc64::RelaxationKind;
 use linker_utils::relaxation::RelocationModifier;
+use wild_error::bail;
+use wild_error::error;
+use wild_error::error::Result;
 use wild_platform::Platform;
 use wild_platform::PreviousRelocationInfo;
 
-pub(crate) struct ElfPpc64;
+pub struct ElfPpc64;
 
 impl wild_platform::Arch for ElfPpc64 {
     type Relaxation = Relaxation;
@@ -49,7 +49,7 @@ impl wild_platform::Arch for ElfPpc64 {
         _plt_entry: &mut [u8],
         _got_address: u64,
         _plt_address: u64,
-    ) -> crate::error::Result {
+    ) -> wild_error::error::Result {
         bail!("PLT generation for ppc64 is not yet implemented");
     }
 
@@ -63,7 +63,7 @@ impl wild_platform::Arch for ElfPpc64 {
         0x8000
     }
 
-    fn get_property_class(_property_type: u32) -> Option<crate::elf::PropertyClass> {
+    fn get_property_class(_property_type: u32) -> Option<crate::PropertyClass> {
         None
     }
 
@@ -112,7 +112,7 @@ impl wild_platform::Arch for ElfPpc64 {
         section: &<Self::Platform as Platform>::SectionHeader,
         offset_in_section: u64,
     ) -> Result<wild_platform::SourceInfo> {
-        crate::dwarf_address_info::get_source_info::<crate::elf::Class64, Self>(
+        crate::dwarf_address_info::get_source_info::<crate::Class64, Self>(
             object,
             relocations,
             section,
@@ -124,7 +124,7 @@ impl wild_platform::Arch for ElfPpc64 {
 // Relaxations are not yet implemented for ppc64, so `new_relaxation` always returns `None` and
 // this type is never constructed.
 #[derive(Debug, Clone)]
-pub(crate) struct Relaxation {
+pub struct Relaxation {
     kind: RelaxationKind,
     rel_info: RelocationKindInfo,
     mandatory: bool,

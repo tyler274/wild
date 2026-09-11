@@ -3,12 +3,12 @@
 //! object is much higher level and not suitable for our uses. In this module, we define our own
 //! traits to abstract over writing to these structs.
 
-use crate::Result;
-use crate::error;
 use object::LittleEndian;
 use object::elf::SectionFlags;
+use wild_error::error;
+use wild_error::error::Result;
 
-pub(crate) trait WritableFileHeader {
+pub trait WritableFileHeader {
     const CLASS: object::elf::FileClass;
     fn ident_mut(&mut self) -> &mut object::elf::Ident;
     fn set_type(&mut self, value: object::elf::FileType);
@@ -26,7 +26,7 @@ pub(crate) trait WritableFileHeader {
     fn set_section_name_table_index(&mut self, value: object::elf::SymbolSection);
 }
 
-pub(crate) trait WritableProgramHeader {
+pub trait WritableProgramHeader {
     fn set_type(&mut self, value: object::elf::ProgramType);
     fn set_flags(&mut self, value: object::elf::ProgramFlags);
     fn set_offset(&mut self, value: u64) -> Result;
@@ -37,7 +37,7 @@ pub(crate) trait WritableProgramHeader {
     fn set_alignment(&mut self, value: u64) -> Result;
 }
 
-pub(crate) trait WritableSectionHeader {
+pub trait WritableSectionHeader {
     fn set_name(&mut self, value: u32);
     fn set_type(&mut self, value: object::elf::SectionType);
     fn set_flags(&mut self, value: SectionFlags) -> Result;
@@ -50,13 +50,13 @@ pub(crate) trait WritableSectionHeader {
     fn set_entry_size(&mut self, value: u64) -> Result;
 }
 
-pub(crate) trait WritableCompressionHeader {
+pub trait WritableCompressionHeader {
     fn set_type(&mut self, value: object::elf::CompressionType);
     fn set_size(&mut self, value: u64) -> Result;
     fn set_alignment(&mut self, value: u64) -> Result;
 }
 
-pub(crate) trait WritableSymbol {
+pub trait WritableSymbol {
     fn set_name(&mut self, value: u32);
     fn set_info(&mut self, value: object::elf::SymbolInfo);
     fn set_binding_and_type(
@@ -72,22 +72,22 @@ pub(crate) trait WritableSymbol {
     fn set_size(&mut self, value: u64) -> Result;
 }
 
-pub(crate) trait WritableDynamicEntry {
+pub trait WritableDynamicEntry {
     fn set_tag(&mut self, value: object::elf::DynamicTag) -> Result;
     fn set_value(&mut self, value: u64) -> Result;
 }
 
-pub(crate) trait WritableRela {
+pub trait WritableRela {
     fn set_offset(&mut self, value: u64) -> Result;
     fn set_addend(&mut self, value: i64) -> Result;
     fn set_info(&mut self, symbol: u32, r_type: object::elf::RelocationType) -> Result;
 }
 
-pub(crate) trait WritableRelr: Send + Sync {
+pub trait WritableRelr: Send + Sync {
     fn set_value(&mut self, value: u64) -> Result;
 }
 
-pub(crate) trait WritableNoteHeader {
+pub trait WritableNoteHeader {
     fn set_name_size(&mut self, value: u32);
     fn set_descriptor_size(&mut self, value: u32);
     fn set_type(&mut self, value: object::elf::NoteType);

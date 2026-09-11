@@ -1,8 +1,8 @@
-use crate::bail;
-use crate::error::Context as _;
-use crate::error::Result;
 use std::convert::TryFrom;
 use std::convert::TryInto;
+use wild_error::bail;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout::timing_phase;
 use wild_platform as platform;
 
@@ -238,11 +238,11 @@ pub(crate) fn sort_sframe_section(
             // Find the length of the FRE data for this function.
             // It extends from curr_fre_offset to the next offset in our sorted list.
             let idx = fre_offsets.binary_search(&curr_fre_offset).map_err(|_| {
-                crate::error::Error::with_message("FRE offset not found in sorted list")
+                wild_error::error::Error::with_message("FRE offset not found in sorted list")
             })?;
 
             let next_fre_offset = *fre_offsets.get(idx + 1).ok_or_else(|| {
-                crate::error::Error::with_message("FRE offset index out of bounds")
+                wild_error::error::Error::with_message("FRE offset index out of bounds")
             })?;
 
             let curr_fre_len = (next_fre_offset - curr_fre_offset) as usize;

@@ -1,18 +1,12 @@
 use super::dynamic::*;
 use super::symbols::*;
-use crate::args::elf::ElfArgs;
-use crate::bail;
+use crate as elf;
+use crate::EhFrameHdr;
+use crate::EhFrameHdrEntry;
+use crate::ElfClass;
+use crate::ElfWord as _;
 use crate::debug_assert_bail;
-use crate::elf;
-use crate::elf::EhFrameHdr;
-use crate::elf::EhFrameHdrEntry;
-use crate::elf::ElfClass;
-use crate::elf::ElfWord as _;
-use crate::elf::part_id;
-use crate::ensure;
-use crate::error;
-use crate::error::Context as _;
-use crate::error::Result;
+use crate::part_id;
 use crate::writable_elf::WritableRela as _;
 use crate::writable_elf::WritableRelr as _;
 use linker_utils::elf::DynamicRelocationKind;
@@ -20,6 +14,12 @@ use linker_utils::utils::slice_from_all_bytes_mut;
 use std::ops::Not as _;
 use std::ops::Range;
 use std::ops::Sub;
+use wild_args::elf::ElfArgs;
+use wild_error::bail;
+use wild_error::ensure;
+use wild_error::error;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout::Layout;
 use wild_layout::Resolution;
 use wild_layout::compute_allocations;
@@ -172,7 +172,7 @@ impl<'layout, 'out, C: ElfClass> TableWriter<'layout, 'out, C> {
         let has_dynamic_symbol =
             res.flags.is_dynamic() || (flags.needs_export_dynamic() && res.flags.is_interposable());
         let is_got_relr =
-            crate::elf::is_got_relr_eligible(res.flags, has_dynamic_symbol, args, self.output_kind);
+            crate::is_got_relr_eligible(res.flags, has_dynamic_symbol, args, self.output_kind);
         let got_entry = if is_got_relr {
             self.take_next_got_relr_entry()?
         } else {

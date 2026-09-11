@@ -1,18 +1,18 @@
 // Code related to output compression, in particular compression of debug sections. Input
 // compression is handled elsewhere.
 
-use crate::bail;
-use crate::elf;
-use crate::elf::ElfClass;
+use crate as elf;
+use crate::ElfClass;
 use crate::elf_writer;
 use crate::elf_writer::apply_debug_relocations;
-use crate::error::Result;
 use crate::writable_elf::WritableCompressionHeader as _;
 use object::bytes_of;
 use object::elf::CompressionType;
 use rayon::iter::IntoParallelIterator as _;
 use rayon::iter::IntoParallelRefIterator as _;
 use rayon::iter::ParallelIterator as _;
+use wild_error::bail;
+use wild_error::error::Result;
 use wild_layout::CompressedSection;
 use wild_layout::EnginePlatform;
 use wild_layout::FileLayout;
@@ -94,10 +94,10 @@ pub(crate) fn maybe_compress_debug_sections_elf<C: ElfClass, A: Arch<Platform = 
     }
 
     match compression_kind {
-        crate::args::elf::CompressionKind::Zlib => {
+        wild_args::elf::CompressionKind::Zlib => {
             compress_sections::<C, A, ZlibCompressor>(layout, &debug_sections)?;
         }
-        crate::args::elf::CompressionKind::Zstd => {
+        wild_args::elf::CompressionKind::Zstd => {
             compress_sections::<C, A, ZstdCompressor>(layout, &debug_sections)?;
         }
     }
@@ -189,8 +189,8 @@ impl SectionCompressor for ZstdCompressor {
     }
 }
 
-fn zlib_deflate_error(error: DeflateError) -> crate::error::Error {
-    crate::error::Error::with_message(format!("zlib compression failed: {error:?}"))
+fn zlib_deflate_error(error: DeflateError) -> wild_error::error::Error {
+    wild_error::error::Error::with_message(format!("zlib compression failed: {error:?}"))
 }
 
 fn shard_size(uncompressed_len: usize) -> usize {

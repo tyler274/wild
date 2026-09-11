@@ -9,22 +9,8 @@
 //! up having to make quite a bit of use of thread locals in order to get state to where it needs to
 //! be.
 
-use crate::FileSystem;
-use crate::args::Input;
-use crate::args::Modifiers;
-use crate::args::elf::ElfArgs;
-use crate::bail;
-use crate::elf::Elf;
-use crate::elf::ElfClass;
-use crate::error;
-use crate::error::Context as _;
-use crate::error::Result;
-use crate::file_kind::FileKind;
-use crate::input_data::FileLoader;
-use crate::input_data::FileLoaderExt as _;
-use crate::input_data::InputRef;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
+use crate::Elf;
+use crate::ElfClass;
 use crossbeam_utils::atomic::AtomicCell;
 use libloading::Library;
 use std::ffi::CStr;
@@ -35,16 +21,28 @@ use std::os::fd::AsRawFd as _;
 use std::os::fd::RawFd;
 use std::path::Path;
 use std::path::PathBuf;
+use wild_args::Input;
+use wild_args::InputRef;
+use wild_args::Modifiers;
+use wild_args::elf::ElfArgs;
+use wild_error::bail;
 use wild_error::env;
+use wild_error::error;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout::grouping::PluginSymbol;
 use wild_layout::grouping::UnsequencedLtoInput;
 use wild_layout::layout_rules::LayoutRulesBuilder;
 use wild_layout::output_section_id::OutputSections;
 use wild_layout::resolution::ResolvedFile;
 use wild_layout::resolution::Resolver;
+use wild_layout::symbol_db::LoadedInputs;
 use wild_layout::symbol_db::SymbolDb;
+use wild_layout::timing_phase;
+use wild_layout::verbose_timing_phase;
 use wild_platform::Args as _;
 use wild_platform::FileId;
+use wild_platform::FileKind;
 use wild_platform::RawSymbolName as _;
 use wild_platform::value_flags::PerSymbolFlags;
 use wild_util::arena::Herd;
@@ -62,7 +60,7 @@ pub(crate) use lto::*;
 /// plugin to it. Old outputs will be deleted, but only if the directory looks like one we produced.
 const SAVE_VAR_NAME: &str = "WILD_SAVE_PLUGIN_OUTPUTS";
 
-pub(crate) struct LinkerPlugin<'data> {
+pub struct LinkerPlugin<'data> {
     store: Store<'data>,
     herd: &'data Herd,
     wrap_symbols: WrapSymbols<'data>,
@@ -154,7 +152,7 @@ impl<'data> LinkerPlugin<'data> {
         match kind {
             FileKind::LlvmIr => discover::discover_llvm_gold_plugin(),
             FileKind::GccIr => discover::discover_gcc_lto_plugin(),
-            _ => crate::bail!("No linker plugin is applicable for {kind}"),
+            _ => wild_error::bail!("No linker plugin is applicable for {kind}"),
         }
     }
 
@@ -186,20 +184,17 @@ impl<'data> LinkerPlugin<'data> {
     }
 
     /// Notify the plugin that all symbols have now been read. This will cause it to build
-    /// additional object files that it will then pass to us for processing.
-    pub(crate) fn all_symbols_read<F: FileSystem, C: ElfClass>(
+    /// additional object files that the driver then loads.
+    pub(crate) fn lto_codegen<C: ElfClass>(
         &mut self,
         symbol_db: &mut SymbolDb<'data, Elf<C>>,
         resolver: &mut Resolver<'data, Elf<C>>,
-        file_loader: &mut FileLoader<'data, F>,
         per_symbol_flags: &mut PerSymbolFlags,
-        output_sections: &mut OutputSections<'data, Elf<C>>,
-        layout_rules_builder: &mut LayoutRulesBuilder<'data>,
-    ) -> Result {
+    ) -> Result<Option<Vec<Input>>> {
         // If no LTO files were activated, and we proceed with LTO, the GCC plugin tries to invoke
         // GCC with no input file, resulting in an error.
         if !has_loaded_lto_input(&resolver.resolved_groups) {
-            return Ok(());
+            return Ok(None);
         }
 
         // Plugin codegen objects are given the command-line position of the first LTO input
@@ -233,9 +228,18 @@ impl<'data> LinkerPlugin<'data> {
             plugin_outputs.save_to(Path::new(&dir_name))?;
         }
 
-        let plugin_loaded =
-            file_loader.load_inputs(&plugin_outputs.generated_inputs, symbol_db.args, &mut None)?;
+        Ok(Some(plugin_outputs.generated_inputs))
+    }
 
+    pub(crate) fn integrate_lto_objects<C: ElfClass>(
+        &mut self,
+        symbol_db: &mut SymbolDb<'data, Elf<C>>,
+        resolver: &mut Resolver<'data, Elf<C>>,
+        per_symbol_flags: &mut PerSymbolFlags,
+        output_sections: &mut OutputSections<'data, Elf<C>>,
+        layout_rules_builder: &mut LayoutRulesBuilder<'data>,
+        plugin_loaded: LoadedInputs<'data, Elf<C>>,
+    ) -> Result {
         // Temporarily restore original (pre-wrap) name mappings so that definitions of wrapped
         // names in the LTO output are registered as alternatives of the original symbols rather
         // than of `__wrap_*`.
@@ -395,8 +399,8 @@ impl LoadedPlugin {
 
         let output_kind = if args.should_output_executable {
             match args.common.relocation_model {
-                crate::args::RelocationModel::Fixed => OutputFileType::Exec,
-                crate::args::RelocationModel::PositionIndependent => OutputFileType::Pie,
+                wild_args::RelocationModel::Fixed => OutputFileType::Exec,
+                wild_args::RelocationModel::PositionIndependent => OutputFileType::Pie,
             }
         } else {
             OutputFileType::Dyn
@@ -542,7 +546,7 @@ impl PluginOutputs {
 
         for input in &self.generated_inputs {
             match &input.spec {
-                crate::args::InputSpec::File(path) => {
+                wild_args::InputSpec::File(path) => {
                     let dest = dir_path.join(path.file_name().context("Missing filename")?);
 
                     std::fs::copy(path, &dest).with_context(|| {
@@ -553,12 +557,12 @@ impl PluginOutputs {
                         )
                     })?;
                 }
-                crate::args::InputSpec::Lib(lib_name) => {
+                wild_args::InputSpec::Lib(lib_name) => {
                     args.push_str("-l");
                     args.push_str(lib_name);
                     args.push('\n');
                 }
-                crate::args::InputSpec::Search(search) => {
+                wild_args::InputSpec::Search(search) => {
                     args.push_str("-L");
                     args.push_str(search);
                     args.push('\n');
@@ -594,7 +598,7 @@ impl<'data> Store<'data> {
         match self {
             Store::Unloaded(load_info) => {
                 if plugin_path.as_os_str().is_empty() {
-                    crate::bail!("No linker plugin path");
+                    wild_error::bail!("No linker plugin path");
                 }
 
                 *self = Store::Loaded(Box::new(

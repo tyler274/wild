@@ -15,6 +15,7 @@ members = [
   "crates/wild-layout",
   "crates/wild-wasm",
   "crates/wild-macho",
+  "crates/wild-elf",
   "crates/benchmarks/runner",
 ]
 resolver = "2"

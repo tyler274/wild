@@ -1,11 +1,7 @@
 use super::*;
-use crate::bail;
-use crate::elf::Elf;
-use crate::elf::ElfClass;
-use crate::elf::RawSymbolName;
-use crate::error;
-use crate::error::Error;
-use crate::error::Result;
+use crate::Elf;
+use crate::ElfClass;
+use crate::RawSymbolName;
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::ffi::CStr;
@@ -13,6 +9,10 @@ use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::panic::AssertUnwindSafe;
 use std::path::Path;
+use wild_error::bail;
+use wild_error::error;
+use wild_error::error::Error;
+use wild_error::error::Result;
 use wild_layout::EnginePlatform;
 use wild_layout::grouping::PluginSymbol;
 use wild_layout::grouping::SymbolKind;
@@ -321,7 +321,7 @@ pub(crate) extern "C" fn add_symbols(
                         &*arena.alloc_slice_copy(unsafe { CStr::from_ptr(sym.version) }.to_bytes())
                     }),
                     kind: sym.kind(),
-                    visibility: crate::elf::convert_elf_visibility(object::elf::SymbolVisibility(
+                    visibility: crate::convert_elf_visibility(object::elf::SymbolVisibility(
                         sym.visibility as u8,
                     )),
                     size: sym.size,
@@ -521,7 +521,7 @@ pub(crate) extern "C" fn add_input_file(path: *const libc::c_char) -> Status {
         let path = Box::from(Path::new(path));
         PLUGIN_OUTPUTS.with_borrow_mut(|state| {
             state.generated_inputs.push(Input {
-                spec: crate::args::InputSpec::File(path),
+                spec: wild_args::InputSpec::File(path),
                 search_first: None,
                 modifiers: Modifiers {
                     temporary: true,
@@ -545,7 +545,7 @@ pub(crate) extern "C" fn add_input_library(lib_name: *const libc::c_char) -> Sta
 
     PLUGIN_OUTPUTS.with_borrow_mut(|state| {
         state.generated_inputs.push(Input {
-            spec: crate::args::InputSpec::Lib(Box::from(lib_name)),
+            spec: wild_args::InputSpec::Lib(Box::from(lib_name)),
             search_first: None,
             modifiers: Modifiers {
                 as_needed: true,

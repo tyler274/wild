@@ -17,6 +17,7 @@ wild-args = { path = "../wild-args", version = "0.10.0" }
 wild-layout = { path = "../wild-layout", version = "0.10.0" }
 wild-wasm = { path = "../wild-wasm", version = "0.10.0" }
 wild-macho = { path = "../wild-macho", version = "0.10.0" }
+wild-elf = { path = "../wild-elf", version = "0.10.0" }
 wild-scripts = { path = "../wild-scripts", version = "0.10.0" }
 wild-util = { path = "../wild-util", version = "0.10.0" }
 anyhow.workspace = true
@@ -40,7 +41,6 @@ itertools.workspace = true
 jobserver.workspace = true
 leb128.workspace = true
 libc.workspace = true
-libloading = { workspace = true, optional = true }
 memchr.workspace = true
 memmap2.workspace = true
 object = { workspace = true, features = ["write_std"] }
@@ -62,16 +62,12 @@ uuid.workspace = true
 winnow.workspace = true
 zerocopy.workspace = true
 zlib-rs.workspace = true
-zstd = { workspace = true, optional = true }
 
 [target.'cfg(all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")))'.dependencies]
 perf-event.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 nix.workspace = true
-
-[build-dependencies]
-cc.workspace = true
 
 [dev-dependencies]
 ar.workspace = true
@@ -84,7 +80,7 @@ default = ["zstd"]
 fork = []
 
 # Support for linker-plugins.
-plugins = ["libloading", "wild-layout/plugins"]
+plugins = ["wild-layout/plugins", "wild-elf/plugins"]
 
 # Enable support for emitting a perfetto trace.
 perfetto = ["perfetto-recorder/enable", "tracing/release_max_level_info"]
@@ -99,7 +95,7 @@ wasm = []
 macho = []
 
 # Support for zstd compression and decompression of sections.
-zstd = ["dep:zstd"]
+zstd = ["wild-elf/zstd"]
 
 [lints]
 workspace = true

@@ -1,15 +1,11 @@
 use super::*;
-use crate::args::elf::ElfArgs;
-use crate::bail;
-use crate::elf;
-use crate::elf::ElfClass;
-use crate::elf::GNU_NOTE_NAME;
-use crate::elf::NoteProperty;
-use crate::elf::RiscVAttribute;
-use crate::elf::output_section_id;
-use crate::elf::part_id;
-use crate::error;
-use crate::error::Result;
+use crate as elf;
+use crate::ElfClass;
+use crate::GNU_NOTE_NAME;
+use crate::NoteProperty;
+use crate::RiscVAttribute;
+use crate::output_section_id;
+use crate::part_id;
 use linker_utils::elf::RISCV_ATTRIBUTE_VENDOR_NAME;
 use linker_utils::elf::riscvattr::TAG_RISCV_ARCH;
 use linker_utils::elf::riscvattr::TAG_RISCV_PRIV_SPEC;
@@ -23,6 +19,10 @@ use object::elf::NT_GNU_PROPERTY_TYPE_0;
 use object::from_bytes_mut;
 use std::io::Cursor;
 use std::io::Write;
+use wild_args::elf::ElfArgs;
+use wild_error::bail;
+use wild_error::error;
+use wild_error::error::Result;
 use wild_layout::EpilogueLayout;
 use wild_layout::InternalSymbols;
 use wild_layout::LinkerScriptLayoutState;
@@ -329,9 +329,9 @@ pub(crate) fn write_plt_got_entries<'data, C: ElfClass, A: Arch<Platform = elf::
                 Some(layout),
                 layout.args(),
                 &Resolution {
-                    raw_value: crate::elf::CURRENT_EXE_TLS_MOD,
+                    raw_value: crate::CURRENT_EXE_TLS_MOD,
                     dynamic_symbol_index: None,
-                    format_specific: crate::elf::ResolutionExt {
+                    format_specific: crate::ResolutionExt {
                         got_address: Some(got_address),
                         plt_address: None,
                     },
@@ -353,7 +353,7 @@ pub(crate) fn write_plt_got_entries<'data, C: ElfClass, A: Arch<Platform = elf::
             &Resolution {
                 raw_value,
                 dynamic_symbol_index: None,
-                format_specific: crate::elf::ResolutionExt {
+                format_specific: crate::ResolutionExt {
                     got_address: Some(got_address.saturating_add(C::GOT_ENTRY_SIZE)),
                     plt_address: None,
                 },
@@ -774,7 +774,7 @@ pub(crate) fn write_script_output_data<C: ElfClass>(
         return Ok(());
     }
 
-    let sizeof_headers = crate::elf::program_headers_size::<C>(&layout.prelude().header_info)
+    let sizeof_headers = crate::program_headers_size::<C>(&layout.prelude().header_info)
         + u64::from(C::FILE_HEADER_SIZE);
     let empty_regions = hashbrown::HashMap::new();
 
@@ -801,7 +801,7 @@ pub(crate) fn write_script_output_data<C: ElfClass>(
                     .symbol_db
                     .get_unversioned(&wild_layout::symbol::UnversionedSymbolName::prehashed(name))
                 else {
-                    crate::bail!(
+                    wild_error::bail!(
                         "undefined symbol `{}` in linker script BYTE/SHORT/LONG/QUAD",
                         String::from_utf8_lossy(name)
                     );

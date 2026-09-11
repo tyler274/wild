@@ -1,22 +1,22 @@
 use super::*;
-use crate::bail;
 #[allow(unused_imports)]
-use crate::elf::abi::*;
+use crate::abi::*;
 #[allow(unused_imports)]
-use crate::elf::file::*;
+use crate::file::*;
 #[allow(unused_imports)]
-use crate::elf::gnu::*;
-use crate::elf::part_id;
+use crate::gnu::*;
+use crate::part_id;
 #[allow(unused_imports)]
-use crate::elf::types::Elf;
-use crate::elf::types::ElfClass;
-use crate::error::Result;
+use crate::types::Elf;
+use crate::types::ElfClass;
 use linker_utils::elf::RelocationKind;
 use linker_utils::relaxation::RelocationModifier;
 use object::LittleEndian;
 use object::read::elf::SectionHeader as _;
 use rayon::Scope;
 use std::sync::atomic;
+use wild_error::bail;
+use wild_error::error::Result;
 use wild_layout as layout;
 use wild_layout::CommonGroupState;
 use wild_layout::ObjectLayoutState;
@@ -235,10 +235,10 @@ pub(crate) fn materialize_relocation_requirements<
             *flags_to_add |= ValueFlags::PLT | ValueFlags::GOT | ValueFlags::CANONICAL_PLT;
         } else if !flags.is_absolute() {
             match args.copy_relocations_enabled() {
-                crate::args::CopyRelocations::Allowed => {
+                wild_args::CopyRelocations::Allowed => {
                     *flags_to_add |= ValueFlags::COPY_RELOCATION;
                 }
-                crate::args::CopyRelocations::Disallowed(reason) => {
+                wild_args::CopyRelocations::Disallowed(reason) => {
                     // We don't at present support text relocations, so if we can't apply a copy
                     // relocation, we error instead.
                     bail!(

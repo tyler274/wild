@@ -1,0 +1,60 @@
+[package]
+name = "wild-elf"
+description = "ELF linking support for the Wild linker"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+bitflags.workspace = true
+blake3.workspace = true
+bytesize.workspace = true
+crossbeam-utils.workspace = true
+derive_more.workspace = true
+flate2.workspace = true
+foldhash.workspace = true
+gimli.workspace = true
+hashbrown.workspace = true
+hex.workspace = true
+indexmap.workspace = true
+itertools.workspace = true
+leb128.workspace = true
+libc.workspace = true
+libloading = { workspace = true, optional = true }
+linker-utils = { path = "../linker-utils", version = "0.10.0" }
+memchr.workspace = true
+object = { workspace = true, features = ["write_std"] }
+perfetto-recorder.workspace = true
+rayon.workspace = true
+sha2.workspace = true
+sharded-vec-writer.workspace = true
+smallvec.workspace = true
+thread_local.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+wild-args = { path = "../wild-args", version = "0.10.0" }
+wild-error = { path = "../wild-error", version = "0.10.0" }
+wild-fs = { path = "../wild-fs", version = "0.10.0" }
+wild-layout = { path = "../wild-layout", version = "0.10.0" }
+wild-platform = { path = "../wild-platform", version = "0.10.0" }
+wild-scripts = { path = "../wild-scripts", version = "0.10.0" }
+wild-util = { path = "../wild-util", version = "0.10.0" }
+zerocopy.workspace = true
+zlib-rs.workspace = true
+zstd = { workspace = true, optional = true }
+
+[target.'cfg(unix)'.dependencies]
+nix.workspace = true
+
+[build-dependencies]
+cc.workspace = true
+
+[features]
+plugins = ["libloading", "wild-layout/plugins"]
+zstd = ["dep:zstd"]
+
+[lints]
+workspace = true

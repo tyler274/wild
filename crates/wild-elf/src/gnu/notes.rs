@@ -1,21 +1,16 @@
 use super::*;
-use crate::args::elf::ElfArgs;
-use crate::bail;
 #[allow(unused_imports)]
-use crate::elf::abi::*;
+use crate::abi::*;
 #[allow(unused_imports)]
-use crate::elf::file::*;
-#[allow(unused_imports)]
-use crate::elf::output::*;
-#[allow(unused_imports)]
-use crate::elf::types::Elf;
-use crate::elf::types::ElfClass;
-use crate::elf::types::File;
-use crate::elf::types::File64;
-use crate::ensure;
-use crate::error::Context as _;
-use crate::error::Result;
+use crate::file::*;
 use crate::gdb_index::InputDebugIndexSection;
+#[allow(unused_imports)]
+use crate::output::*;
+#[allow(unused_imports)]
+use crate::types::Elf;
+use crate::types::ElfClass;
+use crate::types::File;
+use crate::types::File64;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use itertools::Itertools as _;
@@ -37,6 +32,11 @@ use object::LittleEndian;
 use object::read::elf::SectionHeader as _;
 use smallvec::SmallVec;
 use std::num::NonZeroU32;
+use wild_args::elf::ElfArgs;
+use wild_error::bail;
+use wild_error::ensure;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout as layout;
 use wild_layout::objects_iter;
 use wild_layout::timing_phase;
@@ -113,7 +113,7 @@ pub(crate) enum RiscVAttribute {
 }
 
 #[derive(Default)]
-pub(crate) struct ObjectLayoutStateExt<'data, C: ElfClass> {
+pub struct ObjectLayoutStateExt<'data, C: ElfClass> {
     pub(crate) gnu_property_notes: Vec<GnuProperty>,
     pub(crate) riscv_attributes: Vec<RiscVAttribute>,
 
@@ -130,13 +130,13 @@ pub(crate) struct ObjectLayoutStateExt<'data, C: ElfClass> {
 }
 
 #[derive(Debug)]
-pub(crate) struct LayoutExt {
+pub struct LayoutExt {
     pub(crate) gnu_property_notes: Vec<GnuProperty>,
     pub(crate) riscv_attributes: RiscVAttributes,
     pub(crate) eflags: object::elf::FileFlags,
     pub(crate) has_eh_frame_input: bool,
     num_got_plt_header_entries: u64,
-    pub(crate) strtab: crate::elf::FinalizedStrtab,
+    pub(crate) strtab: crate::FinalizedStrtab,
 }
 
 impl LayoutExt {
@@ -162,7 +162,7 @@ impl LayoutExt {
             eflags,
             has_eh_frame_input,
             num_got_plt_header_entries: A::NUM_GOT_PLT_HEADER_ENTRIES,
-            strtab: crate::elf::FinalizedStrtab::default(),
+            strtab: crate::FinalizedStrtab::default(),
         })
     }
 
@@ -196,7 +196,7 @@ where
         let mut file_map: HashMap<_, (u32, PropertyClass)> = HashMap::new();
         for prop in *file_props {
             let property_class = A::get_property_class(prop.ptype.0)
-                .ok_or_else(|| crate::error!("unclassified property type {}", prop.ptype))?;
+                .ok_or_else(|| wild_error::error!("unclassified property type {}", prop.ptype))?;
             file_map
                 .entry(prop.ptype)
                 .and_modify(|entry: &mut (u32, PropertyClass)| {
@@ -493,15 +493,15 @@ pub(crate) fn process_riscv_attributes(
                         let mut it = part.chars().rev();
                         let minor = it
                             .next()
-                            .ok_or_else(|| crate::error!("Cannot parse minor"))?
+                            .ok_or_else(|| wild_error::error!("Cannot parse minor"))?
                             .to_string();
                         let p = it
                             .next()
-                            .ok_or_else(|| crate::error!("Cannot parse 'p' separator"))?;
+                            .ok_or_else(|| wild_error::error!("Cannot parse 'p' separator"))?;
                         ensure!(p == 'p', "Separator expected");
                         let major = it
                             .next()
-                            .ok_or_else(|| crate::error!("Cannot parse major"))?
+                            .ok_or_else(|| wild_error::error!("Cannot parse major"))?
                             .to_string();
                         let name = it.rev().collect();
                         Ok((name, (major.parse()?, minor.parse()?)))

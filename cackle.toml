@@ -135,6 +135,10 @@ allow_apis = ["fs"]
 allow_unsafe = true
 allow_apis = ["fs"]
 
+[pkg.wild-elf]
+allow_unsafe = true
+allow_apis = ["fs", "process"]
+
 [pkg.wild-error]
 allow_apis = ["process"]
 

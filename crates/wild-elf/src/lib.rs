@@ -1,19 +1,37 @@
-use crate::FileSystem;
-use crate::args::elf::ElfArgs;
-use crate::bail;
-use crate::error::Result;
 use wild_layout::output_section_id::OutputSectionId;
 use wild_layout::part_id::PartId;
 
 pub(crate) mod abi;
+pub(crate) mod compression;
+pub(crate) mod dwarf_address_info;
+pub(crate) mod elf_aarch64;
+pub(crate) mod elf_loongarch64;
+pub(crate) mod elf_ppc64;
+pub(crate) mod elf_riscv64;
+pub(crate) mod elf_writer;
+pub(crate) mod elf_x86_64;
 pub(crate) mod file;
+pub(crate) mod gdb_index;
 pub(crate) mod gnu;
+#[cfg_attr(
+    not(all(feature = "plugins", unix)),
+    path = "linker_plugins_disabled.rs"
+)]
+pub(crate) mod linker_plugins;
 pub(crate) mod output;
+pub(crate) mod sframe;
 pub(crate) mod strtab;
 pub(crate) mod types;
+pub(crate) mod validation;
+pub(crate) mod writable_elf;
 
 #[allow(unused_imports)]
 pub(crate) use abi::*;
+pub use elf_aarch64::ElfAArch64;
+pub use elf_loongarch64::ElfLoongArch64;
+pub use elf_ppc64::ElfPpc64;
+pub use elf_riscv64::ElfRiscV64;
+pub use elf_x86_64::ElfX86_64;
 #[allow(unused_imports)]
 pub(crate) use file::*;
 #[allow(unused_imports)]
@@ -22,8 +40,15 @@ pub(crate) use gnu::*;
 pub(crate) use output::*;
 #[allow(unused_imports)]
 pub(crate) use strtab::*;
+pub use types::Class64;
+pub use types::Elf;
+pub use types::ElfClass;
 #[allow(unused_imports)]
 pub(crate) use types::*;
+pub(crate) use wild_error::debug_assert_bail;
+pub(crate) use wild_error::malfunction;
+
+pub type Elf64 = Elf<Class64>;
 
 pub(crate) const GLOBAL_POINTER_SYMBOL_NAME: &str = "__global_pointer$";
 
@@ -31,35 +56,6 @@ pub(crate) const GLOBAL_POINTER_SYMBOL_NAME: &str = "__global_pointer$";
 pub(crate) const TOC_SYMBOL_NAME: &str = ".TOC.";
 
 pub(crate) const THUNK_SYMBOL_PREFIX: &str = "__thunk_";
-
-pub(crate) fn link_for_arch<'data, F: FileSystem>(
-    linker: &'data crate::Linker<F>,
-    args: &'data ElfArgs,
-) -> Result<crate::LinkerOutput<'data>> {
-    match args.architecture() {
-        wild_util::arch::Architecture::X86_64 => {
-            linker.link_for_arch::<Elf64, crate::elf_x86_64::ElfX86_64>(args)
-        }
-        wild_util::arch::Architecture::AArch64 => {
-            linker.link_for_arch::<Elf64, crate::elf_aarch64::ElfAArch64>(args)
-        }
-        wild_util::arch::Architecture::RiscV64 => {
-            linker.link_for_arch::<Elf64, crate::elf_riscv64::ElfRiscV64>(args)
-        }
-        wild_util::arch::Architecture::LoongArch64 => {
-            linker.link_for_arch::<Elf64, crate::elf_loongarch64::ElfLoongArch64>(args)
-        }
-        wild_util::arch::Architecture::Ppc64 => {
-            linker.link_for_arch::<Elf64, crate::elf_ppc64::ElfPpc64>(args)
-        }
-        wild_util::arch::Architecture::Unsupported => {
-            bail!(
-                "No default target architecture known for host platform. \
-                    Please specify an architecture with -m"
-            )
-        }
-    }
-}
 
 #[repr(u32)]
 #[derive(Clone, Copy)]
@@ -166,79 +162,72 @@ pub(crate) mod part_id {
     pub(crate) const GDB_INDEX: PartId = SinglePartSectionId::GdbIndex.part_id();
 }
 
-pub(crate) mod output_section_id {
+pub mod output_section_id {
     use super::RegularSectionId;
     use super::SinglePartSectionId;
     use wild_layout::output_section_id::OutputSectionId;
 
-    pub(crate) const PROGRAM_HEADERS: OutputSectionId =
+    pub const PROGRAM_HEADERS: OutputSectionId =
         SinglePartSectionId::ProgramHeaders.output_section_id();
-    pub(crate) const SECTION_HEADERS: OutputSectionId =
+    pub const SECTION_HEADERS: OutputSectionId =
         SinglePartSectionId::SectionHeaders.output_section_id();
-    pub(crate) const SHSTRTAB: OutputSectionId = SinglePartSectionId::Shstrtab.output_section_id();
-    pub(crate) const STRTAB: OutputSectionId = SinglePartSectionId::Strtab.output_section_id();
-    pub(crate) const GOT: OutputSectionId = SinglePartSectionId::Got.output_section_id();
-    pub(crate) const GOT_RELR: OutputSectionId = SinglePartSectionId::GotRelr.output_section_id();
-    pub(crate) const PLT_GOT: OutputSectionId = SinglePartSectionId::PltGot.output_section_id();
-    pub(crate) const RELA_PLT: OutputSectionId = SinglePartSectionId::RelaPlt.output_section_id();
-    pub(crate) const EH_FRAME: OutputSectionId = SinglePartSectionId::EhFrame.output_section_id();
-    pub(crate) const EH_FRAME_HDR: OutputSectionId =
-        SinglePartSectionId::EhFrameHdr.output_section_id();
-    pub(crate) const SFRAME: OutputSectionId = SinglePartSectionId::Sframe.output_section_id();
-    pub(crate) const DYNAMIC: OutputSectionId = SinglePartSectionId::Dynamic.output_section_id();
-    pub(crate) const HASH: OutputSectionId = SinglePartSectionId::SysvHash.output_section_id();
-    pub(crate) const GNU_HASH: OutputSectionId = SinglePartSectionId::GnuHash.output_section_id();
-    pub(crate) const DYNSYM: OutputSectionId = SinglePartSectionId::Dynsym.output_section_id();
-    pub(crate) const DYNSTR: OutputSectionId = SinglePartSectionId::Dynstr.output_section_id();
-    pub(crate) const INTERP: OutputSectionId = SinglePartSectionId::Interp.output_section_id();
-    pub(crate) const GNU_VERSION: OutputSectionId =
-        SinglePartSectionId::GnuVersion.output_section_id();
-    pub(crate) const GNU_VERSION_D: OutputSectionId =
-        SinglePartSectionId::GnuVersionD.output_section_id();
-    pub(crate) const GNU_VERSION_R: OutputSectionId =
-        SinglePartSectionId::GnuVersionR.output_section_id();
-    pub(crate) const NOTE_GNU_PROPERTY: OutputSectionId =
+    pub const SHSTRTAB: OutputSectionId = SinglePartSectionId::Shstrtab.output_section_id();
+    pub const STRTAB: OutputSectionId = SinglePartSectionId::Strtab.output_section_id();
+    pub const GOT: OutputSectionId = SinglePartSectionId::Got.output_section_id();
+    pub const GOT_RELR: OutputSectionId = SinglePartSectionId::GotRelr.output_section_id();
+    pub const PLT_GOT: OutputSectionId = SinglePartSectionId::PltGot.output_section_id();
+    pub const RELA_PLT: OutputSectionId = SinglePartSectionId::RelaPlt.output_section_id();
+    pub const EH_FRAME: OutputSectionId = SinglePartSectionId::EhFrame.output_section_id();
+    pub const EH_FRAME_HDR: OutputSectionId = SinglePartSectionId::EhFrameHdr.output_section_id();
+    pub const SFRAME: OutputSectionId = SinglePartSectionId::Sframe.output_section_id();
+    pub const DYNAMIC: OutputSectionId = SinglePartSectionId::Dynamic.output_section_id();
+    pub const HASH: OutputSectionId = SinglePartSectionId::SysvHash.output_section_id();
+    pub const GNU_HASH: OutputSectionId = SinglePartSectionId::GnuHash.output_section_id();
+    pub const DYNSYM: OutputSectionId = SinglePartSectionId::Dynsym.output_section_id();
+    pub const DYNSTR: OutputSectionId = SinglePartSectionId::Dynstr.output_section_id();
+    pub const INTERP: OutputSectionId = SinglePartSectionId::Interp.output_section_id();
+    pub const GNU_VERSION: OutputSectionId = SinglePartSectionId::GnuVersion.output_section_id();
+    pub const GNU_VERSION_D: OutputSectionId = SinglePartSectionId::GnuVersionD.output_section_id();
+    pub const GNU_VERSION_R: OutputSectionId = SinglePartSectionId::GnuVersionR.output_section_id();
+    pub const NOTE_GNU_PROPERTY: OutputSectionId =
         SinglePartSectionId::NoteGnuProperty.output_section_id();
-    pub(crate) const NOTE_GNU_BUILD_ID: OutputSectionId =
+    pub const NOTE_GNU_BUILD_ID: OutputSectionId =
         SinglePartSectionId::NoteGnuBuildId.output_section_id();
-    pub(crate) const SYMTAB_LOCAL: OutputSectionId =
-        SinglePartSectionId::SymtabLocal.output_section_id();
-    pub(crate) const SYMTAB_GLOBAL: OutputSectionId =
+    pub const SYMTAB_LOCAL: OutputSectionId = SinglePartSectionId::SymtabLocal.output_section_id();
+    pub const SYMTAB_GLOBAL: OutputSectionId =
         SinglePartSectionId::SymtabGlobal.output_section_id();
-    pub(crate) const RELA_DYN_RELATIVE: OutputSectionId =
+    pub const RELA_DYN_RELATIVE: OutputSectionId =
         SinglePartSectionId::RelaDynRelative.output_section_id();
-    pub(crate) const RELA_DYN_GENERAL: OutputSectionId =
+    pub const RELA_DYN_GENERAL: OutputSectionId =
         SinglePartSectionId::RelaDynGeneral.output_section_id();
-    pub(crate) const RISCV_ATTRIBUTES: OutputSectionId =
+    pub const RISCV_ATTRIBUTES: OutputSectionId =
         SinglePartSectionId::RiscvAttributes.output_section_id();
-    pub(crate) const RELRO_PADDING: OutputSectionId =
+    pub const RELRO_PADDING: OutputSectionId =
         SinglePartSectionId::RelroPadding.output_section_id();
-    pub(crate) const RELR_DYN: OutputSectionId = SinglePartSectionId::RelrDyn.output_section_id();
-    pub(crate) const SYMTAB_SHNDX_LOCAL: OutputSectionId =
+    pub const RELR_DYN: OutputSectionId = SinglePartSectionId::RelrDyn.output_section_id();
+    pub const SYMTAB_SHNDX_LOCAL: OutputSectionId =
         SinglePartSectionId::SymtabShndxLocal.output_section_id();
-    pub(crate) const SYMTAB_SHNDX_GLOBAL: OutputSectionId =
+    pub const SYMTAB_SHNDX_GLOBAL: OutputSectionId =
         SinglePartSectionId::SymtabShndxGlobal.output_section_id();
-    pub(crate) const GDB_INDEX: OutputSectionId = SinglePartSectionId::GdbIndex.output_section_id();
+    pub const GDB_INDEX: OutputSectionId = SinglePartSectionId::GdbIndex.output_section_id();
 
-    pub(crate) const RODATA: OutputSectionId = RegularSectionId::Rodata.output_section_id();
-    pub(crate) const INIT_ARRAY: OutputSectionId = RegularSectionId::InitArray.output_section_id();
-    pub(crate) const FINI_ARRAY: OutputSectionId = RegularSectionId::FiniArray.output_section_id();
-    pub(crate) const PREINIT_ARRAY: OutputSectionId =
-        RegularSectionId::PreinitArray.output_section_id();
-    pub(crate) const TEXT: OutputSectionId = RegularSectionId::Text.output_section_id();
-    pub(crate) const INIT: OutputSectionId = RegularSectionId::Init.output_section_id();
-    pub(crate) const FINI: OutputSectionId = RegularSectionId::Fini.output_section_id();
-    pub(crate) const DATA: OutputSectionId = RegularSectionId::Data.output_section_id();
-    pub(crate) const TDATA: OutputSectionId = RegularSectionId::Tdata.output_section_id();
-    pub(crate) const TBSS: OutputSectionId = RegularSectionId::Tbss.output_section_id();
-    pub(crate) const BSS: OutputSectionId = RegularSectionId::Bss.output_section_id();
-    pub(crate) const COMMENT: OutputSectionId = RegularSectionId::Comment.output_section_id();
-    pub(crate) const GCC_EXCEPT_TABLE: OutputSectionId =
+    pub const RODATA: OutputSectionId = RegularSectionId::Rodata.output_section_id();
+    pub const INIT_ARRAY: OutputSectionId = RegularSectionId::InitArray.output_section_id();
+    pub const FINI_ARRAY: OutputSectionId = RegularSectionId::FiniArray.output_section_id();
+    pub const PREINIT_ARRAY: OutputSectionId = RegularSectionId::PreinitArray.output_section_id();
+    pub const TEXT: OutputSectionId = RegularSectionId::Text.output_section_id();
+    pub const INIT: OutputSectionId = RegularSectionId::Init.output_section_id();
+    pub const FINI: OutputSectionId = RegularSectionId::Fini.output_section_id();
+    pub const DATA: OutputSectionId = RegularSectionId::Data.output_section_id();
+    pub const TDATA: OutputSectionId = RegularSectionId::Tdata.output_section_id();
+    pub const TBSS: OutputSectionId = RegularSectionId::Tbss.output_section_id();
+    pub const BSS: OutputSectionId = RegularSectionId::Bss.output_section_id();
+    pub const COMMENT: OutputSectionId = RegularSectionId::Comment.output_section_id();
+    pub const GCC_EXCEPT_TABLE: OutputSectionId =
         RegularSectionId::GccExceptTable.output_section_id();
-    pub(crate) const NOTE_ABI_TAG: OutputSectionId =
-        RegularSectionId::NoteAbiTag.output_section_id();
-    pub(crate) const DATA_REL_RO: OutputSectionId = RegularSectionId::DataRelRo.output_section_id();
-    pub(crate) const PARTIAL_LINKING_SINGLETONS: OutputSectionId =
+    pub const NOTE_ABI_TAG: OutputSectionId = RegularSectionId::NoteAbiTag.output_section_id();
+    pub const DATA_REL_RO: OutputSectionId = RegularSectionId::DataRelRo.output_section_id();
+    pub const PARTIAL_LINKING_SINGLETONS: OutputSectionId =
         RegularSectionId::PartialLinkingSingletons.output_section_id();
 }
 

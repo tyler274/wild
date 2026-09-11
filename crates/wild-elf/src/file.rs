@@ -17,11 +17,6 @@ use super::types::SectionHeader;
 use super::types::SymbolTable;
 use super::types::SymtabEntry;
 use super::types::Versym;
-use crate::args::elf::ElfArgs;
-use crate::bail;
-use crate::error;
-use crate::error::Context as _;
-use crate::error::Result;
 use linker_utils::elf::sht;
 use object::LittleEndian;
 use object::read::elf::CompressionHeader;
@@ -31,6 +26,11 @@ use object::read::elf::SectionHeader as _;
 use rayon::Scope;
 use std::borrow::Cow;
 use std::sync::atomic::Ordering;
+use wild_args::elf::ElfArgs;
+use wild_error::bail;
+use wild_error::error;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout as layout;
 use wild_layout::DynamicSymbolDefinition;
 use wild_layout::file_writer::copy_section_data;
@@ -454,7 +454,7 @@ impl<'data, C: ElfClass> platform::ObjectFile<'data> for File<'data, C> {
                 if gnu_property.pr_data().len() != 4 {
                     continue;
                 }
-                state.gnu_property_notes.push(crate::elf::GnuProperty {
+                state.gnu_property_notes.push(crate::GnuProperty {
                     ptype: gnu_property.pr_type(),
                     data: gnu_property.data_u32(e)?,
                 });
@@ -543,8 +543,8 @@ impl<'data, C: ElfClass> platform::ObjectFile<'data> for File<'data, C> {
                 mem_sizes.increment(part_id::DYNSTR, base_size);
                 mem_sizes.increment(
                     part_id::GNU_VERSION_R,
-                    size_of::<crate::elf::Verneed>() as u64
-                        + u64::from(version_count) * size_of::<crate::elf::Vernaux>() as u64,
+                    size_of::<crate::Verneed>() as u64
+                        + u64::from(version_count) * size_of::<crate::Vernaux>() as u64,
                 );
 
                 state.verneed_info = Some(VerneedInfo {

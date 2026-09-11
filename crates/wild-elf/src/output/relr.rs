@@ -1,14 +1,14 @@
 #[allow(unused_imports)]
-use crate::elf::abi::*;
+use crate::abi::*;
 #[allow(unused_imports)]
-use crate::elf::file::*;
+use crate::file::*;
 #[allow(unused_imports)]
-use crate::elf::gnu::*;
+use crate::gnu::*;
 #[allow(unused_imports)]
-use crate::elf::types::ElfClass;
-use crate::error::Result;
+use crate::types::ElfClass;
 use std::marker::PhantomData;
 use std::ops::Range;
+use wild_error::error::Result;
 
 pub(crate) const fn relr_bitmap_slots<C: ElfClass>() -> u64 {
     C::RELR_ENTRY_SIZE * 8 - 1

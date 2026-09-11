@@ -1,13 +1,12 @@
 //! Uses DWARF debug info, if available, to find file and line number information for a particular
 //! offset in an input section.
 
-use crate::elf::Elf;
-use crate::elf::ElfClass;
-use crate::elf::ElfCrel;
-use crate::elf::ElfRela;
-use crate::elf::File;
-use crate::elf::SectionHeader;
-use crate::error::Result;
+use crate::Elf;
+use crate::ElfClass;
+use crate::ElfCrel;
+use crate::ElfRela;
+use crate::File;
+use crate::SectionHeader;
 use anyhow::Context;
 use linker_utils::elf::RelocationKind;
 use object::LittleEndian;
@@ -16,6 +15,7 @@ use object::read::elf::SectionHeader as _;
 use object::read::elf::Sym as _;
 use std::borrow::Cow;
 use std::path::PathBuf;
+use wild_error::error::Result;
 use wild_fs::fs::path_from_bytes;
 use wild_platform::Arch;
 use wild_platform::ObjectFile as _;
@@ -107,7 +107,7 @@ fn section_data_with_relocations<C: ElfClass, A: Arch<Platform = Elf<C>>>(
 
             // Apply relocations.
             match object.relocations(index, relocations)? {
-                crate::elf::RelocationList::Rela(relocations) => {
+                crate::RelocationList::Rela(relocations) => {
                     apply_section_relocations::<C, A, ElfRela<C>>(
                         object,
                         section_of_interest,
@@ -115,7 +115,7 @@ fn section_data_with_relocations<C: ElfClass, A: Arch<Platform = Elf<C>>>(
                         relocations.iter().copied().map(ElfRela::new),
                     )?;
                 }
-                crate::elf::RelocationList::Crel(relocations) => {
+                crate::RelocationList::Crel(relocations) => {
                     apply_section_relocations::<C, A, ElfCrel<C>>(
                         object,
                         section_of_interest,

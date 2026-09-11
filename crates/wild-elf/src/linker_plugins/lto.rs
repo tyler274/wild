@@ -1,7 +1,7 @@
-use crate::elf::Elf;
-use crate::elf::ElfClass;
-use crate::error::Result;
+use crate::Elf;
+use crate::ElfClass;
 use rayon::Scope;
+use wild_error::error::Result;
 use wild_layout::EnginePlatform;
 use wild_layout::grouping::LtoInput;
 use wild_layout::grouping::SymbolKind;

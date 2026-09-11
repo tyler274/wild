@@ -1,12 +1,8 @@
-use crate::elf::Elf64;
-use crate::elf::ElfCrel;
-use crate::elf::ElfRela;
-use crate::elf::PLT_ENTRY_SIZE;
-use crate::elf::RelocationList64;
-use crate::ensure;
-use crate::error;
-use crate::error::Context as _;
-use crate::error::Result;
+use crate::Elf64;
+use crate::ElfCrel;
+use crate::ElfRela;
+use crate::PLT_ENTRY_SIZE;
+use crate::RelocationList64;
 use itertools::Itertools;
 use linker_utils::elf::DynamicRelocationKind;
 use linker_utils::elf::RISCV_TLS_DTV_OFFSET;
@@ -23,13 +19,17 @@ use linker_utils::riscv64::distance_fits_jal;
 use linker_utils::riscv64::relocation_type_from_raw;
 use object::elf::EF_RISCV_RV64ILP32;
 use object::elf::EF_RISCV_RVE;
+use wild_error::ensure;
+use wild_error::error;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_platform::ObjectFile as _;
 use wild_platform::Platform;
 use wild_platform::PreviousRelocationInfo;
 use wild_platform::RelaxSymbolInfo;
 use wild_platform::Relocation;
 
-pub(crate) struct ElfRiscV64;
+pub struct ElfRiscV64;
 
 const PLT_ENTRY_TEMPLATE: &[u8] = &[
     0x17, 0x0e, 0x0, 0x0, // auipc t3,offset_high(&(.got.plt[n])
@@ -87,7 +87,7 @@ impl wild_platform::Arch for ElfRiscV64 {
         plt_entry: &mut [u8],
         got_address: u64,
         plt_address: u64,
-    ) -> crate::error::Result {
+    ) -> wild_error::error::Result {
         // TODO: For simplicity, we assume now the PLT entry precedes the GOT entry, so we can
         // make the offset calculation in the unsigned type.
         debug_assert!(plt_address < got_address);
@@ -109,7 +109,7 @@ impl wild_platform::Arch for ElfRiscV64 {
         layout.tls_start_address_aligned()
     }
 
-    fn get_property_class(_property_type: u32) -> Option<crate::elf::PropertyClass> {
+    fn get_property_class(_property_type: u32) -> Option<crate::PropertyClass> {
         None
     }
 
@@ -343,7 +343,7 @@ impl wild_platform::Arch for ElfRiscV64 {
         section: &<Self::Platform as Platform>::SectionHeader,
         offset_in_section: u64,
     ) -> Result<wild_platform::SourceInfo> {
-        crate::dwarf_address_info::get_source_info::<crate::elf::Class64, Self>(
+        crate::dwarf_address_info::get_source_info::<crate::Class64, Self>(
             object,
             relocations,
             section,
@@ -357,14 +357,14 @@ impl wild_platform::Arch for ElfRiscV64 {
         riscv_attributes_section_index: object::SectionIndex,
     ) -> Result {
         format_specific.riscv_attributes =
-            crate::elf::process_riscv_attributes(object, riscv_attributes_section_index)
+            crate::process_riscv_attributes(object, riscv_attributes_section_index)
                 .context("Cannot parse .riscv.attributes section")?;
         Ok(())
     }
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Relaxation {
+pub struct Relaxation {
     kind: RelaxationKind,
     rel_info: RelocationKindInfo,
     mandatory: bool,

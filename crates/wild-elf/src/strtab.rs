@@ -4,9 +4,9 @@
 //! neighbouring longer host when it is a suffix, so `"bar"` can point into `"foobar"`. Offset 0
 //! is always the empty string.
 
-use crate::error::Result;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
+use wild_error::error::Result;
 use wild_layout::EnginePlatform;
 use wild_layout::layout_rules::SectionKind;
 use wild_layout::output_section_id::OutputSections;
@@ -23,10 +23,9 @@ impl FinalizedStrtab {
         if name.is_empty() {
             return Ok(0);
         }
-        self.offsets
-            .get(name)
-            .copied()
-            .ok_or_else(|| crate::error!(".strtab is missing `{}`", String::from_utf8_lossy(name)))
+        self.offsets.get(name).copied().ok_or_else(|| {
+            wild_error::error!(".strtab is missing `{}`", String::from_utf8_lossy(name))
+        })
     }
 }
 

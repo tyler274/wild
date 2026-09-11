@@ -1,12 +1,12 @@
 use super::*;
-use crate::OutputFileData;
-use crate::elf;
-use crate::elf::ElfClass;
-use crate::elf::output_section_id;
-use crate::error::Result;
+use crate as elf;
+use crate::ElfClass;
+use crate::output_section_id;
 use crate::sframe;
 use rayon::iter::IndexedParallelIterator;
 use std::sync::atomic::Ordering::Relaxed;
+use wild_error::error::Result;
+use wild_fs::fs::OutputFileData;
 use wild_layout::FileLayout;
 use wild_layout::Layout;
 use wild_layout::file_writer::SizedOutput;
