@@ -69,6 +69,8 @@ pub struct ElfArgs {
     pub copy_relocations: CopyRelocations,
     pub sysroot: Option<Box<Path>>,
     pub undefined: Vec<String>,
+    /// `--require-defined`: like `-u`, but the link fails if the symbol is still undefined.
+    pub require_defined: Vec<String>,
     pub relro: bool,
     pub entry: Option<String>,
     pub export_all_dynamic_symbols: bool,
@@ -312,6 +314,7 @@ impl Default for ElfArgs {
             sysroot: None,
             dependency_file: None,
             undefined: Vec::new(),
+            require_defined: Vec::new(),
             relro: true,
             entry: None,
             b_symbolic: BSymbolicKind::None,
@@ -570,6 +573,10 @@ impl platform::Args for ElfArgs {
 
     fn force_undefined_symbol_names(&self) -> &[String] {
         &self.undefined
+    }
+
+    fn require_defined_symbol_names(&self) -> &[String] {
+        &self.require_defined
     }
 
     fn lib_search_path(&self) -> &[Box<Path>] {
@@ -1179,6 +1186,13 @@ mod tests {
             args.start_address_for_section(SectionName(b".bss")),
             Some(0x900000)
         );
+    }
+
+    #[test]
+    fn test_require_defined_is_also_undefined() {
+        let args = parse_args(["--require-defined=foobar", "-require-defined", "xyz"]);
+        assert_eq!(args.undefined, ["foobar", "xyz"]);
+        assert_eq!(args.require_defined, ["foobar", "xyz"]);
     }
 
     #[test]

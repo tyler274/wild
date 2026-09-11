@@ -552,6 +552,16 @@ pub fn add_info_and_script_flags(parser: &mut ArgumentParser<ElfArgs>) {
 
     parser
         .declare_with_param()
+        .long("require-defined")
+        .help("Like --undefined, but error if the symbol is not defined")
+        .execute(|args, _modifier_stack, value| {
+            args.undefined.push(value.to_owned());
+            args.require_defined.push(value.to_owned());
+            Ok(())
+        });
+
+    parser
+        .declare_with_param()
         .long("wrap")
         .help("Use a wrapper function")
         .execute(|args, _modifier_stack, value| {

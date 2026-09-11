@@ -6,8 +6,10 @@ use crate::EnginePlatform;
 use crate::LayoutRules;
 use crate::grouping::Group;
 use crate::output_section_id::OutputSections;
+use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
 use crate::symbol_db::SymbolId;
+use crate::symbol_db::SymbolStrength;
 use crate::timing_phase;
 use crate::verbose_timing_phase;
 use atomic_take::AtomicTake;
@@ -15,6 +17,7 @@ use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 use wild_error::bail;
 use wild_error::error::Result;
+use wild_platform::Args as _;
 use wild_platform::PRELUDE_FILE_ID;
 use wild_platform::Platform;
 use wild_platform::value_flags::PerSymbolFlags;
@@ -237,6 +240,23 @@ fn resolve_symbols_and_select_archive_entries<'data, P: EnginePlatform>(
 
     resolver.undefined_symbols.extend(outputs.undefined_symbols);
 
+    check_require_defined(symbol_db, &resolver.resolved_groups)
+}
+
+fn check_require_defined<'data, P: EnginePlatform>(
+    symbol_db: &SymbolDb<'data, P>,
+    resolved: &[ResolvedGroup<'data, P>],
+) -> Result {
+    for name in symbol_db.args.require_defined_symbol_names() {
+        let defined = symbol_db
+            .get_unversioned(&UnversionedSymbolName::prehashed(name.as_bytes()))
+            .is_some_and(|symbol_id| {
+                symbol_db.symbol_strength(symbol_id, resolved) != SymbolStrength::Undefined
+            });
+        if !defined {
+            bail!("--require-defined: undefined symbol: {name}");
+        }
+    }
     Ok(())
 }
 

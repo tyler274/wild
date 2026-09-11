@@ -136,6 +136,11 @@ pub trait Args: std::fmt::Debug + Send + Sync + 'static {
         &[]
     }
 
+    /// `--require-defined` symbols: pulled in like `-u`, then required to be defined.
+    fn require_defined_symbol_names(&self) -> &[String] {
+        &[]
+    }
+
     fn force_export_symbol_names(&self) -> &[String] {
         &[]
     }

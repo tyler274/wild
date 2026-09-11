@@ -16,6 +16,18 @@
 //#ExpectSym:bar
 //#ExpectSym:is_archive0_loaded
 
+// `--require-defined` is `-u` plus an error if the symbol is never defined.
+//#Config:require-defined:default
+//#Archive:archive_activation0.c
+//#CompArgs:-DEXPECT_ARCH0
+//#LinkArgs:--require-defined=bar
+//#ExpectSym:bar
+//#ExpectSym:is_archive0_loaded
+
+//#Config:require-defined-missing:default
+//#LinkArgs:--require-defined=xyz
+//#ExpectError:xyz
+
 #include "../common/runtime.h"
 
 __attribute__((weak)) int is_archive0_loaded() { return 0; }
