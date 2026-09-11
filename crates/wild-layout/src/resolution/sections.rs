@@ -477,7 +477,7 @@ fn resolve_section<'data, P: EnginePlatform>(
     P::verify_allowed_input_section_name(section_name)?;
 
     let raw_alignment = obj.common.object.section_alignment(input_section)?;
-    let alignment = Alignment::new(raw_alignment.max(1))?;
+    let mut alignment = Alignment::new(raw_alignment.max(1))?;
     let should_merge_sections = part_id::should_merge_sections(input_section, raw_alignment, args)
         && !obj
             .common
@@ -521,6 +521,14 @@ fn resolve_section<'data, P: EnginePlatform>(
             apply_orphan_handling::<P>(args, outcome, section_name, file_name)?
         }
     };
+
+    match &rule_outcome {
+        SectionRuleOutcome::Section(output_info)
+        | SectionRuleOutcome::SortedSection(output_info) => {
+            alignment = output_sections.apply_subalign(output_info.section_id, alignment);
+        }
+        _ => {}
+    }
 
     match rule_outcome {
         SectionRuleOutcome::Section(output_info) => {

@@ -974,11 +974,15 @@ impl Section {
     pub fn create<'data, P: EnginePlatform>(
         header: &P::SectionHeader,
         object_state: &ObjectLayoutState<'data, P>,
-        _part_id: PartId,
+        part_id: PartId,
+        output_sections: &OutputSections<P>,
     ) -> Result<Section> {
         let size = object_state.object.section_size(header)?;
         let raw_alignment = object_state.object.section_alignment(header)?;
-        let alignment = Alignment::new(raw_alignment.max(1))?;
+        let alignment = output_sections.apply_subalign(
+            part_id.output_section_id::<P>(),
+            Alignment::new(raw_alignment.max(1))?,
+        );
         let section = Section { size, alignment };
         Ok(section)
     }

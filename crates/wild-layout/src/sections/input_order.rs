@@ -174,8 +174,15 @@ pub fn redistribute_input_order_sizes<P: EnginePlatform>(
 pub fn apply_input_order_section_alignments<P: EnginePlatform>(
     section_layouts: &mut OutputSectionMap<OutputRecordLayout>,
     by_part: &HashMap<PartId, Vec<(Alignment, u64)>>,
+    output_sections: &OutputSections<P>,
 ) {
     for (part_id, inputs) in by_part {
+        if output_sections
+            .subalign(part_id.output_section_id::<P>())
+            .is_some()
+        {
+            continue;
+        }
         let Some(max_align) = inputs.iter().map(|(alignment, _)| *alignment).max() else {
             continue;
         };
@@ -274,7 +281,7 @@ pub fn compute_and_apply_section_layout<'data, P: EnginePlatform>(
             &layout_inputs,
         )?;
     redistribute_input_order_sizes(group_states, &ordered, &section_part_layouts, &affixes);
-    apply_input_order_section_alignments::<P>(&mut section_layouts, &by_part);
+    apply_input_order_section_alignments::<P>(&mut section_layouts, &by_part, output_sections);
     Ok((
         section_part_layouts,
         section_layouts,

@@ -63,7 +63,7 @@ matching all three.
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | Uses GCC `init_priority` encoded in `.init_array.N` / `.ctors.N` names |
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | Both `*(EXCLUDE_FILE(a.o) .text)` and `EXCLUDE_FILE(a.o) *(.text)` |
 | `BYTE(expr)`, `SHORT(expr)`, `LONG(expr)`, `QUAD(expr)` output data | ✅ | Written in the target endianness |
-| `SUBALIGN(n)` forced input alignment | ❌ | |
+| `SUBALIGN(n)` forced input alignment | ✅ | Each input is aligned to `n`, overriding larger or smaller `sh_addralign`. Output `sh_addralign` is `max(ALIGN(n), SUBALIGN(n))` and is not raised by input alignments |
 | `ONLY_IF_RO` / `ONLY_IF_RW` output section constraints | ✅ | Parsed. Duplicate names (GNU default `.eh_frame : ONLY_IF_RO` then `ONLY_IF_RW`) share one output section. If any matching input has `SHF_WRITE`, the RW copy is used for all of them; otherwise the RO copy |
 | `:phdr` output section phdrs | ✅ | |
 

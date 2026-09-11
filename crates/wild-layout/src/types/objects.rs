@@ -232,7 +232,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
             ));
         }
 
-        let section = Section::create(header, self, part_id)?;
+        let section = Section::create(header, self, part_id, resources.output_sections)?;
 
         <A::Platform as Platform>::load_object_section_relocations::<A>(
             self,
@@ -309,7 +309,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
     ) -> Result {
         let part_id = self.section_part_id(section_index, &resources.symbol_db.section_part_ids);
         let header = self.object.section(section_index)?;
-        let section = Section::create(header, self, part_id)?;
+        let section = Section::create(header, self, part_id, resources.output_sections)?;
 
         // Note: We intentionally do NOT process debug relocations here. On some architectures (like
         // RISC-V and LoongArch64), debug sections reference local symbols (e.g. .LFB0, .LFE0) in

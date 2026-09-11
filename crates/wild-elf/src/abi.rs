@@ -1131,6 +1131,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
                 fill: None,
                 phdrs: Vec::new(),
                 input_order: false,
+                subalign: None,
             })
             .collect()
     }

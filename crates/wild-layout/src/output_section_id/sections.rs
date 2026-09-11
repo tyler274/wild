@@ -281,6 +281,7 @@ impl<'data, P: Platform> OutputSections<'data, P> {
                         fill,
                         phdrs,
                         input_order: false,
+                        subalign: None,
                     });
                     return *e.insert(new_id);
                 }
@@ -336,6 +337,10 @@ impl<'data, P: Platform> OutputSections<'data, P> {
         let primary_info = self.section_infos.get(primary_id);
         let section_attributes = primary_info.section_attributes;
         let location_info = location_info.or_else(|| primary_info.location_info.clone());
+        let subalign = primary_info.subalign;
+        let min_alignment = subalign
+            .map(|a| min_alignment.max(a))
+            .unwrap_or(min_alignment);
         self.section_infos.add_new(SectionOutputInfo {
             kind: SectionKind::Secondary(primary_id),
             section_attributes,
@@ -346,6 +351,7 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             fill: primary_info.fill,
             phdrs: Vec::new(),
             input_order,
+            subalign,
         })
     }
 
@@ -355,6 +361,20 @@ impl<'data, P: Platform> OutputSections<'data, P> {
 
     pub fn uses_input_order(&self, sid: OutputSectionId) -> bool {
         self.section_infos.get(sid).input_order
+    }
+
+    pub fn set_subalign(&mut self, sid: OutputSectionId, subalign: Alignment) {
+        let info = self.section_infos.get_mut(sid);
+        info.subalign = Some(subalign);
+        info.min_alignment = info.min_alignment.max(subalign);
+    }
+
+    pub fn subalign(&self, sid: OutputSectionId) -> Option<Alignment> {
+        self.section_infos.get(sid).subalign
+    }
+
+    pub fn apply_subalign(&self, sid: OutputSectionId, input: Alignment) -> Alignment {
+        self.subalign(sid).unwrap_or(input)
     }
 
     pub fn with_base_address(base_address: u64, output_kind: OutputKind) -> Self
@@ -452,6 +472,9 @@ impl<'data, P: Platform> OutputSections<'data, P> {
 
     pub fn bump_min_alignment(&mut self, sid: OutputSectionId, a: Alignment) {
         let info = self.section_infos.get_mut(sid);
+        if info.subalign.is_some() {
+            return;
+        }
         info.min_alignment = core::cmp::max(info.min_alignment, a);
     }
 

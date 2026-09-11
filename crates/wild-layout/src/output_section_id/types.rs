@@ -84,6 +84,8 @@ pub struct SectionOutputInfo<'data, P: Platform> {
     /// Place inputs in command-line / section-index order, aligning each to its own
     /// `sh_addralign` (GNU ld linker-script default). Alignment-bucket parts are not used.
     pub input_order: bool,
+    /// GNU `SUBALIGN(n)`: force every input's alignment to `n`.
+    pub subalign: Option<Alignment>,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -99,6 +99,8 @@ pub struct Section<'a> {
     pub output_section_name: &'a [u8],
     pub commands: Vec<ContentsCommand<'a>>,
     pub alignment: Option<Alignment>,
+    /// GNU `SUBALIGN(n)`: each input is aligned to `n`, overriding `sh_addralign`.
+    pub subalign: Option<Alignment>,
     pub start_address_expression: Option<Expression<'a>>,
     pub phdrs: Vec<&'a [u8]>,
     pub at_address: Option<Expression<'a>>,

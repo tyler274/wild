@@ -869,6 +869,7 @@ impl platform::Platform for Wasm {
                 fill: None,
                 phdrs: Vec::new(),
                 input_order: false,
+                subalign: None,
             })
             .collect()
     }

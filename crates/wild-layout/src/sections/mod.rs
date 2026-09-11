@@ -48,7 +48,7 @@ pub fn layout_section_from_part_layouts<'data, P: EnginePlatform>(
     if is_first_part {
         *section_layout = *part;
         section_layout.alignment = section_info.min_alignment;
-        if part.mem_size > 0 {
+        if part.mem_size > 0 && section_info.subalign.is_none() {
             section_layout.alignment = section_layout.alignment.max(part.alignment);
         }
         return;
@@ -61,7 +61,7 @@ pub fn layout_section_from_part_layouts<'data, P: EnginePlatform>(
     let file_size = section_layout.file_end().max(part.file_end()) - file_offset;
     let mem_size = section_layout.mem_end().max(part.mem_end()) - mem_offset;
 
-    let alignment = if part.mem_size > 0 {
+    let alignment = if part.mem_size > 0 && section_info.subalign.is_none() {
         section_layout.alignment.max(part.alignment)
     } else {
         section_layout.alignment

@@ -499,6 +499,7 @@ impl platform::Platform for MachO {
                     fill: None,
                     phdrs: Vec::new(),
                     input_order: false,
+                    subalign: None,
                 }
             })
             .collect()

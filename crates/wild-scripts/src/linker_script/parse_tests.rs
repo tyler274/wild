@@ -1,5 +1,16 @@
 use super::*;
 use crate::inputs::InputSpec;
+use crate::linker_script::ContentsCommand;
+use crate::linker_script::Matcher;
+use crate::linker_script::OnlyIf;
+use crate::linker_script::OutputData;
+use crate::linker_script::OutputDataWidth;
+use crate::linker_script::RelocatableAnchor;
+use crate::linker_script::Section;
+use crate::linker_script::SectionAttributes;
+use crate::linker_script::SectionPattern;
+use crate::linker_script::Sections;
+use crate::linker_script::SortKind;
 use crate::linker_script::maybe_apply_sysroot;
 use itertools::assert_equal;
 use std::assert_matches;
@@ -169,6 +180,7 @@ fn test_section_command() {
                 }),
             ],
             alignment: None,
+            subalign: None,
             start_address_expression: None,
             phdrs: vec![],
             at_address: None,
@@ -197,7 +209,66 @@ fn test_section_command_with_start_address_expression() {
                 }],
             })],
             alignment: Some(Alignment::new(8).unwrap()),
+            subalign: None,
             start_address_expression: Some(Expression::Number(0)),
+            phdrs: vec![],
+            at_address: None,
+            region: None,
+            at_region: None,
+            fill: None,
+            attributes: None,
+            only_if: None,
+        }),
+    );
+}
+
+#[test]
+fn test_section_command_with_subalign() {
+    check_section_command(
+        ".s : ALIGN(32) SUBALIGN(4) { *(.s) }",
+        &SectionCommand::Section(Section {
+            output_section_name: b".s",
+            commands: vec![ContentsCommand::Matcher(Matcher {
+                must_keep: false,
+                input_file_pattern: None,
+                exclude_file_patterns: vec![],
+                input_section_name_patterns: vec![SectionPattern {
+                    name: b".s",
+                    sort: SortKind::None,
+                }],
+            })],
+            alignment: Some(Alignment::new(32).unwrap()),
+            subalign: Some(Alignment::new(4).unwrap()),
+            start_address_expression: None,
+            phdrs: vec![],
+            at_address: None,
+            region: None,
+            at_region: None,
+            fill: None,
+            attributes: None,
+            only_if: None,
+        }),
+    );
+}
+
+#[test]
+fn test_section_command_with_subalign_only() {
+    check_section_command(
+        ".s : SUBALIGN(4) { *(.s) }",
+        &SectionCommand::Section(Section {
+            output_section_name: b".s",
+            commands: vec![ContentsCommand::Matcher(Matcher {
+                must_keep: false,
+                input_file_pattern: None,
+                exclude_file_patterns: vec![],
+                input_section_name_patterns: vec![SectionPattern {
+                    name: b".s",
+                    sort: SortKind::None,
+                }],
+            })],
+            alignment: None,
+            subalign: Some(Alignment::new(4).unwrap()),
+            start_address_expression: None,
             phdrs: vec![],
             at_address: None,
             region: None,
@@ -225,6 +296,7 @@ fn test_section_command_with_align_start_address() {
                 }],
             })],
             alignment: None,
+            subalign: None,
             start_address_expression: Some(Expression::Align(
                 Box::new(Expression::Number(0x2000)),
                 None,
@@ -251,6 +323,7 @@ fn test_section_command_with_type_attribute() {
                 value: Expression::Number(1),
             })],
             alignment: None,
+            subalign: None,
             start_address_expression: None,
             phdrs: vec![],
             at_address: None,
@@ -270,6 +343,7 @@ fn test_section_command_with_type_attribute() {
                 value: Expression::Number(1),
             })],
             alignment: None,
+            subalign: None,
             start_address_expression: None,
             phdrs: vec![],
             at_address: None,
@@ -289,6 +363,7 @@ fn test_section_command_with_type_attribute() {
                 value: Expression::Number(1),
             })],
             alignment: None,
+            subalign: None,
             start_address_expression: None,
             phdrs: vec![],
             at_address: None,
@@ -313,6 +388,7 @@ fn test_section_command_with_type_attribute() {
                 }],
             })],
             alignment: None,
+            subalign: None,
             start_address_expression: None,
             phdrs: vec![],
             at_address: None,
@@ -395,6 +471,7 @@ fn test_basic_linker_script() {
                                 }),
                             ],
                             alignment: Some(Alignment::new(8).unwrap()),
+                            subalign: None,
                             start_address_expression: None,
                             phdrs: vec![],
                             at_address: None,
@@ -552,6 +629,7 @@ fn test_section_command_with_filename() {
                 }),
             ],
             alignment: None,
+            subalign: None,
             start_address_expression: None,
             phdrs: vec![],
             at_address: None,
@@ -580,6 +658,7 @@ fn test_section_command_with_glob_filename() {
                 }],
             })],
             alignment: None,
+            subalign: None,
             start_address_expression: None,
             phdrs: vec![],
             at_address: None,
@@ -608,6 +687,7 @@ fn test_keep_with_filename() {
                 }],
             })],
             alignment: None,
+            subalign: None,
             start_address_expression: None,
             phdrs: vec![],
             at_address: None,
@@ -644,6 +724,7 @@ fn test_assert_command() {
                             }],
                         })],
                         alignment: None,
+                        subalign: None,
                         start_address_expression: None,
                         phdrs: vec![],
                         at_address: None,
@@ -691,6 +772,7 @@ fn test_assert_in_sections() {
                             }],
                         })],
                         alignment: None,
+                        subalign: None,
                         start_address_expression: None,
                         phdrs: vec![],
                         at_address: None,
@@ -1247,6 +1329,7 @@ fn test_only_if_and_sort_none() {
                 }],
             })],
             alignment: None,
+            subalign: None,
             start_address_expression: None,
             phdrs: vec![],
             at_address: None,
@@ -1271,6 +1354,7 @@ fn test_only_if_and_sort_none() {
                 }],
             })],
             alignment: None,
+            subalign: None,
             start_address_expression: None,
             phdrs: vec![],
             at_address: None,
@@ -1305,6 +1389,7 @@ fn test_exclude_file_between_patterns() {
                 ],
             })],
             alignment: None,
+            subalign: None,
             start_address_expression: None,
             phdrs: vec![],
             at_address: None,
@@ -1336,6 +1421,7 @@ fn test_linker_version_in_comment() {
                 ContentsCommand::LinkerVersion,
             ],
             alignment: None,
+            subalign: None,
             start_address_expression: Some(Expression::Number(0)),
             phdrs: vec![],
             at_address: None,

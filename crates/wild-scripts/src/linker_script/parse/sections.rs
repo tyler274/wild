@@ -110,6 +110,7 @@ pub fn parse_section_command<'input>(
     skip_comments_and_whitespace(input)?;
 
     let mut alignment = None;
+    let mut subalign = None;
     let mut at_address = None;
     let mut only_if = None;
 
@@ -124,6 +125,8 @@ pub fn parse_section_command<'input>(
             only_if = Some(OnlyIf::Rw);
         } else if opt("AT").parse_next(input)?.is_some() {
             at_address = Some(parse_at_address.parse_next(input)?);
+        } else if opt("SUBALIGN").parse_next(input)?.is_some() {
+            subalign = Some(parse_alignment_value.parse_next(input)?);
         } else {
             alignment = Some(parse_alignment.parse_next(input)?);
         }
@@ -167,6 +170,7 @@ pub fn parse_section_command<'input>(
         output_section_name: name,
         commands,
         alignment,
+        subalign,
         start_address_expression,
         phdrs,
         at_address,
@@ -342,6 +346,10 @@ pub fn parse_fill<'input>(input: &mut &'input BStr) -> winnow::Result<Fill<'inpu
 
 pub fn parse_alignment(input: &mut &BStr) -> winnow::Result<Alignment> {
     "ALIGN".parse_next(input)?;
+    parse_alignment_value.parse_next(input)
+}
+
+pub fn parse_alignment_value(input: &mut &BStr) -> winnow::Result<Alignment> {
     skip_comments_and_whitespace(input)?;
     '('.parse_next(input)?;
     skip_comments_and_whitespace(input)?;

@@ -198,6 +198,9 @@ impl<'data> LayoutRulesBuilder<'data> {
                                 }
                                 id
                             };
+                            if let Some(subalign) = sec.subalign {
+                                output_sections.set_subalign(primary_section_id, subalign);
+                            }
                             if let Some(only_if) = sec.only_if {
                                 output_sections.record_only_if(
                                     primary_section_id,
@@ -471,6 +474,9 @@ impl<'data> LayoutRulesBuilder<'data> {
                                     },
                                     sec.attributes.as_ref(),
                                 );
+                                if let Some(subalign) = sec.subalign {
+                                    output_sections.set_subalign(primary_section_id, subalign);
+                                }
                                 ordered_sections.push(primary_section_id);
                                 current_section_id = Some(primary_section_id);
                                 loc = SymbolLoc::SectionEnd(primary_section_id);
