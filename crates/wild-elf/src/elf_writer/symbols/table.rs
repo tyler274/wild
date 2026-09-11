@@ -1,4 +1,4 @@
-use super::super::types::*;
+use super::super::types::ElfLayout;
 use crate as elf;
 use crate::ElfClass;
 use crate::GLOBAL_POINTER_SYMBOL_NAME;

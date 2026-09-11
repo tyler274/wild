@@ -1,13 +1,16 @@
+use crate::RawSymbolName;
+use crate::RelocationList;
+use crate::VerneedTable;
+use crate::WasmSymbol;
+use crate::WasmSymbolKind;
+use crate::decode_relocs_for;
+use crate::wasm_data_segment_encoded_size;
 mod parse;
 mod scan;
 mod types;
 
 use super::Wasm;
-use super::abi::*;
-use super::gc::*;
-use super::output::*;
 use super::section_id;
-use super::symbols::*;
 use leb128::write::unsigned_len as uleb128_size;
 #[allow(unused_imports)]
 pub(crate) use parse::*;

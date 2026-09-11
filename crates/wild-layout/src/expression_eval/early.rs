@@ -1,4 +1,5 @@
-use super::*;
+use super::ResolvedLocationCounter;
+use super::SymbolValue;
 use crate as layout;
 use crate::EnginePlatform;
 use crate::FileLayoutState;

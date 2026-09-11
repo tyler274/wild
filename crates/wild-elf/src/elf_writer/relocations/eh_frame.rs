@@ -1,5 +1,9 @@
-use super::super::types::*;
-use super::*;
+use super::super::types::ElfLayout;
+use super::super::types::TableWriter;
+use super::RelocationCache;
+use super::SectionInfo;
+use super::apply_relocation;
+use super::display_relocation;
 use crate as elf;
 use crate::EhFrameHdrEntry;
 use crate::ElfClass;

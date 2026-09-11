@@ -1,5 +1,8 @@
-use super::ids::*;
-use super::order::*;
+use super::FILE_HEADER;
+use super::OutputOrder;
+use super::OutputSectionId;
+use super::num_built_in_sections;
+use super::regular_section_base;
 use super::types::CustomSectionDetails;
 use super::types::CustomSectionIds;
 use super::types::GnuBuildIdPlacement;

@@ -1,4 +1,4 @@
-use super::*;
+use super::SectionRule;
 use crate::EnginePlatform;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_id::SectionIdentity;

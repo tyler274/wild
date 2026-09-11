@@ -1,4 +1,7 @@
-use super::ids::*;
+use super::AtomicSymbolId;
+use super::SymbolId;
+use super::SymbolIdRange;
+use super::SymbolNameDisplay;
 use super::load::SymbolVecWriters;
 #[cfg(not(all(feature = "plugins", unix)))]
 use super::load::linker_plugin_disabled_error;

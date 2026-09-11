@@ -1,9 +1,4 @@
-#[allow(unused_imports)]
-use crate::abi::*;
-#[allow(unused_imports)]
-use crate::file::*;
-#[allow(unused_imports)]
-use crate::gnu::*;
+use crate::CopyRelocationInfo;
 use crate::output_section_id;
 use crate::part_id;
 #[allow(unused_imports)]

@@ -1,4 +1,6 @@
-use super::super::*;
+use super::super::ElfArgs;
+use super::super::PackDynRelocs;
+use super::super::Strip;
 use crate::ArgumentParser;
 use crate::CopyRelocations;
 use crate::CopyRelocationsDisabledReason;

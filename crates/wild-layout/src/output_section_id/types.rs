@@ -1,4 +1,4 @@
-use super::ids::*;
+use super::OutputSectionId;
 use crate::layout_rules::SectionKind;
 use wild_platform::Platform;
 #[allow(unused_imports)]

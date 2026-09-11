@@ -1,5 +1,5 @@
-use super::super::dynamic::*;
-use super::super::types::*;
+use super::super::dynamic::EpilogueOffsets;
+use super::super::types::TableWriter;
 use crate as elf;
 use crate::ElfClass;
 use crate::Verdaux;

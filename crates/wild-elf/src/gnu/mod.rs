@@ -1,13 +1,8 @@
+use super::SymtabShndxEntry;
 mod ehframe;
 mod notes;
 mod versions;
 
-#[allow(unused_imports)]
-use super::abi::*;
-#[allow(unused_imports)]
-use super::file::*;
-#[allow(unused_imports)]
-use super::output::*;
 #[allow(unused_imports)]
 use super::types::DynamicEntry;
 use super::types::Elf;

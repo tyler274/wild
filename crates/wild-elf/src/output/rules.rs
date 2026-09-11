@@ -1,9 +1,3 @@
-#[allow(unused_imports)]
-use crate::abi::*;
-#[allow(unused_imports)]
-use crate::file::*;
-#[allow(unused_imports)]
-use crate::gnu::*;
 use crate::output_section_id;
 #[allow(unused_imports)]
 use crate::types::ElfClass;

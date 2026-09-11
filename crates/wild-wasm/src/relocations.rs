@@ -1,5 +1,6 @@
-use super::file::*;
-use super::symbols::*;
+use crate::WasmDataSegmentLayout;
+use crate::WasmSymbol;
+use crate::WasmSymbolKind;
 use std::ops::Range;
 use wasmparser::BinaryReader;
 use wasmparser::RelocationEntry;

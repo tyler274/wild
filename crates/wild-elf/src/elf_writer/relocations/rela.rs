@@ -1,5 +1,10 @@
-use super::super::types::*;
-use super::*;
+use super::super::types::ElfLayout;
+use super::super::types::TableWriter;
+use super::SectionInfo;
+use super::apply_debug_relocation;
+use super::apply_relocation;
+use super::display_relocation;
+use super::reloc_file_offset;
 use crate as elf;
 use crate::ElfClass;
 use crate::writable_elf::WritableRela as _;

@@ -1,4 +1,6 @@
-use super::*;
+use super::LE;
+use super::MachOLayout;
+use super::take_mut;
 use crate::CHAINED_FIXUP_PAGE_START_SIZE;
 use crate::CS_BLOB_HEADERS_SIZE;
 use crate::CS_BLOCK_SIZE;

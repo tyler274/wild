@@ -1,11 +1,12 @@
+use crate::ObjectImportResolutions;
+use crate::WasmObjectLayoutInput;
+use crate::WasmSymbolKind;
+use crate::heap_base_address;
 mod emit;
 mod got;
 mod imports;
 
 use super::LINKER_MEMORY_BASE;
-use super::gc::*;
-use super::output::*;
-use super::symbols::*;
 #[allow(unused_imports)]
 pub(crate) use emit::*;
 #[allow(unused_imports)]

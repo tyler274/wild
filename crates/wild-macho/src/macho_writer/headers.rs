@@ -1,4 +1,10 @@
-use super::*;
+use super::ExportsTrieCommand;
+use super::LE;
+use super::MachOLayout;
+use super::SymtabEntry;
+use super::get_text_segment_layout;
+use super::take_mut;
+use super::write_chained_fixup_table;
 use crate::BuildVersionCommand;
 use crate::CodeSignatureCommand;
 use crate::DYLINKER_PATH;

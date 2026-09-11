@@ -1,4 +1,4 @@
-use super::ids::*;
+use super::OutputSectionId;
 use super::sections::OutputSections;
 use super::types::LocationCounterIndex;
 use super::types::SectionName;

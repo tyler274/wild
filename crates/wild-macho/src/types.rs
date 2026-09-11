@@ -1,10 +1,4 @@
 use super::MachO;
-#[allow(unused_imports)]
-use super::abi::*;
-#[allow(unused_imports)]
-use super::file::*;
-#[allow(unused_imports)]
-use super::output::*;
 use object::Endianness;
 use object::macho;
 use object::macho::S_ATTR_EXT_RELOC;

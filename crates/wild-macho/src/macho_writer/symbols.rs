@@ -1,4 +1,6 @@
-use super::*;
+use super::LE;
+use super::MachOLayout;
+use super::SymtabEntry;
 use crate::MachO;
 use crate::part_id;
 use object::from_bytes_mut;

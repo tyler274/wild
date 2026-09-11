@@ -1,4 +1,5 @@
-use super::symbols::*;
+use super::symbols::copy_symbol_version;
+use super::symbols::write_got_plt_syms;
 use super::types::ElfLayout;
 use super::types::TableWriter;
 use crate as elf;

@@ -1,5 +1,6 @@
-use super::*;
-use crate::linker_script::ast::*;
+use super::parse_assert;
+use super::skip_comments_and_whitespace;
+use crate::linker_script::Expression;
 use winnow::BStr;
 use winnow::Parser as _;
 use winnow::ascii::dec_uint;

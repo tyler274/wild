@@ -1,5 +1,7 @@
+use super::super::CompressionKind;
 use super::super::DynamicLinker;
-use super::super::*;
+use super::super::ElfArgs;
+use super::super::ExcludeLibs;
 use crate::ArgumentParser;
 use crate::BSymbolicKind;
 use crate::HasCommonArgs as _;

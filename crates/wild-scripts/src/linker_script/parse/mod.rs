@@ -1,7 +1,18 @@
+use super::AssertCommand;
+use super::Command;
+use super::Expression;
+use super::LinkerScript;
+use super::Location;
+use super::MemoryFlags;
+use super::MemoryRegion;
+use super::OutputFormat;
+use super::Phdr;
+use super::ProvideSymbolDefinition;
+use super::SectionCommand;
+use super::SymbolAssignment;
 mod expr;
 mod sections;
 
-use super::ast::*;
 use crate::inputs::Input;
 use crate::inputs::InputSpec;
 use crate::inputs::Modifiers;

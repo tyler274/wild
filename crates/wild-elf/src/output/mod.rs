@@ -1,15 +1,12 @@
+use super::BuiltInSectionDetails;
+use super::PLT_ENTRY_SIZE;
+use super::SYMTAB_SHNDX_ENTRY_SIZE;
 mod copy;
 mod relocs;
 mod relr;
 mod rules;
 
 use super::ELF_NUM_BUILT_IN_SECTIONS;
-#[allow(unused_imports)]
-use super::abi::*;
-#[allow(unused_imports)]
-use super::file::*;
-#[allow(unused_imports)]
-use super::gnu::*;
 use super::output_section_id;
 use super::part_id;
 #[allow(unused_imports)]

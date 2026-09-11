@@ -1,4 +1,7 @@
-use super::*;
+use super::LE;
+use super::MachOLayout;
+use super::MachOSymbolTableWriter;
+use super::write_symbols;
 use crate::GOT_ENTRY_SIZE;
 use crate::MachO;
 use crate::PLT_ENTRY_SIZE;

@@ -1,7 +1,7 @@
+use crate::WasmLinkerSymbol;
 mod inputs;
 mod units;
 
-use super::linking::*;
 use crate::wasm_writer::OutputImport;
 use crate::wasm_writer::OutputImportEntity;
 #[allow(unused_imports)]

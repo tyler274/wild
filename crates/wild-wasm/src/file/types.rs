@@ -1,7 +1,7 @@
 use super::super::STANDARD_SECTION_LOOKUP_LEN;
-use super::super::relocations::*;
 use super::super::section_id;
-use super::super::symbols::*;
+use crate::WasmRelocSection;
+use crate::WasmSymbol;
 use std::borrow::Cow;
 use std::ops::Range;
 use wasmparser::ConstExpr;

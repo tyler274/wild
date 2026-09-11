@@ -1,8 +1,11 @@
 use super::super::WASM_DEAD_INDEX;
-use super::super::file::*;
-use super::super::relocations::*;
 use super::super::section_id;
-use super::super::symbols::*;
+use crate::File;
+use crate::WasmDataSegment;
+use crate::WasmFunctionBody;
+use crate::WasmRelocation;
+use crate::WasmSymbol;
+use crate::WasmSymbolKind;
 use std::ops::Range;
 use wild_error::error::Context as _;
 use wild_error::error::Result;

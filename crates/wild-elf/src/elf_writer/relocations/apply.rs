@@ -1,5 +1,12 @@
-use super::super::types::*;
-use super::*;
+use super::super::types::ElfLayout;
+use super::super::types::TableWriter;
+use super::RelocationCache;
+use super::SectionInfo;
+use super::callee_st_other;
+use super::get_pair_subtraction_relocation_value;
+use super::get_resolution;
+use super::maybe_get_thunk_for_relocation;
+use super::write_absolute_relocation;
 use crate as elf;
 use crate::ElfClass;
 use linker_utils::elf::RelocationKind;

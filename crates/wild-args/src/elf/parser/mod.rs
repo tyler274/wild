@@ -1,7 +1,11 @@
+use super::BuildIdOption;
+use super::ElfArgs;
+use super::HashStyle;
+use super::SortSectionMode;
+use super::Strip;
 mod info;
 mod inputs;
 
-use super::*;
 use crate::ArgumentParser;
 use crate::FileReplacementMode;
 use crate::HasCommonArgs as _;

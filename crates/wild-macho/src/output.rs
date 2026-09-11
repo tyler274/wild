@@ -1,8 +1,4 @@
 use super::MachO;
-#[allow(unused_imports)]
-use super::abi::*;
-#[allow(unused_imports)]
-use super::file::*;
 use super::output_section_id;
 use super::part_id;
 #[allow(unused_imports)]

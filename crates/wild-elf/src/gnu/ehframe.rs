@@ -1,10 +1,4 @@
 #[allow(unused_imports)]
-use crate::abi::*;
-#[allow(unused_imports)]
-use crate::file::*;
-#[allow(unused_imports)]
-use crate::output::*;
-#[allow(unused_imports)]
 use crate::types::ElfClass;
 use crate::types::ElfCrel;
 use crate::types::ElfRela;

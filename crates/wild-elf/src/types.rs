@@ -1,11 +1,5 @@
-#[allow(unused_imports)]
-use super::abi::*;
-#[allow(unused_imports)]
-use super::file::*;
-#[allow(unused_imports)]
-use super::gnu::*;
-#[allow(unused_imports)]
-use super::output::*;
+use super::DynamicTagValues;
+use super::NoteProperty;
 use crate::writable_elf::WritableCompressionHeader;
 use crate::writable_elf::WritableDynamicEntry;
 use crate::writable_elf::WritableFileHeader;

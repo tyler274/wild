@@ -1,5 +1,7 @@
-use super::dynamic::*;
-use super::symbols::*;
+use super::dynamic::DynamicEntriesWriter;
+use super::symbols::SymbolTableWriter;
+use super::symbols::VersionWriter;
+use super::symbols::VersionedDynsymWriter;
 use crate as elf;
 use crate::EhFrameHdr;
 use crate::EhFrameHdrEntry;

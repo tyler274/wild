@@ -1,10 +1,4 @@
 #[allow(unused_imports)]
-use crate::abi::*;
-#[allow(unused_imports)]
-use crate::file::*;
-#[allow(unused_imports)]
-use crate::gnu::*;
-#[allow(unused_imports)]
 use crate::types::ElfClass;
 use std::marker::PhantomData;
 use std::ops::Range;
