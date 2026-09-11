@@ -6,13 +6,13 @@ use super::LINKER_MEMORY_BASE;
 use super::gc::*;
 use super::output::*;
 use super::symbols::*;
-use crate::error::Result;
 #[allow(unused_imports)]
 pub(crate) use emit::*;
 #[allow(unused_imports)]
 pub(crate) use got::*;
 #[allow(unused_imports)]
 pub(crate) use imports::*;
+use wild_error::error::Result;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct LinkerDefinedIndices {
@@ -153,13 +153,13 @@ impl LinkerDefinedIndices {
             data_address_globals.push((known, next_global));
             next_global = next_global
                 .checked_add(1)
-                .ok_or_else(|| crate::error!("Wasm global index overflow"))?;
+                .ok_or_else(|| wild_error::error!("Wasm global index overflow"))?;
         }
         let got_mem_global_base = if request.got_mem_count > 0 {
             let base = next_global;
             next_global = next_global
                 .checked_add(request.got_mem_count)
-                .ok_or_else(|| crate::error!("Wasm global index overflow"))?;
+                .ok_or_else(|| wild_error::error!("Wasm global index overflow"))?;
             Some(base)
         } else {
             None
@@ -168,7 +168,7 @@ impl LinkerDefinedIndices {
             let base = next_global;
             next_global = next_global
                 .checked_add(request.got_func_count)
-                .ok_or_else(|| crate::error!("Wasm global index overflow"))?;
+                .ok_or_else(|| wild_error::error!("Wasm global index overflow"))?;
             Some(base)
         } else {
             None
@@ -185,7 +185,7 @@ impl LinkerDefinedIndices {
             stub.function_index = next_func;
             next_func = next_func
                 .checked_add(1)
-                .ok_or_else(|| crate::error!("Wasm function index overflow"))?;
+                .ok_or_else(|| wild_error::error!("Wasm function index overflow"))?;
         }
         let num_defined_functions = next_func - function_import_count;
 
@@ -236,7 +236,7 @@ impl LinkerDefinedIndices {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, strum::EnumIter, strum::EnumString, strum::IntoStaticStr,
 )]
-pub(crate) enum WasmLinkerSymbol {
+pub enum WasmLinkerSymbol {
     // Data
     #[strum(serialize = "__data_end")]
     DataEnd,

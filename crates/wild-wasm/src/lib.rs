@@ -1,9 +1,5 @@
-use crate::FileSystem;
-use crate::args::wasm::WasmArgs;
-use crate::bail;
 use wild_layout::output_section_id::OutputSectionId;
 use wild_layout::part_id::PartId;
-use wild_platform::Args as _;
 
 pub(crate) mod abi;
 pub(crate) mod file;
@@ -12,6 +8,8 @@ pub(crate) mod linking;
 pub(crate) mod output;
 pub(crate) mod relocations;
 pub(crate) mod symbols;
+pub(crate) mod wasm_wasm32;
+pub(crate) mod wasm_writer;
 
 #[allow(unused_imports)]
 pub(crate) use abi::*;
@@ -25,22 +23,13 @@ pub(crate) use relocations::*;
 pub(crate) use symbols::*;
 
 #[derive(Debug, Copy, Clone, Default)]
-pub(crate) struct Wasm;
+pub struct Wasm;
 
 impl wild_layout::EnginePlatform for Wasm {}
 impl<'data, 'scope> wild_layout::EngineScope<'data, 'scope> for Wasm where 'data: 'scope {}
 impl<'writer, 'out> wild_layout::EngineWriter<'writer, 'out> for Wasm where 'out: 'writer {}
 
-pub(crate) fn link_for_arch<'data, F: FileSystem>(
-    linker: &'data crate::Linker<F>,
-    args: &'data WasmArgs,
-) -> crate::error::Result<crate::LinkerOutput<'data>> {
-    if !(cfg!(feature = "wasm") || args.experimental_platforms()) {
-        bail!("Wasm support is still experimental. Rebuild with `--features wasm` to enable it.");
-    }
-
-    linker.link_for_arch::<Wasm, crate::wasm_wasm32::WasmWasm32>(args)
-}
+pub use wasm_wasm32::WasmWasm32;
 
 #[repr(u32)]
 #[derive(Clone, Copy)]
@@ -195,8 +184,8 @@ impl SinglePartSectionId {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::args::wasm::DEFAULT_STACK_SIZE;
     use wasmparser::MemoryType;
+    use wild_args::wasm::DEFAULT_STACK_SIZE;
 
     fn layout_input_with_features<'data>(
         file: u32,
@@ -226,7 +215,7 @@ mod tests {
             init_funcs: &[],
             target_features: features,
             symbol_id_range: wild_layout::symbol_db::SymbolIdRange::empty(),
-            file_id: crate::input_data::FileId::new(0, file),
+            file_id: wild_platform::FileId::new(0, file),
             defined_function_live_ordinal: Vec::new(),
             defined_global_live_ordinal: Vec::new(),
         }

@@ -5,8 +5,6 @@ use super::abi::*;
 use super::file::*;
 #[allow(unused_imports)]
 use super::output::*;
-use crate::args::macho::MachOArgs;
-use crate::input_data::FileId;
 use object::Endianness;
 use object::macho;
 use object::macho::S_ATTR_EXT_RELOC;
@@ -21,12 +19,14 @@ use object::macho::SECTION_ATTRIBUTES;
 use object::macho::Section64;
 pub use object::macho::SectionFlags;
 use std::num::NonZeroU64;
+use wild_args::macho::MachOArgs;
 use wild_layout::layout_rules::SectionKind;
 use wild_layout::output_section_id::SectionIdentity;
 use wild_layout::output_section_id::SectionName;
 use wild_layout::symbol_db::SymbolId;
 use wild_platform as platform;
 use wild_platform::Args;
+use wild_platform::FileId;
 use wild_util::alignment;
 use wild_util::alignment::Alignment;
 
@@ -55,11 +55,11 @@ pub(crate) const GOT_ENTRY_SIZE: u64 = 8;
 pub(crate) const PLT_ENTRY_SIZE: u64 = 12;
 pub(crate) const INIT_OFFSET_ENTRY_SIZE: u64 = size_of::<u32>() as u64;
 
-pub(super) type SectionHeader = Section64<crate::macho::Endianness>;
-pub(super) type SectionTable<'data> = &'data [Section64<crate::macho::Endianness>];
+pub type SectionHeader = Section64<Endianness>;
+pub(super) type SectionTable<'data> = &'data [Section64<crate::Endianness>];
 pub(super) type SymbolTable<'data> =
     object::read::macho::SymbolTable<'data, macho::MachHeader64<Endianness>>;
-pub(super) type SymtabEntry = object::macho::Nlist64<Endianness>;
+pub type SymtabEntry = object::macho::Nlist64<Endianness>;
 pub(super) type Relocation = object::macho::Relocation<Endianness>;
 
 pub(crate) type FileHeader = object::macho::MachHeader64<Endianness>;
@@ -108,7 +108,7 @@ pub(crate) fn load_dylib_command_size(path: &[u8]) -> usize {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub(crate) struct SegmentName([u8; 16]);
+pub struct SegmentName([u8; 16]);
 
 impl SegmentName {
     pub(crate) const PAGEZERO: Self = Self::from_bytes(b"__PAGEZERO");
@@ -143,7 +143,7 @@ impl std::fmt::Display for SegmentName {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct LayoutExt {
+pub struct LayoutExt {
     /// Imported STUB library symbols, sorted by GOT.
     pub(crate) imported_symbols: Vec<ImportedSymbolWithResolution>,
     /// Final addresses of initializer functions, in input relocation order.
@@ -151,19 +151,19 @@ pub(crate) struct LayoutExt {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct FinaliseSizesExt {
+pub struct FinaliseSizesExt {
     pub(super) imported_libraries: Vec<FileId>,
     pub(super) imported_symbols: Vec<SymbolId>,
     pub(super) init_functions: Vec<SymbolId>,
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct ObjectLayoutStateExt {
+pub struct ObjectLayoutStateExt {
     pub(super) init_functions: Vec<SymbolId>,
 }
 
 #[derive(Debug, Default, Clone)]
-pub(crate) struct PreludeLayoutExt {
+pub struct PreludeLayoutExt {
     pub(crate) imported_library_file_ids: Vec<FileId>,
     pub(crate) load_dylib_command_sizes: Vec<usize>,
     pub(crate) load_command_count: usize,
@@ -177,7 +177,7 @@ pub(crate) struct ImportedSymbolWithResolution {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-pub(crate) struct SectionAttributes {
+pub struct SectionAttributes {
     pub(super) ty: macho::SectionType,
     pub(super) attr: SectionFlags,
     pub(super) writable: bool,
@@ -261,7 +261,7 @@ impl platform::SectionAttributes for SectionAttributes {
     fn set_to_default_type(&mut self) {}
 }
 
-pub(crate) struct NonAddressableIndexes {}
+pub struct NonAddressableIndexes {}
 
 impl platform::NonAddressableIndexes for NonAddressableIndexes {
     fn new<P: platform::Platform>(_symbol_db: &P::SymbolDb<'_>) -> Self {
@@ -270,13 +270,13 @@ impl platform::NonAddressableIndexes for NonAddressableIndexes {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct MachOSegmentType;
+pub struct MachOSegmentType;
 
 impl platform::SegmentType for MachOSegmentType {}
 
 /// Represents an actual segment.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct ProgramSegmentDef {
+pub struct ProgramSegmentDef {
     // TODO: When we implement -segprot, we should support both initprot and maxprot here.
     pub(crate) name: SegmentName,
     pub(crate) prot: macho::VmProt,
@@ -347,7 +347,7 @@ impl platform::ProgramSegmentDef for ProgramSegmentDef {
     }
 }
 
-pub(crate) struct BuiltInSectionDetails {
+pub struct BuiltInSectionDetails {
     pub(crate) kind: SectionKind<'static, MachO>,
     pub(crate) section_flags: SectionFlags,
     pub(crate) min_alignment: Alignment,
@@ -363,12 +363,12 @@ pub(super) const DEFAULT_DEFS: BuiltInSectionDetails = BuiltInSectionDetails {
 
 #[allow(unused)]
 #[derive(Default, Debug, Clone, Copy)]
-pub(crate) struct DynamicTagValues<'data> {
+pub struct DynamicTagValues<'data> {
     pub(super) phantom: &'data [u8],
 }
 
 #[derive(Debug)]
-pub(crate) struct RelocationList<'data> {
+pub struct RelocationList<'data> {
     pub(crate) relocations: &'data [Relocation],
 }
 
@@ -385,7 +385,7 @@ impl<'data> platform::DynamicTagValues<'data> for DynamicTagValues<'data> {
 }
 
 #[derive(Debug)]
-pub(crate) struct RawSymbolName<'data> {
+pub struct RawSymbolName<'data> {
     pub(crate) name: &'data [u8],
 }
 
@@ -415,7 +415,7 @@ impl std::fmt::Display for RawSymbolName<'_> {
     }
 }
 
-pub(crate) struct VerneedTable<'data> {
+pub struct VerneedTable<'data> {
     // TODO
     pub(super) _phantom: &'data [u8],
 }

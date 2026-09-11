@@ -10,10 +10,6 @@ use super::linking::*;
 use super::part_id;
 use super::relocations::*;
 use super::symbols::*;
-use crate::bail;
-use crate::ensure;
-use crate::error::Context as _;
-use crate::error::Result;
 use crate::wasm_writer::OutputExport;
 use crate::wasm_writer::OutputGlobal;
 use crate::wasm_writer::OutputImport;
@@ -31,6 +27,10 @@ use wasmparser::ConstExpr;
 use wasmparser::DataKind;
 use wasmparser::MemoryType;
 use wasmparser::RelocationType;
+use wild_error::bail;
+use wild_error::ensure;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout::part_id::PartId;
 use wild_layout::symbol_db::SymbolDb;
 use wild_layout::timing_phase;
@@ -38,7 +38,7 @@ use wild_layout::verbose_timing_phase;
 use wild_platform::Args as _;
 
 #[derive(Debug, Default)]
-pub(crate) struct WasmLayout<'data> {
+pub struct WasmLayout<'data> {
     pub(crate) output_types: Vec<wasmparser::FuncType>,
     pub(crate) imports: Vec<OutputImport<'data>>,
     pub(crate) function_type_indices: Vec<u32>,
@@ -350,11 +350,11 @@ pub(crate) fn collect_target_feature_sets<'data>(
     layout_inputs: &[WasmObjectLayoutInput<'data>],
 ) -> Result<(
     HashSet<&'data str>,
-    HashMap<&'data str, crate::input_data::FileId>,
+    HashMap<&'data str, wild_platform::FileId>,
 )> {
     let mut used: HashSet<&'data str> = HashSet::new();
     // First file that disallowed each feature.
-    let mut disallowed: HashMap<&'data str, crate::input_data::FileId> = HashMap::new();
+    let mut disallowed: HashMap<&'data str, wild_platform::FileId> = HashMap::new();
 
     for input in layout_inputs {
         for feature in input.target_features {
@@ -588,7 +588,7 @@ impl<'data> WasmLayout<'data> {
 
 pub(crate) fn const_expr_encoded_size(expr: &ConstExpr<'_>) -> Result<u32> {
     let body = crate::wasm_writer::const_expr_body(expr)
-        .ok_or_else(|| crate::error!("Wasm const expression is missing end opcode"))?;
+        .ok_or_else(|| wild_error::error!("Wasm const expression is missing end opcode"))?;
     // instruction bytes plus the trailing `end` (0x0B) opcode
     u32::try_from(body.len() + 1).context("Wasm const expression too large")
 }
@@ -613,7 +613,7 @@ pub(crate) fn wasm_data_segment_encoded_size(kind: &DataKind<'_>, data_len: usiz
             Ok(header
                 .checked_add(init_len)
                 .and_then(|n| n.checked_add(payload_len))
-                .ok_or_else(|| crate::error!("Wasm data segment size overflow"))?)
+                .ok_or_else(|| wild_error::error!("Wasm data segment size overflow"))?)
         }
     }
 }
@@ -643,7 +643,7 @@ pub(crate) fn output_data_segment_encoded_size(
             Ok(header
                 .checked_add(init_len)
                 .and_then(|n| n.checked_add(payload_len))
-                .ok_or_else(|| crate::error!("Wasm data segment size overflow"))?)
+                .ok_or_else(|| wild_error::error!("Wasm data segment size overflow"))?)
         }
     }
 }
@@ -691,16 +691,16 @@ pub(crate) fn classify_data_reloc_ranges(
 pub(crate) fn stack_high_after_data(data_end: u32, stack_size: u32) -> Result<u32> {
     let stack_base =
         u32::try_from(wild_util::alignment::STACK_ALIGNMENT.align_up(u64::from(data_end)))
-            .map_err(|_| crate::error!("Wasm stack base overflow"))?;
+            .map_err(|_| wild_error::error!("Wasm stack base overflow"))?;
     stack_base
         .checked_add(stack_size)
-        .ok_or_else(|| crate::error!("Wasm stack pointer overflow"))
+        .ok_or_else(|| wild_error::error!("Wasm stack pointer overflow"))
 }
 
 /// Align the end of static data for `__heap_base`.
 pub(crate) fn heap_base_after_data(data_end: u32) -> Result<u32> {
     u32::try_from(wild_util::alignment::STACK_ALIGNMENT.align_up(u64::from(data_end)))
-        .map_err(|_| crate::error!("Wasm heap base overflow"))
+        .map_err(|_| wild_error::error!("Wasm heap base overflow"))
 }
 
 /// Initial `__stack_pointer` value for the chosen stack layout.
@@ -755,7 +755,7 @@ pub(crate) fn layout_object_data<'data>(
             .get(original_index as usize)
             .map_or(wild_util::alignment::MIN, |info| info.alignment);
         *memory_cursor = u32::try_from(align.align_up(u64::from(*memory_cursor)))
-            .map_err(|_| crate::error!("Wasm data segment alignment overflow"))?;
+            .map_err(|_| wild_error::error!("Wasm data segment alignment overflow"))?;
         let output_memory_offset = *memory_cursor;
         let encoded_output_size = output_data_segment_encoded_size(
             &segment.kind,
@@ -765,7 +765,7 @@ pub(crate) fn layout_object_data<'data>(
         )?;
         *memory_cursor = memory_cursor
             .checked_add(u32::try_from(segment.data.len()).context("Wasm data segment too large")?)
-            .ok_or_else(|| crate::error!("Wasm output memory offset overflow"))?;
+            .ok_or_else(|| wild_error::error!("Wasm output memory offset overflow"))?;
         let (reloc_range, payload_start) = segment_reloc_ranges
             .get(filtered_idx)
             .cloned()
@@ -854,9 +854,9 @@ impl WasmObjectIndexMap {
             return remap_wasm_index(&self.type_indices, reloc.index, "type");
         }
 
-        let sym = symbols
-            .get(reloc.index as usize)
-            .ok_or_else(|| crate::error!("relocation symbol index {} out of range", reloc.index))?;
+        let sym = symbols.get(reloc.index as usize).ok_or_else(|| {
+            wild_error::error!("relocation symbol index {} out of range", reloc.index)
+        })?;
 
         match reloc.ty {
             RelocationType::FunctionIndexLeb | RelocationType::FunctionIndexI32 => {
@@ -876,7 +876,7 @@ impl WasmObjectIndexMap {
                     .copied()
                     .flatten()
                     .ok_or_else(|| {
-                        crate::error!(
+                        wild_error::error!(
                             "missing GOT.mem global for data symbol index {}",
                             reloc.index
                         )
@@ -887,7 +887,7 @@ impl WasmObjectIndexMap {
                     .copied()
                     .flatten()
                     .ok_or_else(|| {
-                        crate::error!(
+                        wild_error::error!(
                             "missing GOT.func global for function symbol index {}",
                             reloc.index
                         )
@@ -916,12 +916,15 @@ impl WasmObjectIndexMap {
                     .get(reloc.index as usize)
                     .copied()
                     .ok_or_else(|| {
-                        crate::error!("data address for symbol index {} out of range", reloc.index)
+                        wild_error::error!(
+                            "data address for symbol index {} out of range",
+                            reloc.index
+                        )
                     })?;
                 if reloc.ty == RelocationType::MemoryAddrRelSleb {
                     let relative = i64::from(addr) - i64::from(memory_base) + reloc.addend;
                     let relative = i32::try_from(relative)
-                        .map_err(|_| crate::error!("Wasm REL_SLEB relocation out of range"))?;
+                        .map_err(|_| wild_error::error!("Wasm REL_SLEB relocation out of range"))?;
                     Ok(relative as u32)
                 } else {
                     Ok(addr)
@@ -948,7 +951,7 @@ impl WasmObjectIndexMap {
                         return Ok(0);
                     }
                     let relative = slot.checked_sub(DEFAULT_TABLE_BASE).ok_or_else(|| {
-                        crate::error!("Wasm TABLE_INDEX_REL_SLEB relocation out of range")
+                        wild_error::error!("Wasm TABLE_INDEX_REL_SLEB relocation out of range")
                     })?;
                     Ok(relative)
                 } else {

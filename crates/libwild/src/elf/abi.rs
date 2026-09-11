@@ -27,17 +27,7 @@ use super::types::SymtabEntry;
 use super::types::Versym;
 use super::types::Word;
 use super::types::symtab_name_for_strtab;
-use crate::FileSystem;
-use crate::args::BSymbolicKind;
-use crate::args::RelocationModel;
-use crate::args::elf::BuildIdOption;
-use crate::args::elf::ElfArgs;
-use crate::bail;
 use crate::elf_writer;
-use crate::ensure;
-use crate::error::Context as _;
-use crate::error::Result;
-use crate::file_kind::FileKind;
 use crate::gdb_index::InputDebugIndexSection;
 use crate::writable_elf::WritableSymbol;
 use hashbrown::HashMap;
@@ -60,6 +50,15 @@ use std::num::NonZeroU32;
 use std::num::NonZeroU64;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
+use wild_args::BSymbolicKind;
+use wild_args::RelocationModel;
+use wild_args::elf::BuildIdOption;
+use wild_args::elf::ElfArgs;
+use wild_error::bail;
+use wild_error::ensure;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
+use wild_fs::fs::FileSystem;
 use wild_layout as layout;
 use wild_layout::CommonGroupState;
 use wild_layout::DynamicSymbolDefinition;
@@ -92,6 +91,7 @@ use wild_layout::symbol_db::SymbolId;
 use wild_platform as platform;
 use wild_platform::Arch;
 use wild_platform::Args as _;
+use wild_platform::FileKind;
 use wild_platform::ObjectFile;
 use wild_platform::OutputKind;
 use wild_platform::Platform;
@@ -2669,7 +2669,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
 
     fn compute_gdb_index_size<'data>(
         groups: &[Self::GroupState<'data>],
-    ) -> crate::error::Result<(u64, Option<Self::GdbIndexScanResult<'data>>)> {
+    ) -> Result<(u64, Option<Self::GdbIndexScanResult<'data>>)> {
         crate::gdb_index::compute_gdb_index_size(groups)
     }
 

@@ -15,9 +15,6 @@ use super::types::PLT_ENTRY_SIZE;
 use super::types::ProgramSegmentDef;
 use super::types::Relocation;
 use super::types::SegmentName;
-use crate::args::macho::MachOArgs;
-use crate::error::Result;
-use crate::input_data::FileId;
 use anyhow::Context;
 use object::SymbolIndex;
 use object::macho;
@@ -25,6 +22,8 @@ use object::macho::SEG_LINKEDIT;
 pub use object::macho::SectionFlags;
 use std::num::NonZeroU8;
 use std::num::NonZeroU64;
+use wild_args::macho::MachOArgs;
+use wild_error::error::Result;
 use wild_layout as layout;
 use wild_layout::Layout;
 use wild_layout::OutputRecordLayout;
@@ -40,6 +39,7 @@ use wild_layout::output_section_id::SectionName;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::symbol_db::SymbolId;
 use wild_platform as platform;
+use wild_platform::FileId;
 use wild_platform::ObjectFile;
 use wild_platform::Relaxation;
 use wild_platform::program_segments::ProgramSegmentId;
@@ -161,23 +161,23 @@ pub(super) const SECTION_DEFINITIONS: [BuiltInSectionDetails; NUM_BUILT_IN_SECTI
 };
 
 #[derive(Debug, Default)]
-pub(crate) struct EpilogueLayoutExt {
+pub struct EpilogueLayoutExt {
     pub(super) imported_symbols: Vec<SymbolId>,
 }
 
 #[derive(Debug)]
-pub(crate) struct DynamicLayoutStateExt {
+pub struct DynamicLayoutStateExt {
     pub(super) imported_symbols: Vec<SymbolId>,
     pub(super) loaded: bool,
 }
 
 #[derive(Debug)]
-pub(crate) struct DynamicLayoutExt {
+pub struct DynamicLayoutExt {
     pub(crate) ordinal: NonZeroU8,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
-pub(crate) struct ResolutionExt {
+pub struct ResolutionExt {
     pub(crate) got_address: Option<NonZeroU64>,
     pub(crate) plt_address: Option<NonZeroU64>,
 }

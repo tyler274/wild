@@ -127,6 +127,14 @@ allow_unsafe = true
 allow_unsafe = true
 allow_apis = ["fs"]
 
+[pkg.wild-wasm]
+allow_unsafe = true
+allow_apis = ["fs"]
+
+[pkg.wild-macho]
+allow_unsafe = true
+allow_apis = ["fs"]
+
 [pkg.wild-error]
 allow_apis = ["process"]
 

@@ -15,10 +15,6 @@ use super::types::SectionTable;
 use super::types::SymbolTable;
 use super::types::SymtabEntry;
 use super::types::VerneedTable;
-use crate::args::macho::MachOArgs;
-use crate::ensure;
-use crate::error;
-use crate::error::Result;
 use object::macho;
 use object::macho::N_SECT;
 use object::read::macho::MachHeader;
@@ -27,12 +23,16 @@ use object::read::macho::Section;
 use object::read::macho::Segment;
 use std::borrow::Cow;
 use std::slice::Iter;
+use wild_args::macho::MachOArgs;
+use wild_error::ensure;
+use wild_error::error;
+use wild_error::error::Result;
 use wild_layout as layout;
 use wild_layout::file_writer::copy_section_data;
 use wild_platform as platform;
 
 #[derive(derive_more::Debug)]
-pub(crate) struct File<'data> {
+pub struct File<'data> {
     #[debug(skip)]
     pub(crate) data: &'data [u8],
     #[debug(skip)]

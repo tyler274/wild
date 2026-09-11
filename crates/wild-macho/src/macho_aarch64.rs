@@ -1,9 +1,7 @@
 // TODO
 #![allow(unused_variables)]
 
-use crate::bail;
-use crate::ensure;
-use crate::macho::MachO;
+use crate::MachO;
 use linker_utils::aarch64::RelaxationKind;
 use linker_utils::elf::AArch64Instruction;
 use linker_utils::elf::AllowedRange;
@@ -15,9 +13,11 @@ use linker_utils::elf::RelocationSize;
 use linker_utils::elf::SIZE_4KB;
 use linker_utils::elf::Sign;
 use std::borrow::Cow;
+use wild_error::bail;
+use wild_error::ensure;
 use wild_platform::PreviousRelocationInfo;
 
-pub(crate) struct MachOAArch64;
+pub struct MachOAArch64;
 
 // ADRP+ADD+BR symbol stub template.
 const STUB_TEMPLATE: &[u8] = &[
@@ -27,11 +27,11 @@ const STUB_TEMPLATE: &[u8] = &[
 ];
 
 const _ASSERTS: () = {
-    assert!(STUB_TEMPLATE.len() as u64 == crate::macho::PLT_ENTRY_SIZE);
+    assert!(STUB_TEMPLATE.len() as u64 == crate::PLT_ENTRY_SIZE);
 };
 
 #[derive(Debug, Clone)]
-pub(crate) struct Relaxation {
+pub struct Relaxation {
     kind: RelaxationKind,
     rel_info: RelocationKindInfo,
 }
@@ -62,7 +62,7 @@ impl wild_platform::Arch for MachOAArch64 {
     type Relaxation = Relaxation;
     type Platform = MachO;
     fn start_memory_address(_output_kind: wild_platform::OutputKind) -> u64 {
-        crate::macho::MACHO_START_MEM_ADDRESS
+        crate::MACHO_START_MEM_ADDRESS
     }
     fn arch_identifier() -> <Self::Platform as wild_platform::Platform>::ArchIdentifier {
         todo!()
@@ -78,7 +78,7 @@ impl wild_platform::Arch for MachOAArch64 {
         plt_entry: &mut [u8],
         got_address: u64,
         plt_address: u64,
-    ) -> crate::error::Result {
+    ) -> wild_error::error::Result {
         // TODO: For simplicity, we assume now the PLT entry precedes the GOT entry, so we can
         // make the offset calculation in the unsigned type.
         debug_assert!(plt_address < got_address);
@@ -101,7 +101,7 @@ impl wild_platform::Arch for MachOAArch64 {
 
     fn relocation_from_raw(
         rel: object::macho::RelocationInfo,
-    ) -> crate::error::Result<RelocationKindInfo> {
+    ) -> wild_error::error::Result<RelocationKindInfo> {
         let rel_size_in_bytes = 1 << rel.r_length;
         let rel_size = RelocationSize::ByteSize(rel_size_in_bytes);
         let rel_kind = if rel.r_pcrel {
@@ -196,7 +196,7 @@ impl wild_platform::Arch for MachOAArch64 {
         todo!()
     }
 
-    fn merge_eflags(eflags: impl Iterator<Item = u32>) -> crate::error::Result<u32> {
+    fn merge_eflags(eflags: impl Iterator<Item = u32>) -> wild_error::error::Result<u32> {
         todo!()
     }
 
@@ -209,7 +209,7 @@ impl wild_platform::Arch for MachOAArch64 {
         relocations: &<Self::Platform as wild_platform::Platform>::RelocationSections,
         section: &<Self::Platform as wild_platform::Platform>::SectionHeader,
         offset_in_section: u64,
-    ) -> crate::error::Result<wild_platform::SourceInfo> {
+    ) -> wild_error::error::Result<wild_platform::SourceInfo> {
         Ok(wild_platform::SourceInfo(None))
     }
 

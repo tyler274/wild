@@ -2,17 +2,14 @@ mod encode;
 mod memory;
 
 use super::*;
-use crate::ensure;
-use crate::error::Context as _;
-use crate::error::Result;
-use crate::wasm::LINKER_MEMORY_BASE;
-use crate::wasm::WASM_DEAD_INDEX;
-use crate::wasm::Wasm;
-use crate::wasm::file::*;
-use crate::wasm::gc::*;
-use crate::wasm::output::*;
-use crate::wasm::relocations::*;
-use crate::wasm::symbols::*;
+use crate::LINKER_MEMORY_BASE;
+use crate::WASM_DEAD_INDEX;
+use crate::Wasm;
+use crate::file::*;
+use crate::gc::*;
+use crate::output::*;
+use crate::relocations::*;
+use crate::symbols::*;
 #[allow(unused_imports)]
 pub(crate) use encode::*;
 use hashbrown::HashMap;
@@ -20,6 +17,9 @@ use hashbrown::HashSet;
 #[allow(unused_imports)]
 pub(crate) use memory::*;
 use rayon::prelude::*;
+use wild_error::ensure;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout as layout;
 use wild_layout::symbol_db::SymbolDb;
 use wild_layout::timing_phase;
@@ -360,7 +360,7 @@ pub(crate) fn finalize_indirect_function_table(
         let index_map = &layout.object_index_maps[obj_idx];
         for &sym_idx in sym_indices {
             let sym = input.symbols.get(sym_idx).ok_or_else(|| {
-                crate::error!("table index relocation symbol {sym_idx} out of range")
+                wild_error::error!("table index relocation symbol {sym_idx} out of range")
             })?;
             ensure!(
                 sym.kind == WasmSymbolKind::Func,
@@ -434,7 +434,7 @@ pub(crate) fn compute_data_addresses(
     object_data_layouts: &[Vec<WasmDataSegmentLayout<'_>>],
     layout_inputs: &[WasmObjectLayoutInput<'_>],
     symbol_db: &SymbolDb<'_, Wasm>,
-    file_id_to_index: &HashMap<crate::input_data::FileId, usize>,
+    file_id_to_index: &HashMap<wild_platform::FileId, usize>,
     data_start: u32,
     data_end: u32,
     stack_size: u32,
@@ -520,15 +520,15 @@ pub(crate) fn allocate_wasm_object_index_bases(
         });
         next_type_index = next_type_index
             .checked_add(u32::try_from(input.types.len()).context("too many Wasm types")?)
-            .ok_or_else(|| crate::error!("Wasm type index overflow"))?;
+            .ok_or_else(|| wild_error::error!("Wasm type index overflow"))?;
     }
 
     let mut next_defined_function_index = function_import_count
         .checked_add(indices.num_defined_functions)
-        .ok_or_else(|| crate::error!("Wasm function index overflow"))?;
+        .ok_or_else(|| wild_error::error!("Wasm function index overflow"))?;
     let mut next_defined_global_index = global_import_count
         .checked_add(indices.num_defined_globals)
-        .ok_or_else(|| crate::error!("Wasm global index overflow"))?;
+        .ok_or_else(|| wild_error::error!("Wasm global index overflow"))?;
     for (input, index_base) in layout_inputs.iter().zip(index_bases.iter_mut()) {
         index_base.defined_function_base = next_defined_function_index;
         index_base.defined_global_base = next_defined_global_index;
@@ -536,10 +536,10 @@ pub(crate) fn allocate_wasm_object_index_bases(
             .checked_add(
                 u32::try_from(input.module_functions.len()).context("too many Wasm functions")?,
             )
-            .ok_or_else(|| crate::error!("Wasm function index overflow"))?;
+            .ok_or_else(|| wild_error::error!("Wasm function index overflow"))?;
         next_defined_global_index = next_defined_global_index
             .checked_add(u32::try_from(input.globals.len()).context("too many Wasm globals")?)
-            .ok_or_else(|| crate::error!("Wasm global index overflow"))?;
+            .ok_or_else(|| wild_error::error!("Wasm global index overflow"))?;
     }
 
     Ok(index_bases)
@@ -572,7 +572,7 @@ pub(crate) fn classify_code_relocations(
 
 pub(crate) fn remap_wasm_index(indices: &[u32], index: u32, kind: &str) -> Result<u32> {
     let mapped = indices.get(index as usize).copied().ok_or_else(|| {
-        crate::error!(
+        wild_error::error!(
             "Wasm {kind} index {index} out of range (map len {})",
             indices.len()
         )

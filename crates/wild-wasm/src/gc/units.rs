@@ -3,12 +3,12 @@ use super::super::file::*;
 use super::super::relocations::*;
 use super::super::section_id;
 use super::super::symbols::*;
-use crate::error::Context as _;
-use crate::error::Result;
 use std::ops::Range;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum WasmGcUnit {
+pub enum WasmGcUnit {
     DefinedFunction(u32),
     DefinedGlobal(u32),
     DataSegment(u32),
@@ -31,9 +31,9 @@ impl WasmGcUnitState {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct WasmObjectLayout<'data> {
+pub struct WasmObjectLayout<'data> {
     pub(crate) symbol_id_range: wild_layout::symbol_db::SymbolIdRange,
-    pub(crate) file_id: crate::input_data::FileId,
+    pub(crate) file_id: wild_platform::FileId,
     // Set once per-unit GC states have been allocated at object activate.
     pub(crate) gc_states_ready: bool,
     pub(crate) gc_defined_functions: Vec<WasmGcUnitState>,
@@ -326,7 +326,7 @@ pub(crate) fn function_body_span(body: &WasmFunctionBody<'_>) -> Result<(u32, u3
     let len = u32::try_from(body.bytes.len()).context("Wasm function body too large")?;
     let end = start
         .checked_add(len)
-        .ok_or_else(|| crate::error!("Wasm function body span overflow"))?;
+        .ok_or_else(|| wild_error::error!("Wasm function body span overflow"))?;
     Ok((start, end))
 }
 
@@ -340,7 +340,7 @@ pub(crate) fn data_segment_span(segment: &WasmDataSegment<'_>) -> Result<(u32, u
     let start = segment.section_offset;
     let end = start
         .checked_add(segment.encoded_size)
-        .ok_or_else(|| crate::error!("Wasm data segment span overflow"))?;
+        .ok_or_else(|| wild_error::error!("Wasm data segment span overflow"))?;
     Ok((start, end))
 }
 

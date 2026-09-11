@@ -1,12 +1,12 @@
-use crate::wasm::Wasm;
-use crate::wasm::relocation_type_to_string;
+use crate::Wasm;
+use crate::relocation_type_to_string;
 use wasmparser::RelocationType;
 use wild_platform::PreviousRelocationInfo;
 
-pub(crate) struct WasmWasm32;
+pub struct WasmWasm32;
 
 #[derive(Debug, Clone)]
-pub(crate) struct Relaxation {}
+pub struct Relaxation {}
 
 impl wild_platform::Relaxation for Relaxation {
     fn apply(&self, _section_bytes: &mut [u8], _offset_in_section: &mut u64, _addend: &mut i64) {
@@ -46,14 +46,14 @@ impl wild_platform::Arch for WasmWasm32 {
         _plt_entry: &mut [u8],
         _got_address: u64,
         _plt_address: u64,
-    ) -> crate::error::Result {
+    ) -> wild_error::error::Result {
         // Wasm has no PLT.
         unreachable!("wasm has no PLT")
     }
 
     fn relocation_from_raw(
         _r_type: <Self::Platform as wild_platform::Platform>::RelocationInfo,
-    ) -> crate::error::Result<linker_utils::elf::RelocationKindInfo> {
+    ) -> wild_error::error::Result<linker_utils::elf::RelocationKindInfo> {
         // TODO: map Wasm reloc type codes (R_WASM_*) to RelocationKindInfo.
         todo!()
     }
@@ -72,7 +72,7 @@ impl wild_platform::Arch for WasmWasm32 {
         None
     }
 
-    fn merge_eflags(_eflags: impl Iterator<Item = u32>) -> crate::error::Result<u32> {
+    fn merge_eflags(_eflags: impl Iterator<Item = u32>) -> wild_error::error::Result<u32> {
         // Wasm has no e_flags equivalent.
         Ok(0)
     }
@@ -86,7 +86,7 @@ impl wild_platform::Arch for WasmWasm32 {
         _relocations: &<Self::Platform as wild_platform::Platform>::RelocationSections,
         _section: &<Self::Platform as wild_platform::Platform>::SectionHeader,
         _offset_in_section: u64,
-    ) -> crate::error::Result<wild_platform::SourceInfo> {
+    ) -> wild_error::error::Result<wild_platform::SourceInfo> {
         todo!()
     }
 

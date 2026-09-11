@@ -48,18 +48,13 @@ use super::types::UuidCommand;
 use super::types::VerneedTable;
 use super::types::code_signature_padded_identifier_size;
 use super::types::load_dylib_command_size;
-use crate::FileSystem;
-use crate::args::macho::MachOArgs;
-use crate::ensure;
-use crate::error;
-use crate::error::Result;
-use crate::macho::output_section_id::CHAINED_FIXUP_TABLE;
-use crate::macho::output_section_id::CODE_SIGNATURE;
-use crate::macho::output_section_id::EXPORTS_TRIE;
-use crate::macho::output_section_id::LOAD_COMMANDS;
-use crate::macho::output_section_id::STRTAB;
-use crate::macho::output_section_id::SYMTAB_GLOBAL;
 use crate::macho_writer;
+use crate::output_section_id::CHAINED_FIXUP_TABLE;
+use crate::output_section_id::CODE_SIGNATURE;
+use crate::output_section_id::EXPORTS_TRIE;
+use crate::output_section_id::LOAD_COMMANDS;
+use crate::output_section_id::STRTAB;
+use crate::output_section_id::SYMTAB_GLOBAL;
 use anyhow::Context;
 use itertools::Itertools;
 use object::Endianness;
@@ -68,6 +63,12 @@ use object::macho::S_THREAD_LOCAL_VARIABLES;
 pub use object::macho::SectionFlags;
 use object::read::macho::Section;
 use std::slice::Iter;
+use wild_args::macho::MachOArgs;
+use wild_error::ensure;
+use wild_error::error;
+use wild_error::error::Result;
+use wild_fs::fs::FileReplacementMode;
+use wild_fs::fs::FileSystem;
 use wild_layout as layout;
 use wild_layout::HandlerData as _;
 use wild_layout::OutputRecordLayout;
@@ -104,10 +105,10 @@ impl platform::Platform for MachO {
     // The macOS kernel caches code signature state by vnode. Reusing a previously executed output's
     // inode after changing its contents can therefore cause the new executable to SIGKILL, even
     // though its new signature verifies successfully.
-    const DEFAULT_FILE_REPLACEMENT_MODE: crate::FileReplacementMode = if cfg!(target_os = "macos") {
-        crate::FileReplacementMode::UnlinkAndReplace
+    const DEFAULT_FILE_REPLACEMENT_MODE: FileReplacementMode = if cfg!(target_os = "macos") {
+        FileReplacementMode::UnlinkAndReplace
     } else {
-        crate::FileReplacementMode::UpdateInPlaceWithFallback
+        FileReplacementMode::UpdateInPlaceWithFallback
     };
 
     const STRTAB_SECTION_ID: Option<OutputSectionId> = Some(output_section_id::STRTAB);

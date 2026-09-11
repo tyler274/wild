@@ -1,23 +1,18 @@
-use crate::OutputFileData;
-use crate::bail;
-use crate::ensure;
-use crate::error::Context as _;
-use crate::error::Result;
-use crate::wasm::WASM_MAGIC;
-use crate::wasm::WASM_VERSION;
-use crate::wasm::Wasm;
-use crate::wasm::WasmDataSegmentLayout;
-use crate::wasm::WasmFunctionBody;
-use crate::wasm::WasmLayout;
-use crate::wasm::WasmObjectIndexMap;
-use crate::wasm::WasmRelocation;
-use crate::wasm::WasmSymbol;
-use crate::wasm::apply_relocation;
-use crate::wasm::finalize_reloc_value;
-use crate::wasm::output_section_id;
-use crate::wasm::section_id;
-use crate::wasm::write_sleb128;
-use crate::wasm::write_uleb128;
+use crate::WASM_MAGIC;
+use crate::WASM_VERSION;
+use crate::Wasm;
+use crate::WasmDataSegmentLayout;
+use crate::WasmFunctionBody;
+use crate::WasmLayout;
+use crate::WasmObjectIndexMap;
+use crate::WasmRelocation;
+use crate::WasmSymbol;
+use crate::apply_relocation;
+use crate::finalize_reloc_value;
+use crate::output_section_id;
+use crate::section_id;
+use crate::write_sleb128;
+use crate::write_uleb128;
 use leb128::write::unsigned_len as uleb128_size;
 use rayon::prelude::*;
 use std::borrow::Cow;
@@ -32,6 +27,11 @@ use wasm_encoder::ImportSection;
 use wasm_encoder::MemorySection;
 use wasm_encoder::TableSection;
 use wasm_encoder::TypeSection;
+use wild_error::bail;
+use wild_error::ensure;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
+use wild_fs::fs::OutputFileData;
 use wild_layout::Layout;
 use wild_layout::file_writer::SizedOutput;
 use wild_layout::file_writer::split_output_into_sections;
@@ -68,7 +68,7 @@ fn apply_section_reloc(
 ) -> Result<()> {
     let mut reloc = *reloc;
     reloc.offset = reloc.offset.checked_sub(local_base).ok_or_else(|| {
-        crate::error!("Wasm relocation offset is before the body or payload start")
+        wild_error::error!("Wasm relocation offset is before the body or payload start")
     })?;
     apply_resolved_reloc(
         index_map,
@@ -92,7 +92,9 @@ pub(crate) fn write<'data, A: Arch<Platform = Wasm>>(
     let preamble = section_buffers
         .get_mut(wild_layout::output_section_id::FILE_HEADER)
         .get_mut(..8)
-        .ok_or_else(|| crate::error!("Wasm output buffer is shorter than the 8-byte preamble"))?;
+        .ok_or_else(|| {
+            wild_error::error!("Wasm output buffer is shorter than the 8-byte preamble")
+        })?;
     preamble[..4].copy_from_slice(&WASM_MAGIC);
     preamble[4..8].copy_from_slice(&WASM_VERSION.to_le_bytes());
 

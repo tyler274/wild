@@ -1,22 +1,22 @@
 use super::*;
-use crate::bail;
-use crate::ensure;
-use crate::error::Context as _;
-use crate::error::Result;
-use crate::input_data::PRELUDE_FILE_ID;
-use crate::wasm::WASM_DEAD_INDEX;
-use crate::wasm::Wasm;
-use crate::wasm::gc::*;
-use crate::wasm::output::*;
-use crate::wasm::symbols::*;
+use crate::WASM_DEAD_INDEX;
+use crate::Wasm;
+use crate::gc::*;
+use crate::output::*;
+use crate::symbols::*;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 use rayon::prelude::*;
+use wild_error::bail;
+use wild_error::ensure;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout::symbol::UnversionedSymbolName;
 use wild_layout::symbol_db::SymbolDb;
 use wild_layout::timing_phase;
 use wild_layout::verbose_timing_phase;
 use wild_platform::Args as _;
+use wild_platform::PRELUDE_FILE_ID;
 
 pub(crate) fn report_disallowed_unresolved_imports<'data>(
     inputs: &[WasmObjectLayoutInput<'data>],
@@ -227,7 +227,7 @@ pub(crate) fn local_defined_global_index(
 pub(crate) fn resolve_cross_object_imports<'data>(
     inputs: &[WasmObjectLayoutInput<'data>],
     symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Wasm>,
-    file_id_to_index: &HashMap<crate::input_data::FileId, usize>,
+    file_id_to_index: &HashMap<wild_platform::FileId, usize>,
 ) -> Result<Vec<ObjectImportResolutions>> {
     timing_phase!("Resolve Wasm cross-object imports");
 
@@ -265,7 +265,7 @@ pub(crate) fn resolve_import_symbols<'data>(
     input: &WasmObjectLayoutInput<'data>,
     all_inputs: &[WasmObjectLayoutInput<'data>],
     symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Wasm>,
-    file_id_to_index: &HashMap<crate::input_data::FileId, usize>,
+    file_id_to_index: &HashMap<wild_platform::FileId, usize>,
 ) -> Result<Vec<ImportResolution>> {
     ensure!(u32::try_from(import_count).is_ok(), "too many Wasm imports");
     let mut resolutions = vec![ImportResolution::Unresolved; import_count];
@@ -330,7 +330,7 @@ pub(crate) fn resolve_one_import<'data>(
     input: &WasmObjectLayoutInput<'data>,
     all_inputs: &[WasmObjectLayoutInput<'data>],
     symbol_db: &wild_layout::symbol_db::SymbolDb<'data, Wasm>,
-    file_id_to_index: &HashMap<crate::input_data::FileId, usize>,
+    file_id_to_index: &HashMap<wild_platform::FileId, usize>,
 ) -> Result<ImportResolution> {
     let symbol_id = input.symbol_id_range.offset_to_id(sym_offset);
     let def_id = symbol_db.definition(symbol_id);

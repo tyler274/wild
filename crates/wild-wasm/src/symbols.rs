@@ -5,7 +5,7 @@ use wasmparser::SymbolFlags;
 // names, but `Platform::SymtabEntry` requires `Symbol: 'static + Copy`, so a wrapper around
 // `SymbolInfo` would have to drop the borrowed strings anyway.
 #[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct WasmSymbol {
+pub struct WasmSymbol {
     pub(crate) kind: WasmSymbolKind,
     pub(crate) flags: u32,
     pub(crate) index: u32,

@@ -10,12 +10,12 @@
 //! libraries reexported by the main library. This covers a practical subset of
 //! the full TBD v4 format, including the shape used by most system libraries.
 
-use crate::ensure;
-use crate::error;
-use crate::error::Result;
 use itertools::Itertools;
 use serde::Deserialize;
 use std::collections::HashSet;
+use wild_error::ensure;
+use wild_error::error;
+use wild_error::error::Result;
 use wild_layout::grouping::DefinedStubLibrary;
 
 const ARM64_LIB_ARCH: &str = "arm64e-macos";

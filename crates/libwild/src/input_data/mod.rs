@@ -10,5 +10,4 @@ pub(crate) use wild_layout::input_data::AuxiliaryFiles;
 pub(crate) use wild_layout::input_data::FileLoader;
 pub(crate) use wild_layout::input_data::InputFile;
 pub(crate) use wild_layout::input_data::InputPath;
-pub(crate) use wild_platform::file_id::*;
 pub(crate) use wild_scripts::ScriptData;

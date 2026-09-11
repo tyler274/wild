@@ -1,12 +1,11 @@
-use crate::FileSystem;
-use crate::args::macho::MachOArgs;
-use crate::error::Result;
 use wild_layout::output_section_id::OutputSectionId;
 use wild_layout::part_id::PartId;
-use wild_platform::Args as _;
 
 pub(crate) mod abi;
 pub(crate) mod file;
+pub(crate) mod macho_aarch64;
+pub(crate) mod macho_stub_library;
+pub(crate) mod macho_writer;
 pub(crate) mod output;
 pub(crate) mod types;
 
@@ -21,24 +20,14 @@ pub(crate) use output::*;
 pub(crate) use types::*;
 
 #[derive(Debug, Copy, Clone, Default)]
-pub(crate) struct MachO;
+pub struct MachO;
 
 impl wild_layout::EnginePlatform for MachO {}
 impl<'data, 'scope> wild_layout::EngineScope<'data, 'scope> for MachO where 'data: 'scope {}
 impl<'writer, 'out> wild_layout::EngineWriter<'writer, 'out> for MachO where 'out: 'writer {}
 
-pub(crate) fn link_for_arch<'data, F: FileSystem>(
-    linker: &'data crate::Linker<F>,
-    args: &'data MachOArgs,
-) -> Result<crate::LinkerOutput<'data>> {
-    if !(cfg!(feature = "macho") || args.experimental_platforms()) {
-        crate::bail!(
-            "Mach-O support is still experimental. Rebuild with `--features macho` to enable it."
-        );
-    }
-
-    linker.link_for_arch::<MachO, crate::macho_aarch64::MachOAArch64>(args)
-}
+pub use macho_aarch64::MachOAArch64;
+pub use macho_stub_library::parse_defined_library;
 
 #[repr(u32)]
 #[derive(Clone, Copy)]

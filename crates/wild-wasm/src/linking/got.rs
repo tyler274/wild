@@ -1,19 +1,19 @@
 use super::*;
-use crate::bail;
-use crate::ensure;
-use crate::error::Context as _;
-use crate::error::Result;
-use crate::wasm::WASM_DEAD_INDEX;
-use crate::wasm::Wasm;
-use crate::wasm::gc::*;
-use crate::wasm::output::*;
-use crate::wasm::relocations::*;
-use crate::wasm::symbols::*;
+use crate::WASM_DEAD_INDEX;
+use crate::Wasm;
+use crate::gc::*;
+use crate::output::*;
+use crate::relocations::*;
+use crate::symbols::*;
 use hashbrown::HashMap;
 use hashbrown::HashSet;
 use rayon::prelude::*;
 use std::borrow::Cow;
 use wasmparser::RelocationType;
+use wild_error::bail;
+use wild_error::ensure;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_layout::symbol::UnversionedSymbolName;
 use wild_layout::symbol_db::SymbolDb;
 use wild_layout::symbol_db::SymbolId;
@@ -74,7 +74,7 @@ pub(crate) type GotFunc = GotSlots<GotFuncEntry>;
 
 pub(crate) fn layout_file_id_to_index(
     layout_inputs: &[WasmObjectLayoutInput<'_>],
-) -> HashMap<crate::input_data::FileId, usize> {
+) -> HashMap<wild_platform::FileId, usize> {
     layout_inputs
         .iter()
         .enumerate()
@@ -101,7 +101,7 @@ pub(crate) fn setup_got_mem_and_indices<'data>(
     layout_inputs: &[WasmObjectLayoutInput<'data>],
     resolutions: &mut [ObjectImportResolutions],
     symbol_db: &SymbolDb<'data, Wasm>,
-    file_id_to_index: &HashMap<crate::input_data::FileId, usize>,
+    file_id_to_index: &HashMap<wild_platform::FileId, usize>,
     has_init_funcs: bool,
 ) -> Result<(
     LinkerDefinedIndices,
@@ -161,7 +161,7 @@ pub(crate) fn setup_got_mem_and_indices<'data>(
 
             if !scan.got_mem.is_empty() {
                 let first_got = indices.got_mem_global_base.ok_or_else(|| {
-                    crate::error!("GOT.mem entries present but no global base reserved")
+                    wild_error::error!("GOT.mem entries present but no global base reserved")
                 })?;
                 scan.got_mem.per_object_global_indices =
                     assign_got_slot_global_indices(&scan.per_object_got_mem_slots, first_got)?;
@@ -175,7 +175,7 @@ pub(crate) fn setup_got_mem_and_indices<'data>(
 
             if !scan.got_func.is_empty() {
                 let first_got = indices.got_func_global_base.ok_or_else(|| {
-                    crate::error!("GOT.func entries present but no global base reserved")
+                    wild_error::error!("GOT.func entries present but no global base reserved")
                 })?;
                 scan.got_func.per_object_global_indices =
                     assign_got_slot_global_indices(&scan.per_object_got_func_slots, first_got)?;
@@ -275,7 +275,7 @@ pub(crate) fn absorb_weak_undef_function_imports<'data>(
                 .types
                 .get(import.type_index as usize)
                 .ok_or_else(|| {
-                    crate::error!(
+                    wild_error::error!(
                         "Wasm type index {} out of range for weak import `{}`",
                         import.type_index,
                         import.name
@@ -309,7 +309,7 @@ pub(crate) fn resolve_got_mem_def(
     def_id: SymbolId,
     layout_inputs: &[WasmObjectLayoutInput<'_>],
     symbol_db: &SymbolDb<'_, Wasm>,
-    file_id_to_index: &HashMap<crate::input_data::FileId, usize>,
+    file_id_to_index: &HashMap<wild_platform::FileId, usize>,
 ) -> Result<GotMemDef> {
     let def_file_id = symbol_db.file_id_for_symbol(def_id);
     if let Some(&def_obj_idx) = file_id_to_index.get(&def_file_id) {
@@ -518,7 +518,7 @@ pub(crate) fn scan_object_layout_relocations(
 pub(crate) fn scan_layout_relocations(
     layout_inputs: &[WasmObjectLayoutInput<'_>],
     symbol_db: &SymbolDb<'_, Wasm>,
-    file_id_to_index: &HashMap<crate::input_data::FileId, usize>,
+    file_id_to_index: &HashMap<wild_platform::FileId, usize>,
 ) -> Result<LayoutRelocScan> {
     timing_phase!("Scan Wasm layout relocations");
 
@@ -639,7 +639,7 @@ pub(crate) fn assign_got_slot_global_indices(
                 Some(s) => Some(
                     first_global_index
                         .checked_add(*s as u32)
-                        .ok_or_else(|| crate::error!("Wasm global index overflow"))?,
+                        .ok_or_else(|| wild_error::error!("Wasm global index overflow"))?,
                 ),
                 None => None,
             });
@@ -684,7 +684,7 @@ pub(crate) fn fill_function_symbol_redirects(
     object_index_maps: &mut [WasmObjectIndexMap],
     layout_inputs: &[WasmObjectLayoutInput<'_>],
     symbol_db: &SymbolDb<'_, Wasm>,
-    file_id_to_index: &HashMap<crate::input_data::FileId, usize>,
+    file_id_to_index: &HashMap<wild_platform::FileId, usize>,
 ) {
     for (obj_idx, input) in layout_inputs.iter().enumerate() {
         let mut redirects = vec![None; input.symbols.len()];
@@ -799,7 +799,7 @@ pub(crate) fn finalize_got_import_resolutions(
             };
             let output_index = first_got
                 .checked_add(slot as u32)
-                .ok_or_else(|| crate::error!("Wasm global index overflow"))?;
+                .ok_or_else(|| wild_error::error!("Wasm global index overflow"))?;
             *resolution = ImportResolution::DirectGlobal { output_index };
         }
     }
@@ -830,11 +830,11 @@ pub(crate) fn fill_got_mem_inits(
                 .data_addresses
                 .get(symbol_offset)
                 .copied()
-                .ok_or_else(|| crate::error!("GOT.mem missing data address for definition"))?,
+                .ok_or_else(|| wild_error::error!("GOT.mem missing data address for definition"))?,
             GotMemDef::LinkerDefined(known) => known
                 .data_address(data_start, data_end, stack_size, heap_end, stack_first)?
                 .ok_or_else(|| {
-                    crate::error!(
+                    wild_error::error!(
                         "GOT.mem linker-defined symbol `{}` has no data address",
                         std::str::from_utf8(known.name()).unwrap_or("?")
                     )
@@ -844,7 +844,7 @@ pub(crate) fn fill_got_mem_inits(
         let global = layout
             .globals
             .get_mut(global_slot)
-            .ok_or_else(|| crate::error!("GOT.mem global slot {global_slot} out of range"))?;
+            .ok_or_else(|| wild_error::error!("GOT.mem global slot {global_slot} out of range"))?;
         global.init_expr_body = Cow::Owned(encode_i32_const_u32(addr));
     }
     Ok(())
@@ -863,14 +863,14 @@ pub(crate) fn fill_exported_data_global_inits(
         let addr = known
             .data_address(data_start, data_end, stack_size, heap_end, stack_first)?
             .ok_or_else(|| {
-                crate::error!(
+                wild_error::error!(
                     "linker-defined symbol `{}` has no address to export",
                     std::str::from_utf8(known.name()).unwrap_or("?")
                 )
             })?;
         let defined_slot = (global_index - indices.global_import_count) as usize;
         let global = layout.globals.get_mut(defined_slot).ok_or_else(|| {
-            crate::error!("exported data global slot {defined_slot} out of range")
+            wild_error::error!("exported data global slot {defined_slot} out of range")
         })?;
         global.init_expr_body = Cow::Owned(encode_i32_const_u32(addr));
     }
@@ -892,10 +892,10 @@ pub(crate) fn fill_got_func_inits(
 
     for (i, entry) in got_func.entries.iter().enumerate() {
         let input = layout_inputs.get(entry.object_index).ok_or_else(|| {
-            crate::error!("GOT.func object index {} out of range", entry.object_index)
+            wild_error::error!("GOT.func object index {} out of range", entry.object_index)
         })?;
         let sym = input.symbols.get(entry.symbol_offset).ok_or_else(|| {
-            crate::error!(
+            wild_error::error!(
                 "GOT.func symbol offset {} out of range",
                 entry.symbol_offset
             )
@@ -920,9 +920,9 @@ pub(crate) fn fill_got_func_inits(
         let global = layout
             .globals
             .get_mut(global_slot)
-            .ok_or_else(|| crate::error!("GOT.func global slot {global_slot} out of range"))?;
+            .ok_or_else(|| wild_error::error!("GOT.func global slot {global_slot} out of range"))?;
         let table_i32 = i32::try_from(slot)
-            .map_err(|_| crate::error!("GOT.func table index out of i32 range"))?;
+            .map_err(|_| wild_error::error!("GOT.func table index out of i32 range"))?;
         global.init_expr_body = Cow::Owned(encode_i32_const_body(table_i32));
     }
     Ok(())

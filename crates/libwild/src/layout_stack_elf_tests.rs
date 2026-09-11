@@ -843,8 +843,8 @@ mod part_ids {
     #[test]
     fn test_platform_part_id_invariants() {
         check_platform_part_ids::<crate::elf::Elf64>();
-        check_platform_part_ids::<crate::macho::MachO>();
-        check_platform_part_ids::<crate::wasm::Wasm>();
+        check_platform_part_ids::<wild_macho::MachO>();
+        check_platform_part_ids::<wild_wasm::Wasm>();
     }
 }
 

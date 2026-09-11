@@ -10,7 +10,7 @@ use wasmparser::GlobalType;
 use wild_util::alignment::Alignment;
 
 #[derive(derive_more::Debug)]
-pub(crate) struct File<'data> {
+pub struct File<'data> {
     #[debug(skip)]
     pub(crate) data: &'data [u8],
 
@@ -81,7 +81,7 @@ pub(crate) struct WasmInitFunc {
 
 /// A single section of a Wasm module.
 #[derive(Debug, Default, Clone)]
-pub(crate) struct SectionHeader {
+pub struct SectionHeader {
     /// The wasm section id.
     pub(crate) id: u8,
 

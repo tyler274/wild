@@ -1,0 +1,32 @@
+[package]
+name = "wild-wasm"
+description = "WebAssembly linking support for the Wild linker"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+
+[dependencies]
+derive_more.workspace = true
+hashbrown.workspace = true
+leb128.workspace = true
+linker-utils = { path = "../linker-utils", version = "0.10.0" }
+object.workspace = true
+perfetto-recorder.workspace = true
+rayon.workspace = true
+strum.workspace = true
+symbolic-demangle.workspace = true
+tracing.workspace = true
+wasm-encoder.workspace = true
+wasmparser.workspace = true
+wild-args = { path = "../wild-args", version = "0.10.0" }
+wild-error = { path = "../wild-error", version = "0.10.0" }
+wild-fs = { path = "../wild-fs", version = "0.10.0" }
+wild-layout = { path = "../wild-layout", version = "0.10.0" }
+wild-platform = { path = "../wild-platform", version = "0.10.0" }
+wild-scripts = { path = "../wild-scripts", version = "0.10.0" }
+wild-util = { path = "../wild-util", version = "0.10.0" }
+
+[lints]
+workspace = true

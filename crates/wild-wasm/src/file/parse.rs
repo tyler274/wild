@@ -9,8 +9,6 @@ use super::super::relocations::*;
 use super::super::section_id;
 use super::super::symbols::*;
 use super::*;
-use crate::ensure;
-use crate::error::Result;
 use linker_utils::utils::u32_from_slice;
 use std::ops::Range;
 use wasmparser::BinaryReader;
@@ -21,6 +19,8 @@ use wasmparser::Parser;
 use wasmparser::Payload;
 use wasmparser::SymbolInfo;
 use wasmparser::TypeRef;
+use wild_error::ensure;
+use wild_error::error::Result;
 use wild_util::alignment::Alignment;
 
 pub(crate) fn parse_wasm_module<'data>(input: &'data [u8]) -> Result<File<'data>> {
@@ -134,10 +134,10 @@ pub(crate) fn count_function_and_global_imports(
     };
     let header = sections
         .get(section_index as usize)
-        .ok_or_else(|| crate::error!("Wasm import section index out of range"))?;
+        .ok_or_else(|| wild_error::error!("Wasm import section index out of range"))?;
     let payload = data
         .get(header.payload_range_usize())
-        .ok_or_else(|| crate::error!("Wasm import section payload out of bounds"))?;
+        .ok_or_else(|| wild_error::error!("Wasm import section payload out of bounds"))?;
     let reader = ImportSectionReader::new(BinaryReader::new(
         payload,
         u64::from(header.payload_range.start),
@@ -149,12 +149,12 @@ pub(crate) fn count_function_and_global_imports(
             TypeRef::Func(_) | TypeRef::FuncExact(_) => {
                 num_function_imports = num_function_imports
                     .checked_add(1)
-                    .ok_or_else(|| crate::error!("too many Wasm function imports"))?;
+                    .ok_or_else(|| wild_error::error!("too many Wasm function imports"))?;
             }
             TypeRef::Global(_) => {
                 num_global_imports = num_global_imports
                     .checked_add(1)
-                    .ok_or_else(|| crate::error!("too many Wasm global imports"))?;
+                    .ok_or_else(|| wild_error::error!("too many Wasm global imports"))?;
             }
             _ => {}
         }
@@ -173,10 +173,10 @@ pub(crate) fn section_entry_count(
     };
     let header = sections
         .get(section_index as usize)
-        .ok_or_else(|| crate::error!("Wasm section index out of range"))?;
+        .ok_or_else(|| wild_error::error!("Wasm section index out of range"))?;
     let payload = data
         .get(header.payload_range_usize())
-        .ok_or_else(|| crate::error!("Wasm section payload out of bounds"))?;
+        .ok_or_else(|| wild_error::error!("Wasm section payload out of bounds"))?;
     let mut reader = BinaryReader::new(payload, u64::from(header.payload_range.start));
     Ok(reader.read_var_u32()?)
 }

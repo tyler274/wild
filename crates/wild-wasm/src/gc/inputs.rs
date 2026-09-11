@@ -6,16 +6,16 @@ use super::super::relocations::*;
 use super::super::section_id;
 use super::super::symbols::*;
 use super::*;
-use crate::bail;
-use crate::ensure;
-use crate::error::Context as _;
-use crate::error::Result;
 use crate::wasm_writer::OutputExport;
 use crate::wasm_writer::OutputGlobal;
 use std::borrow::Cow;
 use wasmparser::DataKind;
 use wasmparser::MemoryType;
 use wasmparser::TypeRef;
+use wild_error::bail;
+use wild_error::ensure;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 
 #[derive(Debug)]
 pub(crate) struct WasmObjectLayoutInput<'data> {
@@ -43,7 +43,7 @@ pub(crate) struct WasmObjectLayoutInput<'data> {
     pub(crate) init_funcs: &'data [WasmInitFunc],
     pub(crate) target_features: &'data [WasmTargetFeature<'data>],
     pub(crate) symbol_id_range: wild_layout::symbol_db::SymbolIdRange,
-    pub(crate) file_id: crate::input_data::FileId,
+    pub(crate) file_id: wild_platform::FileId,
     pub(crate) defined_function_live_ordinal: Vec<u32>,
     pub(crate) defined_global_live_ordinal: Vec<u32>,
 }
@@ -191,7 +191,7 @@ impl<'data> WasmObjectLayoutInput<'data> {
             .map(|global| {
                 let init_expr_body = crate::wasm_writer::const_expr_body(&global.init_expr)
                     .ok_or_else(|| {
-                        crate::error!("Wasm global initializer is missing end opcode")
+                        wild_error::error!("Wasm global initializer is missing end opcode")
                     })?;
                 Ok(OutputGlobal {
                     ty: global.ty,
@@ -350,7 +350,7 @@ impl<'data> WasmObjectLayoutInput<'data> {
             let output_type_index = index_bases
                 .type_index_base
                 .checked_add(u32::try_from(local_ty).context("too many Wasm types")?)
-                .ok_or_else(|| crate::error!("Wasm type index overflow"))?;
+                .ok_or_else(|| wild_error::error!("Wasm type index overflow"))?;
             type_indices.push(output_type_index);
         }
 
@@ -380,7 +380,7 @@ impl<'data> WasmObjectLayoutInput<'data> {
                     let output_function_index = shared_imports
                         .function_index(object_index, i)
                         .ok_or_else(|| {
-                            crate::error!(
+                            wild_error::error!(
                                 "missing shared function import index for object {object_index} \
                                  import {i}"
                             )
@@ -389,7 +389,7 @@ impl<'data> WasmObjectLayoutInput<'data> {
                 }
                 ImportResolution::LinkerDefined(known) => {
                     let index = indices.function_index(known).ok_or_else(|| {
-                        crate::error!("missing reserved Wasm function for {known:?}")
+                        wild_error::error!("missing reserved Wasm function for {known:?}")
                     })?;
                     index_map.function_indices.push(index);
                 }
@@ -399,7 +399,9 @@ impl<'data> WasmObjectLayoutInput<'data> {
                         .get(stub_index as usize)
                         .map(|s| s.function_index)
                         .ok_or_else(|| {
-                            crate::error!("Wasm weak-undef stub index {stub_index} out of range")
+                            wild_error::error!(
+                                "Wasm weak-undef stub index {stub_index} out of range"
+                            )
                         })?;
                     index_map.function_indices.push(index);
                 }
@@ -420,7 +422,7 @@ impl<'data> WasmObjectLayoutInput<'data> {
                     let output_function_index = target_bases
                         .defined_function_base
                         .checked_add(local_defined_index)
-                        .ok_or_else(|| crate::error!("Wasm function index overflow"))?;
+                        .ok_or_else(|| wild_error::error!("Wasm function index overflow"))?;
                     index_map.function_indices.push(output_function_index);
                 }
                 ImportResolution::ResolvedGlobal { .. }
@@ -442,7 +444,7 @@ impl<'data> WasmObjectLayoutInput<'data> {
                     let output_global_index = shared_imports
                         .global_index(object_index, i)
                         .ok_or_else(|| {
-                            crate::error!(
+                            wild_error::error!(
                                 "missing shared global import index for object {object_index} \
                                  import {i}"
                             )
@@ -451,7 +453,7 @@ impl<'data> WasmObjectLayoutInput<'data> {
                 }
                 ImportResolution::LinkerDefined(known) => {
                     let index = indices.global_index(known).ok_or_else(|| {
-                        crate::error!("missing reserved Wasm global for {known:?}")
+                        wild_error::error!("missing reserved Wasm global for {known:?}")
                     })?;
                     index_map.global_indices.push(index);
                 }
@@ -481,7 +483,7 @@ impl<'data> WasmObjectLayoutInput<'data> {
                     let output_global_index = target_bases
                         .defined_global_base
                         .checked_add(local_defined_index)
-                        .ok_or_else(|| crate::error!("Wasm global index overflow"))?;
+                        .ok_or_else(|| wild_error::error!("Wasm global index overflow"))?;
                     index_map.global_indices.push(output_global_index);
                 }
                 ImportResolution::ResolvedFunction { .. }
@@ -499,7 +501,7 @@ impl<'data> WasmObjectLayoutInput<'data> {
                 let output_function_index = index_bases
                     .defined_function_base
                     .checked_add(dense_or_dead)
-                    .ok_or_else(|| crate::error!("Wasm function index overflow"))?;
+                    .ok_or_else(|| wild_error::error!("Wasm function index overflow"))?;
                 index_map.function_indices.push(output_function_index);
             }
         }
@@ -511,7 +513,7 @@ impl<'data> WasmObjectLayoutInput<'data> {
                 let output_global_index = index_bases
                     .defined_global_base
                     .checked_add(dense_or_dead)
-                    .ok_or_else(|| crate::error!("Wasm global index overflow"))?;
+                    .ok_or_else(|| wild_error::error!("Wasm global index overflow"))?;
                 index_map.global_indices.push(output_global_index);
             }
         }

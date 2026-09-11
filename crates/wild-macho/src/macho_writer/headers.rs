@@ -1,31 +1,26 @@
 use super::*;
-use crate::bail;
-use crate::ensure;
-use crate::error;
-use crate::error::Context;
-use crate::error::Result;
-use crate::macho::BuildVersionCommand;
-use crate::macho::CodeSignatureCommand;
-use crate::macho::DYLINKER_PATH;
-use crate::macho::DyldChainedFixupsCommand;
-use crate::macho::DylibCommand;
-use crate::macho::DylinkerCommand;
-use crate::macho::EntryPointCommand;
-use crate::macho::FileHeader;
-use crate::macho::MACHO_COMMAND_ALIGNMENT;
-use crate::macho::MACHO_START_MEM_ADDRESS;
-use crate::macho::MachO;
-use crate::macho::PLT_ENTRY_SIZE;
-use crate::macho::SectionEntry;
-use crate::macho::SegmentCommand;
-use crate::macho::SegmentName;
-use crate::macho::SymtabCommand;
-use crate::macho::UuidCommand;
-use crate::macho::get_segment_sections;
-use crate::macho::load_dylib_command_size;
-use crate::macho::output_section_id;
-use crate::macho::output_section_id::LOAD_COMMANDS;
-use crate::macho::part_id;
+use crate::BuildVersionCommand;
+use crate::CodeSignatureCommand;
+use crate::DYLINKER_PATH;
+use crate::DyldChainedFixupsCommand;
+use crate::DylibCommand;
+use crate::DylinkerCommand;
+use crate::EntryPointCommand;
+use crate::FileHeader;
+use crate::MACHO_COMMAND_ALIGNMENT;
+use crate::MACHO_START_MEM_ADDRESS;
+use crate::MachO;
+use crate::PLT_ENTRY_SIZE;
+use crate::SectionEntry;
+use crate::SegmentCommand;
+use crate::SegmentName;
+use crate::SymtabCommand;
+use crate::UuidCommand;
+use crate::get_segment_sections;
+use crate::load_dylib_command_size;
+use crate::output_section_id;
+use crate::output_section_id::LOAD_COMMANDS;
+use crate::part_id;
 use linker_utils::utils::slice_from_all_bytes_mut;
 use object::BigEndian;
 use object::macho;
@@ -46,6 +41,11 @@ use object::macho::MH_EXECUTE;
 use object::macho::PLATFORM_MACOS;
 use object::macho::SegmentFlags;
 use object::slice_from_bytes_mut;
+use wild_error::bail;
+use wild_error::ensure;
+use wild_error::error;
+use wild_error::error::Context;
+use wild_error::error::Result;
 use wild_layout::EpilogueLayout;
 use wild_layout::OutputRecordLayout;
 use wild_layout::PreludeLayout;
@@ -99,7 +99,7 @@ pub(crate) fn write_prelude<'data>(
     {
         let mut command_buffer = load_command_buffer.split_off_mut(..command_size).unwrap();
         let dylib_command = take_mut(&mut command_buffer)?;
-        let path = crate::macho::install_name(file_id, &layout.symbol_db);
+        let path = crate::install_name(file_id, &layout.symbol_db);
 
         write_dylib_command(dylib_command, command_buffer, path);
     }
@@ -287,11 +287,7 @@ pub(crate) fn write_segment(
 pub(crate) fn write_sections(
     seg_name: SegmentName,
     sections: &mut [SectionEntry],
-    segment_sections: &[(
-        OutputRecordLayout,
-        SectionName<'_>,
-        crate::macho::SectionFlags,
-    )],
+    segment_sections: &[(OutputRecordLayout, SectionName<'_>, crate::SectionFlags)],
 ) {
     for (section, (size, section_name, section_flags)) in sections.iter_mut().zip(segment_sections)
     {

@@ -21,9 +21,6 @@ pub(crate) mod input_data;
 )]
 mod linker_plugins;
 pub(crate) mod macho;
-pub(crate) mod macho_aarch64;
-pub(crate) mod macho_stub_library;
-pub(crate) mod macho_writer;
 pub use wild_error::bail;
 pub use wild_error::debug_assert_bail;
 pub use wild_error::ensure;
@@ -62,8 +59,6 @@ mod tidy_tests;
 pub(crate) mod timing;
 pub(crate) mod validation;
 pub(crate) mod wasm;
-pub(crate) mod wasm_wasm32;
-pub(crate) mod wasm_writer;
 pub(crate) mod writable_elf;
 
 use crate::args::HasCommonArgs as _;

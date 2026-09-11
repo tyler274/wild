@@ -420,7 +420,7 @@ pub(crate) fn input_section_buffer_split<C: ElfClass>(
     sec: Section,
     part_id: PartId,
     layout: &ElfLayout<C>,
-    file_id: crate::input_data::FileId,
+    file_id: wild_platform::FileId,
 ) -> (usize, usize) {
     if layout
         .output_sections

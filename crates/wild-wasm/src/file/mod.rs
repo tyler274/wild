@@ -8,9 +8,6 @@ use super::gc::*;
 use super::output::*;
 use super::section_id;
 use super::symbols::*;
-use crate::ensure;
-use crate::error::Context as _;
-use crate::error::Result;
 use leb128::write::unsigned_len as uleb128_size;
 #[allow(unused_imports)]
 pub(crate) use parse::*;
@@ -29,6 +26,9 @@ use wasmparser::ImportSectionReader;
 use wasmparser::MemorySectionReader;
 use wasmparser::MemoryType;
 use wasmparser::TypeSectionReader;
+use wild_error::ensure;
+use wild_error::error::Context as _;
+use wild_error::error::Result;
 use wild_platform as platform;
 
 impl<'data> File<'data> {
@@ -193,7 +193,7 @@ impl<'data> File<'data> {
             });
             section_offset = section_offset
                 .checked_add(encoded_size)
-                .ok_or_else(|| crate::error!("Wasm data section offset overflow"))?;
+                .ok_or_else(|| wild_error::error!("Wasm data section offset overflow"))?;
         }
         Ok(segments)
     }
@@ -202,7 +202,7 @@ impl<'data> File<'data> {
 impl<'data> platform::ObjectFile<'data> for File<'data> {
     type Platform = Wasm;
 
-    fn parse_bytes(input: &'data [u8], _is_dynamic: bool) -> crate::error::Result<Self> {
+    fn parse_bytes(input: &'data [u8], _is_dynamic: bool) -> Result<Self> {
         parse_wasm_module(input).context("failed to parse Wasm object file")
     }
 
@@ -210,7 +210,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
         data: &'data [u8],
         _is_dynamic: bool,
         _args: &<Self::Platform as platform::Platform>::Args,
-    ) -> crate::error::Result<Self> {
+    ) -> Result<Self> {
         Self::parse_bytes(data, false)
     }
 
@@ -230,36 +230,36 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
     fn symbol(
         &self,
         index: object::SymbolIndex,
-    ) -> crate::error::Result<&<Self::Platform as platform::Platform>::SymtabEntry> {
+    ) -> Result<&<Self::Platform as platform::Platform>::SymtabEntry> {
         self.symbols
             .get(index.0)
-            .ok_or_else(|| crate::error!("wasm symbol index {} out of range", index.0))
+            .ok_or_else(|| wild_error::error!("wasm symbol index {} out of range", index.0))
     }
 
     fn section_size(
         &self,
         header: &<Self::Platform as platform::Platform>::SectionHeader,
-    ) -> crate::error::Result<u64> {
+    ) -> Result<u64> {
         Ok(header.payload_range.len() as u64)
     }
 
     fn symbol_name(
         &self,
         symbol: &<Self::Platform as platform::Platform>::SymtabEntry,
-    ) -> crate::error::Result<&'data [u8]> {
+    ) -> Result<&'data [u8]> {
         if !symbol.has_name() {
             return Ok(&[]);
         }
         self.data
             .get(symbol.name_range())
-            .ok_or_else(|| crate::error!("wasm symbol name range out of bounds"))
+            .ok_or_else(|| wild_error::error!("wasm symbol name range out of bounds"))
     }
 
     fn symbol_offset_in_section(
         &self,
         symbol: &<Self::Platform as platform::Platform>::SymtabEntry,
         _section_index: object::SectionIndex,
-    ) -> crate::error::Result<u64> {
+    ) -> Result<u64> {
         Ok(match symbol.kind {
             WasmSymbolKind::Data => u64::from(symbol.offset),
             _ => 0,
@@ -291,10 +291,10 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
     fn section(
         &self,
         index: object::SectionIndex,
-    ) -> crate::error::Result<&<Self::Platform as platform::Platform>::SectionHeader> {
+    ) -> Result<&<Self::Platform as platform::Platform>::SectionHeader> {
         self.sections
             .get(index.0)
-            .ok_or_else(|| crate::error!("wasm section index {} out of range", index.0))
+            .ok_or_else(|| wild_error::error!("wasm section index {} out of range", index.0))
     }
 
     fn section_by_name(
@@ -324,7 +324,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
         &self,
         _symbol: &<Self::Platform as platform::Platform>::SymtabEntry,
         _index: object::SymbolIndex,
-    ) -> crate::error::Result<Option<object::SectionIndex>> {
+    ) -> Result<Option<object::SectionIndex>> {
         Ok(None)
     }
 
@@ -338,7 +338,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
         _lib_name: &[u8],
         _state: &mut <Self::Platform as platform::Platform>::DynamicLayoutStateExt<'data>,
         _mem_sizes: &mut wild_layout::output_section_part_map::OutputSectionPartMap<u64>,
-    ) -> crate::error::Result {
+    ) -> Result {
         Ok(())
     }
 
@@ -347,27 +347,27 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
         _indexes: &mut <Self::Platform as platform::Platform>::NonAddressableIndexes,
         _counts: &mut <Self::Platform as platform::Platform>::NonAddressableCounts,
         _state: &mut <Self::Platform as platform::Platform>::DynamicLayoutStateExt<'data>,
-    ) -> crate::error::Result {
+    ) -> Result {
         Ok(())
     }
 
-    fn section_name(&self, index: object::SectionIndex) -> crate::error::Result<&'data [u8]> {
+    fn section_name(&self, index: object::SectionIndex) -> Result<&'data [u8]> {
         let header = self
             .sections
             .get(index.0)
-            .ok_or_else(|| crate::error!("wasm section index {} out of range", index.0))?;
+            .ok_or_else(|| wild_error::error!("wasm section index {} out of range", index.0))?;
         if let Some(name_range) = &header.name_range {
             Ok(&self.data[name_range.start as usize..name_range.end as usize])
         } else {
             standard_section_name(header.id)
-                .ok_or_else(|| crate::error!("unknown wasm section id {}", header.id))
+                .ok_or_else(|| wild_error::error!("unknown wasm section id {}", header.id))
         }
     }
 
     fn raw_section_data(
         &self,
         section: &<Self::Platform as platform::Platform>::SectionHeader,
-    ) -> crate::error::Result<&'data [u8]> {
+    ) -> Result<&'data [u8]> {
         Ok(&self.data[section.payload_range_usize()])
     }
 
@@ -376,7 +376,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
         section: &<Self::Platform as platform::Platform>::SectionHeader,
         _member: &wild_util::arena::Member<'data>,
         _loaded_metrics: &wild_layout::resolution::LoadedMetrics,
-    ) -> crate::error::Result<&'data [u8]> {
+    ) -> Result<&'data [u8]> {
         // Wasm sections are never compressed.
         self.raw_section_data(section)
     }
@@ -385,7 +385,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
         &self,
         section: &<Self::Platform as platform::Platform>::SectionHeader,
         out: &mut [u8],
-    ) -> crate::error::Result {
+    ) -> Result {
         let bytes = self.raw_section_data(section)?;
         ensure!(
             out.len() == bytes.len(),
@@ -400,14 +400,14 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
     fn section_data_cow(
         &self,
         section: &<Self::Platform as platform::Platform>::SectionHeader,
-    ) -> crate::error::Result<std::borrow::Cow<'data, [u8]>> {
+    ) -> Result<std::borrow::Cow<'data, [u8]>> {
         Ok(std::borrow::Cow::Borrowed(self.raw_section_data(section)?))
     }
 
     fn section_alignment(
         &self,
         _section: &<Self::Platform as platform::Platform>::SectionHeader,
-    ) -> crate::error::Result<u64> {
+    ) -> Result<u64> {
         // Wasm sections themselves don't carry an alignment requirement.
         Ok(1)
     }
@@ -416,7 +416,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
         &self,
         index: object::SectionIndex,
         _relocations: &<Self::Platform as platform::Platform>::RelocationSections,
-    ) -> crate::error::Result<<Self::Platform as platform::Platform>::RelocationList<'data>> {
+    ) -> Result<<Self::Platform as platform::Platform>::RelocationList<'data>> {
         let target = u32::try_from(index.0).unwrap_or(u32::MAX);
         let entries = decode_relocs_for(self, Some(target))?;
         Ok(RelocationList {
@@ -427,7 +427,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
 
     fn parse_relocations(
         &self,
-    ) -> crate::error::Result<<Self::Platform as platform::Platform>::RelocationSections> {
+    ) -> Result<<Self::Platform as platform::Platform>::RelocationSections> {
         Ok(())
     }
 
@@ -451,7 +451,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
 
     fn get_version_names(
         &self,
-    ) -> crate::error::Result<<Self::Platform as platform::Platform>::VersionNames<'data>> {
+    ) -> Result<<Self::Platform as platform::Platform>::VersionNames<'data>> {
         Ok(())
     }
 
@@ -460,7 +460,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
         symbol: &<Self::Platform as platform::Platform>::SymtabEntry,
         _local_index: usize,
         _version_names: &<Self::Platform as platform::Platform>::VersionNames<'data>,
-    ) -> crate::error::Result<<Self::Platform as platform::Platform>::RawSymbolName<'data>> {
+    ) -> Result<<Self::Platform as platform::Platform>::RawSymbolName<'data>> {
         Ok(RawSymbolName {
             name: self.symbol_name(symbol)?,
         })
@@ -474,9 +474,7 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
         false
     }
 
-    fn verneed_table(
-        &self,
-    ) -> crate::error::Result<<Self::Platform as platform::Platform>::VerneedTable<'data>> {
+    fn verneed_table(&self) -> Result<<Self::Platform as platform::Platform>::VerneedTable<'data>> {
         Ok(VerneedTable { _phantom: &[] })
     }
 
@@ -484,14 +482,14 @@ impl<'data> platform::ObjectFile<'data> for File<'data> {
         &self,
         _state: &mut <Self::Platform as platform::Platform>::ObjectLayoutStateExt<'data>,
         _section_index: object::SectionIndex,
-    ) -> crate::error::Result {
+    ) -> Result {
         // Wasm objects don't carry GNU property notes.
         Ok(())
     }
 
     fn dynamic_tags(
         &self,
-    ) -> crate::error::Result<&'data [<Self::Platform as platform::Platform>::DynamicEntry]> {
+    ) -> Result<&'data [<Self::Platform as platform::Platform>::DynamicEntry]> {
         Ok(&[])
     }
 }
