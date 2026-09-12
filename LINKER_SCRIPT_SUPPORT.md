@@ -62,6 +62,7 @@ matching all three.
 | `SORT(...)`, `SORT_BY_NAME(...)` | ✅ | |
 | `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then input order (GNU) |
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | Uses GCC `init_priority` encoded in `.init_array.N` / `.ctors.N` names |
+| `REVERSE(...)` | ✅ | Alone implies reverse `SORT_BY_NAME`. May wrap or be wrapped by `SORT` / `SORT_BY_NAME`, or be wrapped by `SORT_BY_INIT_PRIORITY`. Reverse alignment and nested `SORT_BY_NAME(SORT_BY_ALIGNMENT)` are unsupported |
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | Both `*(EXCLUDE_FILE(a.o) .text)` and `EXCLUDE_FILE(a.o) *(.text)` |
 | `BYTE(expr)`, `SHORT(expr)`, `LONG(expr)`, `QUAD(expr)` output data | ✅ | Written in the target endianness |
 | `SUBALIGN(n)` forced input alignment | ✅ | Each input is aligned to `n`, overriding larger or smaller `sh_addralign`. Output `sh_addralign` is `max(ALIGN(n), SUBALIGN(n))` and is not raised by input alignments |
@@ -145,6 +146,7 @@ because `.data..ro_after_init` is 4KiB-aligned. `.strtab` and `.shstrtab` suffix
 | `SORT(...)`, `SORT_BY_NAME(...)` | ✅ | |
 | `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then input order (GNU) |
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | |
+| `REVERSE(...)` | ✅ | Alone implies reverse `SORT_BY_NAME`. May wrap or be wrapped by `SORT` / `SORT_BY_NAME`, or be wrapped by `SORT_BY_INIT_PRIORITY`. Reverse alignment is unsupported |
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | |
 | `BYTE` / `SHORT` / `LONG` / `QUAD` | ✅ | Used by RISC-V/EFI kernel scripts |
 | `INCLUDE(file)` | ✅ | Module/arch fragments; the kernel itself is cpp-preprocessed |

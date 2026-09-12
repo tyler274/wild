@@ -251,6 +251,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
                 index: section_index,
                 sort_by_init_priority: unloaded.sort_by_init_priority,
                 sort_by_alignment: unloaded.sort_by_alignment,
+                sort_reversed: unloaded.sort_reversed,
             });
             SectionSlot::Sorted(SortedSection {
                 // Filled in later.

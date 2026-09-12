@@ -55,6 +55,8 @@ pub struct SectionOutputInfo {
     pub sorted: bool,
     pub sort_by_init_priority: bool,
     pub sort_by_alignment: bool,
+    /// GNU `REVERSE`: reverse the enclosed name or init-priority sort.
+    pub sort_reversed: bool,
     /// GNU ld default for script matchers without `SORT*`: input order, each input
     /// aligned to its own `sh_addralign`.
     pub input_order: bool,
@@ -68,6 +70,7 @@ impl SectionOutputInfo {
             sorted: false,
             sort_by_init_priority: false,
             sort_by_alignment: false,
+            sort_reversed: false,
             input_order: false,
         }
     }
@@ -79,6 +82,7 @@ impl SectionOutputInfo {
             sorted: false,
             sort_by_init_priority: false,
             sort_by_alignment: false,
+            sort_reversed: false,
             input_order: false,
         }
     }

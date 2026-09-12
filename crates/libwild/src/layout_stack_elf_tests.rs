@@ -37,6 +37,7 @@ mod section_mapping {
                 sorted: false,
                 sort_by_init_priority: false,
                 sort_by_alignment: false,
+                sort_reversed: false,
                 input_order: false,
             })
         );

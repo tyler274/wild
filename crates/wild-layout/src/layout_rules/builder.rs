@@ -42,7 +42,7 @@ fn matcher_uses_input_order(matcher: &linker_script::Matcher<'_>) -> bool {
     matcher
         .input_section_name_patterns
         .iter()
-        .all(|p| p.sort == linker_script::SortKind::None)
+        .all(|p| p.sort == linker_script::SortKind::None && !p.reversed)
 }
 fn loc_for_global_expr<'data>(
     expr: &Expression<'data>,
@@ -280,6 +280,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                     == linker_script::SortKind::InitPriority,
                                                 sort_by_alignment: pattern.sort
                                                     == linker_script::SortKind::Alignment,
+                                                sort_reversed: pattern.reversed,
                                                 input_order,
                                             };
 
@@ -516,6 +517,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                     == linker_script::SortKind::InitPriority,
                                                 sort_by_alignment: pattern.sort
                                                     == linker_script::SortKind::Alignment,
+                                                sort_reversed: pattern.reversed,
                                                 input_order,
                                             };
                                             let outcome = section_rule_from_id::<P>(

@@ -362,6 +362,14 @@ pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
         return Vec::new();
     }
 
+    struct Harvested<'data> {
+        sort_by_init_priority: bool,
+        sort_by_alignment: bool,
+        sort_reversed: bool,
+        name: &'data [u8],
+        section: InputSortedSection,
+    }
+
     let mut sections_out = Vec::new();
     for group in group_states.iter_mut() {
         for file in &mut group.files {
@@ -374,18 +382,19 @@ pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
                             .object
                             .section_name(sorted_section.index)
                             .unwrap_or_default();
-                        sections_out.push((
-                            sorted_section.sort_by_init_priority,
-                            sorted_section.sort_by_alignment,
+                        sections_out.push(Harvested {
+                            sort_by_init_priority: sorted_section.sort_by_init_priority,
+                            sort_by_alignment: sorted_section.sort_by_alignment,
+                            sort_reversed: sorted_section.sort_reversed,
                             name,
-                            InputSortedSection {
+                            section: InputSortedSection {
                                 file_id: obj.file_id,
                                 section_index: sorted_section.index,
                                 part_id,
                                 size: capacity,
                                 alignment: sec.section.alignment,
                             },
-                        ));
+                        });
                     }
                 }
             }
@@ -393,34 +402,48 @@ pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
     }
 
     sections_out.sort_by(|a, b| {
-        a.3.part_id
-            .cmp(&b.3.part_id)
-            .then_with(|| match (a.0, b.0) {
+        a.section.part_id.cmp(&b.section.part_id).then_with(|| {
+            match (a.sort_by_init_priority, b.sort_by_init_priority) {
                 (true, true) => {
-                    let pa = P::init_section_priority(a.2).unwrap_or(u16::MAX);
-                    let pb = P::init_section_priority(b.2).unwrap_or(u16::MAX);
-                    pa.cmp(&pb).then_with(|| a.2.cmp(b.2))
+                    let pa = P::init_section_priority(a.name).unwrap_or(u16::MAX);
+                    let pb = P::init_section_priority(b.name).unwrap_or(u16::MAX);
+                    let ord = pa.cmp(&pb).then_with(|| a.name.cmp(b.name));
+                    if a.sort_reversed && b.sort_reversed {
+                        ord.reverse()
+                    } else {
+                        ord
+                    }
                 }
                 (true, false) => std::cmp::Ordering::Less,
                 (false, true) => std::cmp::Ordering::Greater,
-                (false, false) if a.1 && b.1 => {
+                (false, false) if a.sort_by_alignment && b.sort_by_alignment => {
                     // GNU `SORT_BY_ALIGNMENT` only: largest alignment first, then
                     // input order (stable). Name is a secondary key only when
-                    // wrapped in `SORT()` / `SORT_BY_NAME()`.
-                    b.3.alignment.cmp(&a.3.alignment).then_with(|| {
-                        a.3.file_id
-                            .cmp(&b.3.file_id)
-                            .then_with(|| a.3.section_index.0.cmp(&b.3.section_index.0))
+                    // wrapped in `SORT()` / `SORT_BY_NAME()`. Reverse alignment
+                    // is not supported.
+                    b.section.alignment.cmp(&a.section.alignment).then_with(|| {
+                        a.section
+                            .file_id
+                            .cmp(&b.section.file_id)
+                            .then_with(|| a.section.section_index.0.cmp(&b.section.section_index.0))
                     })
                 }
-                (false, false) if a.1 => std::cmp::Ordering::Less,
-                (false, false) if b.1 => std::cmp::Ordering::Greater,
-                (false, false) => a.2.cmp(b.2),
-            })
+                (false, false) if a.sort_by_alignment => std::cmp::Ordering::Less,
+                (false, false) if b.sort_by_alignment => std::cmp::Ordering::Greater,
+                (false, false) => {
+                    let ord = a.name.cmp(b.name);
+                    if a.sort_reversed && b.sort_reversed {
+                        ord.reverse()
+                    } else {
+                        ord
+                    }
+                }
+            }
+        })
     });
     sections_out
         .into_iter()
-        .map(|(_, _, _, harvested)| harvested)
+        .map(|harvested| harvested.section)
         .collect()
 }
 

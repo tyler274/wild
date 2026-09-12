@@ -825,6 +825,7 @@ pub enum LinkerScriptError {
     InvalidAlignment,
     UnclosedComment,
     UnsupportedNestedSort,
+    UnsupportedReverseAlignment,
     InvalidSectionType,
 }
 
@@ -839,6 +840,9 @@ impl std::fmt::Display for LinkerScriptError {
                 f,
                 "Nested sorting commands in linker scripts is not supported"
             ),
+            LinkerScriptError::UnsupportedReverseAlignment => {
+                write!(f, "reverse sorting of alignment is not currently supported")
+            }
             LinkerScriptError::InvalidSectionType => {
                 write!(f, "invalid TYPE for output section")
             }

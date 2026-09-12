@@ -373,6 +373,8 @@ impl SortKind {
 pub struct SectionPattern<'a> {
     pub name: &'a [u8],
     pub sort: SortKind,
+    /// GNU `REVERSE`: reverse the enclosed sort. Alone, it implies `SORT_BY_NAME`.
+    pub reversed: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]

@@ -602,30 +602,86 @@ pub fn parse_sort(input: &mut &BStr) -> winnow::Result<SortKind> {
     .parse_next(input)
 }
 
-pub fn parse_pattern<'input>(input: &mut &'input BStr) -> winnow::Result<SectionPattern<'input>> {
-    let wrapped = opt(parse_sort).parse_next(input)?;
-    let sort = wrapped.unwrap_or(SortKind::None);
+#[derive(Clone, Copy)]
+enum SortCommand {
+    Sort(SortKind),
+    Reverse,
+}
 
-    if wrapped.is_some() {
+fn parse_sort_command(input: &mut &BStr) -> winnow::Result<SortCommand> {
+    alt((
+        "REVERSE".map(|_| SortCommand::Reverse),
+        parse_sort.map(SortCommand::Sort),
+    ))
+    .parse_next(input)
+}
+
+fn combine_sort_commands(
+    outer: SortCommand,
+    inner: Option<SortCommand>,
+) -> Result<(SortKind, bool), LinkerScriptError> {
+    match (outer, inner) {
+        (SortCommand::Reverse, None) => Ok((SortKind::Name, true)),
+        (SortCommand::Reverse, Some(SortCommand::Sort(SortKind::Name)))
+        | (SortCommand::Sort(SortKind::Name), Some(SortCommand::Reverse)) => {
+            Ok((SortKind::Name, true))
+        }
+        (SortCommand::Sort(SortKind::InitPriority), Some(SortCommand::Reverse)) => {
+            Ok((SortKind::InitPriority, true))
+        }
+        (SortCommand::Sort(kind), None) => Ok((kind, false)),
+        (SortCommand::Reverse, Some(SortCommand::Sort(SortKind::Alignment)))
+        | (SortCommand::Sort(SortKind::Alignment), Some(SortCommand::Reverse)) => {
+            Err(LinkerScriptError::UnsupportedReverseAlignment)
+        }
+        _ => Err(LinkerScriptError::UnsupportedNestedSort),
+    }
+}
+
+fn parse_section_name<'input>(input: &mut &'input BStr) -> winnow::Result<&'input [u8]> {
+    take_while(1.., |b: u8| b != b')' && !b.is_ascii_whitespace()).parse_next(input)
+}
+
+pub fn parse_pattern<'input>(input: &mut &'input BStr) -> winnow::Result<SectionPattern<'input>> {
+    let Some(outer) = opt(parse_sort_command).parse_next(input)? else {
+        skip_comments_and_whitespace(input)?;
+        let name = parse_section_name(input)?;
+        skip_comments_and_whitespace(input)?;
+        return Ok(SectionPattern {
+            name,
+            sort: SortKind::None,
+            reversed: false,
+        });
+    };
+
+    skip_comments_and_whitespace(input)?;
+    '('.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+
+    let inner = opt(parse_sort_command).parse_next(input)?;
+    if inner.is_some() {
         skip_comments_and_whitespace(input)?;
         '('.parse_next(input)?;
-        winnow::combinator::not(parse_sort)
-            .parse_next(input)
-            .map_err(|_: ContextError| {
-                ContextError::from_external_error(input, LinkerScriptError::UnsupportedNestedSort)
-            })?;
+        skip_comments_and_whitespace(input)?;
     }
 
-    skip_comments_and_whitespace(input)?;
-    let name = take_while(1.., |b: u8| b != b')' && !b.is_ascii_whitespace()).parse_next(input)?;
+    let name = parse_section_name(input)?;
     skip_comments_and_whitespace(input)?;
 
-    if wrapped.is_some() {
+    if inner.is_some() {
         ')'.parse_next(input)?;
         skip_comments_and_whitespace(input)?;
     }
+    ')'.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
 
-    Ok(SectionPattern { name, sort })
+    let (sort, reversed) = combine_sort_commands(outer, inner)
+        .map_err(|e| ContextError::from_external_error(input, e))?;
+    Ok(SectionPattern {
+        name,
+        sort,
+        reversed,
+    })
 }
 
 pub fn parse_contents_assert<'input>(
