@@ -146,6 +146,9 @@ pub struct Section<'a> {
     pub output_section_name: &'a [u8],
     pub commands: Vec<ContentsCommand<'a>>,
     pub alignment: Option<Alignment>,
+    /// GNU `ALIGN_WITH_INPUT`: keep the VMA−LMA difference when aligning this
+    /// output section to its inputs. Cannot be combined with `ALIGN(n)`.
+    pub align_with_input: bool,
     /// GNU `SUBALIGN(n)`: each input is aligned to `n`, overriding `sh_addralign`.
     pub subalign: Option<Alignment>,
     pub start_address_expression: Option<Expression<'a>>,

@@ -827,6 +827,7 @@ pub enum LinkerScriptError {
     UnsupportedNestedSort,
     UnsupportedReverseAlignment,
     UnrecognisedInputSectionFlag,
+    ConflictingOutputAlignment,
     InvalidSectionType,
 }
 
@@ -846,6 +847,9 @@ impl std::fmt::Display for LinkerScriptError {
             }
             LinkerScriptError::UnrecognisedInputSectionFlag => {
                 write!(f, "unrecognised INPUT_SECTION_FLAGS name")
+            }
+            LinkerScriptError::ConflictingOutputAlignment => {
+                write!(f, "align with input and explicit align specified")
             }
             LinkerScriptError::InvalidSectionType => {
                 write!(f, "invalid TYPE for output section")

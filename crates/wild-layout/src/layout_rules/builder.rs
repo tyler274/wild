@@ -172,6 +172,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                 at_location: sec.at_address.clone(),
                                 at_region: sec.at_region,
                                 is_top_level: true,
+                                align_with_input: sec.align_with_input,
                                 overlay: None,
                             };
 
@@ -262,6 +263,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                 at_location: None,
                                                 at_region: None,
                                                 is_top_level: false,
+                                                align_with_input: false,
                                                 overlay: None,
                                             };
                                             inner_lc_start_idx = inner_lc_idx;
@@ -403,6 +405,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                     at_location: None,
                                     at_region: None,
                                     is_top_level: false,
+                                    align_with_input: false,
                                     overlay: None,
                                 };
                                 output_sections.add_secondary_section(
@@ -473,6 +476,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                         .or(sec.at_address.clone()),
                                     at_region: overlay.at_region.or(sec.at_region),
                                     is_top_level: true,
+                                    align_with_input: sec.align_with_input,
                                     overlay: Some(crate::output_section_id::OverlayPlacement {
                                         group: overlay_group,
                                         member: member as u32,

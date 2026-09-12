@@ -149,6 +149,7 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             at_location: None,
             at_region: None,
             is_top_level: true,
+            align_with_input: false,
             overlay: None,
         });
         self.add_named_section(
@@ -194,6 +195,7 @@ impl<'data, P: Platform> OutputSections<'data, P> {
                         at_location: None,
                         at_region: None,
                         is_top_level: true,
+                        align_with_input: false,
                         overlay: None,
                     });
                 }

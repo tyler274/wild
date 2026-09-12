@@ -434,6 +434,10 @@ pub fn compute_layout_sections<'data, P: EnginePlatform>(
                     .location_info
                     .as_ref()
                     .is_some_and(|info| info.is_top_level);
+                let align_with_input = section_info
+                    .location_info
+                    .as_ref()
+                    .is_some_and(|info| info.align_with_input);
                 let has_explicit_section_addr = section_info
                     .location_info
                     .as_ref()
@@ -442,13 +446,15 @@ pub fn compute_layout_sections<'data, P: EnginePlatform>(
                 // GNU ld aligns a script output section to the max input sh_addralign
                 // even after `. = ALIGN(n)` (kernel `. = ALIGN(8); .exit.text` with
                 // 16-byte inputs). An explicit section address (`.foo 0x1000 :`)
-                // still wins.
+                // still wins. `ALIGN_WITH_INPUT` applies the same pad to LMA.
                 if is_top_level
                     && !has_explicit_section_addr
                     && let Some(&max_input_align) = input_order_max_align.get(&section_id)
                 {
-                    mem_offset = max_input_align.align_up(mem_offset);
-                    lma_offset = max_input_align.align_up(lma_offset);
+                    let (new_mem, new_lma) =
+                        align_vma_lma(mem_offset, lma_offset, max_input_align, align_with_input);
+                    mem_offset = new_mem;
+                    lma_offset = new_lma;
                     if output_sections.has_data_in_file(merge_target) {
                         file_offset = max_input_align.align_up_usize(file_offset);
                     }
@@ -541,8 +547,10 @@ pub fn compute_layout_sections<'data, P: EnginePlatform>(
                     } else if section_flags.is_alloc() || follow_location_counter {
                         // ALLOC sections in a PT_LOAD, and empty/non-ALLOC custom sections that
                         // inherit that LOAD, follow the location-counter VMA (GNU ld).
-                        mem_offset = alignment.align_up(mem_offset);
-                        lma_offset = alignment.align_up(lma_offset);
+                        let (new_mem, new_lma) =
+                            align_vma_lma(mem_offset, lma_offset, alignment, align_with_input);
+                        mem_offset = new_mem;
+                        lma_offset = new_lma;
 
                         let file_size = if output_sections.has_data_in_file(merge_target) {
                             mem_size as usize
@@ -697,6 +705,21 @@ pub fn pick_compatible_memory_region<'data>(
         }
     }
     None
+}
+
+fn align_vma_lma(
+    mem_offset: u64,
+    lma_offset: u64,
+    alignment: Alignment,
+    align_with_input: bool,
+) -> (u64, u64) {
+    let new_mem = alignment.align_up(mem_offset);
+    let new_lma = if align_with_input {
+        lma_offset + (new_mem - mem_offset)
+    } else {
+        alignment.align_up(lma_offset)
+    };
+    (new_mem, new_lma)
 }
 
 pub fn memory_flags_match(

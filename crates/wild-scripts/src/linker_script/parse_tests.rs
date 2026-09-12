@@ -189,6 +189,7 @@ fn test_section_command() {
                 }),
             ],
             alignment: None,
+            align_with_input: false,
             subalign: None,
             start_address_expression: None,
             phdrs: vec![],
@@ -220,6 +221,7 @@ fn test_section_command_with_start_address_expression() {
                 }],
             })],
             alignment: Some(Alignment::new(8).unwrap()),
+            align_with_input: false,
             subalign: None,
             start_address_expression: Some(Expression::Number(0)),
             phdrs: vec![],
@@ -251,6 +253,7 @@ fn test_section_command_with_subalign() {
                 }],
             })],
             alignment: Some(Alignment::new(32).unwrap()),
+            align_with_input: false,
             subalign: Some(Alignment::new(4).unwrap()),
             start_address_expression: None,
             phdrs: vec![],
@@ -282,6 +285,7 @@ fn test_section_command_with_subalign_only() {
                 }],
             })],
             alignment: None,
+            align_with_input: false,
             subalign: Some(Alignment::new(4).unwrap()),
             start_address_expression: None,
             phdrs: vec![],
@@ -313,6 +317,7 @@ fn test_section_command_with_align_start_address() {
                 }],
             })],
             alignment: None,
+            align_with_input: false,
             subalign: None,
             start_address_expression: Some(Expression::Align(
                 Box::new(Expression::Number(0x2000)),
@@ -340,6 +345,7 @@ fn test_section_command_with_type_attribute() {
                 value: Expression::Number(1),
             })],
             alignment: None,
+            align_with_input: false,
             subalign: None,
             start_address_expression: None,
             phdrs: vec![],
@@ -360,6 +366,7 @@ fn test_section_command_with_type_attribute() {
                 value: Expression::Number(1),
             })],
             alignment: None,
+            align_with_input: false,
             subalign: None,
             start_address_expression: None,
             phdrs: vec![],
@@ -380,6 +387,7 @@ fn test_section_command_with_type_attribute() {
                 value: Expression::Number(1),
             })],
             alignment: None,
+            align_with_input: false,
             subalign: None,
             start_address_expression: None,
             phdrs: vec![],
@@ -407,6 +415,7 @@ fn test_section_command_with_type_attribute() {
                 }],
             })],
             alignment: None,
+            align_with_input: false,
             subalign: None,
             start_address_expression: None,
             phdrs: vec![],
@@ -494,6 +503,7 @@ fn test_basic_linker_script() {
                                 }),
                             ],
                             alignment: Some(Alignment::new(8).unwrap()),
+                            align_with_input: false,
                             subalign: None,
                             start_address_expression: None,
                             phdrs: vec![],
@@ -691,6 +701,7 @@ fn test_section_command_with_filename() {
                 }),
             ],
             alignment: None,
+            align_with_input: false,
             subalign: None,
             start_address_expression: None,
             phdrs: vec![],
@@ -722,6 +733,7 @@ fn test_section_command_with_glob_filename() {
                 }],
             })],
             alignment: None,
+            align_with_input: false,
             subalign: None,
             start_address_expression: None,
             phdrs: vec![],
@@ -753,6 +765,7 @@ fn test_keep_with_filename() {
                 }],
             })],
             alignment: None,
+            align_with_input: false,
             subalign: None,
             start_address_expression: None,
             phdrs: vec![],
@@ -792,6 +805,7 @@ fn test_assert_command() {
                             }],
                         })],
                         alignment: None,
+                        align_with_input: false,
                         subalign: None,
                         start_address_expression: None,
                         phdrs: vec![],
@@ -842,6 +856,7 @@ fn test_assert_in_sections() {
                             }],
                         })],
                         alignment: None,
+                        align_with_input: false,
                         subalign: None,
                         start_address_expression: None,
                         phdrs: vec![],
@@ -1467,6 +1482,7 @@ fn reverse_section(pattern: SectionPattern<'_>) -> SectionCommand<'_> {
             input_section_name_patterns: vec![pattern],
         })],
         alignment: None,
+        align_with_input: false,
         subalign: None,
         start_address_expression: None,
         phdrs: vec![],
@@ -1548,6 +1564,7 @@ fn flags_section(flags: InputSectionFlags) -> SectionCommand<'static> {
             }],
         })],
         alignment: None,
+        align_with_input: false,
         subalign: None,
         start_address_expression: None,
         phdrs: vec![],
@@ -1616,6 +1633,7 @@ fn test_input_section_flags_parsing() {
                 }],
             })],
             alignment: None,
+            align_with_input: false,
             subalign: None,
             start_address_expression: None,
             phdrs: vec![],
@@ -1635,6 +1653,44 @@ fn test_unrecognised_input_section_flag() {
         parse_script("SECTIONS { .text : { INPUT_SECTION_FLAGS(SHF_NOT_A_FLAG) *(.text) } }")
             .is_err()
     );
+}
+
+#[test]
+fn test_align_with_input_parsing() {
+    check_section_command(
+        ".data : ALIGN_WITH_INPUT { *(.data) }",
+        &SectionCommand::Section(Section {
+            output_section_name: b".data",
+            commands: vec![ContentsCommand::Matcher(Matcher {
+                must_keep: false,
+                input_file_pattern: None,
+                exclude_file_patterns: vec![],
+                input_section_flags: InputSectionFlags::EMPTY,
+                input_section_name_patterns: vec![SectionPattern {
+                    name: b".data",
+                    sort: SortKind::None,
+                    reversed: false,
+                }],
+            })],
+            alignment: None,
+            align_with_input: true,
+            subalign: None,
+            start_address_expression: None,
+            phdrs: vec![],
+            at_address: None,
+            region: None,
+            at_region: None,
+            fill: None,
+            attributes: None,
+            only_if: None,
+        }),
+    );
+}
+
+#[test]
+fn test_align_with_input_rejects_explicit_align() {
+    assert!(parse_script("SECTIONS { .data : ALIGN(16) ALIGN_WITH_INPUT { *(.data) } }").is_err());
+    assert!(parse_script("SECTIONS { .data : ALIGN_WITH_INPUT ALIGN(16) { *(.data) } }").is_err());
 }
 
 #[test]
@@ -1777,6 +1833,7 @@ fn test_only_if_and_sort_none() {
                 }],
             })],
             alignment: None,
+            align_with_input: false,
             subalign: None,
             start_address_expression: None,
             phdrs: vec![],
@@ -1804,6 +1861,7 @@ fn test_only_if_and_sort_none() {
                 }],
             })],
             alignment: None,
+            align_with_input: false,
             subalign: None,
             start_address_expression: None,
             phdrs: vec![],
@@ -1842,6 +1900,7 @@ fn test_exclude_file_between_patterns() {
                 ],
             })],
             alignment: None,
+            align_with_input: false,
             subalign: None,
             start_address_expression: None,
             phdrs: vec![],
@@ -1876,6 +1935,7 @@ fn test_linker_version_in_comment() {
                 ContentsCommand::LinkerVersion,
             ],
             alignment: None,
+            align_with_input: false,
             subalign: None,
             start_address_expression: Some(Expression::Number(0)),
             phdrs: vec![],

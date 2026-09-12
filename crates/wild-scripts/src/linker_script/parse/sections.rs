@@ -123,6 +123,7 @@ pub fn parse_section_command<'input>(
     skip_comments_and_whitespace(input)?;
 
     let mut alignment = None;
+    let mut align_with_input = false;
     let mut subalign = None;
     let mut at_address = None;
     let mut only_if = None;
@@ -140,10 +141,19 @@ pub fn parse_section_command<'input>(
             at_address = Some(parse_at_address.parse_next(input)?);
         } else if opt("SUBALIGN").parse_next(input)?.is_some() {
             subalign = Some(parse_alignment_value.parse_next(input)?);
+        } else if opt("ALIGN_WITH_INPUT").parse_next(input)?.is_some() {
+            align_with_input = true;
         } else {
             alignment = Some(parse_alignment.parse_next(input)?);
         }
         skip_comments_and_whitespace(input)?;
+    }
+
+    if align_with_input && alignment.is_some() {
+        return Err(ContextError::from_external_error(
+            input,
+            LinkerScriptError::ConflictingOutputAlignment,
+        ));
     }
 
     '{'.parse_next(input)?;
@@ -183,6 +193,7 @@ pub fn parse_section_command<'input>(
         output_section_name: name,
         commands,
         alignment,
+        align_with_input,
         subalign,
         start_address_expression,
         phdrs,

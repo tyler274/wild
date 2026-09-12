@@ -118,5 +118,8 @@ pub struct SectionLocationInfo<'data> {
     pub at_location: Option<Expression<'data>>,
     pub at_region: Option<&'data [u8]>,
     pub is_top_level: bool,
+    /// GNU `ALIGN_WITH_INPUT`: add the VMA alignment pad to LMA instead of
+    /// aligning LMA independently.
+    pub align_with_input: bool,
     pub overlay: Option<OverlayPlacement>,
 }
