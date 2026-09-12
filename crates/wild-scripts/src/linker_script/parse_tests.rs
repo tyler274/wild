@@ -152,6 +152,8 @@ fn test_section_command() {
                     input_file_pattern: None,
                     exclude_file_patterns: vec![],
                     input_section_flags: InputSectionFlags::EMPTY,
+                    sort_files_by_name: false,
+                    sort_files_reversed: false,
                     input_section_name_patterns: vec![
                         SectionPattern {
                             name: b".text",
@@ -172,6 +174,8 @@ fn test_section_command() {
                     input_file_pattern: None,
                     exclude_file_patterns: vec![],
                     input_section_flags: InputSectionFlags::EMPTY,
+                    sort_files_by_name: false,
+                    sort_files_reversed: false,
                     input_section_name_patterns: vec![SectionPattern {
                         name: b".text3",
                         sort: SortKind::None,
@@ -206,6 +210,8 @@ fn test_section_command_with_start_address_expression() {
                 input_file_pattern: None,
                 exclude_file_patterns: vec![],
                 input_section_flags: InputSectionFlags::EMPTY,
+                sort_files_by_name: false,
+                sort_files_reversed: false,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b"___ksymtab+",
                     sort: SortKind::None,
@@ -239,6 +245,8 @@ fn test_section_command_with_subalign() {
                 input_file_pattern: None,
                 exclude_file_patterns: vec![],
                 input_section_flags: InputSectionFlags::EMPTY,
+                sort_files_by_name: false,
+                sort_files_reversed: false,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".s",
                     sort: SortKind::None,
@@ -272,6 +280,8 @@ fn test_section_command_with_subalign_only() {
                 input_file_pattern: None,
                 exclude_file_patterns: vec![],
                 input_section_flags: InputSectionFlags::EMPTY,
+                sort_files_by_name: false,
+                sort_files_reversed: false,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".s",
                     sort: SortKind::None,
@@ -305,6 +315,8 @@ fn test_section_command_with_align_start_address() {
                 input_file_pattern: None,
                 exclude_file_patterns: vec![],
                 input_section_flags: InputSectionFlags::EMPTY,
+                sort_files_by_name: false,
+                sort_files_reversed: false,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".data",
                     sort: SortKind::None,
@@ -404,6 +416,8 @@ fn test_section_command_with_type_attribute() {
                 input_file_pattern: None,
                 exclude_file_patterns: vec![],
                 input_section_flags: InputSectionFlags::EMPTY,
+                sort_files_by_name: false,
+                sort_files_reversed: false,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".bss",
                     sort: SortKind::None,
@@ -481,6 +495,8 @@ fn test_basic_linker_script() {
                                     input_file_pattern: None,
                                     exclude_file_patterns: vec![],
                                     input_section_flags: InputSectionFlags::EMPTY,
+                                    sort_files_by_name: false,
+                                    sort_files_reversed: false,
                                     input_section_name_patterns: vec![SectionPattern {
                                         name: b".rodata.foo",
                                         sort: SortKind::None,
@@ -672,6 +688,8 @@ fn test_section_command_with_filename() {
                     input_file_pattern: Some(b"foo.o"),
                     exclude_file_patterns: vec![],
                     input_section_flags: InputSectionFlags::EMPTY,
+                    sort_files_by_name: false,
+                    sort_files_reversed: false,
                     input_section_name_patterns: vec![
                         SectionPattern {
                             name: b".text",
@@ -692,6 +710,8 @@ fn test_section_command_with_filename() {
                     input_file_pattern: None,
                     exclude_file_patterns: vec![],
                     input_section_flags: InputSectionFlags::EMPTY,
+                    sort_files_by_name: false,
+                    sort_files_reversed: false,
                     input_section_name_patterns: vec![SectionPattern {
                         name: b".text3",
                         sort: SortKind::None,
@@ -726,6 +746,8 @@ fn test_section_command_with_glob_filename() {
                 input_file_pattern: Some(b"*crtbegin*.o"),
                 exclude_file_patterns: vec![],
                 input_section_flags: InputSectionFlags::EMPTY,
+                sort_files_by_name: false,
+                sort_files_reversed: false,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".ctors",
                     sort: SortKind::None,
@@ -759,6 +781,8 @@ fn test_keep_with_filename() {
                 input_file_pattern: Some(b"crti.o"),
                 exclude_file_patterns: vec![],
                 input_section_flags: InputSectionFlags::EMPTY,
+                sort_files_by_name: false,
+                sort_files_reversed: false,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".init",
                     sort: SortKind::None,
@@ -800,6 +824,8 @@ fn test_assert_command() {
                             input_file_pattern: None,
                             exclude_file_patterns: vec![],
                             input_section_flags: InputSectionFlags::EMPTY,
+                            sort_files_by_name: false,
+                            sort_files_reversed: false,
                             input_section_name_patterns: vec![SectionPattern {
                                 name: b".text",
                                 sort: SortKind::None,
@@ -852,6 +878,8 @@ fn test_assert_in_sections() {
                             input_file_pattern: None,
                             exclude_file_patterns: vec![],
                             input_section_flags: InputSectionFlags::EMPTY,
+                            sort_files_by_name: false,
+                            sort_files_reversed: false,
                             input_section_name_patterns: vec![SectionPattern {
                                 name: b".text",
                                 sort: SortKind::None,
@@ -1548,6 +1576,93 @@ fn test_nested_sort_is_unsupported() {
     assert!(script.is_err());
 }
 
+fn file_sort_section(
+    pattern: SectionPattern<'_>,
+    sort_files_by_name: bool,
+    sort_files_reversed: bool,
+) -> SectionCommand<'_> {
+    SectionCommand::Section(Section {
+        output_section_name: b".text",
+        commands: vec![ContentsCommand::Matcher(Matcher {
+            must_keep: false,
+            input_file_pattern: None,
+            exclude_file_patterns: vec![],
+            input_section_flags: InputSectionFlags::EMPTY,
+            sort_files_by_name,
+            sort_files_reversed,
+            input_section_name_patterns: vec![pattern],
+        })],
+        alignment: None,
+        align_with_input: false,
+        subalign: None,
+        start_address_expression: None,
+        phdrs: vec![],
+        at_address: None,
+        region: None,
+        at_region: None,
+        fill: None,
+        attributes: None,
+        only_if: None,
+    })
+}
+
+#[test]
+fn test_file_level_sort_parsing() {
+    let unsorted = SectionPattern {
+        name: b".text",
+        sort: SortKind::None,
+        reversed: false,
+        exclude_file_patterns: vec![],
+    };
+    check_section_command(
+        ".text : { SORT(*)(.text) }",
+        &file_sort_section(unsorted.clone(), true, false),
+    );
+    check_section_command(
+        ".text : { SORT_BY_NAME(*)(.text) }",
+        &file_sort_section(unsorted.clone(), true, false),
+    );
+    check_section_command(
+        ".text : { REVERSE(*)(.text) }",
+        &file_sort_section(unsorted.clone(), true, true),
+    );
+    check_section_command(
+        ".text : { REVERSE(SORT_BY_NAME(*))(.text) }",
+        &file_sort_section(unsorted.clone(), true, true),
+    );
+    check_section_command(
+        ".text : { SORT(REVERSE(*))(.text) }",
+        &file_sort_section(unsorted, true, true),
+    );
+    check_section_command(
+        ".text : { SORT(*)(SORT_BY_ALIGNMENT(.text*)) }",
+        &file_sort_section(
+            SectionPattern {
+                name: b".text*",
+                sort: SortKind::Alignment,
+                reversed: false,
+                exclude_file_patterns: vec![],
+            },
+            true,
+            false,
+        ),
+    );
+}
+
+#[test]
+fn test_file_level_sort_alignment_is_unsupported() {
+    let script = parse_script(
+        r"
+            SECTIONS {
+                .text : {
+                    SORT_BY_ALIGNMENT(*)(.text)
+                }
+            }
+            ",
+    );
+    assert!(script.is_err());
+}
+
 fn reverse_section(pattern: SectionPattern<'_>) -> SectionCommand<'_> {
     SectionCommand::Section(Section {
         output_section_name: b".text",
@@ -1556,6 +1671,8 @@ fn reverse_section(pattern: SectionPattern<'_>) -> SectionCommand<'_> {
             input_file_pattern: None,
             exclude_file_patterns: vec![],
             input_section_flags: InputSectionFlags::EMPTY,
+            sort_files_by_name: false,
+            sort_files_reversed: false,
             input_section_name_patterns: vec![pattern],
         })],
         alignment: None,
@@ -1638,6 +1755,8 @@ fn flags_section(flags: InputSectionFlags) -> SectionCommand<'static> {
             input_file_pattern: None,
             exclude_file_patterns: vec![],
             input_section_flags: flags,
+            sort_files_by_name: false,
+            sort_files_reversed: false,
             input_section_name_patterns: vec![SectionPattern {
                 name: b".text",
                 sort: SortKind::None,
@@ -1708,6 +1827,8 @@ fn test_input_section_flags_parsing() {
                     with: 0,
                     without: object::elf::SHF_WRITE.0,
                 },
+                sort_files_by_name: false,
+                sort_files_reversed: false,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".text",
                     sort: SortKind::None,
@@ -1749,6 +1870,8 @@ fn test_align_with_input_parsing() {
                 input_file_pattern: None,
                 exclude_file_patterns: vec![],
                 input_section_flags: InputSectionFlags::EMPTY,
+                sort_files_by_name: false,
+                sort_files_reversed: false,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".data",
                     sort: SortKind::None,
@@ -1910,6 +2033,8 @@ fn test_only_if_and_sort_none() {
                 input_file_pattern: None,
                 exclude_file_patterns: vec![],
                 input_section_flags: InputSectionFlags::EMPTY,
+                sort_files_by_name: false,
+                sort_files_reversed: false,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".eh_frame",
                     sort: SortKind::None,
@@ -1939,6 +2064,8 @@ fn test_only_if_and_sort_none() {
                 input_file_pattern: None,
                 exclude_file_patterns: vec![],
                 input_section_flags: InputSectionFlags::EMPTY,
+                sort_files_by_name: false,
+                sort_files_reversed: false,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".init",
                     sort: SortKind::None,
@@ -1972,6 +2099,8 @@ fn test_exclude_file_between_patterns() {
                 input_file_pattern: None,
                 exclude_file_patterns: vec![],
                 input_section_flags: InputSectionFlags::EMPTY,
+                sort_files_by_name: false,
+                sort_files_reversed: false,
                 input_section_name_patterns: vec![
                     SectionPattern {
                         name: b".init_array",
@@ -2054,6 +2183,8 @@ fn test_linker_version_in_comment() {
                     input_file_pattern: None,
                     exclude_file_patterns: vec![],
                     input_section_flags: InputSectionFlags::EMPTY,
+                    sort_files_by_name: false,
+                    sort_files_reversed: false,
                     input_section_name_patterns: vec![SectionPattern {
                         name: b".comment",
                         sort: SortKind::None,

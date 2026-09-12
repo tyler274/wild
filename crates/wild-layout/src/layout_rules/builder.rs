@@ -25,16 +25,18 @@ pub struct LayoutRulesBuilder<'data> {
     replaces_default_script: bool,
 }
 fn matcher_uses_input_order(matcher: &linker_script::Matcher<'_>) -> bool {
-    matcher
-        .input_section_name_patterns
-        .iter()
-        .all(|p| p.sort == linker_script::SortKind::None && !p.reversed)
+    !matcher.sort_files_by_name
+        && matcher
+            .input_section_name_patterns
+            .iter()
+            .all(|p| p.sort == linker_script::SortKind::None && !p.reversed)
 }
 
 fn output_info_for_pattern(
     section_id: OutputSectionId,
     must_keep: bool,
     pattern: &linker_script::SectionPattern<'_>,
+    matcher: &linker_script::Matcher<'_>,
     input_order: bool,
 ) -> SectionOutputInfo {
     SectionOutputInfo {
@@ -54,6 +56,8 @@ fn output_info_for_pattern(
         ),
         sort_name_primary: pattern.sort == linker_script::SortKind::NameThenAlignment,
         sort_reversed: pattern.reversed,
+        sort_by_file_name: matcher.sort_files_by_name,
+        sort_files_reversed: matcher.sort_files_reversed,
         input_order,
     }
 }
@@ -304,6 +308,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                 section_id,
                                                 matcher.must_keep,
                                                 pattern,
+                                                matcher,
                                                 input_order,
                                             );
 
@@ -539,6 +544,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                 primary_section_id,
                                                 matcher.must_keep,
                                                 pattern,
+                                                matcher,
                                                 input_order,
                                             );
                                             let outcome = section_rule_from_id::<P>(

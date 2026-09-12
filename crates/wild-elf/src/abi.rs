@@ -53,8 +53,8 @@ use wild_layout::resolution::{LoadedMetrics, SectionSlot};
 use wild_layout::symbol::UnversionedSymbolName;
 use wild_layout::symbol_db::{SymbolDb, SymbolId};
 use wild_layout::{
-    CommonGroupState, DynamicSymbolDefinition, HandlerData as _, ObjectLayoutState,
-    OutputRecordLayout, Resolution, SectionGcUnit, SymbolCopyInfo, expression_eval,
+    CommonGroupState, DynamicSymbolDefinition, ObjectLayoutState, OutputRecordLayout, Resolution,
+    SectionGcUnit, SymbolCopyInfo, expression_eval,
 };
 use wild_platform as platform;
 use wild_platform::output_section_map::OutputSectionMap;
@@ -477,11 +477,11 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         let copy_relocation_addresses =
             assign_copy_relocation_addresses(state, &copy_relocation_symbols, memory_offsets)?;
 
-        for (local_symbol, &flags) in state.object.symbols_iter().zip(
-            resources
-                .per_symbol_flags
-                .raw_range(state.symbol_id_range()),
-        ) {
+        for (local_symbol, &flags) in state
+            .object
+            .symbols_iter()
+            .zip(resources.per_symbol_flags.raw_range(state.symbol_id_range))
+        {
             let flags = flags.get();
 
             if !flags.has_resolution() {
@@ -1642,7 +1642,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
         for ((sym_index, sym), flags) in state
             .object
             .enumerate_symbols()
-            .zip(per_symbol_flags.range(state.symbol_id_range()))
+            .zip(per_symbol_flags.range(state.symbol_id_range))
         {
             let symbol_id = state.symbol_id_range.input_to_id(sym_index);
             if let Some(info) = SymbolCopyInfo::new(
@@ -2042,7 +2042,7 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
     ) -> Result {
         let symbol = state
             .object
-            .symbol(state.symbol_id_range().id_to_input(symbol_id))?;
+            .symbol(state.symbol_id_range.id_to_input(symbol_id))?;
 
         // Note, we're a shared object, so this is the address relative to the load address of the
         // shared object, not an offset within a section like with regular input objects. That means

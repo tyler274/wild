@@ -23,6 +23,9 @@ use wild_platform::value_flags::{AtomicPerSymbolFlags, FlagsForSymbol as _, Valu
 use wild_platform::{Arch, Args as _, ObjectFile, Platform, SectionAttributes as _, Symbol as _};
 use wild_util::alignment::Alignment;
 
+/// Shared `file_id` / `symbol_id_range` accessors for generic handler code.
+///
+/// On a concrete layout-state type, use the public fields instead.
 pub trait HandlerData {
     fn symbol_id_range(&self) -> SymbolIdRange;
 
@@ -145,7 +148,7 @@ impl<'data, P: EnginePlatform> SymbolRequestHandler<'data, P> for DynamicLayoutS
         _queue: &mut LocalWorkQueue<P>,
         _scope: &Scope<'scope>,
     ) -> Result {
-        let local_index = object::SymbolIndex(symbol_id.to_offset(self.symbol_id_range()));
+        let local_index = object::SymbolIndex(symbol_id.to_offset(self.symbol_id_range));
         self.object.dynamic_symbol_used(local_index, self)?;
 
         // Check for arch-specific VARIANT_PCS flags.
@@ -906,14 +909,14 @@ impl<'data, P: Platform> std::fmt::Display for ObjectLayoutState<'data, P> {
         std::fmt::Display::fmt(&self.input, f)?;
         // TODO: This is mostly for debugging use. Consider only showing this if some environment
         // variable is set, or only in debug builds.
-        write!(f, " ({})", self.file_id())
+        write!(f, " ({})", self.file_id)
     }
 }
 
 impl<'data, P: Platform> std::fmt::Display for DynamicLayoutState<'data, P> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(&self.input, f)?;
-        write!(f, " ({})", self.file_id())
+        write!(f, " ({})", self.file_id)
     }
 }
 

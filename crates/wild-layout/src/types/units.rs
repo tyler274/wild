@@ -8,10 +8,10 @@ use crate::symbol_db::{SymbolDb, SymbolId, SymbolIdRange};
 use crate::{
     CommonGroupState, DynamicLayout, DynamicLayoutState, DynamicSymbolDefinition, EnginePlatform,
     EpilogueLayout, EpilogueLayoutState, FileLayout, FinaliseLayoutResources,
-    FinaliseSizesResources, GraphResources, GroupState, HandlerData as _, HeaderInfo,
-    InternalSymbols, LinkerScriptLayoutState, LocalWorkQueue, PartialLinkPlan,
-    PartialLinkSingletons, PreludeLayout, PreludeLayoutState, ResolutionWriter, StubLibraryLayout,
-    StubLibraryLayoutState, SyntheticSymbolsLayout, SyntheticSymbolsLayoutState, WorkItem,
+    FinaliseSizesResources, GraphResources, GroupState, HeaderInfo, InternalSymbols,
+    LinkerScriptLayoutState, LocalWorkQueue, PartialLinkPlan, PartialLinkSingletons, PreludeLayout,
+    PreludeLayoutState, ResolutionWriter, StubLibraryLayout, StubLibraryLayoutState,
+    SyntheticSymbolsLayout, SyntheticSymbolsLayoutState, WorkItem,
     create_internal_symbol_resolution, export_dynamic, load_expression_referenced_symbols,
     load_redirect_expression_targets, load_redirect_referenced_symbols, output_section_id,
     provide_has_missing_rhs, relocate_gnu_build_id_layout_offset, resolution,
@@ -356,7 +356,7 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
 
         // Keep any sections that have a start/stop symbol which is referenced.
         symbol_flags
-            .raw_range(self.symbol_id_range())
+            .raw_range(self.symbol_id_range)
             .iter()
             .zip(self.internal_symbols.symbol_definitions.iter())
             .for_each(|(raw_flags, definition)| {
@@ -975,7 +975,7 @@ impl<'data, P: EnginePlatform> DynamicLayoutState<'data, P> {
     ) -> Result {
         let mut check_undefined_cache = None;
 
-        for symbol_id in self.symbol_id_range() {
+        for symbol_id in self.symbol_id_range {
             let definition_symbol_id = resources.symbol_db.definition(symbol_id);
 
             let flags = resources.local_flags_for_symbol(definition_symbol_id);
@@ -1047,7 +1047,7 @@ impl<'data, P: EnginePlatform> DynamicLayoutState<'data, P> {
         resolutions_out: &mut ResolutionWriter<'writer, 'out, P>,
         resources: &FinaliseLayoutResources<'scope, 'data, P>,
     ) -> Result<FileLayout<'data, P>> {
-        let file_id = self.file_id();
+        let file_id = self.file_id;
 
         Ok(
             match P::finalise_layout_dynamic(

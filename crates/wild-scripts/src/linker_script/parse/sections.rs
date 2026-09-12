@@ -621,8 +621,8 @@ pub fn parse_matcher_pattern<'input>(input: &mut &'input BStr) -> winnow::Result
         exclude_file_patterns = parse_exclude_file_list(input)?;
     }
 
-    // Parse the file pattern token (e.g., *, foo.o, *crtbegin*.o).
-    let file_pattern = parse_token(input)?;
+    // GNU `filename_spec`: `SORT(*)(.text)`, `REVERSE(*)(.data*)`, `foo.o(.text)`.
+    let (file_pattern, sort_files_by_name, sort_files_reversed) = parse_filename_spec(input)?;
     skip_comments_and_whitespace(input)?;
     '('.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
@@ -660,6 +660,8 @@ pub fn parse_matcher_pattern<'input>(input: &mut &'input BStr) -> winnow::Result
         input_file_pattern,
         exclude_file_patterns,
         input_section_flags,
+        sort_files_by_name,
+        sort_files_reversed,
         input_section_name_patterns: patterns,
     })
 }
@@ -687,6 +689,75 @@ fn parse_sort_command(input: &mut &BStr) -> winnow::Result<SortCommand> {
         parse_sort.map(SortCommand::Sort),
     ))
     .parse_next(input)
+}
+
+/// GNU `filename_spec`: `*`, `foo.o`, `SORT(*)`, `SORT_BY_NAME(*)`, `REVERSE(*)`,
+/// `SORT(REVERSE(*))`, `REVERSE(SORT_BY_NAME(*))`, `SORT_NONE(*)`.
+/// `SORT_BY_ALIGNMENT` / `SORT_BY_INIT_PRIORITY` on a file wildcard are invalid.
+fn parse_filename_spec<'input>(
+    input: &mut &'input BStr,
+) -> winnow::Result<(&'input [u8], bool, bool)> {
+    let Some(outer) = opt(parse_sort_command).parse_next(input)? else {
+        let name = parse_token(input)?;
+        return Ok((name, false, false));
+    };
+
+    skip_comments_and_whitespace(input)?;
+    '('.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+
+    let result = match outer {
+        SortCommand::Sort(SortKind::None) => {
+            let name = parse_token(input)?;
+            Ok((name, false, false))
+        }
+        SortCommand::Sort(SortKind::Name) => {
+            let (name, reversed) = parse_file_wildcard_maybe_reverse(input)?;
+            Ok((name, true, reversed))
+        }
+        SortCommand::Reverse => {
+            if input.starts_with(b"SORT") || input.starts_with(b"REVERSE") {
+                match parse_sort_command(input)? {
+                    SortCommand::Sort(SortKind::Name) => {
+                        skip_comments_and_whitespace(input)?;
+                        '('.parse_next(input)?;
+                        skip_comments_and_whitespace(input)?;
+                        let name = parse_token(input)?;
+                        skip_comments_and_whitespace(input)?;
+                        ')'.parse_next(input)?;
+                        Ok((name, true, true))
+                    }
+                    _ => Err(LinkerScriptError::UnsupportedNestedSort),
+                }
+            } else {
+                let name = parse_token(input)?;
+                Ok((name, true, true))
+            }
+        }
+        SortCommand::Sort(_) => Err(LinkerScriptError::UnsupportedNestedSort),
+    };
+
+    let (name, sort_files_by_name, sort_files_reversed) =
+        result.map_err(|e| ContextError::from_external_error(input, e))?;
+    skip_comments_and_whitespace(input)?;
+    ')'.parse_next(input)?;
+    Ok((name, sort_files_by_name, sort_files_reversed))
+}
+
+fn parse_file_wildcard_maybe_reverse<'input>(
+    input: &mut &'input BStr,
+) -> winnow::Result<(&'input [u8], bool)> {
+    if opt("REVERSE").parse_next(input)?.is_some() {
+        skip_comments_and_whitespace(input)?;
+        '('.parse_next(input)?;
+        skip_comments_and_whitespace(input)?;
+        let name = parse_token(input)?;
+        skip_comments_and_whitespace(input)?;
+        ')'.parse_next(input)?;
+        return Ok((name, true));
+    }
+    let name = parse_token(input)?;
+    Ok((name, false))
 }
 
 fn combine_sort_commands(

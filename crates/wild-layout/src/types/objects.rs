@@ -5,9 +5,9 @@ use crate::string_merging::get_merged_string_output_address;
 use crate::symbol_db::{SymbolDb, SymbolId};
 use crate::{
     CommonGroupState, EnginePlatform, FinaliseLayoutResources, FinaliseSizesResources,
-    GraphResources, HandlerData as _, LocalWorkQueue, ObjectLayout, ObjectLayoutState, Resolution,
-    ResolutionWriter, Section, SectionResolution, SortedSection, SymbolRequestHandler as _,
-    advance_section_offset, can_export_symbol, export_dynamic, export_symbols_mode, section_debug,
+    GraphResources, LocalWorkQueue, ObjectLayout, ObjectLayoutState, Resolution, ResolutionWriter,
+    Section, SectionResolution, SortedSection, SymbolRequestHandler as _, advance_section_offset,
+    can_export_symbol, export_dynamic, export_symbols_mode, section_debug,
 };
 use linker_utils::relaxation::opt_input_to_output;
 use object::SectionIndex;
@@ -106,7 +106,7 @@ impl<'data, P: EnginePlatform<GcUnit = SectionGcUnit>> ObjectLayoutState<'data, 
                 if !sym.is_common() {
                     continue;
                 }
-                let symbol_id = self.symbol_id_range().input_to_id(sym_index);
+                let symbol_id = self.symbol_id_range.input_to_id(sym_index);
                 if !resources.symbol_db.is_canonical(symbol_id) {
                     continue;
                 }
@@ -249,6 +249,8 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
                 sort_by_name: unloaded.sort_by_name,
                 sort_name_primary: unloaded.sort_name_primary,
                 sort_reversed: unloaded.sort_reversed,
+                sort_by_file_name: unloaded.sort_by_file_name,
+                sort_files_reversed: unloaded.sort_files_reversed,
             });
             SectionSlot::Sorted(SortedSection {
                 // Filled in later.
@@ -360,7 +362,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
         symbol_db: &SymbolDb<'data, P>,
         per_symbol_flags: &AtomicPerSymbolFlags,
     ) -> Result {
-        let _file_span = crate::span_for_file(symbol_db.args, self.file_id());
+        let _file_span = crate::span_for_file(symbol_db.args, self.file_id);
         P::allocate_object_symtab_space(self, common, symbol_db, per_symbol_flags)
     }
 
@@ -370,8 +372,8 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
         resolutions_out: &mut ResolutionWriter<P>,
         resources: &FinaliseLayoutResources<'_, 'data, P>,
     ) -> Result<ObjectLayout<'data, P>> {
-        let _file_span = crate::span_for_file(resources.symbol_db.args, self.file_id());
-        let symbol_id_range = self.symbol_id_range();
+        let _file_span = crate::span_for_file(resources.symbol_db.args, self.file_id);
+        let symbol_id_range = self.symbol_id_range;
 
         let sframe_section_id = P::SFRAME_SECTION_ID;
         let sframe_start_address = sframe_section_id
@@ -515,7 +517,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
         section_resolutions: &[SectionResolution],
         memory_offsets: &mut OutputSectionPartMap<u64>,
     ) -> Result<Option<Resolution<P>>> {
-        let symbol_id_range = self.symbol_id_range();
+        let symbol_id_range = self.symbol_id_range;
         let symbol_id = symbol_id_range.input_to_id(local_symbol_index);
 
         if !flags.has_resolution() || !resources.symbol_db.is_canonical(symbol_id) {
@@ -604,7 +606,7 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
         scope: &Scope<'scope>,
     ) -> Result {
         for (sym_index, sym) in self.object.enumerate_symbols() {
-            let symbol_id = self.symbol_id_range().input_to_id(sym_index);
+            let symbol_id = self.symbol_id_range.input_to_id(sym_index);
 
             if let Some(section_index) = self.object.symbol_section(sym, sym_index)?
                 && matches!(self.sections[section_index.0], SectionSlot::Discard)

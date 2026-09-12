@@ -9,9 +9,7 @@ use wild_error::error::{Context as _, Result};
 use wild_layout as layout;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::symbol_db::{SymbolDb, SymbolId};
-use wild_layout::{
-    CommonGroupState, EnginePlatform, HandlerData as _, timing_phase, verbose_timing_phase,
-};
+use wild_layout::{CommonGroupState, EnginePlatform, timing_phase, verbose_timing_phase};
 use wild_platform::value_flags::{AtomicPerSymbolFlags, ValueFlags};
 use wild_platform::{ObjectFile, Symbol as _};
 use wild_util::alignment::Alignment;
@@ -94,7 +92,7 @@ pub(crate) fn allocate_for_copy_relocations<'data, C: ElfClass>(
     for value in state.format_specific.copy_relocations.values() {
         let symbol_id = value.symbol_id;
 
-        let symbol_index = state.symbol_id_range().id_to_input(symbol_id);
+        let symbol_index = state.symbol_id_range.id_to_input(symbol_id);
         let symbol = state.object.symbol(symbol_index)?;
 
         let section_index = state

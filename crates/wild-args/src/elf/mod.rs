@@ -653,6 +653,10 @@ impl platform::Args for ElfArgs {
         self.sort_section == Some(SortSectionMode::Name)
     }
 
+    fn sort_sections_by_alignment(&self) -> bool {
+        self.sort_section == Some(SortSectionMode::Alignment)
+    }
+
     fn should_emit_got_plt_syms(&self) -> bool {
         self.got_plt_syms
     }

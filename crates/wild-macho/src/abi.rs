@@ -42,8 +42,8 @@ use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::part_id::PartId;
 use wild_layout::symbol_db::SymbolId;
 use wild_layout::{
-    HandlerData as _, OutputRecordLayout, Resolution, SectionGcUnit, StubLibraryLayoutState,
-    SymbolCopyInfo, SymbolResolutions, resolution, verbose_timing_phase,
+    OutputRecordLayout, Resolution, SectionGcUnit, StubLibraryLayoutState, SymbolCopyInfo,
+    SymbolResolutions, resolution, verbose_timing_phase,
 };
 use wild_platform as platform;
 use wild_platform::program_segments::ProgramSegments;
@@ -275,7 +275,7 @@ impl platform::Platform for MachO {
             state.symbol_id_range,
         )?;
 
-        create_dynamic_layout_ext(state.file_id(), resources)
+        create_dynamic_layout_ext(state.file_id, resources)
     }
 
     fn finalise_layout_stub<'data>(
@@ -291,7 +291,7 @@ impl platform::Platform for MachO {
             state.symbol_id_range,
         )?;
 
-        create_dynamic_layout_ext(state.file_id(), resources)
+        create_dynamic_layout_ext(state.file_id, resources)
     }
 
     fn take_dynsym_index(
@@ -475,14 +475,14 @@ impl platform::Platform for MachO {
                     }
                     layout::FileLayoutState::StubLibrary(state) => {
                         if state.format_specific.loaded {
-                            imported_libraries.push(state.file_id());
+                            imported_libraries.push(state.file_id);
                         }
                         imported_symbols
                             .extend_from_slice(state.format_specific.imported_symbols.as_slice());
                     }
                     layout::FileLayoutState::Dynamic(state) => {
                         if state.format_specific.loaded {
-                            imported_libraries.push(state.file_id());
+                            imported_libraries.push(state.file_id);
                         }
                         imported_symbols
                             .extend_from_slice(state.format_specific.imported_symbols.as_slice());

@@ -124,6 +124,8 @@ pub struct UnloadedSection {
     pub sort_by_name: bool,
     pub sort_name_primary: bool,
     pub sort_reversed: bool,
+    pub sort_by_file_name: bool,
+    pub sort_files_reversed: bool,
 }
 
 impl UnloadedSection {
@@ -137,6 +139,8 @@ impl UnloadedSection {
             sort_by_name: false,
             sort_name_primary: false,
             sort_reversed: false,
+            sort_by_file_name: false,
+            sort_files_reversed: false,
         }
     }
 }
@@ -163,6 +167,8 @@ pub struct ScriptSortedSectionDetail {
     pub sort_by_name: bool,
     pub sort_name_primary: bool,
     pub sort_reversed: bool,
+    pub sort_by_file_name: bool,
+    pub sort_files_reversed: bool,
 }
 
 #[derive(Debug)]

@@ -38,6 +38,8 @@ mod section_mapping {
                 sort_by_name: false,
                 sort_name_primary: false,
                 sort_reversed: false,
+                sort_by_file_name: false,
+                sort_files_reversed: false,
                 input_order: false,
             })
         );

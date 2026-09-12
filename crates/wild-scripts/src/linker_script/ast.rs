@@ -424,6 +424,10 @@ pub struct Matcher<'a> {
     pub exclude_file_patterns: Vec<&'a [u8]>,
     /// GNU `INPUT_SECTION_FLAGS(...)` applied to this matcher. Empty means no flag filter.
     pub input_section_flags: InputSectionFlags,
+    /// GNU `SORT(*)(.text)` / `SORT_BY_NAME(*)(.text)`: sort matching files by filename.
+    pub sort_files_by_name: bool,
+    /// GNU `REVERSE(*)(.text)` / `REVERSE(SORT_BY_NAME(*))(.text)`.
+    pub sort_files_reversed: bool,
     pub input_section_name_patterns: Vec<SectionPattern<'a>>,
 }
 

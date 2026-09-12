@@ -61,6 +61,10 @@ pub struct SectionOutputInfo {
     pub sort_name_primary: bool,
     /// GNU `REVERSE`: reverse the enclosed name or init-priority sort.
     pub sort_reversed: bool,
+    /// GNU `SORT(*)(.text)`: sort matching input files by filename first.
+    pub sort_by_file_name: bool,
+    /// GNU `REVERSE(*)(.text)`: reverse filename order.
+    pub sort_files_reversed: bool,
     /// GNU ld default for script matchers without `SORT*`: input order, each input
     /// aligned to its own `sh_addralign`.
     pub input_order: bool,
@@ -77,6 +81,8 @@ impl SectionOutputInfo {
             sort_by_name: false,
             sort_name_primary: false,
             sort_reversed: false,
+            sort_by_file_name: false,
+            sort_files_reversed: false,
             input_order: false,
         }
     }
@@ -91,6 +97,8 @@ impl SectionOutputInfo {
             sort_by_name: false,
             sort_name_primary: false,
             sort_reversed: false,
+            sort_by_file_name: false,
+            sort_files_reversed: false,
             input_order: false,
         }
     }

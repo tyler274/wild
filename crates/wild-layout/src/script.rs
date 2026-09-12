@@ -356,7 +356,11 @@ pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
         sort_by_name: bool,
         sort_name_primary: bool,
         sort_reversed: bool,
+        sort_by_file_name: bool,
+        sort_files_reversed: bool,
         name: &'data [u8],
+        file_name: &'data [u8],
+        archive_member: Option<&'data [u8]>,
         section: InputSortedSection,
     }
 
@@ -378,7 +382,15 @@ pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
                             sort_by_name: sorted_section.sort_by_name,
                             sort_name_primary: sorted_section.sort_name_primary,
                             sort_reversed: sorted_section.sort_reversed,
+                            sort_by_file_name: sorted_section.sort_by_file_name,
+                            sort_files_reversed: sorted_section.sort_files_reversed,
                             name,
+                            file_name: obj.input.file.filename.as_os_str().as_encoded_bytes(),
+                            archive_member: obj
+                                .input
+                                .entry
+                                .as_ref()
+                                .map(|entry| entry.identifier.as_slice()),
                             section: InputSortedSection {
                                 file_id: obj.file_id,
                                 section_index: sorted_section.index,
@@ -394,7 +406,7 @@ pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
     }
 
     for harvested in &sections_out {
-        if harvested.sort_by_name {
+        if harvested.sort_by_name || harvested.sort_by_file_name {
             output_sections.bump_min_alignment(
                 harvested.section.part_id.output_section_id::<P>(),
                 harvested.section.alignment,
@@ -404,12 +416,13 @@ pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
 
     sections_out.sort_by(|a, b| {
         a.section.part_id.cmp(&b.section.part_id).then_with(|| {
-            match (a.sort_by_init_priority, b.sort_by_init_priority) {
+            let file_ord = match (a.sort_by_file_name, b.sort_by_file_name) {
                 (true, true) => {
-                    let pa = P::init_section_priority(a.name).unwrap_or(u16::MAX);
-                    let pb = P::init_section_priority(b.name).unwrap_or(u16::MAX);
-                    let ord = pa.cmp(&pb).then_with(|| a.name.cmp(b.name));
-                    if a.sort_reversed && b.sort_reversed {
+                    let ord = a
+                        .file_name
+                        .cmp(b.file_name)
+                        .then_with(|| a.archive_member.cmp(&b.archive_member));
+                    if a.sort_files_reversed && b.sort_files_reversed {
                         ord.reverse()
                     } else {
                         ord
@@ -417,42 +430,63 @@ pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
                 }
                 (true, false) => std::cmp::Ordering::Less,
                 (false, true) => std::cmp::Ordering::Greater,
-                (false, false) if a.sort_by_alignment && b.sort_by_alignment => {
-                    if a.sort_by_name && b.sort_by_name {
-                        match (a.sort_name_primary, b.sort_name_primary) {
-                            (true, true) => a
-                                .name
-                                .cmp(b.name)
-                                .then_with(|| b.section.alignment.cmp(&a.section.alignment)),
-                            (false, false) => b
-                                .section
-                                .alignment
-                                .cmp(&a.section.alignment)
-                                .then_with(|| a.name.cmp(b.name)),
-                            (true, false) => std::cmp::Ordering::Less,
-                            (false, true) => std::cmp::Ordering::Greater,
+                (false, false) => std::cmp::Ordering::Equal,
+            };
+            file_ord.then_with(|| {
+                match (a.sort_by_init_priority, b.sort_by_init_priority) {
+                    (true, true) => {
+                        let pa = P::init_section_priority(a.name).unwrap_or(u16::MAX);
+                        let pb = P::init_section_priority(b.name).unwrap_or(u16::MAX);
+                        let ord = pa.cmp(&pb).then_with(|| a.name.cmp(b.name));
+                        if a.sort_reversed && b.sort_reversed {
+                            ord.reverse()
+                        } else {
+                            ord
                         }
-                    } else {
-                        // GNU `SORT_BY_ALIGNMENT` only: largest alignment first, then
-                        // input order (stable). Reverse alignment is not supported.
-                        b.section.alignment.cmp(&a.section.alignment).then_with(|| {
+                    }
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    (false, false) if a.sort_by_alignment && b.sort_by_alignment => {
+                        if a.sort_by_name && b.sort_by_name {
+                            match (a.sort_name_primary, b.sort_name_primary) {
+                                (true, true) => a
+                                    .name
+                                    .cmp(b.name)
+                                    .then_with(|| b.section.alignment.cmp(&a.section.alignment)),
+                                (false, false) => b
+                                    .section
+                                    .alignment
+                                    .cmp(&a.section.alignment)
+                                    .then_with(|| a.name.cmp(b.name)),
+                                (true, false) => std::cmp::Ordering::Less,
+                                (false, true) => std::cmp::Ordering::Greater,
+                            }
+                        } else {
+                            // GNU `SORT_BY_ALIGNMENT` only: largest alignment first, then
+                            // input order (stable). Reverse alignment is not supported.
+                            b.section.alignment.cmp(&a.section.alignment).then_with(|| {
+                                a.section.file_id.cmp(&b.section.file_id).then_with(|| {
+                                    a.section.section_index.0.cmp(&b.section.section_index.0)
+                                })
+                            })
+                        }
+                    }
+                    (false, false) if a.sort_by_alignment => std::cmp::Ordering::Less,
+                    (false, false) if b.sort_by_alignment => std::cmp::Ordering::Greater,
+                    (false, false) => {
+                        let ord = a.name.cmp(b.name).then_with(|| {
                             a.section.file_id.cmp(&b.section.file_id).then_with(|| {
                                 a.section.section_index.0.cmp(&b.section.section_index.0)
                             })
-                        })
+                        });
+                        if a.sort_reversed && b.sort_reversed {
+                            ord.reverse()
+                        } else {
+                            ord
+                        }
                     }
                 }
-                (false, false) if a.sort_by_alignment => std::cmp::Ordering::Less,
-                (false, false) if b.sort_by_alignment => std::cmp::Ordering::Greater,
-                (false, false) => {
-                    let ord = a.name.cmp(b.name);
-                    if a.sort_reversed && b.sort_reversed {
-                        ord.reverse()
-                    } else {
-                        ord
-                    }
-                }
-            }
+            })
         })
     });
     sections_out

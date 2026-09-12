@@ -522,12 +522,23 @@ fn resolve_section<'data, P: EnginePlatform>(
             must_load |= output_info.must_keep;
 
             unloaded_section = UnloadedSection::new();
-            unloaded_section.needs_sorting = output_info.sorted || args.sort_sections_by_name();
+            // GNU `--sort-section` applies to wildcards with no explicit `SORT*`.
+            // Combining it with a script `SORT*` as a nested key is not implemented.
+            let cli_sort_alignment = !output_info.sorted
+                && !output_info.sort_by_file_name
+                && args.sort_sections_by_alignment();
+            unloaded_section.needs_sorting = output_info.sorted
+                || output_info.sort_by_file_name
+                || args.sort_sections_by_name()
+                || cli_sort_alignment;
             unloaded_section.sort_by_init_priority = output_info.sort_by_init_priority;
-            unloaded_section.sort_by_alignment = output_info.sort_by_alignment;
+            unloaded_section.sort_by_alignment =
+                output_info.sort_by_alignment || cli_sort_alignment;
             unloaded_section.sort_by_name = output_info.sort_by_name;
             unloaded_section.sort_name_primary = output_info.sort_name_primary;
             unloaded_section.sort_reversed = output_info.sort_reversed;
+            unloaded_section.sort_by_file_name = output_info.sort_by_file_name;
+            unloaded_section.sort_files_reversed = output_info.sort_files_reversed;
         }
         SectionRuleOutcome::SortedSection(output_info) => {
             part_id = part_id_for_output::<P>(&output_info, alignment);

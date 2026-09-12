@@ -180,6 +180,12 @@ pub trait Args: std::fmt::Debug + Send + Sync + 'static {
         false
     }
 
+    /// GNU `--sort-section=alignment`: apply `SORT_BY_ALIGNMENT` to unsorted
+    /// wildcard patterns. An explicit `SORT*` in the script wins.
+    fn sort_sections_by_alignment(&self) -> bool {
+        false
+    }
+
     fn rosegment(&self) -> bool {
         true
     }
