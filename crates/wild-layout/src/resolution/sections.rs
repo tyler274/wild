@@ -425,10 +425,13 @@ fn part_id_for_output<P: EnginePlatform>(
     output_info: &SectionOutputInfo,
     alignment: Alignment,
 ) -> PartId {
-    // Input-order matchers and nested name+alignment sorts concatenate in harvest
-    // order. Alignment parts would group by `sh_addralign` first (higher
-    // alignment is a lower part ID), which is wrong when name is a sort key.
-    if output_info.input_order || output_info.sort_by_name {
+    // Harvest-order sorts concatenate in one part. Alignment buckets would
+    // group by `sh_addralign` first (higher alignment is a lower part ID).
+    if output_info.input_order
+        || output_info.sort_by_name
+        || output_info.sort_by_file_name
+        || output_info.sort_by_init_priority
+    {
         output_info
             .section_id
             .part_id_with_alignment::<P>(wild_util::alignment::MIN)
@@ -472,7 +475,7 @@ fn resolve_section<'data, P: EnginePlatform>(
     let mut unloaded_section;
     let mut is_debug_info = false;
     let mut must_load = input_section.should_retain() || input_section.is_note();
-    let part_id: PartId;
+    let mut part_id: PartId;
 
     let file_name = object_match_file_name(obj);
 
@@ -528,14 +531,20 @@ fn resolve_section<'data, P: EnginePlatform>(
             let cli_sort =
                 !output_info.sorted && !output_info.sort_none && !output_info.sort_by_file_name;
             let cli_sort_alignment = cli_sort && args.sort_sections_by_alignment();
+            let cli_sort_name = cli_sort && args.sort_sections_by_name();
             unloaded_section.needs_sorting = output_info.sorted
                 || output_info.sort_by_file_name
-                || (cli_sort && args.sort_sections_by_name())
+                || cli_sort_name
                 || cli_sort_alignment;
             unloaded_section.sort_by_init_priority = output_info.sort_by_init_priority;
             unloaded_section.sort_by_alignment =
                 output_info.sort_by_alignment || cli_sort_alignment;
-            unloaded_section.sort_by_name = output_info.sort_by_name;
+            unloaded_section.sort_by_name = output_info.sort_by_name || cli_sort_name;
+            if cli_sort_name {
+                part_id = output_info
+                    .section_id
+                    .part_id_with_alignment::<P>(wild_util::alignment::MIN);
+            }
             unloaded_section.sort_name_primary = output_info.sort_name_primary;
             unloaded_section.sort_reversed = output_info.sort_reversed;
             unloaded_section.sort_by_file_name = output_info.sort_by_file_name;

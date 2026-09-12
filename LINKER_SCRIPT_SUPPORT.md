@@ -60,9 +60,9 @@ matching all three.
 | `=fillexp` | ✅ | |
 | `AT(addr)` load-address specifier on output sections | ✅ | |
 | Numeric address between section name and `:` (e.g. `name 0 : { ... }`) | ✅ | Expressions including `ALIGN(n)`, `ADDR`/`SIZEOF`/`LOADADDR`, and `.` (current VMA). `ALIGN(0)` is a no-op, matching GNU ld (powerpc `.text ALIGN(0) :`) |
-| `SORT(...)`, `SORT_BY_NAME(...)` | ✅ | `SORT(*)(.text)` / `SORT_BY_NAME(*)(.text)` sort matching files by filename, then any section `SORT*` |
+| `SORT(...)`, `SORT_BY_NAME(...)` | ✅ | `SORT(*)(.text)` / `SORT_BY_NAME(*)(.text)` sort matching files by filename, then any section `SORT*`. Name sorts concatenate in one stream, padding each input to its `sh_addralign` |
 | `SORT_NONE(...)` | ✅ | Keeps GNU ld input order. `--sort-section` does not apply. File-level `SORT_NONE(*)(.text)` is accepted and does not sort files |
-| `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then input order (GNU). Nested `SORT_BY_NAME(SORT_BY_ALIGNMENT)` sorts by name then alignment; `SORT_BY_ALIGNMENT(SORT_BY_NAME)` sorts by alignment then name. Same-type nesting is a no-op. `--sort-section=alignment` applies this to unsorted wildcards; an explicit `SORT*` or `SORT_NONE` in the script wins |
+| `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then input order (GNU). Nested `SORT_BY_NAME(SORT_BY_ALIGNMENT)` sorts by name then alignment; `SORT_BY_ALIGNMENT(SORT_BY_NAME)` sorts by alignment then name. Same-type nesting is a no-op. `--sort-section=alignment` applies this to unsorted wildcards, including mixed alignments in one output section; an explicit `SORT*` or `SORT_NONE` in the script wins |
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | Uses GCC `init_priority` encoded in `.init_array.N` / `.ctors.N` names |
 | `REVERSE(...)` | ✅ | Alone implies reverse `SORT_BY_NAME`. May wrap or be wrapped by `SORT` / `SORT_BY_NAME`, or be wrapped by `SORT_BY_INIT_PRIORITY`. `REVERSE(*)(.data*)` reverse-sorts files by filename. Reverse alignment is unsupported |
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | `*(EXCLUDE_FILE(a.o) .text)`, `EXCLUDE_FILE(a.o) *(.text)`, and inside `SORT*` / `REVERSE` (`*(SORT_BY_NAME(EXCLUDE_FILE(foo) .text*))`). An `EXCLUDE_FILE` in the section list applies only to the following pattern |

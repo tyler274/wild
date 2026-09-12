@@ -53,7 +53,9 @@ fn output_info_for_pattern(
         ),
         sort_by_name: matches!(
             pattern.sort,
-            linker_script::SortKind::NameThenAlignment | linker_script::SortKind::AlignmentThenName
+            linker_script::SortKind::Name
+                | linker_script::SortKind::NameThenAlignment
+                | linker_script::SortKind::AlignmentThenName
         ),
         sort_name_primary: pattern.sort == linker_script::SortKind::NameThenAlignment,
         sort_reversed: pattern.reversed,

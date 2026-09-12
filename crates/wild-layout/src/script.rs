@@ -406,12 +406,14 @@ pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
     }
 
     for harvested in &sections_out {
-        if harvested.sort_by_name || harvested.sort_by_file_name {
-            output_sections.bump_min_alignment(
-                harvested.section.part_id.output_section_id::<P>(),
-                harvested.section.alignment,
-            );
-        }
+        // Mixed alignments in one part pad relative to the part start. The
+        // section must start at the max input alignment so that padding matches
+        // the absolute VMA (GNU). Name, file, CLI, and alignment harvest sorts
+        // all need this when they share a part.
+        output_sections.bump_min_alignment(
+            harvested.section.part_id.output_section_id::<P>(),
+            harvested.section.alignment,
+        );
     }
 
     sections_out.sort_by(|a, b| {
