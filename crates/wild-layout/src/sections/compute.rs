@@ -391,11 +391,23 @@ pub fn compute_layout_sections<'data, P: EnginePlatform>(
                         );
                     }
                     if offset >= mem_offset {
-                        if load_segment_depth > 0
-                            && (section_id == merge_target || !is_top_level)
+                        if (section_id == merge_target || !is_top_level)
                             && output_sections.has_data_in_file(merge_target)
                         {
-                            file_offset += (offset - mem_offset) as usize;
+                            if load_segment_depth > 0 {
+                                file_offset += (offset - mem_offset) as usize;
+                            } else if args.should_output_partial_object() && !is_top_level {
+                                // Relocatable output has no PT_LOAD, so `. += N` /
+                                // BYTE cannot open a VMA hole that later sections
+                                // skip. Advance past bytes this output section has
+                                // not already claimed in the file.
+                                let already = file_offset
+                                    .saturating_sub(section_layouts.get(merge_target).file_offset)
+                                    as u64;
+                                if offset > already {
+                                    file_offset += (offset - already) as usize;
+                                }
+                            }
                         }
                         if load_segment_depth > 0 {
                             mem_offset = offset;

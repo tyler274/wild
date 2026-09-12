@@ -30,7 +30,6 @@ pub(crate) fn write_file_contents<'data, C: ElfClass, A: Arch<Platform = elf::El
 
     fill_padding_for_sections::<C, A>(layout, padding);
     prefill_script_fill::<C, A>(layout, &mut section_buffers);
-    write_script_output_data(layout, &mut section_buffers)?;
 
     let sym_index_map = if layout.args().should_copy_input_relocs() {
         build_sym_index_map(layout)
@@ -87,6 +86,11 @@ pub(crate) fn write_file_contents<'data, C: ElfClass, A: Arch<Platform = elf::El
     }
 
     fill_padding::<C, A>(layout, section_buffers);
+
+    // BYTE/SHORT/LONG/QUAD sit past the last input part. `fill_padding` zeros
+    // that tail, so write them after splitting the file again.
+    let (mut section_buffers, _) = split_output_into_sections(layout, &mut sized_output.out);
+    write_script_output_data(layout, &mut section_buffers)?;
 
     Ok(())
 }
