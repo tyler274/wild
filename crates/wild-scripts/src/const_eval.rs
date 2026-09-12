@@ -3,6 +3,15 @@ use hashbrown::HashMap;
 use wild_error::bail;
 use wild_error::error::Result;
 
+/// Smallest n such that 2^n >= `value`. `LOG2CEIL(0)` is 0, matching GNU ld.
+pub fn log2ceil(value: u64) -> u64 {
+    if value <= 1 {
+        0
+    } else {
+        u64::from((value - 1).ilog2()) + 1
+    }
+}
+
 pub fn evaluate_const<'data>(expr: &Expression<'data>) -> Result<u64> {
     evaluate_const_with_symbols(expr, &HashMap::new())
 }
@@ -67,7 +76,26 @@ pub fn evaluate_const_with_symbols<'data>(
             }
         }
         Expression::Absolute(expression) => eval(expression),
+        Expression::Log2Ceil(expression) => Ok(log2ceil(eval(expression)?)),
 
         _ => bail!("Expected constant expression"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::log2ceil;
+
+    #[test]
+    fn log2ceil_matches_gnu() {
+        assert_eq!(log2ceil(0), 0);
+        assert_eq!(log2ceil(1), 0);
+        assert_eq!(log2ceil(2), 1);
+        assert_eq!(log2ceil(3), 2);
+        assert_eq!(log2ceil(4), 2);
+        assert_eq!(log2ceil(0xff), 8);
+        assert_eq!(log2ceil(0x100), 8);
+        assert_eq!(log2ceil(0x1ff), 9);
+        assert_eq!(log2ceil(u64::MAX), 64);
     }
 }

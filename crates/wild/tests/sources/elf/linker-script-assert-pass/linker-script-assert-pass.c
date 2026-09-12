@@ -8,6 +8,7 @@
 //#ExpectSym:symbol11 address=0x80
 //#ExpectSym:symbol10_assert section=".data",offset-in-section=1
 //#ExpectSym:symbol11_assert address=0x1
+//#ExpectSym:log2_3 address=2
 
 #include "../common/runtime.h"
 

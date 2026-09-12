@@ -1438,6 +1438,28 @@ fn test_absolute_parsing() {
 }
 
 #[test]
+fn test_log2ceil_and_block_parsing() {
+    let mut bstr = winnow::BStr::new(b"LOG2CEIL(3)");
+    assert_eq!(
+        parse_expression.parse_next(&mut bstr).unwrap(),
+        Expression::Log2Ceil(Box::new(Expression::Number(3)))
+    );
+    assert_eq!(
+        parse_expression
+            .parse_next(&mut winnow::BStr::new(b"LOG2CEIL(3)"))
+            .unwrap()
+            .relocatable_anchor(),
+        None
+    );
+
+    let mut bstr = winnow::BStr::new(b"BLOCK(16)");
+    assert_eq!(
+        parse_expression.parse_next(&mut bstr).unwrap(),
+        Expression::Align(Box::new(Expression::Number(16)), None)
+    );
+}
+
+#[test]
 fn test_relocatable_anchor() {
     let mut bstr = winnow::BStr::new(b"jiffies_64");
     let expr = parse_expression.parse_next(&mut bstr).unwrap();

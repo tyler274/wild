@@ -73,3 +73,13 @@ symbol12 = ASSERT(ASSERT(0x5000 < 0x10000, "0x5000 < 0x10000 must be true") == 1
 . = ASSERT(symbol12 == 1, "must be 1");
 ASSERT(ALIGN(0x38, 16) == 0x40, "ALIGN value is incorrect");
 ASSERT(ALIGN(0x38, 18) == 0x48, "ALIGN value is incorrect");
+ASSERT(BLOCK(16) == ALIGN(16), "BLOCK must be ALIGN");
+ASSERT(LOG2CEIL(0) == 0, "LOG2CEIL(0) == 0");
+ASSERT(LOG2CEIL(1) == 0, "LOG2CEIL(1) == 0");
+ASSERT(LOG2CEIL(2) == 1, "LOG2CEIL(2) == 1");
+ASSERT(LOG2CEIL(3) == 2, "LOG2CEIL(3) == 2");
+ASSERT(LOG2CEIL(4) == 2, "LOG2CEIL(4) == 2");
+ASSERT(LOG2CEIL(0x0ff) == 8, "LOG2CEIL(0x0ff) == 8");
+ASSERT(LOG2CEIL(0x100) == 8, "LOG2CEIL(0x100) == 8");
+ASSERT(LOG2CEIL(0x1ff) == 9, "LOG2CEIL(0x1ff) == 9");
+log2_3 = LOG2CEIL(3);

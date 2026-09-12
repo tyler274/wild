@@ -260,8 +260,9 @@ pub struct OutputFormat<'a> {
 /// - Bitwise: &, |, ^, ~, <<, >>
 /// - Logical: &&, ||
 /// - Unary: -, !, ~
-/// - Functions: SIZEOF, ALIGNOF, LENGTH, ORIGIN, ADDR, LOADADDR, ALIGN, MIN, MAX, SEGMENT_START,
-///   DEFINED, ABSOLUTE, CONSTANT, DATA_SEGMENT_ALIGN, DATA_SEGMENT_RELRO_END, DATA_SEGMENT_END
+/// - Functions: SIZEOF, ALIGNOF, LENGTH, ORIGIN, ADDR, LOADADDR, ALIGN, BLOCK, MIN, MAX, LOG2CEIL,
+///   SEGMENT_START, DEFINED, ABSOLUTE, CONSTANT, DATA_SEGMENT_ALIGN, DATA_SEGMENT_RELRO_END,
+///   DATA_SEGMENT_END
 /// - Numbers (hex/decimal), symbols, location counter (.)
 /// - Parentheses for grouping
 /// - Ternary operator (? :)
@@ -327,6 +328,8 @@ pub enum Expression<'a> {
     LogicalNot(Box<Expression<'a>>),
     BitwiseNot(Box<Expression<'a>>),
     Negate(Box<Expression<'a>>),
+    /// `LOG2CEIL(exp)` — smallest n such that 2^n >= exp. `LOG2CEIL(0)` is 0.
+    Log2Ceil(Box<Expression<'a>>),
     SizeofHeaders,
     Ternary(
         Box<Expression<'a>>,
@@ -430,6 +433,7 @@ impl<'a> Expression<'a> {
             | Expression::LogicalNot(e)
             | Expression::BitwiseNot(e)
             | Expression::Negate(e)
+            | Expression::Log2Ceil(e)
             | Expression::Absolute(e)
             | Expression::Assert(AssertCommand { expression: e, .. }) => e.visit_expressions(cb),
             Expression::SegmentStart(_, default_expr) => default_expr.visit_expressions(cb),
@@ -577,6 +581,9 @@ impl<'a> Expression<'a> {
             Expression::Negate(e) => {
                 Expression::Negate(Box::new(e.rewrite_next_section(align, size)))
             }
+            Expression::Log2Ceil(e) => {
+                Expression::Log2Ceil(Box::new(e.rewrite_next_section(align, size)))
+            }
             Expression::Absolute(e) => {
                 Expression::Absolute(Box::new(e.rewrite_next_section(align, size)))
             }
@@ -650,6 +657,7 @@ impl<'a> Expression<'a> {
             Expression::LogicalNot(_)
             | Expression::BitwiseNot(_)
             | Expression::Negate(_)
+            | Expression::Log2Ceil(_)
             | Expression::Multiply(_, _)
             | Expression::Divide(_, _)
             | Expression::Modulo(_, _)

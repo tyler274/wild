@@ -441,6 +441,7 @@ fn evaluate_expression_value<'data, P: EnginePlatform>(
         Expression::LogicalNot(e) => Ok(u64::from(eval!(e)? == 0)),
         Expression::BitwiseNot(e) => Ok(!eval!(e)?),
         Expression::Negate(e) => Ok(eval!(e)?.wrapping_neg()),
+        Expression::Log2Ceil(e) => Ok(wild_scripts::const_eval::log2ceil(eval!(e)?)),
 
         Expression::Origin(name) => {
             value_kind.contains_absolute = true;

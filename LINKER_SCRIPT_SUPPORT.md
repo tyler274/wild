@@ -85,7 +85,8 @@ matching all three.
 | `ALIGNOF(section)` | ✅ | `ALIGNOF(NEXT_SECTION)` is the alignment of the next allocated output section in script order, or 0 |
 | `ADDR(section)` | ✅ | |
 | `LOADADDR(section)` | ✅ | Returns the section LMA |
-| `ALIGN(expr)` | ✅ | One-arg form aligns the absolute location-counter VMA; `ALIGN(0)` / `ALIGN(1)` are no-ops |
+| `ALIGN(expr)` | ✅ | One-arg form aligns the absolute location-counter VMA; `ALIGN(0)` / `ALIGN(1)` are no-ops. `BLOCK(expr)` is a synonym |
+| `LOG2CEIL(expr)` | ✅ | Smallest n such that 2^n >= expr; `LOG2CEIL(0)` and `LOG2CEIL(1)` are 0 |
 | `LENGTH(region)` | ✅ | |
 | `ORIGIN(region)` | ✅ | |
 | `MIN(a, b)` | ✅ | |

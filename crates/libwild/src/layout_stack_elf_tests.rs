@@ -564,6 +564,26 @@ mod expression_eval {
     }
 
     #[test]
+    fn test_log2ceil() {
+        assert_eq!(
+            eval_const(&Expression::Log2Ceil(Box::new(Expression::Number(0)))).unwrap(),
+            0
+        );
+        assert_eq!(
+            eval_const(&Expression::Log2Ceil(Box::new(Expression::Number(1)))).unwrap(),
+            0
+        );
+        assert_eq!(
+            eval_const(&Expression::Log2Ceil(Box::new(Expression::Number(3)))).unwrap(),
+            2
+        );
+        assert_eq!(
+            eval_const(&Expression::Log2Ceil(Box::new(Expression::Number(0x1ff)))).unwrap(),
+            9
+        );
+    }
+
+    #[test]
     fn test_align_zero_is_noop() {
         // GNU ld: ALIGN(0) and ALIGN(value, 0) leave the value unchanged.
         assert_eq!(
