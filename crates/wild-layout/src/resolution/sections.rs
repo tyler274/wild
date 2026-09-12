@@ -523,13 +523,14 @@ fn resolve_section<'data, P: EnginePlatform>(
 
             unloaded_section = UnloadedSection::new();
             // GNU `--sort-section` applies to wildcards with no explicit `SORT*`.
-            // Combining it with a script `SORT*` as a nested key is not implemented.
-            let cli_sort_alignment = !output_info.sorted
-                && !output_info.sort_by_file_name
-                && args.sort_sections_by_alignment();
+            // `SORT_NONE` is an explicit "do not sort" and blocks the CLI.
+            // Combining CLI sort with a script `SORT*` as a nested key is not implemented.
+            let cli_sort =
+                !output_info.sorted && !output_info.sort_none && !output_info.sort_by_file_name;
+            let cli_sort_alignment = cli_sort && args.sort_sections_by_alignment();
             unloaded_section.needs_sorting = output_info.sorted
                 || output_info.sort_by_file_name
-                || args.sort_sections_by_name()
+                || (cli_sort && args.sort_sections_by_name())
                 || cli_sort_alignment;
             unloaded_section.sort_by_init_priority = output_info.sort_by_init_priority;
             unloaded_section.sort_by_alignment =

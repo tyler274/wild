@@ -181,7 +181,7 @@ pub trait Args: std::fmt::Debug + Send + Sync + 'static {
     }
 
     /// GNU `--sort-section=alignment`: apply `SORT_BY_ALIGNMENT` to unsorted
-    /// wildcard patterns. An explicit `SORT*` in the script wins.
+    /// wildcard patterns. An explicit `SORT*` or `SORT_NONE` in the script wins.
     fn sort_sections_by_alignment(&self) -> bool {
         false
     }

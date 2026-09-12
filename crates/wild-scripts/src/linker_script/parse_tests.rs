@@ -1632,7 +1632,11 @@ fn test_file_level_sort_parsing() {
     );
     check_section_command(
         ".text : { SORT(REVERSE(*))(.text) }",
-        &file_sort_section(unsorted, true, true),
+        &file_sort_section(unsorted.clone(), true, true),
+    );
+    check_section_command(
+        ".text : { SORT_NONE(*)(.text) }",
+        &file_sort_section(unsorted, false, false),
     );
     check_section_command(
         ".text : { SORT(*)(SORT_BY_ALIGNMENT(.text*)) }",
@@ -2068,7 +2072,7 @@ fn test_only_if_and_sort_none() {
                 sort_files_reversed: false,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".init",
-                    sort: SortKind::None,
+                    sort: SortKind::SortNone,
                     reversed: false,
                     exclude_file_patterns: vec![],
                 }],

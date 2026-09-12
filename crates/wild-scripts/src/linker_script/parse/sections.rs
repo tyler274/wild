@@ -671,7 +671,7 @@ pub fn parse_sort(input: &mut &BStr) -> winnow::Result<SortKind> {
         "SORT_BY_INIT_PRIORITY".map(|_| SortKind::InitPriority),
         "SORT_BY_NAME".map(|_| SortKind::Name),
         "SORT_BY_ALIGNMENT".map(|_| SortKind::Alignment),
-        "SORT_NONE".map(|_| SortKind::None),
+        "SORT_NONE".map(|_| SortKind::SortNone),
         "SORT".map(|_| SortKind::Name),
     ))
     .parse_next(input)
@@ -707,7 +707,7 @@ fn parse_filename_spec<'input>(
     skip_comments_and_whitespace(input)?;
 
     let result = match outer {
-        SortCommand::Sort(SortKind::None) => {
+        SortCommand::Sort(SortKind::SortNone) => {
             let name = parse_token(input)?;
             Ok((name, false, false))
         }

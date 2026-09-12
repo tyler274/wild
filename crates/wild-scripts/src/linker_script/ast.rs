@@ -361,8 +361,11 @@ pub enum RelocatableAnchor<'a> {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub enum SortKind {
+    /// No `SORT*` on this pattern. GNU `--sort-section` may still apply.
     #[default]
     None,
+    /// GNU `SORT_NONE`: keep input order. `--sort-section` must not apply.
+    SortNone,
     Name,
     Alignment,
     InitPriority,
@@ -374,7 +377,7 @@ pub enum SortKind {
 
 impl SortKind {
     pub fn needs_sort(self) -> bool {
-        !matches!(self, SortKind::None)
+        !matches!(self, SortKind::None | SortKind::SortNone)
     }
 }
 

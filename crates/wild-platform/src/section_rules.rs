@@ -52,6 +52,8 @@ pub struct SectionOutputInfo {
     pub section_id: OutputSectionId,
     pub must_keep: bool,
     pub sorted: bool,
+    /// GNU `SORT_NONE`: keep input order even when `--sort-section` is set.
+    pub sort_none: bool,
     pub sort_by_init_priority: bool,
     pub sort_by_alignment: bool,
     /// Name is a sort key together with alignment (`SORT_BY_NAME(SORT_BY_ALIGNMENT)` and the
@@ -76,6 +78,7 @@ impl SectionOutputInfo {
             section_id,
             must_keep: false,
             sorted: false,
+            sort_none: false,
             sort_by_init_priority: false,
             sort_by_alignment: false,
             sort_by_name: false,
@@ -92,6 +95,7 @@ impl SectionOutputInfo {
             section_id,
             must_keep: true,
             sorted: false,
+            sort_none: false,
             sort_by_init_priority: false,
             sort_by_alignment: false,
             sort_by_name: false,

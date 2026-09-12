@@ -29,7 +29,7 @@ fn matcher_uses_input_order(matcher: &linker_script::Matcher<'_>) -> bool {
         && matcher
             .input_section_name_patterns
             .iter()
-            .all(|p| p.sort == linker_script::SortKind::None && !p.reversed)
+            .all(|p| !p.sort.needs_sort() && !p.reversed)
 }
 
 fn output_info_for_pattern(
@@ -43,6 +43,7 @@ fn output_info_for_pattern(
         section_id,
         must_keep,
         sorted: pattern.sort.needs_sort(),
+        sort_none: pattern.sort == linker_script::SortKind::SortNone,
         sort_by_init_priority: pattern.sort == linker_script::SortKind::InitPriority,
         sort_by_alignment: matches!(
             pattern.sort,

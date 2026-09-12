@@ -33,6 +33,7 @@ mod section_mapping {
                 section_id: wild_elf::output_section_id::COMMENT,
                 must_keep: true,
                 sorted: false,
+                sort_none: false,
                 sort_by_init_priority: false,
                 sort_by_alignment: false,
                 sort_by_name: false,
