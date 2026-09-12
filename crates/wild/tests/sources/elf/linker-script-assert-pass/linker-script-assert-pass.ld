@@ -74,6 +74,7 @@ symbol12 = ASSERT(ASSERT(0x5000 < 0x10000, "0x5000 < 0x10000 must be true") == 1
 ASSERT(ALIGN(0x38, 16) == 0x40, "ALIGN value is incorrect");
 ASSERT(ALIGN(0x38, 18) == 0x48, "ALIGN value is incorrect");
 ASSERT(BLOCK(16) == ALIGN(16), "BLOCK must be ALIGN");
+ASSERT(NEXT(16) == ALIGN(16), "NEXT must be ALIGN without MEMORY");
 ASSERT(LOG2CEIL(0) == 0, "LOG2CEIL(0) == 0");
 ASSERT(LOG2CEIL(1) == 0, "LOG2CEIL(1) == 0");
 ASSERT(LOG2CEIL(2) == 1, "LOG2CEIL(2) == 1");

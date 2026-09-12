@@ -265,9 +265,9 @@ pub struct OutputFormat<'a> {
 /// - Bitwise: &, |, ^, ~, <<, >>
 /// - Logical: &&, ||
 /// - Unary: -, !, ~
-/// - Functions: SIZEOF, ALIGNOF, LENGTH, ORIGIN, ADDR, LOADADDR, ALIGN, BLOCK, MIN, MAX, LOG2CEIL,
-///   SEGMENT_START, DEFINED, ABSOLUTE, CONSTANT, DATA_SEGMENT_ALIGN, DATA_SEGMENT_RELRO_END,
-///   DATA_SEGMENT_END
+/// - Functions: SIZEOF, ALIGNOF, LENGTH, ORIGIN, ADDR, LOADADDR, ALIGN, BLOCK, NEXT, MIN, MAX,
+///   LOG2CEIL, SEGMENT_START, DEFINED, ABSOLUTE, CONSTANT, DATA_SEGMENT_ALIGN,
+///   DATA_SEGMENT_RELRO_END, DATA_SEGMENT_END
 /// - Numbers (hex/decimal), symbols, location counter (.)
 /// - Parentheses for grouping
 /// - Ternary operator (? :)

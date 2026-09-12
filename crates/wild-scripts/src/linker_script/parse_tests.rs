@@ -1937,6 +1937,12 @@ fn test_log2ceil_and_block_parsing() {
         parse_expression.parse_next(&mut bstr).unwrap(),
         Expression::Align(Box::new(Expression::Number(16)), None)
     );
+
+    let mut bstr = winnow::BStr::new(b"NEXT(16)");
+    assert_eq!(
+        parse_expression.parse_next(&mut bstr).unwrap(),
+        Expression::Align(Box::new(Expression::Number(16)), None)
+    );
 }
 
 #[test]

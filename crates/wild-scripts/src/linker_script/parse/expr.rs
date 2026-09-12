@@ -418,6 +418,16 @@ pub fn parse_identifier_or_function<'a>(input: &mut &'a BStr) -> winnow::Result<
                 ')'.parse_next(input)?;
                 Ok(Expression::Align(Box::new(inner), None))
             }
+            b"NEXT" => {
+                // GNU: NEXT(exp) is ALIGN(exp) unless MEMORY defines
+                // discontinuous regions. Wild matches ALIGN.
+                '('.parse_next(input)?;
+                skip_comments_and_whitespace(input)?;
+                let inner = parse_expression.parse_next(input)?;
+                skip_comments_and_whitespace(input)?;
+                ')'.parse_next(input)?;
+                Ok(Expression::Align(Box::new(inner), None))
+            }
             b"CONSTANT" => {
                 let name = parse_function_arg.parse_next(input)?;
                 match name {
