@@ -422,6 +422,17 @@ pub fn add_search_and_output_flags(parser: &mut ArgumentParser<ElfArgs>) {
 
     parser
         .declare()
+        .short("d")
+        .long("dc")
+        .long("dp")
+        .help("Allocate common symbols even for a relocatable (-r) link")
+        .execute(|args, _modifier_stack| {
+            args.apply_force_common_allocation();
+            Ok(())
+        });
+
+    parser
+        .declare()
         .short("q")
         .long("emit-relocs")
         .help("Leave relocation sections in fully linked output")

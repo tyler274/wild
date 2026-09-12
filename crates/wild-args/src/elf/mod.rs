@@ -128,6 +128,8 @@ pub struct ElfArgs {
 
     pub should_output_executable: bool,
     pub should_output_partial_object: bool,
+    /// GNU `-d` / `FORCE_COMMON_ALLOCATION`: allocate commons even for `-r`.
+    force_common_allocation: std::sync::atomic::AtomicBool,
     pub emit_relocs: bool,
     pub discard_none: bool,
 
@@ -281,6 +283,7 @@ impl Default for ElfArgs {
             lib_search_path: Vec::new(),
             should_output_executable: true,
             should_output_partial_object: false,
+            force_common_allocation: std::sync::atomic::AtomicBool::new(false),
             emit_relocs: false,
             discard_none: false,
             dynamic_linker: DynamicLinker::default(),
@@ -764,6 +767,18 @@ impl platform::Args for ElfArgs {
         self.should_output_partial_object
     }
 
+    fn apply_force_common_allocation(&self) {
+        self.force_common_allocation
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    fn should_allocate_common_symbols(&self) -> bool {
+        !self.should_output_partial_object()
+            || self
+                .force_common_allocation
+                .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
     fn emit_relocs(&self) -> bool {
         self.emit_relocs
     }
@@ -1110,6 +1125,31 @@ mod tests {
         for flag in SILENTLY_IGNORED_FLAGS {
             assert!(!flag.starts_with('-'));
         }
+    }
+
+    #[test]
+    fn test_force_common_allocation_flags() {
+        for flag in ["-d", "-dc", "-dp", "--dc", "--dp"] {
+            let args = parse_args([flag]);
+            assert!(
+                args.should_allocate_common_symbols(),
+                "{flag} should allocate commons"
+            );
+        }
+
+        let relocatable = parse_args(["-r"]);
+        assert!(relocatable.should_output_partial_object());
+        assert!(
+            !relocatable.should_allocate_common_symbols(),
+            "-r should leave commons unallocated"
+        );
+
+        let relocatable_force = parse_args(["-r", "-d"]);
+        assert!(relocatable_force.should_output_partial_object());
+        assert!(
+            relocatable_force.should_allocate_common_symbols(),
+            "-r -d should allocate commons"
+        );
     }
 
     // Helper: parse a small set of args and return the resulting ElfArgs.

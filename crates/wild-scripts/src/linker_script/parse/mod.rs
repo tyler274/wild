@@ -97,6 +97,19 @@ impl<'data> LinkerScript<'data> {
             _ => None,
         })
     }
+
+    /// GNU `FORCE_COMMON_ALLOCATION`: allocate common symbols even for a relocatable (`-r`) link.
+    pub fn force_common_allocation(&self) -> bool {
+        commands_force_common_allocation(&self.commands)
+    }
+}
+
+fn commands_force_common_allocation(commands: &[Command<'_>]) -> bool {
+    commands.iter().any(|cmd| match cmd {
+        Command::ForceCommonAllocation => true,
+        Command::Group(subs) | Command::AsNeeded(subs) => commands_force_common_allocation(subs),
+        _ => false,
+    })
 }
 
 fn collect_search_dirs<'data>(commands: &[Command<'data>]) -> Vec<&'data [u8]> {
@@ -214,6 +227,10 @@ pub fn parse_command<'input>(input: &mut &'input BStr) -> winnow::Result<Command
             Command::NocrossrefsTo { to, from: sections }
         }
         b"EXTERN" => Command::Extern(parse_paren_token_list(input)?),
+        b"FORCE_COMMON_ALLOCATION" => {
+            opt(';').parse_next(input)?;
+            Command::ForceCommonAllocation
+        }
         b"HIDDEN" => {
             let (name, value) = parse_paren_assignment(input)?;
             Command::SymbolDefinition {

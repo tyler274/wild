@@ -300,6 +300,14 @@ impl<F: FileSystem> Linker<F> {
             }
         }
 
+        if loaded
+            .linker_scripts
+            .iter()
+            .any(|script| script.script.force_common_allocation())
+        {
+            args.apply_force_common_allocation();
+        }
+
         let output_kind = crate::output_kind::new(args, file_loader);
 
         let mut output = file_writer::Output::new::<P>(args, output_kind, self.file_system.clone());

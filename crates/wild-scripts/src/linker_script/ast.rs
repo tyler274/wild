@@ -67,6 +67,8 @@ pub enum Command<'a> {
     },
     /// GNU `EXTERN(symbol...)` — same as `-u`: keep the defining object as a GC root.
     Extern(Vec<&'a [u8]>),
+    /// GNU `FORCE_COMMON_ALLOCATION` — same as `-d`: allocate commons even for `-r`.
+    ForceCommonAllocation,
 }
 
 /// GNU `NOCROSSREFS` / `NOCROSSREFS_TO` / overlay `NOCROSSREFS`.

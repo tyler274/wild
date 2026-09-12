@@ -125,6 +125,26 @@ impl<'data, P: EnginePlatform<GcUnit = SectionGcUnit>> ObjectLayoutState<'data, 
             }
         }
 
+        // Relocatable output copies unreferenced commons (`SHN_COMMON` or allocated with `-d`).
+        if resources.symbol_db.args.should_output_partial_object() {
+            for (sym_index, sym) in self.object.enumerate_symbols() {
+                if !sym.is_common() {
+                    continue;
+                }
+                let symbol_id = self.symbol_id_range().input_to_id(sym_index);
+                if !resources.symbol_db.is_canonical(symbol_id) {
+                    continue;
+                }
+                let old_flags = resources
+                    .per_symbol_flags
+                    .get_atomic(symbol_id)
+                    .fetch_or(ValueFlags::DIRECT);
+                if !old_flags.has_resolution() {
+                    queue.send_symbol_request::<A>(symbol_id, resources, scope);
+                }
+            }
+        }
+
         for frame_data_section_index in frame_section_indices {
             <A::Platform as Platform>::load_exception_frame_data::<A>(
                 self,
@@ -564,10 +584,15 @@ impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
                 );
             }
         } else if let Some(common) = local_symbol.as_common() {
-            let offset = memory_offsets.get_mut(common.part_id::<P>());
-            let address = *offset;
-            *offset += common.size;
-            address
+            if resources.symbol_db.args.should_allocate_common_symbols() {
+                let offset = memory_offsets.get_mut(common.part_id::<P>());
+                let address = *offset;
+                *offset += common.size;
+                address
+            } else {
+                // GNU `SHN_COMMON`: `st_value` is the alignment, not an address.
+                common.alignment.value()
+            }
         } else {
             local_symbol.value()
         };

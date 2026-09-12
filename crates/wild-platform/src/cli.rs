@@ -377,6 +377,15 @@ pub trait Args: std::fmt::Debug + Send + Sync + 'static {
         false
     }
 
+    /// GNU `FORCE_COMMON_ALLOCATION` / `-d`: allocate commons even for a relocatable (`-r`) link.
+    fn apply_force_common_allocation(&self) {}
+
+    /// Whether common symbols should be given BSS/TBSS space. Relocatable ELF links leave them as
+    /// `SHN_COMMON` unless `-d` / `FORCE_COMMON_ALLOCATION` is set.
+    fn should_allocate_common_symbols(&self) -> bool {
+        true
+    }
+
     /// `--emit-relocs` / `-q`: copy input relocation records into the fully linked output.
     fn emit_relocs(&self) -> bool {
         false

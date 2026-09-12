@@ -176,13 +176,17 @@ impl<'layout, 'out, C: ElfClass> SymbolTableWriter<'layout, 'out, C> {
                 section_index,
             )?
         } else if sym.is_common(e) {
-            let section_id = if sym.st_type() == STT_TLS {
-                output_section_id::TBSS
-            } else {
-                output_section_id::BSS
-            };
+            if layout.args().should_allocate_common_symbols() {
+                let section_id = if sym.st_type() == STT_TLS {
+                    output_section_id::TBSS
+                } else {
+                    output_section_id::BSS
+                };
 
-            Some(self.copy_symbol(sym, name, section_id, value, flags)?)
+                Some(self.copy_symbol(sym, name, section_id, value, flags)?)
+            } else {
+                Some(self.copy_unallocated_common(sym, name, value, flags)?)
+            }
         } else if sym.is_absolute(e) {
             self.copy_absolute_symbol(sym, name, flags)
                 .with_context(|| {
@@ -344,6 +348,32 @@ impl<'layout, 'out, C: ElfClass> SymbolTableWriter<'layout, 'out, C> {
         entry.set_info(sym.st_info());
         entry.set_other(sym.st_other());
         // Fix binding if symbol was downgraded to local by version script
+        if flags.is_downgraded_to_local() {
+            entry.set_binding_and_type(object::elf::STB_LOCAL, sym.st_type());
+        }
+        Ok(entry)
+    }
+
+    /// Relocatable output without `-d`: keep the common as `SHN_COMMON`. `value` is the alignment.
+    pub(crate) fn copy_unallocated_common(
+        &mut self,
+        sym: &elf::SymtabEntry<C>,
+        name: &[u8],
+        value: u64,
+        flags: ValueFlags,
+    ) -> Result<&mut elf::SymtabEntry<C>> {
+        let e = LittleEndian;
+        let is_local = flags.is_symtab_local(sym);
+        let size = sym.st_size(e).into();
+        let entry = self.define_symbol(
+            is_local,
+            object::elf::SHN_COMMON.into(),
+            value,
+            size,
+            Some(name),
+        )?;
+        entry.set_info(sym.st_info());
+        entry.set_other(sym.st_other());
         if flags.is_downgraded_to_local() {
             entry.set_binding_and_type(object::elf::STB_LOCAL, sym.st_type());
         }

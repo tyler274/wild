@@ -31,6 +31,7 @@ matching all three.
 | `SEARCH_DIR(path)` | ✅ | Same as `-L`, including sysroot-relative `=/path`. Applies to later `INPUT` / `GROUP` / `STARTUP` / `INCLUDE` in the same script |
 | `STARTUP(filename)` | ✅ | Like `INPUT`, but that file is the first input of the link |
 | `EXTERN(symbol...)` | ✅ | Same as `-u`: the named symbols are GC roots and pull archive members that define them |
+| `FORCE_COMMON_ALLOCATION` | ✅ | Same as `-d`/`-dc`/`-dp`: allocate common symbols even for a relocatable (`-r`) link |
 | `TARGET(bfdname)` | ✅ | Accepted when it matches the link target, using the same BFD names as `OUTPUT_FORMAT`. Does not switch architecture; mismatch or unsupported names error |
 | `NOCROSSREFS(sections...)` | ✅ | Errors if the named output sections cross-reference each other. Overlay `NOCROSSREFS` and `NOCROSSREFS_TO(to, from...)` are also enforced |
 | `INSERT [AFTER\|BEFORE] section` | ✅ | Snippet scripts splice their `SECTIONS` into the default (or previous `-T`) layout at the named output section |

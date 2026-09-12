@@ -1339,6 +1339,30 @@ fn test_output_search_dir_startup_target() {
 }
 
 #[test]
+fn test_force_common_allocation() {
+    let script = parse_script(
+        r#"
+        FORCE_COMMON_ALLOCATION
+        FORCE_COMMON_ALLOCATION;
+        "#,
+    )
+    .unwrap();
+    assert_eq!(
+        script.commands,
+        vec![
+            Command::ForceCommonAllocation,
+            Command::ForceCommonAllocation,
+        ]
+    );
+    assert!(script.force_common_allocation());
+    assert!(
+        !parse_script("SEARCH_DIR(/usr/lib)")
+            .unwrap()
+            .force_common_allocation()
+    );
+}
+
+#[test]
 fn test_include_sees_preceding_search_dir() {
     let mut script = parse_script(
         r#"
