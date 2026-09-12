@@ -196,11 +196,17 @@ pub(super) fn process_object<'scope, 'data: 'scope, 'definitions, P: EnginePlatf
         }
         Group::StubLibraries(_) => {}
         Group::LinkerScripts(scripts) => {
-            for script in scripts {
-                for sym in &script.parsed.symbol_defs {
-                    if let SymbolPlacement::Redirect(redirect) = &sym.placement {
+            let script = &scripts[file_id.file()];
+            for (def_info, definition_out) in script.parsed.symbol_defs.iter().zip(definitions_out)
+            {
+                match &def_info.placement {
+                    SymbolPlacement::Redirect(redirect) => {
                         load_symbols_in_redirect(resources, scope, redirect);
                     }
+                    SymbolPlacement::ForceUndefined => {
+                        load_symbol_named(resources, definition_out, def_info.name, scope);
+                    }
+                    _ => {}
                 }
             }
         }

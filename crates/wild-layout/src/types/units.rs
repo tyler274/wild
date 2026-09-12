@@ -111,7 +111,8 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
         }
 
         self.load_entry_point::<A>(resources, queue, scope);
-        self.load_force_undefined_symbols::<A>(resources, queue, scope);
+        self.internal_symbols
+            .load_force_undefined_symbols::<A>(resources, queue, scope);
 
         P::allocate_prelude(common, resources.symbol_db);
 
@@ -158,33 +159,6 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
                     );
                 }
                 _ => {}
-            }
-        }
-    }
-
-    /// GNU `-u` / `--require-defined` are GC roots: keep the defining object even if nothing
-    /// else references the symbol.
-    pub fn load_force_undefined_symbols<'scope, A: Arch<Platform = P>>(
-        &self,
-        resources: &'scope GraphResources<'data, '_, P>,
-        queue: &mut LocalWorkQueue<P>,
-        scope: &Scope<'scope>,
-    ) {
-        for (index, def_info) in self.internal_symbols.symbol_definitions.iter().enumerate() {
-            if !matches!(def_info.placement, SymbolPlacement::ForceUndefined) {
-                continue;
-            }
-            let symbol_id = self.symbol_id_range.offset_to_id(index);
-            let canonical = resources.symbol_db.definition(symbol_id);
-            if canonical == symbol_id {
-                continue;
-            }
-            let old_flags = resources
-                .per_symbol_flags
-                .get_atomic(canonical)
-                .fetch_or(ValueFlags::DIRECT);
-            if !old_flags.has_resolution() {
-                queue.send_symbol_request::<A>(canonical, resources, scope);
             }
         }
     }
@@ -690,6 +664,33 @@ impl<'data, P: EnginePlatform> PreludeLayoutState<'data, P> {
 }
 
 impl<'data, P: EnginePlatform> InternalSymbols<'data, P> {
+    /// GNU `-u` / `--require-defined` / `EXTERN` are GC roots: keep the defining
+    /// object even if nothing else references the symbol.
+    pub fn load_force_undefined_symbols<'scope, A: Arch<Platform = P>>(
+        &self,
+        resources: &'scope GraphResources<'data, '_, P>,
+        queue: &mut LocalWorkQueue<P>,
+        scope: &Scope<'scope>,
+    ) {
+        for (index, def_info) in self.symbol_definitions.iter().enumerate() {
+            if !matches!(def_info.placement, SymbolPlacement::ForceUndefined) {
+                continue;
+            }
+            let symbol_id = self.start_symbol_id.add_usize(index);
+            let canonical = resources.symbol_db.definition(symbol_id);
+            if canonical == symbol_id {
+                continue;
+            }
+            let old_flags = resources
+                .per_symbol_flags
+                .get_atomic(canonical)
+                .fetch_or(ValueFlags::DIRECT);
+            if !old_flags.has_resolution() {
+                queue.send_symbol_request::<A>(canonical, resources, scope);
+            }
+        }
+    }
+
     pub fn activate_symbols<'scope, A: Arch<Platform = P>>(
         &self,
         common: &mut CommonGroupState<'data, P>,
@@ -703,12 +704,16 @@ impl<'data, P: EnginePlatform> InternalSymbols<'data, P> {
                 continue;
             }
 
-            // PROVIDE_HIDDEN symbols should not be exported to dynsym.
+            // PROVIDE_HIDDEN / HIDDEN symbols should not be exported to dynsym.
             if def_info.symbol.is_hidden() {
-                if def_info.is_provide
-                    && let SymbolPlacement::Redirect(redirect) = &def_info.placement
-                {
-                    load_redirect_expression_targets::<A>(resources, queue, scope, redirect);
+                if let SymbolPlacement::Redirect(redirect) = &def_info.placement {
+                    if def_info.is_provide {
+                        load_redirect_expression_targets::<A>(resources, queue, scope, redirect);
+                    } else {
+                        load_redirect_referenced_symbols::<A>(
+                            resources, queue, scope, symbol_id, redirect,
+                        );
+                    }
                 }
                 continue;
             }
@@ -1148,6 +1153,8 @@ impl<'data, P: EnginePlatform> LinkerScriptLayoutState<'data, P> {
                 _ => {}
             }
         }
+        self.internal_symbols
+            .load_force_undefined_symbols::<A>(resources, queue, scope);
         self.internal_symbols
             .activate_symbols::<A>(common, resources, queue, scope)
     }

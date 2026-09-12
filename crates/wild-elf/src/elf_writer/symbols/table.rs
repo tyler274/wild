@@ -978,8 +978,52 @@ pub(crate) fn get_defsym_attributes<C: ElfClass>(
                 object::elf::STT_NOTYPE,
             ))
         }
-        None => Ok((object::elf::SHN_ABS.into(), object::elf::STT_NOTYPE)),
+        None => {
+            // GNU ld: `ABSOLUTE()` is always `SHN_ABS`. A constant assignment
+            // inside an output section (`symbol10 = 0x100` in `.data`) inherits
+            // that section. Assignments between sections stay `SHN_ABS`.
+            if matches!(redirect.expression, Expression::Absolute(_)) {
+                return Ok((object::elf::SHN_ABS.into(), object::elf::STT_NOTYPE));
+            }
+            in_section_constant_shndx(layout, &redirect.loc, addr)
+        }
     }
+}
+
+fn in_section_constant_shndx<C: ElfClass>(
+    layout: &ElfLayout<C>,
+    loc: &SymbolLoc,
+    addr: u64,
+) -> Result<(SymbolSection, object::elf::SymbolType), error::Error> {
+    let shndx = match loc {
+        SymbolLoc::SectionStartRelative(os) | SymbolLoc::SectionEndRelative(os) => {
+            let os = layout.output_sections.primary_output_section(*os);
+            layout
+                .output_sections
+                .output_index_of_section(os)
+                .or_else(|| output_index_of_nearby_section(layout, os, addr))
+        }
+        SymbolLoc::LocationCounter(_, Some(os)) => {
+            let os = layout.output_sections.primary_output_section(*os);
+            layout
+                .output_sections
+                .output_index_of_section(os)
+                .or_else(|| layout.output_sections.output_index_of_nearest_section(os))
+        }
+        SymbolLoc::SectionEnd(_)
+        | SymbolLoc::FirstSection
+        | SymbolLoc::LocationCounter(_, None)
+        | SymbolLoc::None => {
+            return Ok((object::elf::SHN_ABS.into(), object::elf::STT_NOTYPE));
+        }
+    };
+    Ok((
+        shndx.map_or(
+            SymbolSection::Raw(object::elf::SHN_ABS),
+            SymbolSection::Index,
+        ),
+        object::elf::STT_NOTYPE,
+    ))
 }
 
 pub(crate) fn section_is_loaded<A: wild_platform::SectionAttributes>(attr: &A) -> bool {

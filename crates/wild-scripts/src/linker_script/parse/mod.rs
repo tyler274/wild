@@ -202,6 +202,15 @@ pub fn parse_command<'input>(input: &mut &'input BStr) -> winnow::Result<Command
             let to = sections.remove(0);
             Command::NocrossrefsTo { to, from: sections }
         }
+        b"EXTERN" => Command::Extern(parse_paren_token_list(input)?),
+        b"HIDDEN" => {
+            let (name, value) = parse_paren_assignment(input)?;
+            Command::SymbolDefinition {
+                name,
+                value,
+                hidden: true,
+            }
+        }
         other => {
             if let Some(op) = opt(parse_assignment_op).parse_next(input)? {
                 // Symbol definition
@@ -216,6 +225,7 @@ pub fn parse_command<'input>(input: &mut &'input BStr) -> winnow::Result<Command
                     Command::SymbolDefinition {
                         name: other,
                         value: expanded,
+                        hidden: false,
                     }
                 }
             } else {
@@ -229,10 +239,9 @@ pub fn parse_command<'input>(input: &mut &'input BStr) -> winnow::Result<Command
     Ok(command)
 }
 
-pub fn parse_provide<'input>(
+pub fn parse_paren_assignment<'input>(
     input: &mut &'input BStr,
-    hidden: bool,
-) -> winnow::Result<ProvideSymbolDefinition<'input>> {
+) -> winnow::Result<(&'input [u8], Expression<'input>)> {
     '('.parse_next(input)?;
     skip_comments_and_whitespace(input)?;
     let name = parse_token(input)?;
@@ -245,7 +254,14 @@ pub fn parse_provide<'input>(
     skip_comments_and_whitespace(input)?;
     opt(';').parse_next(input)?;
     skip_comments_and_whitespace(input)?;
+    Ok((name, value))
+}
 
+pub fn parse_provide<'input>(
+    input: &mut &'input BStr,
+    hidden: bool,
+) -> winnow::Result<ProvideSymbolDefinition<'input>> {
+    let (name, value) = parse_paren_assignment(input)?;
     Ok(ProvideSymbolDefinition {
         name,
         value,
@@ -579,10 +595,15 @@ pub fn section_commands_from_top_level<'data>(
             Command::SetLocation(loc) => out.push(SectionCommand::SetLocation(loc)),
             Command::Assert(assert_cmd) => out.push(SectionCommand::Assert(assert_cmd)),
             Command::Provide(provide) => out.push(SectionCommand::Provide(provide)),
-            Command::SymbolDefinition { name, value } => {
+            Command::SymbolDefinition {
+                name,
+                value,
+                hidden,
+            } => {
                 out.push(SectionCommand::SymbolAssignment(SymbolAssignment {
                     name,
                     expr: value,
+                    hidden,
                 }));
             }
             Command::Include(path) => out.push(SectionCommand::Include(path)),

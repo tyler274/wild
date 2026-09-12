@@ -99,10 +99,13 @@ pub fn merge_secondary_parts<P: EnginePlatform>(
                 // but take the file offset of the first file-backed secondary so
                 // `sh_offset` matches `p_offset ≡ p_vaddr` (GNU ld). Do not adopt
                 // a trailing empty ALIGN secondary, which sits at the hole's end.
+                // A fill pattern (`=fillexp` / `FILL`) must keep a leading
+                // `. += N` hole in the file so the pattern is written there.
                 if primary.file_size == 0
                     && primary.mem_size == 0
                     && secondary_layout.file_size > 0
                     && secondary_layout.file_offset > primary.file_offset
+                    && output_sections.output_info(primary_id).fill.is_none()
                 {
                     primary.file_offset = secondary_layout.file_offset;
                     primary.lma_offset = secondary_layout.lma_offset;

@@ -19,6 +19,8 @@ pub enum Command<'a> {
     SymbolDefinition {
         name: &'a [u8],
         value: Expression<'a>,
+        /// GNU `HIDDEN(sym = expr)`.
+        hidden: bool,
     },
     SetLocation(Location<'a>),
     Provide(ProvideSymbolDefinition<'a>),
@@ -63,6 +65,8 @@ pub enum Command<'a> {
         to: &'a [u8],
         from: Vec<&'a [u8]>,
     },
+    /// GNU `EXTERN(symbol...)` — same as `-u`: keep the defining object as a GC root.
+    Extern(Vec<&'a [u8]>),
 }
 
 /// GNU `NOCROSSREFS` / `NOCROSSREFS_TO` / overlay `NOCROSSREFS`.
@@ -203,6 +207,8 @@ pub struct OutputData<'a> {
 pub struct SymbolAssignment<'a> {
     pub name: &'a [u8],
     pub expr: Expression<'a>,
+    /// GNU `HIDDEN(sym = expr)`.
+    pub hidden: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -336,8 +342,9 @@ pub enum Expression<'a> {
 /// The relocatable term that should determine `st_shndx` for a symbol assignment.
 ///
 /// GNU ld puts an assignment in a section when the expression has exactly one relocatable
-/// residual (a symbol or `.`). `ABSOLUTE()`, a difference of two section symbols, and pure
-/// constants have no residual and become `SHN_ABS`.
+/// residual (a symbol or `.`). `ABSOLUTE()` and a difference of two section symbols have no
+/// residual and become `SHN_ABS`. A pure constant has no residual: between sections it is
+/// `SHN_ABS`, but inside an output section it inherits that section.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RelocatableAnchor<'a> {
     LocationCounter,

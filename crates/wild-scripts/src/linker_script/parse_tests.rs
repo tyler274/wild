@@ -10,7 +10,9 @@ use crate::linker_script::Section;
 use crate::linker_script::SectionAttributes;
 use crate::linker_script::SectionPattern;
 use crate::linker_script::Sections;
+use crate::linker_script::SectionCommand;
 use crate::linker_script::SortKind;
+use crate::linker_script::SymbolAssignment;
 use crate::linker_script::maybe_apply_sysroot;
 use itertools::assert_equal;
 use std::assert_matches;
@@ -449,6 +451,7 @@ fn test_basic_linker_script() {
                                 ContentsCommand::SymbolAssignment(SymbolAssignment {
                                     name: b"start_foo",
                                     expr: Expression::LocationCounter,
+                                    hidden: false,
                                 }),
                                 ContentsCommand::Matcher(Matcher {
                                     must_keep: true,
@@ -468,6 +471,7 @@ fn test_basic_linker_script() {
                                 ContentsCommand::SymbolAssignment(SymbolAssignment {
                                     name: b"end_foo",
                                     expr: Expression::LocationCounter,
+                                    hidden: false,
                                 }),
                             ],
                             alignment: Some(Alignment::new(8).unwrap()),
@@ -1277,6 +1281,63 @@ fn test_region_alias_and_nocrossrefs() {
             },
         ]
     );
+}
+
+#[test]
+fn test_extern_and_hidden() {
+    let script = parse_script(
+        r#"
+        EXTERN(_zimage_start foo)
+        HIDDEN(hidden_abs = 0x1234);
+        visible_abs = 0x5678;
+        SECTIONS {
+            .text : {
+                HIDDEN(_hidden_start = .);
+                *(.text)
+                visible_end = .;
+            }
+        }
+        "#,
+    )
+    .unwrap();
+    assert_eq!(
+        &script.commands[..3],
+        &[
+            Command::Extern(vec![b"_zimage_start", b"foo"]),
+            Command::SymbolDefinition {
+                name: b"hidden_abs",
+                value: Expression::Number(0x1234),
+                hidden: true,
+            },
+            Command::SymbolDefinition {
+                name: b"visible_abs",
+                value: Expression::Number(0x5678),
+                hidden: false,
+            },
+        ]
+    );
+    let Command::Sections(sections) = &script.commands[3] else {
+        panic!("expected SECTIONS");
+    };
+    let SectionCommand::Section(sec) = &sections.commands[0] else {
+        panic!("expected output section");
+    };
+    assert!(matches!(
+        &sec.commands[0],
+        ContentsCommand::SymbolAssignment(SymbolAssignment {
+            name: b"_hidden_start",
+            hidden: true,
+            ..
+        })
+    ));
+    assert!(matches!(
+        &sec.commands[2],
+        ContentsCommand::SymbolAssignment(SymbolAssignment {
+            name: b"visible_end",
+            hidden: false,
+            ..
+        })
+    ));
 }
 
 #[test]

@@ -30,10 +30,11 @@ matching all three.
 | `REGION_ALIAS(alias, region)` | ✅ | `alias` names the same MEMORY region for `>alias`, `ORIGIN`, and `LENGTH` |
 | `SEARCH_DIR(path)` | ✅ | Same as `-L`, including sysroot-relative `=/path`. Applies to later `INPUT` / `GROUP` / `STARTUP` in the same script |
 | `STARTUP(filename)` | ✅ | Like `INPUT`, but that file is the first input of the link |
+| `EXTERN(symbol...)` | ✅ | Same as `-u`: the named symbols are GC roots and pull archive members that define them |
 | `TARGET(bfdname)` | ✅ | Accepted when it matches the link target, using the same BFD names as `OUTPUT_FORMAT`. Does not switch architecture; mismatch or unsupported names error |
 | `NOCROSSREFS(sections...)` | ✅ | Errors if the named output sections cross-reference each other. Overlay `NOCROSSREFS` and `NOCROSSREFS_TO(to, from...)` are also enforced |
 | `INSERT [AFTER\|BEFORE] section` | ✅ | Snippet scripts splice their `SECTIONS` into the default (or previous `-T`) layout at the named output section |
-| Top-level symbol assignment (`sym = expr`) | ✅ | Constant assignments are available during layout. `st_shndx` follows GNU ld: a single relocatable residual (symbol or `.`) copies that section, including assignments before `SECTIONS` whose target is in a later matcher (kernel `jiffies = jiffies_64`); `ABSOLUTE()`, differences of two section symbols, and constants are `SHN_ABS` |
+| Top-level symbol assignment (`sym = expr`) | ✅ | Constant assignments are available during layout. `st_shndx` follows GNU ld: a single relocatable residual (symbol or `.`) copies that section, including assignments before `SECTIONS` whose target is in a later matcher (kernel `jiffies = jiffies_64`); `ABSOLUTE()`, differences of two section symbols, and constants outside an output section are `SHN_ABS`. An in-section constant (`symbol10 = 0x100` in `.data`) inherits that section. `HIDDEN(sym = expr)` is the same assignment with hidden visibility |
 | Compound assignment operators (`+=`, `-=`, etc.) | ✅ | |
 | `PHDRS` command for explicit program header definition | ✅ | `FILEHDR`, `PHDRS`, `FLAGS`, and `AT(expr)`. Without `FILEHDR`, ELF headers occupy file space only and do not advance the VMA. A `. = ALIGN(...)` immediately before a new `PT_LOAD` is applied before the LOAD starts, so `p_vaddr` is the script address rather than `max-page-size` plus that address |
 
@@ -47,7 +48,7 @@ matching all three.
 | `KEEP(...)` to prevent garbage collection | ✅ | |
 | `PROVIDE(sym = expr)` inside sections | ✅ | |
 | `PROVIDE_HIDDEN(sym = expr)` inside sections | ✅ | |
-| Symbol assignment inside sections (`sym = .`) | ✅ | Script assignments override prelude section-boundary symbols of the same name in the symbol table (kernel `_etext` is in `.text`, not `SHN_ABS`). An assignment after `. = ALIGN(...)` between sections stays on the previous output section (kernel `_end` in `.brk`). Bare aliases copy the target's `st_shndx` (`jiffies = jiffies_64`); `ABSOLUTE()`, `_etext - _stext`, and `symbol + const` are `SHN_ABS` |
+| Symbol assignment inside sections (`sym = .`) | ✅ | Script assignments override prelude section-boundary symbols of the same name in the symbol table (kernel `_etext` is in `.text`, not `SHN_ABS`). An assignment after `. = ALIGN(...)` between sections stays on the previous output section (kernel `_end` in `.brk`). Bare aliases copy the target's `st_shndx` (`jiffies = jiffies_64`); in-section constants inherit that section; `ABSOLUTE()`, `_etext - _stext`, and `symbol + const` are `SHN_ABS`. `HIDDEN(sym = expr)` is not exported to dynsym |
 | Location counter assignment (`. = expr`) | ✅ | Constants, including those assigned later in the script and chains (`later = BASE + OFFSET`), script assignments (`_etext = .`), and object symbols in already-laid-out sections are supported. Script assignments override prelude section-boundary symbols of the same name. Object symbols are GNU ld absolute addresses, so `. = symbol \| mask` (x86 `srso_alias_untrain_ret`) applies the mask to the VMA. The object-symbol address is the start of that output section/secondary plus the symbol's input offset. A later-defined `PROVIDE` constant is resolved. Object symbols in sections not yet laid out are rejected |
 | `ALIGN(n)` on the location counter (`. = ALIGN(n)`) | ✅ | Aligns the absolute VMA, matching GNU ld |
 | Per-section `ALIGN(n)` specifier | ✅ | |
@@ -154,6 +155,7 @@ because `.data..ro_after_init` is 4KiB-aligned. `.strtab` and `.shstrtab` suffix
 | `/DISCARD/` command | ✅ | |
 | `--build-id` into `*(.note.*)` | ✅ | Merged into the matching output section (kernel `.notes`); not a leftover `PT_LOAD` |
 | `--orphan-handling` (`place`, `warn`, `error`, `discard`) | ✅ | Default `place` creates a same-named custom output section after the last output section with the same flags (GNU). `error` matches kernel `vmlinux` links |
+| `EXTERN(symbol...)` | ✅ | PowerPC `zImage*.lds.S` (`EXTERN(_zimage_start)`); same as `-u` |
 
 ## Glibc (`libc.so` / `ld.so` / `lib%.so`)
 

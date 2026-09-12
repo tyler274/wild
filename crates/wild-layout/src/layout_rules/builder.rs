@@ -95,13 +95,27 @@ impl<'data> LayoutRulesBuilder<'data> {
                         .with_provide()
                         .with_hidden(provide.hidden),
                 );
-            } else if let linker_script::Command::SymbolDefinition { name, value } = cmd {
+            } else if let linker_script::Command::SymbolDefinition {
+                name,
+                value,
+                hidden,
+            } = cmd
+            {
                 let placement = SymbolPlacement::Redirect(Redirect {
                     kind: RedirectKind::Script,
                     expression: value.to_owned(),
                     loc: loc_for_global_expr(value, current_section_id),
                 });
-                symbol_defs.push(crate::parsing::InternalSymDefInfo::new(placement, name));
+                symbol_defs.push(
+                    crate::parsing::InternalSymDefInfo::new(placement, name).with_hidden(*hidden),
+                );
+            } else if let linker_script::Command::Extern(names) = cmd {
+                for name in names {
+                    symbol_defs.push(crate::parsing::InternalSymDefInfo::new(
+                        SymbolPlacement::ForceUndefined,
+                        name,
+                    ));
+                }
             } else if let linker_script::Command::SetLocation(loc) = cmd {
                 let placement = SymbolPlacement::Redirect(Redirect {
                     kind: RedirectKind::Script,
@@ -298,10 +312,10 @@ impl<'data> LayoutRulesBuilder<'data> {
                                             expression: assignment.expr.clone(),
                                             loc: last_symbol_loc.clone(),
                                         });
-                                        symbol_defs.push(InternalSymDefInfo::new(
-                                            placement,
-                                            assignment.name,
-                                        ));
+                                        symbol_defs.push(
+                                            InternalSymDefInfo::new(placement, assignment.name)
+                                                .with_hidden(assignment.hidden),
+                                        );
                                     }
                                     ContentsCommand::Provide(provide) => {
                                         let placement = SymbolPlacement::Redirect(Redirect {
@@ -433,7 +447,10 @@ impl<'data> LayoutRulesBuilder<'data> {
                                 expression: assignment.expr.clone(),
                                 loc: loc.clone(),
                             });
-                            symbol_defs.push(InternalSymDefInfo::new(placement, assignment.name));
+                            symbol_defs.push(
+                                InternalSymDefInfo::new(placement, assignment.name)
+                                    .with_hidden(assignment.hidden),
+                            );
                         }
                         SectionCommand::Overlay(overlay) => {
                             let overlay_group = self.overlay_group;

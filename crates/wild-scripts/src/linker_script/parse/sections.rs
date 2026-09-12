@@ -3,6 +3,7 @@ use super::parse_assert;
 use super::parse_assignment_op;
 use super::parse_expression;
 use super::parse_include_path;
+use super::parse_paren_assignment;
 use super::parse_provide;
 use super::parse_token;
 use super::skip_comments_and_whitespace;
@@ -68,6 +69,14 @@ pub fn parse_section_command<'input>(
         b"PROVIDE_HIDDEN" => {
             return Ok(SectionCommand::Provide(parse_provide(input, true)?));
         }
+        b"HIDDEN" => {
+            let (name, value) = parse_paren_assignment(input)?;
+            return Ok(SectionCommand::SymbolAssignment(SymbolAssignment {
+                name,
+                expr: value,
+                hidden: true,
+            }));
+        }
         b"OVERLAY" => {
             return parse_overlay(input, None);
         }
@@ -91,6 +100,7 @@ pub fn parse_section_command<'input>(
         return Ok(SectionCommand::SymbolAssignment(SymbolAssignment {
             name,
             expr: expanded,
+            hidden: false,
         }));
     }
 
@@ -379,6 +389,7 @@ pub fn parse_contents_command<'input>(
 ) -> winnow::Result<ContentsCommand<'input>> {
     alt((
         parse_contents_provide,
+        parse_contents_hidden,
         parse_contents_assert,
         parse_contents_fill,
         parse_output_data,
@@ -437,6 +448,19 @@ pub fn parse_contents_provide<'input>(
     Ok(ContentsCommand::Provide(provide))
 }
 
+pub fn parse_contents_hidden<'input>(
+    input: &mut &'input BStr,
+) -> winnow::Result<ContentsCommand<'input>> {
+    "HIDDEN".parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    let (name, value) = parse_paren_assignment(input)?;
+    Ok(ContentsCommand::SymbolAssignment(SymbolAssignment {
+        name,
+        expr: value,
+        hidden: true,
+    }))
+}
+
 pub fn parse_assignment<'input>(
     input: &mut &'input BStr,
 ) -> winnow::Result<ContentsCommand<'input>> {
@@ -454,6 +478,7 @@ pub fn parse_assignment<'input>(
         ContentsCommand::SymbolAssignment(SymbolAssignment {
             name,
             expr: expanded,
+            hidden: false,
         })
     };
 

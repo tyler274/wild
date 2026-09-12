@@ -263,7 +263,9 @@ fn load_linker_script_symbols<'data, P: EnginePlatform>(
     for (offset, definition) in script.parsed.symbol_defs.iter().enumerate() {
         let symbol_id = script.symbol_id_range.offset_to_id(offset);
 
-        if !definition.name.is_empty() {
+        if !definition.name.is_empty()
+            && !matches!(definition.placement, SymbolPlacement::ForceUndefined)
+        {
             outputs.add_non_versioned(PendingSymbol::from_prehashed(
                 symbol_id,
                 PreHashed::new(
@@ -273,7 +275,11 @@ fn load_linker_script_symbols<'data, P: EnginePlatform>(
             ));
         }
 
-        let mut flags = ValueFlags::NON_INTERPOSABLE;
+        let mut flags = if matches!(definition.placement, SymbolPlacement::ForceUndefined) {
+            ValueFlags::ABSOLUTE
+        } else {
+            ValueFlags::NON_INTERPOSABLE
+        };
         // PROVIDE_HIDDEN symbols have hidden visibility, which means they should be
         // non-interposable (already set) and not exported to dynamic symbol table.
         if definition.symbol.is_hidden() {
