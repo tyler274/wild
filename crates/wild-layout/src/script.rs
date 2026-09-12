@@ -464,13 +464,20 @@ pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
                                 (false, true) => std::cmp::Ordering::Greater,
                             }
                         } else {
-                            // GNU `SORT_BY_ALIGNMENT` only: largest alignment first, then
-                            // input order (stable). Reverse alignment is not supported.
-                            b.section.alignment.cmp(&a.section.alignment).then_with(|| {
-                                a.section.file_id.cmp(&b.section.file_id).then_with(|| {
-                                    a.section.section_index.0.cmp(&b.section.section_index.0)
-                                })
-                            })
+                            // GNU `SORT_BY_ALIGNMENT`: largest alignment first, then input
+                            // order. `REVERSE(SORT_BY_ALIGNMENT)` / `SORT_BY_ALIGNMENT(REVERSE)`
+                            // is smallest first.
+                            let ord =
+                                b.section.alignment.cmp(&a.section.alignment).then_with(|| {
+                                    a.section.file_id.cmp(&b.section.file_id).then_with(|| {
+                                        a.section.section_index.0.cmp(&b.section.section_index.0)
+                                    })
+                                });
+                            if a.sort_reversed && b.sort_reversed {
+                                ord.reverse()
+                            } else {
+                                ord
+                            }
                         }
                     }
                     (false, false) if a.sort_by_alignment => std::cmp::Ordering::Less,

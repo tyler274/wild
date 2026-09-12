@@ -320,6 +320,9 @@ where
                         used: 0,
                         used_lma: 0,
                         flags: region.flags,
+                        last_section_vma: None,
+                        last_section_lma: None,
+                        last_lma_end: None,
                     },
                 )
                 .map_err(|_| {

@@ -417,6 +417,12 @@ pub fn compute_layout_sections<'data, P: EnginePlatform>(
                         follow_location_counter = false;
                     }
                 }
+                let has_explicit_section_addr = section_info
+                    .location_info
+                    .as_ref()
+                    .and_then(|info| info.location.as_ref())
+                    .is_some();
+                let mut keep_running_lma = false;
                 if at_region.is_none()
                     && overlay.is_none_or(|ov| ov.member == 0)
                     && section_info
@@ -425,7 +431,17 @@ pub fn compute_layout_sections<'data, P: EnginePlatform>(
                         .and_then(|info| info.at_location.as_ref())
                         .is_none()
                 {
-                    lma_offset = mem_offset;
+                    let vma_region_has_lma_delta = region.is_some_and(|r| {
+                        matches!(
+                            (r.last_section_vma, r.last_section_lma),
+                            (Some(vma), Some(lma)) if vma != lma
+                        )
+                    });
+                    let region_lma_end = region.and_then(|r| r.last_lma_end);
+                    keep_running_lma = section_info.section_attributes.is_alloc()
+                        && !has_explicit_section_addr
+                        && vma_region_has_lma_delta;
+                    lma_offset = gnu_default_lma(mem_offset, region_lma_end, keep_running_lma);
                 }
 
                 let is_top_level = section_info
@@ -436,11 +452,6 @@ pub fn compute_layout_sections<'data, P: EnginePlatform>(
                     .location_info
                     .as_ref()
                     .is_some_and(|info| info.align_with_input);
-                let has_explicit_section_addr = section_info
-                    .location_info
-                    .as_ref()
-                    .and_then(|info| info.location.as_ref())
-                    .is_some();
                 // GNU ld aligns a script output section to the max input sh_addralign
                 // even after `. = ALIGN(n)` (kernel `. = ALIGN(8); .exit.text` with
                 // 16-byte inputs). An explicit section address (`.foo 0x1000 :`)
@@ -449,8 +460,13 @@ pub fn compute_layout_sections<'data, P: EnginePlatform>(
                     && !has_explicit_section_addr
                     && let Some(&max_input_align) = input_order_max_align.get(&section_id)
                 {
-                    let (new_mem, new_lma) =
-                        align_vma_lma(mem_offset, lma_offset, max_input_align, align_with_input);
+                    let (new_mem, new_lma) = align_vma_lma(
+                        mem_offset,
+                        lma_offset,
+                        max_input_align,
+                        align_with_input,
+                        keep_running_lma,
+                    );
                     mem_offset = new_mem;
                     lma_offset = new_lma;
                     if output_sections.has_data_in_file(merge_target) {
@@ -545,8 +561,13 @@ pub fn compute_layout_sections<'data, P: EnginePlatform>(
                     } else if section_flags.is_alloc() || follow_location_counter {
                         // ALLOC sections in a PT_LOAD, and empty/non-ALLOC custom sections that
                         // inherit that LOAD, follow the location-counter VMA (GNU ld).
-                        let (new_mem, new_lma) =
-                            align_vma_lma(mem_offset, lma_offset, alignment, align_with_input);
+                        let (new_mem, new_lma) = align_vma_lma(
+                            mem_offset,
+                            lma_offset,
+                            alignment,
+                            align_with_input,
+                            keep_running_lma,
+                        );
                         mem_offset = new_mem;
                         lma_offset = new_lma;
 
@@ -675,6 +696,20 @@ pub fn compute_layout_sections<'data, P: EnginePlatform>(
                         mem_offset = vma;
                     }
                 }
+
+                if is_top_level
+                    && overlay.is_none_or(|ov| ov.member == 0)
+                    && section_info.section_attributes.is_alloc()
+                {
+                    let layout = section_layouts.get(section_id);
+                    if let Some(name) = region_name
+                        && let Some(region) = memory_regions.get_mut(name)
+                    {
+                        region.last_section_vma = Some(layout.mem_offset);
+                        region.last_section_lma = Some(layout.lma_offset);
+                        region.last_lma_end = Some(lma_offset);
+                    }
+                }
             }
         }
     }
@@ -705,14 +740,30 @@ pub fn pick_compatible_memory_region<'data>(
     None
 }
 
+fn gnu_default_lma(mem_offset: u64, region_lma_end: Option<u64>, keep_running_lma: bool) -> u64 {
+    if keep_running_lma {
+        // GNU: later sections in a VMA region whose previous section had LMA ≠
+        // VMA (typically `AT>`) continue from that section's LMA end. Do not use
+        // the global LMA cursor: a new PT_LOAD may have reset it to VMA.
+        region_lma_end.unwrap_or(mem_offset)
+    } else {
+        mem_offset
+    }
+}
+
 fn align_vma_lma(
     mem_offset: u64,
     lma_offset: u64,
     alignment: Alignment,
     align_with_input: bool,
+    freeze_lma: bool,
 ) -> (u64, u64) {
     let new_mem = alignment.align_up(mem_offset);
-    let new_lma = if align_with_input {
+    let new_lma = if freeze_lma && !align_with_input {
+        // GNU default AT> continuation: VMA alignment can open a gap that LMA
+        // does not. Independent `align_up` on LMA would invent a new delta.
+        lma_offset
+    } else if align_with_input {
         lma_offset + (new_mem - mem_offset)
     } else {
         alignment.align_up(lma_offset)

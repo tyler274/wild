@@ -163,8 +163,13 @@ impl<'layout, 'out, C: ElfClass> SymbolTableWriter<'layout, 'out, C> {
                 };
 
                 Some(self.copy_symbol(sym, name, section_id, value, flags)?)
-            } else {
+            } else if layout.args().should_output_partial_object() {
                 Some(self.copy_unallocated_common(sym, name, value, flags)?)
+            } else {
+                // GNU `--no-define-common` / `INHIBIT_COMMON_ALLOCATION` on a DSO:
+                // commons become undefined, not `SHN_COMMON`.
+                self.undefined_symbol(flags.is_symtab_local(sym), name)?;
+                return Ok(());
             }
         } else if sym.is_absolute(e) {
             self.copy_absolute_symbol(sym, name, flags)

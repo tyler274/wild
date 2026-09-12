@@ -69,6 +69,16 @@ pub enum Command<'a> {
     Extern(Vec<&'a [u8]>),
     /// GNU `FORCE_COMMON_ALLOCATION` — same as `-d`: allocate commons even for `-r`.
     ForceCommonAllocation,
+    /// GNU `INHIBIT_COMMON_ALLOCATION` — same as `--no-define-common`: leave
+    /// commons as `SHN_COMMON` even for a final link.
+    InhibitCommonAllocation,
+    /// GNU `FORCE_GROUP_ALLOCATION` — same as `--force-group-allocation`: resolve
+    /// ELF section groups even for a relocatable (`-r`) link. Wild always does this.
+    ForceGroupAllocation,
+    /// GNU `LD_FEATURE(string)` — currently only `"SANE_EXPR"`: treat absolute
+    /// symbols and numbers as numbers everywhere. Wild already evaluates that way.
+    #[debug("{}", String::from_utf8_lossy(_0))]
+    LdFeature(&'a [u8]),
 }
 
 /// GNU `NOCROSSREFS` / `NOCROSSREFS_TO` / overlay `NOCROSSREFS`.

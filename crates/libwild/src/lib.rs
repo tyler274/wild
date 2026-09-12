@@ -289,6 +289,13 @@ impl<F: FileSystem> Linker<F> {
         {
             args.apply_force_common_allocation();
         }
+        if loaded
+            .linker_scripts
+            .iter()
+            .any(|script| script.script.inhibit_common_allocation())
+        {
+            args.apply_inhibit_common_allocation();
+        }
 
         let output_kind = crate::output_kind::new(args, file_loader);
 

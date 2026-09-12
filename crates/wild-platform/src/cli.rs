@@ -383,8 +383,13 @@ pub trait Args: std::fmt::Debug + Send + Sync + 'static {
     /// GNU `FORCE_COMMON_ALLOCATION` / `-d`: allocate commons even for a relocatable (`-r`) link.
     fn apply_force_common_allocation(&self) {}
 
+    /// GNU `INHIBIT_COMMON_ALLOCATION` / `--no-define-common`: on a DSO, leave commons
+    /// undefined instead of allocating `.bss`. GNU ld requires `-shared` for the CLI flag.
+    fn apply_inhibit_common_allocation(&self) {}
+
     /// Whether common symbols should be given BSS/TBSS space. Relocatable ELF links leave them as
-    /// `SHN_COMMON` unless `-d` / `FORCE_COMMON_ALLOCATION` is set.
+    /// `SHN_COMMON` unless `-d` / `FORCE_COMMON_ALLOCATION` is set. `--no-define-common` /
+    /// `INHIBIT_COMMON_ALLOCATION` on a DSO leaves them undefined.
     fn should_allocate_common_symbols(&self) -> bool {
         true
     }

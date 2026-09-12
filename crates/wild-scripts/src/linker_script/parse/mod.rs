@@ -29,6 +29,7 @@ impl<'data> LinkerScript<'data> {
             )
         })?;
 
+        validate_ld_feature(&commands)?;
         Ok(LinkerScript { commands })
     }
 
@@ -85,6 +86,22 @@ impl<'data> LinkerScript<'data> {
     pub fn force_common_allocation(&self) -> bool {
         commands_force_common_allocation(&self.commands)
     }
+
+    /// GNU `INHIBIT_COMMON_ALLOCATION`: leave commons as `SHN_COMMON` even for a final link.
+    pub fn inhibit_common_allocation(&self) -> bool {
+        commands_inhibit_common_allocation(&self.commands)
+    }
+
+    /// GNU `FORCE_GROUP_ALLOCATION`: resolve ELF section groups even for `-r`.
+    /// Wild always resolves groups; this is accepted so scripts are not treated as inputs.
+    pub fn force_group_allocation(&self) -> bool {
+        commands_force_group_allocation(&self.commands)
+    }
+
+    /// GNU `LD_FEATURE("SANE_EXPR")`: treat absolute symbols and numbers as numbers.
+    pub fn sane_expr(&self) -> bool {
+        commands_sane_expr(&self.commands)
+    }
 }
 
 fn commands_force_common_allocation(commands: &[Command<'_>]) -> bool {
@@ -93,6 +110,45 @@ fn commands_force_common_allocation(commands: &[Command<'_>]) -> bool {
         Command::Group(subs) | Command::AsNeeded(subs) => commands_force_common_allocation(subs),
         _ => false,
     })
+}
+
+fn commands_inhibit_common_allocation(commands: &[Command<'_>]) -> bool {
+    commands.iter().any(|cmd| match cmd {
+        Command::InhibitCommonAllocation => true,
+        Command::Group(subs) | Command::AsNeeded(subs) => commands_inhibit_common_allocation(subs),
+        _ => false,
+    })
+}
+
+fn commands_force_group_allocation(commands: &[Command<'_>]) -> bool {
+    commands.iter().any(|cmd| match cmd {
+        Command::ForceGroupAllocation => true,
+        Command::Group(subs) | Command::AsNeeded(subs) => commands_force_group_allocation(subs),
+        _ => false,
+    })
+}
+
+fn commands_sane_expr(commands: &[Command<'_>]) -> bool {
+    commands.iter().any(|cmd| match cmd {
+        Command::LdFeature(_) => true,
+        Command::Group(subs) | Command::AsNeeded(subs) => commands_sane_expr(subs),
+        _ => false,
+    })
+}
+
+fn validate_ld_feature(commands: &[Command<'_>]) -> Result {
+    for cmd in commands {
+        match cmd {
+            Command::LdFeature(feature) => {
+                if !feature.eq_ignore_ascii_case(b"SANE_EXPR") {
+                    wild_error::bail!("unknown feature `{}`", String::from_utf8_lossy(feature));
+                }
+            }
+            Command::Group(subs) | Command::AsNeeded(subs) => validate_ld_feature(subs)?,
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 fn collect_search_dirs<'data>(commands: &[Command<'data>]) -> Vec<&'data [u8]> {
@@ -214,6 +270,15 @@ pub fn parse_command<'input>(input: &mut &'input BStr) -> winnow::Result<Command
             opt(';').parse_next(input)?;
             Command::ForceCommonAllocation
         }
+        b"INHIBIT_COMMON_ALLOCATION" => {
+            opt(';').parse_next(input)?;
+            Command::InhibitCommonAllocation
+        }
+        b"FORCE_GROUP_ALLOCATION" => {
+            opt(';').parse_next(input)?;
+            Command::ForceGroupAllocation
+        }
+        b"LD_FEATURE" => Command::LdFeature(parse_paren_arg(input)?),
         b"HIDDEN" => {
             let (name, value) = parse_paren_assignment(input)?;
             Command::SymbolDefinition {
@@ -597,6 +662,7 @@ pub fn load_included_script<'data>(
     let parsed = parse_commands
         .parse(BStr::new(bytes))
         .map_err(|error| error!("Failed to parse included linker script:\n{error}"))?;
+    validate_ld_feature(&parsed)?;
     let expanded = expand_commands(parsed, load, stack, search_dirs)?;
     stack.pop();
     Ok(expanded)
@@ -843,7 +909,7 @@ impl std::fmt::Display for LinkerScriptError {
                 "Nested sorting commands in linker scripts is not supported"
             ),
             LinkerScriptError::UnsupportedReverseAlignment => {
-                write!(f, "reverse sorting of alignment is not currently supported")
+                write!(f, "REVERSE wrapping SORT_BY_ALIGNMENT is not supported")
             }
             LinkerScriptError::UnrecognisedInputSectionFlag => {
                 write!(f, "unrecognised INPUT_SECTION_FLAGS name")

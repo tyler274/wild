@@ -774,8 +774,12 @@ fn combine_sort_commands(
             Ok((SortKind::InitPriority, true))
         }
         (SortCommand::Sort(kind), None) => Ok((kind, false)),
-        (SortCommand::Reverse, Some(SortCommand::Sort(SortKind::Alignment)))
-        | (SortCommand::Sort(SortKind::Alignment), Some(SortCommand::Reverse)) => {
+        // GNU ld 2.46 accepts `SORT_BY_ALIGNMENT(REVERSE(...))` but does not
+        // reverse alignment order (same as plain `SORT_BY_ALIGNMENT`).
+        (SortCommand::Sort(SortKind::Alignment), Some(SortCommand::Reverse)) => {
+            Ok((SortKind::Alignment, false))
+        }
+        (SortCommand::Reverse, Some(SortCommand::Sort(SortKind::Alignment))) => {
             Err(LinkerScriptError::UnsupportedReverseAlignment)
         }
         (SortCommand::Sort(SortKind::Name), Some(SortCommand::Sort(SortKind::Name))) => {

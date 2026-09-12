@@ -584,6 +584,35 @@ impl<'data, P: Platform> OutputSections<'data, P> {
             }
         });
 
+        if replacing_script && !has_custom_phdrs {
+            // Regular builtins (`.text`) are not reused for script output
+            // sections, so those IDs are custom. RO customs would otherwise be
+            // emitted with `.rodata` before `.text`. GNU keeps script order, so
+            // attach those RO sections to the previous script section.
+            let script_ids: Vec<OutputSectionId> = linker_scripts
+                .iter()
+                .filter(|script| script.parsed.insert.is_none())
+                .flat_map(|script| {
+                    script
+                        .parsed
+                        .ordered_sections
+                        .iter()
+                        .copied()
+                        .enumerate()
+                        .filter_map(|(index, id)| {
+                            self.should_emit_only_if_order_slot(id, index).then_some(id)
+                        })
+                })
+                .collect();
+            for pair in script_ids.windows(2) {
+                let (prev, curr) = (pair[0], pair[1]);
+                if custom.ro.contains(&curr) && prev != curr {
+                    custom.script_followers.push((prev, curr));
+                    custom.ro.retain(|id| *id != curr);
+                }
+            }
+        }
+
         let (mut output_order, program_segments) = if has_custom_phdrs {
             P::build_custom_output_order_and_program_segments(
                 &custom,

@@ -1395,6 +1395,80 @@ fn test_force_common_allocation() {
 }
 
 #[test]
+fn test_inhibit_common_allocation() {
+    let script = parse_script(
+        r#"
+        INHIBIT_COMMON_ALLOCATION
+        INHIBIT_COMMON_ALLOCATION;
+        "#,
+    )
+    .unwrap();
+    assert_eq!(
+        script.commands,
+        vec![
+            Command::InhibitCommonAllocation,
+            Command::InhibitCommonAllocation,
+        ]
+    );
+    assert!(script.inhibit_common_allocation());
+    assert!(
+        !parse_script("FORCE_COMMON_ALLOCATION")
+            .unwrap()
+            .inhibit_common_allocation()
+    );
+}
+
+#[test]
+fn test_ld_feature_sane_expr() {
+    let script = parse_script(
+        r#"
+        LD_FEATURE("SANE_EXPR")
+        LD_FEATURE(SANE_EXPR);
+        LD_FEATURE("sane_expr")
+        "#,
+    )
+    .unwrap();
+    assert_eq!(
+        script.commands,
+        vec![
+            Command::LdFeature(b"SANE_EXPR"),
+            Command::LdFeature(b"SANE_EXPR"),
+            Command::LdFeature(b"sane_expr"),
+        ]
+    );
+    assert!(script.sane_expr());
+    assert!(!parse_script("FORCE_GROUP_ALLOCATION").unwrap().sane_expr());
+    let err = parse_script(r#"LD_FEATURE("NOT_A_FEATURE")"#)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("unknown feature `NOT_A_FEATURE`"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn test_force_group_allocation() {
+    let script = parse_script(
+        r#"
+        FORCE_GROUP_ALLOCATION
+        FORCE_GROUP_ALLOCATION;
+        "#,
+    )
+    .unwrap();
+    assert_eq!(
+        script.commands,
+        vec![Command::ForceGroupAllocation, Command::ForceGroupAllocation,]
+    );
+    assert!(script.force_group_allocation());
+    assert!(
+        !parse_script("FORCE_COMMON_ALLOCATION")
+            .unwrap()
+            .force_group_allocation()
+    );
+}
+
+#[test]
 fn test_include_sees_preceding_search_dir() {
     let mut script = parse_script(
         r#"
@@ -1734,12 +1808,18 @@ fn test_reverse_parsing() {
 }
 
 #[test]
-fn test_reverse_alignment_is_unsupported() {
-    assert!(
-        parse_script("SECTIONS { .text : { *(REVERSE(SORT_BY_ALIGNMENT(.text.*))) } }").is_err()
+fn test_reverse_alignment_parsing() {
+    check_section_command(
+        ".text : { *(SORT_BY_ALIGNMENT(REVERSE(.text.*))) }",
+        &reverse_section(SectionPattern {
+            name: b".text.*",
+            sort: SortKind::Alignment,
+            reversed: false,
+            exclude_file_patterns: vec![],
+        }),
     );
     assert!(
-        parse_script("SECTIONS { .text : { *(SORT_BY_ALIGNMENT(REVERSE(.text.*))) } }").is_err()
+        parse_script("SECTIONS { .text : { *(REVERSE(SORT_BY_ALIGNMENT(.text.*))) } }").is_err()
     );
 }
 

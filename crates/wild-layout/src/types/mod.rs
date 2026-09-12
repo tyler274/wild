@@ -742,6 +742,13 @@ pub struct MemoryRegion {
     pub used: u64,
     pub used_lma: u64,
     pub flags: Option<wild_scripts::linker_script::MemoryFlags>,
+    /// Start VMA of the last SHF_ALLOC section placed in this region (GNU default LMA heuristic).
+    pub last_section_vma: Option<u64>,
+    /// Start LMA of that section.
+    pub last_section_lma: Option<u64>,
+    /// LMA cursor after that section (end). GNU keeps this when LMA ≠ VMA rather
+    /// than the global LMA, which `PT_LOAD` starts may reset to VMA.
+    pub last_lma_end: Option<u64>,
 }
 
 impl<'data, P: EnginePlatform> Layout<'data, P> {

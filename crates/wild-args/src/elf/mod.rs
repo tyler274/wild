@@ -116,6 +116,9 @@ pub struct ElfArgs {
     pub should_output_partial_object: bool,
     /// GNU `-d` / `FORCE_COMMON_ALLOCATION`: allocate commons even for `-r`.
     force_common_allocation: std::sync::atomic::AtomicBool,
+    /// GNU `--no-define-common` / `INHIBIT_COMMON_ALLOCATION`: leave commons as
+    /// `SHN_COMMON` even for a final link.
+    inhibit_common_allocation: std::sync::atomic::AtomicBool,
     pub emit_relocs: bool,
     pub discard_none: bool,
 
@@ -270,6 +273,7 @@ impl Default for ElfArgs {
             should_output_executable: true,
             should_output_partial_object: false,
             force_common_allocation: std::sync::atomic::AtomicBool::new(false),
+            inhibit_common_allocation: std::sync::atomic::AtomicBool::new(false),
             emit_relocs: false,
             discard_none: false,
             dynamic_linker: DynamicLinker::default(),
@@ -475,6 +479,14 @@ pub fn parse<S: AsRef<str>, I: Iterator<Item = S>>(args: &mut ElfArgs, mut input
 
     if !args.auxiliary.is_empty() && args.should_output_executable {
         bail!("-f may not be used without -shared");
+    }
+
+    if args
+        .inhibit_common_allocation
+        .load(std::sync::atomic::Ordering::Relaxed)
+        && args.should_output_executable
+    {
+        bail!("--no-define-common may not be used without -shared");
     }
 
     if args.pack_dyn_relocs == PackDynRelocs::Android
@@ -762,7 +774,18 @@ impl platform::Args for ElfArgs {
             .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
+    fn apply_inhibit_common_allocation(&self) {
+        self.inhibit_common_allocation
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+
     fn should_allocate_common_symbols(&self) -> bool {
+        if self
+            .inhibit_common_allocation
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            return false;
+        }
         !self.should_output_partial_object()
             || self
                 .force_common_allocation
@@ -1137,6 +1160,29 @@ mod tests {
             relocatable_force.should_allocate_common_symbols(),
             "-r -d should allocate commons"
         );
+    }
+
+    #[test]
+    fn test_no_define_common_flag() {
+        let err = parse_args_err(["--no-define-common"]).to_string();
+        assert!(err.contains("without -shared"), "unexpected error: {err}");
+
+        let args = parse_args(["-shared", "--no-define-common"]);
+        assert!(
+            !args.should_allocate_common_symbols(),
+            "-shared --no-define-common should leave commons unallocated"
+        );
+
+        let both = parse_args(["-shared", "-d", "--no-define-common"]);
+        assert!(
+            !both.should_allocate_common_symbols(),
+            "inhibit wins over -d"
+        );
+    }
+
+    #[test]
+    fn test_force_group_allocation_flag() {
+        parse_args(["-r", "--force-group-allocation"]);
     }
 
     // Helper: parse a small set of args and return the resulting ElfArgs.

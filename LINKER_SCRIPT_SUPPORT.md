@@ -32,6 +32,9 @@ matching all three.
 | `STARTUP(filename)` | ✅ | Like `INPUT`, but that file is the first input of the link |
 | `EXTERN(symbol...)` | ✅ | Same as `-u`: the named symbols are GC roots and pull archive members that define them |
 | `FORCE_COMMON_ALLOCATION` | ✅ | Same as `-d`/`-dc`/`-dp`: allocate common symbols even for a relocatable (`-r`) link |
+| `INHIBIT_COMMON_ALLOCATION` | ✅ | Same as `--no-define-common` (shared objects only): commons are left undefined rather than allocated in `.bss`. The CLI flag errors without `-shared`. Wins over `-d` / `FORCE_COMMON_ALLOCATION` |
+| `FORCE_GROUP_ALLOCATION` | ✅ | Same as `--force-group-allocation`: place ELF section-group members as normal sections and drop `SHT_GROUP`, including for `-r`. Wild always resolves groups this way (GNU ld only does for a final link, or for `-r` with this command/flag) |
+| `LD_FEATURE("SANE_EXPR")` | ✅ | Treat absolute symbols and numbers as numbers everywhere. Unknown feature names are an error. Wild already evaluates this way; the command is accepted so scripts are not treated as inputs |
 | `TARGET(bfdname)` | ✅ | Accepted when it matches the link target, using the same BFD names as `OUTPUT_FORMAT`. Does not switch architecture; mismatch or unsupported names error |
 | `NOCROSSREFS(sections...)` | ✅ | Errors if the named output sections cross-reference each other. Overlay `NOCROSSREFS` and `NOCROSSREFS_TO(to, from...)` are also enforced |
 | `INSERT [AFTER\|BEFORE] section` | ✅ | Snippet scripts splice their `SECTIONS` into the default (or previous `-T`) layout at the named output section |
@@ -64,12 +67,12 @@ matching all three.
 | `SORT_NONE(...)` | ✅ | Keeps GNU ld input order. `--sort-section` does not apply. File-level `SORT_NONE(*)(.text)` is accepted and does not sort files |
 | `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then input order (GNU). Nested `SORT_BY_NAME(SORT_BY_ALIGNMENT)` sorts by name then alignment; `SORT_BY_ALIGNMENT(SORT_BY_NAME)` sorts by alignment then name. Same-type nesting is a no-op. `--sort-section=alignment` applies this to unsorted wildcards, including mixed alignments in one output section; an explicit `SORT*` or `SORT_NONE` in the script wins |
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | Uses GCC `init_priority` encoded in `.init_array.N` / `.ctors.N` names |
-| `REVERSE(...)` | ✅ | Alone implies reverse `SORT_BY_NAME`. May wrap or be wrapped by `SORT` / `SORT_BY_NAME`, or be wrapped by `SORT_BY_INIT_PRIORITY`. `REVERSE(*)(.data*)` reverse-sorts files by filename. Reverse alignment is unsupported |
+| `REVERSE(...)` | ✅ | Alone implies reverse `SORT_BY_NAME`. May wrap or be wrapped by `SORT` / `SORT_BY_NAME`, or be wrapped by `SORT_BY_INIT_PRIORITY`. `REVERSE(*)(.data*)` reverse-sorts files by filename. GNU ld 2.46 accepts `SORT_BY_ALIGNMENT(REVERSE)` but does not reverse alignment (still largest `sh_addralign` first); `REVERSE(SORT_BY_ALIGNMENT)` is a parse error |
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | `*(EXCLUDE_FILE(a.o) .text)`, `EXCLUDE_FILE(a.o) *(.text)`, and inside `SORT*` / `REVERSE` (`*(SORT_BY_NAME(EXCLUDE_FILE(foo) .text*))`). An `EXCLUDE_FILE` in the section list applies only to the following pattern |
 | `INPUT_SECTION_FLAGS(...)` | ✅ | `SHF_*` names or integer bits, combined with `&`; `!FLAG` requires the bit clear. `KEEP(INPUT_SECTION_FLAGS(...) *(.sec))` is accepted |
 | `BYTE(expr)`, `SHORT(expr)`, `LONG(expr)`, `QUAD(expr)` output data | ✅ | Written in the target endianness. Relocatable (`-r`) output has no `PT_LOAD`, so the bytes are reserved in the file instead of a VMA hole |
 | `SUBALIGN(n)` forced input alignment | ✅ | Each input is aligned to `n`, overriding larger or smaller `sh_addralign`. Output `sh_addralign` is `max(ALIGN(n), SUBALIGN(n))` and is not raised by input alignments |
-| `ALIGN_WITH_INPUT` | ✅ | Keeps the VMA−LMA difference when aligning to input `sh_addralign`. Cannot be combined with `ALIGN(n)` |
+| `ALIGN_WITH_INPUT` | ✅ | Keeps the VMA−LMA difference when aligning to input `sh_addralign`. Cannot be combined with `ALIGN(n)`. Without `AT`/`AT>`, the default LMA heuristic (see `AT>region`) still applies before this alignment |
 | `ONLY_IF_RO` / `ONLY_IF_RW` output section constraints | ✅ | Parsed. Duplicate names (GNU default `.eh_frame : ONLY_IF_RO` then `ONLY_IF_RW`) share one output section. If any matching input has `SHF_WRITE`, the RW copy is used for all of them; otherwise the RO copy |
 | `:phdr` output section phdrs | ✅ | |
 
@@ -122,7 +125,7 @@ section has no explicit `>region`, a compatible region is selected from the flag
 | `LENGTH`/`len`/`l` attribute | ✅ | |
 | Attribute flags (`(rwx)`, `(rx)`, etc.) | ✅ | Used to auto-pick a region when `>region` is omitted |
 | `>region` output section placement | ✅ | |
-| `AT>region` load-region placement | ✅ | Distinct per-region LMA cursor |
+| `AT>region` load-region placement | ✅ | Distinct per-region LMA cursor. Without `AT` / `AT>`, if this section's VMA region already has an allocatable section whose LMA ≠ VMA (typically from `AT>`), GNU keeps that region's LMA cursor (not LMA = VMA, and not a constant VMA−LMA delta). VMA alignment may insert a gap that LMA does not. A specific VMA (`.data 0x2000 :`), a non-allocatable section, a new VMA region, or no `MEMORY` sets LMA = VMA |
 
 ## Linux Kernel Requirements
 
@@ -152,7 +155,7 @@ because `.data..ro_after_init` is 4KiB-aligned. `.strtab` and `.shstrtab` suffix
 | `SORT_NONE(...)` | ✅ | Keeps input order; `--sort-section` does not apply |
 | `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then input order (GNU). Nested `SORT_BY_NAME` / `SORT_BY_ALIGNMENT` uses name or alignment as the secondary key. `--sort-section=alignment` applies this to unsorted wildcards; `SORT_NONE` blocks it |
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | |
-| `REVERSE(...)` | ✅ | Alone implies reverse `SORT_BY_NAME`. May wrap or be wrapped by `SORT` / `SORT_BY_NAME`, or be wrapped by `SORT_BY_INIT_PRIORITY`. `REVERSE(*)(.data*)` reverse-sorts files by filename. Reverse alignment is unsupported |
+| `REVERSE(...)` | ✅ | Alone implies reverse `SORT_BY_NAME`. May wrap or be wrapped by `SORT` / `SORT_BY_NAME`, or be wrapped by `SORT_BY_INIT_PRIORITY`. `REVERSE(*)(.data*)` reverse-sorts files by filename. GNU ld 2.46 accepts `SORT_BY_ALIGNMENT(REVERSE)` but does not reverse alignment (still largest `sh_addralign` first); `REVERSE(SORT_BY_ALIGNMENT)` is a parse error |
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | Including inside `SORT*` / `REVERSE` |
 | `INPUT_SECTION_FLAGS(...)` | ✅ | `SHF_*` names or integer bits, combined with `&`; `!FLAG` requires the bit clear |
 | `ALIGN_WITH_INPUT` | ✅ | Keeps the VMA−LMA difference when aligning to input `sh_addralign` |

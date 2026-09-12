@@ -25,6 +25,11 @@ pub struct CustomSectionIds {
     /// sections after the last section with the same flags, matching GNU ld.
     /// `INSERT` fragments splice into the default layout and do not set this.
     pub place_after_similar: bool,
+    /// Script-mentioned custom sections emitted immediately after the previous
+    /// builtin named in `SECTIONS`. Without this, those sections are grouped
+    /// with orphans (e.g. RO customs before `.text`) and GNU `AT>` LMA
+    /// continuation never sees them.
+    pub script_followers: Vec<(OutputSectionId, OutputSectionId)>,
 }
 
 impl CustomSectionIds {

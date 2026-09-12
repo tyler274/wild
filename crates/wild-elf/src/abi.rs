@@ -2104,6 +2104,8 @@ impl<C: ElfClass> platform::Platform for Elf<C> {
             location_counters,
         );
 
+        builder.set_script_followers(custom.script_followers.clone());
+
         builder.add_section(wild_layout::output_section_id::FILE_HEADER);
         builder.add_section(output_section_id::PROGRAM_HEADERS);
         builder.add_section(output_section_id::NOTE_GNU_PROPERTY);

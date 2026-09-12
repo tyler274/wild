@@ -754,6 +754,9 @@ mod expression_eval {
                         used: 0,
                         used_lma: 0,
                         flags: None,
+                        last_section_vma: None,
+                        last_section_lma: None,
+                        last_lma_end: None,
                     },
                 ),
                 (
@@ -764,6 +767,9 @@ mod expression_eval {
                         used: 0,
                         used_lma: 0,
                         flags: None,
+                        last_section_vma: None,
+                        last_section_lma: None,
+                        last_lma_end: None,
                     },
                 ),
             ]);

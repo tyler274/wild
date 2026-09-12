@@ -427,6 +427,21 @@ pub fn add_search_and_output_flags(parser: &mut ArgumentParser<ElfArgs>) {
 
     parser
         .declare()
+        .long("no-define-common")
+        .help("Leave common symbols unallocated even for a final link")
+        .execute(|args, _modifier_stack| {
+            args.apply_inhibit_common_allocation();
+            Ok(())
+        });
+
+    parser
+        .declare()
+        .long("force-group-allocation")
+        .help("Resolve ELF section groups even for a relocatable (-r) link")
+        .execute(|_args, _modifier_stack| Ok(()));
+
+    parser
+        .declare()
         .short("q")
         .long("emit-relocs")
         .help("Leave relocation sections in fully linked output")

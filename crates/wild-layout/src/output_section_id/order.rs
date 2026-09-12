@@ -53,6 +53,8 @@ pub struct OutputOrderBuilder<'scope, 'data, P: Platform> {
     /// Custom-PHDR `PT_LOAD` starts that must wait until this section's leading
     /// `. = ALIGN(...)` has been emitted, so the LOAD inherits the script VMA.
     pending_segment_starts: Vec<ProgramSegmentId>,
+    /// `(anchor, follower)` pairs: emit `follower` immediately after `anchor`.
+    script_followers: Vec<(OutputSectionId, OutputSectionId)>,
 }
 
 impl<'scope, 'data, P: EnginePlatform> OutputOrderBuilder<'scope, 'data, P> {
@@ -78,7 +80,12 @@ impl<'scope, 'data, P: EnginePlatform> OutputOrderBuilder<'scope, 'data, P> {
             location_counters,
             last_location_counter: location_counters.last().map(|_| 0),
             pending_segment_starts: Vec::new(),
+            script_followers: Vec::new(),
         }
+    }
+
+    pub fn set_script_followers(&mut self, followers: Vec<(OutputSectionId, OutputSectionId)>) {
+        self.script_followers = followers;
     }
 
     pub fn queue_segment_start(&mut self, segment_id: ProgramSegmentId) {
@@ -112,6 +119,29 @@ impl<'scope, 'data, P: EnginePlatform> OutputOrderBuilder<'scope, 'data, P> {
     }
 
     pub fn add_section(&mut self, section_id: OutputSectionId) {
+        self.emit_primary_section(section_id);
+        let mut pending: Vec<OutputSectionId> = self
+            .script_followers
+            .iter()
+            .filter(|(anchor, _)| *anchor == section_id)
+            .map(|(_, follower)| *follower)
+            .collect();
+        let mut seen: HashSet<OutputSectionId> = HashSet::from_iter([section_id]);
+        while let Some(id) = pending.pop() {
+            if !seen.insert(id) {
+                continue;
+            }
+            self.emit_primary_section(id);
+            pending.extend(
+                self.script_followers
+                    .iter()
+                    .filter(|(anchor, _)| *anchor == id)
+                    .map(|(_, follower)| *follower),
+            );
+        }
+    }
+
+    fn emit_primary_section(&mut self, section_id: OutputSectionId) {
         // When RELRO segment ends, also end the RW LOAD segment so that subsequent non-RELRO
         // sections go into a new LOAD segment.
         if self.should_end_current_rw_segment(section_id) {
