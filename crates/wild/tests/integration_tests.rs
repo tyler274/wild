@@ -368,6 +368,7 @@
 mod external_tests;
 mod glibc;
 mod incremental_check;
+mod packages;
 mod vmlinux;
 
 use bitflags::bitflags;
@@ -414,6 +415,7 @@ fn main() -> Result<std::process::ExitCode> {
     external_tests::collect_tests(&mut tests, &filter, &test_config)?;
     vmlinux::collect_tests(&mut tests, &filter);
     glibc::collect_tests(&mut tests, &filter);
+    packages::collect_tests(&mut tests, &filter);
     Ok(libtest_mimic::run(&args, tests).exit_code())
 }
 

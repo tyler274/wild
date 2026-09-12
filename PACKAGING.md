@@ -20,6 +20,9 @@ Wild has two optional build-time features:
   disabled in the runtime via `--no-fork` flag.
 - `mimalloc` (disabled by default) – build and use Mimalloc as the allocator instead of the system
   one. It performs marginally worse than Glibc in Wild's case, but much better than Musl.
+- `mimalloc-dynamic` (disabled by default) – dynamically link `libmimalloc.so` instead. Mutually
+  exclusive with `mimalloc` and `dhat`. `nix develop` puts nixpkgs `mimalloc` on `PKG_CONFIG_PATH`
+  / `LD_LIBRARY_PATH`.
 
 ## Testing
 

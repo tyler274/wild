@@ -93,3 +93,85 @@ pub(crate) fn relink_unchanged(
     }
     Ok(log)
 }
+
+struct DirtyGuard {
+    path: PathBuf,
+    original: Vec<u8>,
+}
+
+impl Drop for DirtyGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::write(&self.path, &self.original);
+    }
+}
+
+/// Flip one byte past the ELF ident so section sizes stay the same. Restores
+/// `path` when dropped. `inputs.txt` mtime is 1s granularity; a byte change is
+/// what the skip planner actually notices.
+pub(crate) fn dirty_object(path: &Path) -> Result<impl Drop> {
+    let original =
+        std::fs::read(path).with_context(|| format!("Failed to read {}", path.display()))?;
+    ensure!(
+        original.len() > 16,
+        "{} is too small to dirty as an ELF object",
+        path.display()
+    );
+    let mut dirty = original.clone();
+    let idx = dirty.len() - 1;
+    dirty[idx] ^= 0x5a;
+    std::fs::write(path, &dirty).with_context(|| format!("Failed to dirty {}", path.display()))?;
+    Ok(DirtyGuard {
+        path: path.to_path_buf(),
+        original,
+    })
+}
+
+/// Unchanged incremental relink, then a dirty relink of `changed_object`.
+///
+/// Expects `incremental-update`, fewer skipped payloads than the unchanged
+/// pass, and at least one remaining skip (unless `allow_strict_order`).
+pub(crate) fn relink_changed(
+    initial: Command,
+    unchanged: Command,
+    mut changed: Command,
+    output: &Path,
+    changed_object: &Path,
+    require_skips: bool,
+    allow_strict_order: bool,
+) -> Result<IncrementalLog> {
+    let before = relink_unchanged(
+        initial,
+        unchanged,
+        output,
+        require_skips,
+        allow_strict_order,
+    )?;
+    let _restore = dirty_object(changed_object)?;
+    run_wild(&mut changed, "changed relink")?;
+    let log = read_log(output)?;
+    if log.is_fallback {
+        bail!("Changed incremental relink fell back: {}", log.last_line);
+    }
+    ensure!(
+        log.is_update,
+        "Expected incremental-update after dirtying {}, got: {}",
+        changed_object.display(),
+        log.last_line
+    );
+    if log.skip_payloads >= before.skip_payloads && before.skip_payloads > 0 {
+        bail!(
+            "Dirtying {} did not reduce skip_payloads ({} -> {}): {}",
+            changed_object.display(),
+            before.skip_payloads,
+            log.skip_payloads,
+            log.last_line
+        );
+    }
+    if require_skips && log.skip_payloads == 0 && !(allow_strict_order && log.strict_order) {
+        bail!(
+            "Changed incremental relink skipped no payloads: {}",
+            log.last_line
+        );
+    }
+    Ok(log)
+}

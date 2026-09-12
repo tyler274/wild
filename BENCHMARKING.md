@@ -57,6 +57,9 @@ amounts of extra work.
 
 ### Run benchmark with hyperfine
 
+`nix develop` puts `hyperfine` and `samply` on `PATH`. For a dirty incremental relink vs other
+linkers' full relinks, `scripts/bench-incremental.sh <run-with-dir> [object.o]`.
+
 Let's benchmark the linking stage between `ld`, `mold` and `wild`, discarding the first two runs of
 each to reduce the effects of cache warmup
 

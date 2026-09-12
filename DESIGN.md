@@ -54,6 +54,19 @@ model. In those cases, we spawn one rayon scoped task per thread and then do job
 There are various phases within the linker that are single threaded. This is fine, so long as those
 phases run quickly enough.
 
+## Linker-plugin LTO
+
+Wild implements the GNU Gold plugin API (`liblto_plugin.so`, `LLVMgold.so`, rustc
+`-Clinker-plugin-lto`). GCC ≥ 14 is required (GetSymbols V3). Mixed Clang IR + GCC driver (and the
+reverse) is expected to fail. `-mllvm` is an alias for `--plugin-opt` so Clang's `-Wl,-mllvm,...` is
+not parsed as `-m` emulation.
+
+Compatibility tests live under `linker-plugin-lto`, `lto-comdat` (C++ template COMDAT),
+`rust-integration` (`-Clinker-plugin-lto` and rustc `-C lto` / `-C lto=thin`), wrap/export-dynamic,
+and the mold external suite. Mold skips that Wild does not copy: no-plugin as a hard error (Wild
+auto-discovers), duplicate IR as a hard error (Wild deduplicates), and `lto-archive4` (asm-invisible
+symbols). Incremental links with an active plugin still fall back to a full padded link.
+
 ## Testing
 
 Most testing is done by `integration_tests.rs`. This compiles various programs that are written in
@@ -72,8 +85,12 @@ and GNU `vmlinux.unstripped`, then `cargo test -p wild-linker --test integration
 Pack objects with `scripts/pack-vmlinux-objects.sh`. CI job `vmlinux` runs when the repository
 variable `WILD_LINUX_OBJECTS_URL` points at that tarball (a from-scratch kernel build will not fit
 the 10-minute timeout). `vmlinux-incremental` links the same objects with `--incremental` and checks
-an unchanged second link records `incremental-update`. Follow-up: a small userspace / initramfs also
-linked with Wild.
+an unchanged second link records `incremental-update`. `vmlinux-incremental-dirty` flips a byte in
+one extra object (mtime is 1s granularity) and checks that skip_payloads drops. Clang ThinLTO uses
+`WILD_LINUX_LTO_TREE` / `scripts/pack-vmlinux-lto-objects.sh` with an LLD-linked oracle; CI job
+`vmlinux-lto` is gated on `WILD_LINUX_LTO_OBJECTS_URL`. Incremental + plugin still falls back to a
+full padded link (`vmlinux-lto-incremental`). Follow-up: a small userspace / initramfs also linked
+with Wild.
 
 Glibc's `libc.so` link uses GNU ld's default shared script (`DATA_SEGMENT_*`, `CONSTANT`,
 `ONLY_IF_*`). Wild can parse and link that script (see `linker-script-gnu-default`). `nix develop`
@@ -84,9 +101,19 @@ linked with GNU ld so the relink tests have something to diff. Then
 `cargo test -p wild-linker --test integration_tests -- glibc`. Override the env vars to use another
 tree. `wild-glibc-check` installs those Wild-linked `libc.so` / `ld.so` / `libm.so` (and other
 `lib%.so` relinks when present) into the GNU build and runs a `make test` subset (TLS, IFUNC,
-RELR, ctors, malloc, libm, nptl), then restores the GNU oracles. `glibc-*-incremental` tests an
-unchanged `--incremental` relink of `ld.so` / `libc.so` / `libm.so`. A full `make check` is still
-follow-up.
+RELR, ctors, malloc, libm, nptl), then restores the GNU oracles. `WILD_GLIBC_FULL_CHECK=1` runs
+`make check`. `glibc-*-incremental` tests an unchanged `--incremental` relink of `ld.so` / `libc.so`
+/ `libm.so`; `glibc-*-incremental-dirty` flips a byte in `csu/abi-note.o`. Capture a package link
+with `WILD_SAVE_BASE` and set `WILD_PYTHON_LINK` / `WILD_RUSTC_LINK` / `WILD_GCC_LINK` /
+`WILD_LLVM_LINK` / `WILD_FIREFOX_LINK` / `WILD_BLENDER_LINK` / `WILD_CHROME_LINK` to that save-dir.
+
+Kani proofs live in `wild-util` (alignment, GNU LMA, skip-payload, plugin/GC fallback, atom
+generations) so they do not compile `wild-layout`. `./scripts/kani.sh` no-ops without `cargo-kani`;
+CI job `kani` uses the official GitHub action.
+
+`--features mimalloc` statically embeds mimalloc-rs (musl releases). `--features mimalloc-dynamic`
+links `libmimalloc.so` (`nix develop` provides it). The two are mutually exclusive with each other
+and with `dhat`.
 
 ## Modularity (Mold and LLD)
 

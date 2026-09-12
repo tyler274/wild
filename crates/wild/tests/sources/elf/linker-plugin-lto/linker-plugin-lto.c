@@ -166,6 +166,93 @@
 //#ReferenceLinkers:
 //#DiffEnabled:false
 
+// Opt-level grid (GCC full LTO).
+//#Config:gcc-O0:default
+//#CompArgs:-flto -O0
+//#Object:runtime.c
+//#Object:linker-plugin-lto-2.c
+//#LinkerDriver:gcc
+//#LinkArgs:-flto -O0 -nostdlib -znow
+
+//#Config:gcc-O2:default
+//#CompArgs:-flto -O2
+//#Object:runtime.c
+//#Object:linker-plugin-lto-2.c
+//#LinkerDriver:gcc
+//#LinkArgs:-flto -O2 -nostdlib -znow
+
+//#Config:gcc-Os:default
+//#CompArgs:-flto -Os
+//#Object:runtime.c
+//#Object:linker-plugin-lto-2.c
+//#LinkerDriver:gcc
+//#LinkArgs:-flto -Os -nostdlib -znow
+
+//#Config:clang-O2:default
+//#Compiler:clang
+//#CompArgs:-flto -O2
+//#LinkerDriver:clang
+//#LinkArgs:-Wl,-znow -flto -nostdlib -O2
+//#Object:runtime.c
+//#Object:linker-plugin-lto-2.c
+//#DiffIgnore:section.eh_frame.type
+
+//#Config:clang-Os:default
+//#Compiler:clang
+//#CompArgs:-flto -Os
+//#LinkerDriver:clang
+//#LinkArgs:-Wl,-znow -flto -nostdlib -Os
+//#Object:runtime.c
+//#Object:linker-plugin-lto-2.c
+//#DiffIgnore:section.eh_frame.type
+
+//#Config:clang-thin-O2:default
+//#Compiler:clang
+//#CompArgs:-flto=thin -O2
+//#LinkerDriver:clang
+//#LinkArgs:-Wl,-znow -flto=thin -nostdlib -O2
+//#Object:runtime.c
+//#Object:linker-plugin-lto-2.c
+//#DiffIgnore:section.eh_frame.type
+
+// Clang `-Wl,-mllvm,...` must reach the plugin, not `-m` emulation. GNU ld
+// treats `-mllvm` as `-m llvm`; this config is Wild-only.
+//#Config:clang-mllvm:default
+//#Compiler:clang
+//#CompArgs:-flto
+//#LinkerDriver:clang
+//#SkipLinker:ld
+//#SkipLinker:lld
+//#SkipLinker:mold
+//#SkipLinker:gold
+//#DiffEnabled:false
+//#LinkArgs:-Wl,-znow -flto -nostdlib -O0 -Wl,-mllvm,-import-instr-limit=100
+//#Object:runtime.c
+//#Object:linker-plugin-lto-2.c
+
+// Same via `--plugin-opt` (mold lto-llvm2.sh).
+//#Config:clang-plugin-opt:default
+//#Compiler:clang
+//#CompArgs:-flto
+//#LinkerDriver:clang
+//#LinkArgs:-Wl,-znow -flto -nostdlib -O0 -Wl,-plugin-opt=jobs=1
+//#Object:runtime.c
+//#Object:linker-plugin-lto-2.c
+//#DiffIgnore:section.eh_frame.type
+
+// GCC fat objects linked with the Clang driver / LLVM plugin. Wild does not
+// fall back to the native ELF in a GCC fat object when LLVMgold leaves it
+// unclaimed (mold lto-mixed-gcc-fat).
+//#Config:mixed-gcc-fat-llvm:error
+//#Compiler:gcc
+//#CompArgs:-flto -ffat-lto-objects -O1
+//#LinkerDriver:clang
+//#ReferenceLinkers:
+//#LinkArgs:-Wl,-znow -flto -nostdlib
+//#Object:runtime.c
+//#Object:linker-plugin-lto-2.c
+//#ExpectError:contains GCC-IR, but the linker plugin
+
 #include "../common/runtime.h"
 
 int foo();

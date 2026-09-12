@@ -15,6 +15,11 @@ fn main() {
 
     println!("cargo:rerun-if-changed=../.git/HEAD");
 
+    if std::env::var_os("CARGO_FEATURE_MIMALLOC_DYNAMIC").is_some() {
+        println!("cargo:rustc-link-lib=mimalloc");
+        println!("cargo:rerun-if-env-changed=PKG_CONFIG_PATH");
+    }
+
     if let Ok(existing) = std::fs::read_to_string(&out)
         && existing == version
     {

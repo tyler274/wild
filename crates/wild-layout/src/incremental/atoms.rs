@@ -9,6 +9,7 @@ use std::fs;
 use std::io::Write as _;
 use std::path::Path;
 use wild_error::error::Result;
+use wild_util::incremental::next_generation;
 
 /// `{index, generation}` handle. Generation 0 is never issued.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -179,13 +180,6 @@ impl AtomTable {
             }
         }
         Some(table)
-    }
-}
-
-fn next_generation(generation: u32) -> u32 {
-    match generation.wrapping_add(1) {
-        0 => 1,
-        next => next,
     }
 }
 

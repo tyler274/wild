@@ -18,6 +18,9 @@ let
   inherit (llvmPackages) clang;
   # Split `lib` output when present; otherwise the llvm package root.
   llvmLib = llvmPackages.libllvm.lib or llvmPackages.libllvm;
+  gccLib = lib.getLib gcc.cc;
+  gccPluginDir = "${gcc.cc}/libexec/gcc/${stdenv.hostPlatform.config}/${gcc.version}";
+  gccBfdPlugins = "${gcc.cc}/lib/bfd-plugins";
 in
 {
   gccWrapper = stdenv.mkDerivation {
@@ -31,6 +34,9 @@ in
       runHook preBuild
 
       makeWrapper ${lib.getExe gcc} $out/bin/gcc \
+        --append-flag -B${gccPluginDir} \
+        --append-flag -B${gccBfdPlugins} \
+        --append-flag -B${gccLib}/lib \
         --append-flag -B${binutils-unwrapped-all-targets}/bin
 
       runHook postBuild
@@ -49,6 +55,9 @@ in
       runHook preBuild
 
       makeWrapper ${lib.getExe' gcc "g++"} $out/bin/g++ \
+        --append-flag -B${gccPluginDir} \
+        --append-flag -B${gccBfdPlugins} \
+        --append-flag -B${gccLib}/lib \
         --append-flag -B${binutils-unwrapped-all-targets}/bin
 
       runHook postBuild

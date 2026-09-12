@@ -15,6 +15,41 @@
 //#RequiresLinkerPlugin:true
 //#DiffEnabled:false
 
+//#Config:linker-plugin-lto-O2:default
+//#CompArgs:-C opt-level=2 -Clinker-plugin-lto -Clinker=clang -Clink-arg=-flto
+//#RequiresLinkerPlugin:true
+
+// rustc fat/thin LTO inside the compiler; Wild links the native result.
+//#Config:lto:default
+//#SkipArch:ppc64le
+//#LinkerDriver:clang
+//#CompArgs:-C lto -Clinker=clang
+//#SkipLinker:ld
+//#SkipLinker:lld
+//#SkipLinker:mold
+//#SkipLinker:gold
+//#DiffEnabled:false
+
+//#Config:lto-thin:default
+//#SkipArch:ppc64le
+//#LinkerDriver:clang
+//#CompArgs:-C lto=thin -Clinker=clang
+//#SkipLinker:ld
+//#SkipLinker:lld
+//#SkipLinker:mold
+//#SkipLinker:gold
+//#DiffEnabled:false
+
+//#Config:lto-O2:default
+//#SkipArch:ppc64le
+//#LinkerDriver:clang
+//#CompArgs:-C opt-level=2 -C lto -Clinker=clang
+//#SkipLinker:ld
+//#SkipLinker:lld
+//#SkipLinker:mold
+//#SkipLinker:gold
+//#DiffEnabled:false
+
 //#Config:llvm-static:default
 //#CompArgs:--target x86_64-unknown-linux-musl -C relocation-model=static -C target-feature=+crt-static -C debuginfo=2
 //#RequiresRustMusl: true

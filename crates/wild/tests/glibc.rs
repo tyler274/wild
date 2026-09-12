@@ -31,7 +31,9 @@ const LDSO_TEST: &str = "elf/x86_64/glibc-ldso";
 const LDSO_INCR_TEST: &str = "elf/x86_64/glibc-ldso-incremental";
 const LIBC_TEST: &str = "elf/x86_64/glibc-libc";
 const LIBC_INCR_TEST: &str = "elf/x86_64/glibc-libc-incremental";
+const LIBC_INCR_DIRTY_TEST: &str = "elf/x86_64/glibc-libc-incremental-dirty";
 const LIBM_INCR_TEST: &str = "elf/x86_64/glibc-libm-incremental";
+const LIBM_INCR_DIRTY_TEST: &str = "elf/x86_64/glibc-libm-incremental-dirty";
 
 const LDSO_SONAME: &str = "ld-linux-x86-64.so.2";
 const LIBC_SONAME: &str = "libc.so.6";
@@ -299,9 +301,21 @@ pub(super) fn collect_tests(tests: &mut Vec<Trial>, filter: &Filter) {
             run_libc_incremental_test().map_err(|e| libtest_mimic::Failed::from(e.to_string()))
         }));
     }
+    if !filter.excludes(LIBC_INCR_DIRTY_TEST) {
+        tests.push(Trial::ignorable_test(LIBC_INCR_DIRTY_TEST, || {
+            run_libc_incremental_dirty_test()
+                .map_err(|e| libtest_mimic::Failed::from(e.to_string()))
+        }));
+    }
     if !filter.excludes(LIBM_INCR_TEST) {
         tests.push(Trial::ignorable_test(LIBM_INCR_TEST, || {
             run_libm_incremental_test().map_err(|e| libtest_mimic::Failed::from(e.to_string()))
+        }));
+    }
+    if !filter.excludes(LIBM_INCR_DIRTY_TEST) {
+        tests.push(Trial::ignorable_test(LIBM_INCR_DIRTY_TEST, || {
+            run_libm_incremental_dirty_test()
+                .map_err(|e| libtest_mimic::Failed::from(e.to_string()))
         }));
     }
     for spec in PIC_SHLIBS {
@@ -596,6 +610,60 @@ fn run_libc_incremental_test() -> Result<libtest_mimic::Completion> {
     Ok(libtest_mimic::Completion::Completed)
 }
 
+fn run_libc_incremental_dirty_test() -> Result<libtest_mimic::Completion> {
+    let Some((_tree, build)) = glibc_paths()? else {
+        return Ok(libtest_mimic::Completion::ignored_with(format!(
+            "{TREE_VAR} is unset"
+        )));
+    };
+
+    let pic = first_existing(&build, &["libc_pic.os.clean", "libc_pic.os"]);
+    let abi_note = first_existing(&build, &["csu/abi-note.o"]);
+    let sofini = first_existing(&build, &["elf/sofini.os"]);
+    let interp = first_existing(&build, &["elf/interp.os"]);
+    let ldso = first_existing(&build, &["elf/ld.so"]);
+    let map = first_existing(&build, &["libc.map"]);
+    let Some(pic) = pic else {
+        return Ok(libtest_mimic::Completion::ignored_with(format!(
+            "{} has no libc_pic.os yet (configure && make)",
+            build.display()
+        )));
+    };
+    let Some(dirty) = abi_note.clone() else {
+        return Ok(libtest_mimic::Completion::ignored_with(
+            "glibc build has no csu/abi-note.o to dirty".to_owned(),
+        ));
+    };
+
+    let out_dir = build_dir().join(LIBC_INCR_DIRTY_TEST);
+    std::fs::create_dir_all(&out_dir)
+        .with_context(|| format!("Failed to create {}", out_dir.display()))?;
+    let out = out_dir.join("libc.so.incr.dirty.wild");
+    let libgcc = libgcc_archive()?;
+    let command = || {
+        libc_command(
+            &out,
+            &pic,
+            abi_note.as_deref(),
+            interp.as_deref(),
+            ldso.as_deref(),
+            sofini.as_deref(),
+            map.as_deref(),
+            &libgcc,
+        )
+    };
+    incremental_check::relink_changed(
+        with_incremental(command()),
+        with_incremental(command()),
+        with_incremental(command()),
+        &out,
+        &dirty,
+        true,
+        true,
+    )?;
+    Ok(libtest_mimic::Completion::Completed)
+}
+
 fn run_libm_incremental_test() -> Result<libtest_mimic::Completion> {
     let Some((_tree, build)) = glibc_paths()? else {
         return Ok(libtest_mimic::Completion::ignored_with(format!(
@@ -630,6 +698,53 @@ fn run_libm_incremental_test() -> Result<libtest_mimic::Completion> {
         with_incremental(command()?),
         with_incremental(command()?),
         &out,
+        true,
+        true,
+    )?;
+    Ok(libtest_mimic::Completion::Completed)
+}
+
+fn run_libm_incremental_dirty_test() -> Result<libtest_mimic::Completion> {
+    let Some((_tree, build)) = glibc_paths()? else {
+        return Ok(libtest_mimic::Completion::ignored_with(format!(
+            "{TREE_VAR} is unset"
+        )));
+    };
+    let spec = PIC_SHLIBS
+        .iter()
+        .find(|s| s.test_name == "elf/x86_64/glibc-libm")
+        .expect("PIC_SHLIBS includes glibc-libm");
+    let pic = build.join(spec.pic);
+    if !pic.is_file() {
+        return Ok(libtest_mimic::Completion::ignored_with(format!(
+            "{} has no {} yet (configure && make)",
+            build.display(),
+            spec.pic
+        )));
+    }
+    let Some(libc) = first_existing(&build, &["libc.so"]) else {
+        return Ok(libtest_mimic::Completion::ignored_with(format!(
+            "{} has no libc.so yet (configure && make)",
+            build.display()
+        )));
+    };
+    let Some(dirty) = first_existing(&build, &["csu/abi-note.o"]) else {
+        return Ok(libtest_mimic::Completion::ignored_with(
+            "glibc build has no csu/abi-note.o to dirty".to_owned(),
+        ));
+    };
+
+    let out_dir = build_dir().join(LIBM_INCR_DIRTY_TEST);
+    std::fs::create_dir_all(&out_dir)
+        .with_context(|| format!("Failed to create {}", out_dir.display()))?;
+    let out = out_dir.join("libm.so.incr.dirty.wild");
+    let command = || -> Result<Command> { glibc_pic_command(spec, &out, &build, &pic, &libc) };
+    incremental_check::relink_changed(
+        with_incremental(command()?),
+        with_incremental(command()?),
+        with_incremental(command()?),
+        &out,
+        &dirty,
         true,
         true,
     )?;

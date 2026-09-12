@@ -137,3 +137,24 @@ fn test_align_down() {
     assert_eq!(Alignment::new(16).unwrap().align_down(0), 0);
     assert_eq!(Alignment::new(16).unwrap().align_down(1), 0);
 }
+
+#[cfg(kani)]
+mod verify {
+    use super::*;
+
+    #[kani::proof]
+    fn align_up_is_aligned_and_monotonic() {
+        let exponent: u8 = kani::any();
+        kani::assume(exponent <= MAX_ALIGNMENT_EXPONENT);
+        let alignment = Alignment { exponent };
+        let value: u64 = kani::any();
+        let align = alignment.value();
+        kani::assume(value <= u64::MAX - (align - 1));
+        let up = alignment.align_up(value);
+        assert!(up >= value);
+        assert_eq!(up % align, 0);
+        if value.is_multiple_of(align) {
+            assert_eq!(up, value);
+        }
+    }
+}

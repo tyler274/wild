@@ -374,10 +374,11 @@ fn plan_skip_payloads(
     let diff = diff_input_paths(state_dir, loaded_paths);
     let mut skip = HashSet::new();
     for rec in records {
-        if rec.skippable
-            && reused_files.contains(&rec.file_id)
-            && !diff.changed.contains(&rec.source_path)
-        {
+        if wild_util::incremental::should_skip_payload(
+            rec.skippable,
+            reused_files.contains(&rec.file_id),
+            diff.changed.contains(&rec.source_path),
+        ) {
             skip.insert(rec.file_id);
         }
     }
@@ -493,13 +494,10 @@ pub fn fallback_for_plugin_or_gc<P: EnginePlatform>(
     args: &P::Args,
     plugin_active: bool,
 ) -> Option<&'static str> {
-    if plugin_active {
-        return Some("LTO/plugin inputs");
-    }
-    if args.should_gc_sections() && args.incremental() {
-        return Some("--gc-sections is ignored for incremental links");
-    }
-    None
+    wild_util::incremental::fallback_reason_for_plugin_or_gc(
+        plugin_active,
+        args.should_gc_sections() && args.incremental(),
+    )
 }
 
 #[cfg(test)]

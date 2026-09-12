@@ -69,6 +69,11 @@ To run tests (and have them pass) there are a number of pre-requisites to have i
 
 then use `cargo test` as usual.
 
+On NixOS / with Nix, `nix develop` supplies those compilers and the debug / benchmark tools
+(LLVM 22 clang + LLVMgold, mold, gdb, hyperfine, samply, mimalloc). See [nix/nix.md](nix/nix.md).
+Kani is separate: `cargo install --locked kani-verifier && cargo kani setup`, then
+`./scripts/kani.sh`.
+
 General ELF integration tests that list `ReferenceLinkers:bfd,lld,mold` are a four-way diff
 against GNU ld, LLD, Mold, and Wild (Mold/LLD are skipped if they are not on `PATH`). Linker-script
 tests pin GNU ld. To opt tests that omit `ReferenceLinkers` into the same four-way:

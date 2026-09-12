@@ -1185,6 +1185,20 @@ mod tests {
         parse_args(["-r", "--force-group-allocation"]);
     }
 
+    #[test]
+    fn test_mllvm_is_plugin_opt_alias() {
+        let args = parse_args(["-mllvm", "-import-instr-limit=100", "--plugin-opt=jobs=1"]);
+        let opts: Vec<&str> = args
+            .plugin_args
+            .iter()
+            .map(|s| s.to_str().unwrap())
+            .collect();
+        assert_eq!(opts, ["-import-instr-limit=100", "jobs=1"]);
+        // `-m elf_x86_64` must still be emulation, not `-mllvm`.
+        let args = parse_args(["-m", "elf_x86_64"]);
+        assert!(args.plugin_args.is_empty());
+    }
+
     // Helper: parse a small set of args and return the resulting ElfArgs.
     fn parse_args<'a>(args: impl IntoIterator<Item = &'a str>) -> ElfArgs {
         let mut elf_args = ElfArgs::new().unwrap();

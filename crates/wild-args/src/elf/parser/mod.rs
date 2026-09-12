@@ -235,6 +235,18 @@ pub(super) fn setup_argument_parser() -> ArgumentParser<ElfArgs> {
             Ok(())
         });
 
+    // Clang/LLD pass `-mllvm <opt>` (two tokens). Matched as a short option so
+    // it is not swallowed by `-m` emulation (`-mllvm` would otherwise be `-m llvm`).
+    parser
+        .declare_with_param()
+        .short("mllvm")
+        .help("Pass an option to the LTO plugin (alias for --plugin-opt)")
+        .execute(|args, _modifier_stack, value| {
+            args.plugin_args
+                .push(CString::new(value).context("Invalid -mllvm argument")?);
+            Ok(())
+        });
+
     parser
         .declare_with_param()
         .long("dependency-file")

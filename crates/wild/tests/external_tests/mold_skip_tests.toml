@@ -194,15 +194,15 @@ tests = [
 ]
 
 [skipped_groups.lto]
-reason = "Failing LTO tests."
+reason = "LTO policy/coverage owned in Wild tests, not mold's exact assertions."
 tests = [
-  "lto-no-plugin.sh",       # We don't currently support LTO without an explicit plugin
-  "lto-gcc.sh",             # We don't currently support LTO without an explicit plugin
-  "lto-llvm2.sh",           # -m llvm is not yet supported
-  "duplicate-error-lto.sh", # Wild deduplicates inputs
-  "lto-comdat.sh",          # We don't support COMDAT
-  "lto-archive4.sh",
-  "lto-mixed-gcc-fat.sh",
+  "lto-no-plugin.sh",       # Mold errors if IR has no plugin; Wild auto-discovers (lto-no-plugin, *-no-plugin)
+  "lto-gcc.sh",             # FAT / -fno-use-linker-plugin / WPA verbose paths; Wild covers gcc fat/slim/auto
+  "lto-llvm2.sh",           # Was `-mllvm` vs `-m` emulation; Wild now aliases `-mllvm` to `--plugin-opt` (clang-mllvm)
+  "duplicate-error-lto.sh", # Mold errors on duplicate IR; Wild deduplicates (keep)
+  "lto-comdat.sh",          # Owned by elf/lto-comdat (C++ template COMDAT + GCC/Clang LTO)
+  "lto-archive4.sh",        # Asm-invisible symbols then LTO redefinition (mold #1421); not owned yet
+  "lto-mixed-gcc-fat.sh",   # Owned by linker-plugin-lto mixed-gcc-fat-llvm
 ]
 
 [skipped_groups.uncommon]

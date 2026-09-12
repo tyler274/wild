@@ -70,6 +70,15 @@ wasm = ["libwild/wasm"]
 
 macho = ["libwild/macho"]
 
+# Statically embed mimalloc-rs (musl releases). Mutually exclusive with
+# `mimalloc-dynamic` and `dhat`.
+mimalloc = ["dep:mimalloc"]
+
+# Dynamically link libmimalloc.so. Mutually exclusive with `mimalloc` and `dhat`.
+mimalloc-dynamic = []
+
+dhat = ["dep:dhat"]
+
 # external tests
 external_tests = ["mold_tests", "lld_tests"]
 mold_tests = []

@@ -383,6 +383,12 @@ let
       export CC="${gccUnwrapped}"
       export CXX="${gxxUnwrapped}"
 
+      if [ "''${WILD_GLIBC_FULL_CHECK:-}" = 1 ]; then
+        echo "WILD_GLIBC_FULL_CHECK=1: running make check"
+        make -C "$build" check
+        exit $?
+      fi
+
       pass=0
       fail=0
       failed=()

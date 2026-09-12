@@ -17,6 +17,7 @@ use wild_platform::program_segments::ProgramSegments;
 use wild_platform::{Args as _, SectionAttributes as _, SectionFlags as _};
 use wild_scripts::linker_script::Expression;
 use wild_util::alignment::Alignment;
+use wild_util::layout::{align_vma_lma, gnu_default_lma};
 
 pub fn compute_layout_sections<'data, P: EnginePlatform>(
     group_states: &[GroupState<'data, P>],
@@ -738,37 +739,6 @@ pub fn pick_compatible_memory_region<'data>(
         }
     }
     None
-}
-
-fn gnu_default_lma(mem_offset: u64, region_lma_end: Option<u64>, keep_running_lma: bool) -> u64 {
-    if keep_running_lma {
-        // GNU: later sections in a VMA region whose previous section had LMA ≠
-        // VMA (typically `AT>`) continue from that section's LMA end. Do not use
-        // the global LMA cursor: a new PT_LOAD may have reset it to VMA.
-        region_lma_end.unwrap_or(mem_offset)
-    } else {
-        mem_offset
-    }
-}
-
-fn align_vma_lma(
-    mem_offset: u64,
-    lma_offset: u64,
-    alignment: Alignment,
-    align_with_input: bool,
-    freeze_lma: bool,
-) -> (u64, u64) {
-    let new_mem = alignment.align_up(mem_offset);
-    let new_lma = if freeze_lma && !align_with_input {
-        // GNU default AT> continuation: VMA alignment can open a gap that LMA
-        // does not. Independent `align_up` on LMA would invent a new delta.
-        lma_offset
-    } else if align_with_input {
-        lma_offset + (new_mem - mem_offset)
-    } else {
-        alignment.align_up(lma_offset)
-    };
-    (new_mem, new_lma)
 }
 
 pub fn memory_flags_match(

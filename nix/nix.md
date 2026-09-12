@@ -112,6 +112,25 @@ in
 callPackage ./package.nix { rustPlatform = wildRustPlatform; }
 ```
 
+## Development shell
+
+`nix develop` (or `nix-shell nix/shell.nix`) is the local environment for
+building, testing, debugging, and benchmarking Wild. It wraps **LLVM 22** clang /
+LLVMgold / lld / lldb so they match rustup nightly's LLVM, plus GCC with the
+LTO plugin search path, mold, glibc (static + source for relink tests), and:
+
+* `mimalloc` + `pkg-config` for `--features mimalloc-dynamic`
+* `gdb`, `lldb`, `elfutils`, `valgrind`, `strace` for inspecting links
+* `hyperfine` and `samply` (see [BENCHMARKING.md](../BENCHMARKING.md))
+* `bc`, `pahole`, `rsync`, `openssl`, `ncurses` for optional kernel rebuilds
+* `zstd` for `scripts/pack-vmlinux-objects.sh` / `pack-vmlinux-lto-objects.sh`
+* `cmake` / `ninja` for opt-in userspace package trees
+
+Kani is not in nixpkgs. Install it with `cargo install --locked kani-verifier &&
+cargo kani setup`, then `./scripts/kani.sh`. Firefox, Blender, Chrome, and kernel
+source trees are **not** pulled into the shell; point `WILD_*_TREE` /
+`WILD_*_LINK` at local checkouts.
+
 ## Glibc relink tests
 
 `nix develop` (or `nix-shell nix/shell.nix`) puts glibc's build tools on `PATH` (`python3`, `bison`,
@@ -138,5 +157,6 @@ wild-glibc-check
 
 That swaps Wild-linked `libc.so` / `ld.so` (and `libm.so` / `libresolv.so` / stubs when the relink
 tests produced them) into `$WILD_GLIBC_BUILD`, runs a `make test` subset (TLS, IFUNC, RELR, ctors,
-malloc, libm, nptl), and restores the GNU oracles. Single tests:
+malloc, libm, nptl), and restores the GNU oracles. `WILD_GLIBC_FULL_CHECK=1` runs `make check`
+instead. Single tests:
 `make -C "$WILD_GLIBC_BUILD" test t=elf/tst-tls1`.

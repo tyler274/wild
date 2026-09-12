@@ -126,6 +126,66 @@ jobs:
       - name: Diff key symbols against GNU ld
         run: WILD_LINUX_TREE="$PWD/linux" cargo test --profile ci -p wild-linker --no-default-features --features fork,zstd --test integration_tests -- vmlinux
 
+  vmlinux-lto:
+    name: Link x86_64 ThinLTO vmlinux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    if: ${{ vars.WILD_LINUX_LTO_OBJECTS_URL != '' }}
+    container:
+      image: "ghcr.io/wild-linker/wild/ci-ubuntu-cross-amd64:sha-fc8fa6975269300dacfc3c8fff06b3ba2f96721b"
+    env:
+      WILD_LINUX_LTO_OBJECTS_URL: ${{ vars.WILD_LINUX_LTO_OBJECTS_URL }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: wild-linker/action@latest
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch prebuilt ThinLTO vmlinux objects
+        run: |
+          mkdir -p linux-lto
+          curl -fsSL "$WILD_LINUX_LTO_OBJECTS_URL" -o vmlinux-lto-objects.tar.zst
+          tar -C linux-lto -xf vmlinux-lto-objects.tar.zst
+      - run: cargo build --profile ci -p wild-linker --no-default-features --features fork,zstd,plugins
+      - name: Diff key symbols against LLD
+        run: WILD_LINUX_LTO_TREE="$PWD/linux-lto" cargo test --profile ci -p wild-linker --no-default-features --features fork,zstd,plugins --test integration_tests -- vmlinux-lto
+
+  kani:
+    name: Kani
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: model-checking/kani-github-action@v1.1
+        with:
+          kani-version: '0.67.0'
+          args: '-p wild-util'
+
+  mimalloc:
+    name: mimalloc
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    container:
+      image: "ghcr.io/wild-linker/wild/ci-ubuntu-cross-amd64:sha-fc8fa6975269300dacfc3c8fff06b3ba2f96721b"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: wild-linker/action@latest
+      - uses: Swatinem/rust-cache@v2
+      - run: echo "WILD_TEST_CONFIG=test-config-ci.toml" >> $GITHUB_ENV
+      - name: Static mimalloc-rs
+        run: |
+          cargo build --profile ci -p wild-linker --no-default-features --features fork,zstd,mimalloc
+          cargo test --profile ci -p wild-linker --no-default-features --features fork,zstd,mimalloc --test integration_tests -- trivial
+      - name: Dynamic libmimalloc
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends libmimalloc-dev pkg-config
+          cargo build --profile ci -p wild-linker --no-default-features --features fork,zstd,mimalloc-dynamic
+          cargo test --profile ci -p wild-linker --no-default-features --features fork,zstd,mimalloc-dynamic --test integration_tests -- trivial
+
   linux-cross-build:
     name: Build Linux (${{ matrix.arch }})
     runs-on: ubuntu-24.04

@@ -350,7 +350,13 @@ impl InputFileData for OsInputFile {
     }
 
     fn verify_unchanged(&self) -> std::io::Result<bool> {
-        Ok(std::fs::metadata(&self.path)?.modified()? == self.modification_time)
+        match std::fs::metadata(&self.path) {
+            Ok(meta) => Ok(meta.modified()? == self.modification_time),
+            // LTO plugins often unlink generated objects after we map them. The mmap still
+            // holds the original inode; a missing path is not a mid-link rewrite.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(true),
+            Err(e) => Err(e),
+        }
     }
 }
 
