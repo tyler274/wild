@@ -247,9 +247,8 @@ fn write_uleb128(out: &mut Vec<u8>, value: u64) {
 mod tests {
     use super::*;
     use itertools::Itertools;
-    use object::LittleEndian;
-    use object::macho;
     use object::read::macho::ExportData;
+    use object::{LittleEndian, macho};
 
     #[derive(Debug, PartialEq, Eq)]
     struct ParsedSymbol {

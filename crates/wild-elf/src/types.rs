@@ -1,28 +1,19 @@
-use super::DynamicTagValues;
-use super::NoteProperty;
-use crate::writable_elf::WritableCompressionHeader;
-use crate::writable_elf::WritableDynamicEntry;
-use crate::writable_elf::WritableFileHeader;
-use crate::writable_elf::WritableNoteHeader;
-use crate::writable_elf::WritableProgramHeader;
-use crate::writable_elf::WritableRela;
-use crate::writable_elf::WritableRelr;
-use crate::writable_elf::WritableSectionHeader;
-use crate::writable_elf::WritableSymbol;
+use super::{DynamicTagValues, NoteProperty};
+use crate::writable_elf::{
+    WritableCompressionHeader, WritableDynamicEntry, WritableFileHeader, WritableNoteHeader,
+    WritableProgramHeader, WritableRela, WritableRelr, WritableSectionHeader, WritableSymbol,
+};
 use object::LittleEndian;
-use object::read::elf::Crel;
-use object::read::elf::CrelIterator;
+use object::read::elf::{Crel, CrelIterator};
 use std::marker::PhantomData;
 use std::ops::Range;
 use wild_error::error;
 use wild_error::error::Result;
 use wild_platform as platform;
-use wild_platform::Relocation;
-use wild_platform::RelocationSequence;
+use wild_platform::{Relocation, RelocationSequence};
 use wild_util::alignment::Alignment;
 use wild_util::arch::Architecture;
-use zerocopy::FromBytes;
-use zerocopy::IntoBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 pub trait ElfWord: Copy + FromBytes + IntoBytes + Into<u64> + Send + Sync {
     fn from_u64(value: u64) -> Result<Self>;

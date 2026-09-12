@@ -1,35 +1,19 @@
 //! Equality bounds that pin `Platform` associated engine types to this crate's concrete types.
 
-use crate::CommonGroupState;
-use crate::DynamicLayoutState;
-use crate::DynamicSymbolDefinition;
-use crate::FinaliseLayoutResources;
-use crate::FinaliseSizesResources;
-use crate::GraphResources;
-use crate::GroupState;
-use crate::HeaderInfo;
-use crate::Layout;
-use crate::LocalWorkQueue;
-use crate::ObjectLayoutState;
-use crate::OutputRecordLayout;
-use crate::PreludeLayoutState;
-use crate::Resolution;
-use crate::ResolutionWriter;
-use crate::StubLibraryLayoutState;
-use crate::SymbolResolutions;
-use crate::grouping::Group;
-use crate::grouping::SequencedLinkerScript;
+use crate::grouping::{Group, SequencedLinkerScript};
 use crate::layout_rules::LayoutRulesBuilder;
-use crate::parsing::InternalSymDefInfo;
-use crate::parsing::InternalSymbolsBuilder;
-use crate::resolution::LoadedMetrics;
-use crate::resolution::ResolutionResources;
-use crate::resolution::ResolvedDynamic;
-use crate::resolution::ResolvedObject;
-use crate::resolution::ResolvedStubLibrary;
-use crate::resolution::Resolver;
-use crate::resolution::UnloadedSection;
+use crate::parsing::{InternalSymDefInfo, InternalSymbolsBuilder};
+use crate::resolution::{
+    LoadedMetrics, ResolutionResources, ResolvedDynamic, ResolvedObject, ResolvedStubLibrary,
+    Resolver, UnloadedSection,
+};
 use crate::symbol_db::SymbolDb;
+use crate::{
+    CommonGroupState, DynamicLayoutState, DynamicSymbolDefinition, FinaliseLayoutResources,
+    FinaliseSizesResources, GraphResources, GroupState, HeaderInfo, Layout, LocalWorkQueue,
+    ObjectLayoutState, OutputRecordLayout, PreludeLayoutState, Resolution, ResolutionWriter,
+    StubLibraryLayoutState, SymbolResolutions,
+};
 use wild_platform::Platform;
 
 pub trait EnginePlatform:

@@ -1,26 +1,17 @@
-use super::types::ParsedSymbolMatcher;
-use super::types::RegularVersionScript;
-use super::types::RustVersionScript;
-use super::types::SymbolMatcher;
-use super::types::Version;
-use super::types::VersionBody;
-use super::types::VersionRuleSection;
-use super::types::VersionScript;
+use super::types::{
+    ParsedSymbolMatcher, RegularVersionScript, RustVersionScript, SymbolMatcher, Version,
+    VersionBody, VersionRuleSection, VersionScript,
+};
 use crate::linker_script::skip_comments_and_whitespace;
 use crate::script_data::ScriptData;
 use glob::Pattern;
 use hashbrown::HashMap;
 use wild_error::error;
 use wild_error::error::Result;
-use wild_util::glob_match::GlobPatternType;
-use wild_util::glob_match::analyze_glob_pattern;
-use wild_util::glob_match::compile_glob_pattern;
-use winnow::BStr;
-use winnow::Parser;
-use winnow::error::ContextError;
-use winnow::error::FromExternalError;
-use winnow::token::take_until;
-use winnow::token::take_while;
+use wild_util::glob_match::{GlobPatternType, analyze_glob_pattern, compile_glob_pattern};
+use winnow::error::{ContextError, FromExternalError};
+use winnow::token::{take_until, take_while};
+use winnow::{BStr, Parser};
 
 fn parse_version_script<'input>(input: &mut &'input BStr) -> winnow::Result<VersionScript<'input>> {
     // List of version names in the script, used to map parent version to version indexes
@@ -426,8 +417,7 @@ impl std::fmt::Display for VersionScriptError {
 mod tests {
     use super::*;
     use hashbrown::HashSet;
-    use itertools::Itertools;
-    use itertools::assert_equal;
+    use itertools::{Itertools, assert_equal};
     use wild_util::symbol_name::UnversionedSymbolName;
 
     fn is_matching_global<'data>(script: &RegularVersionScript<'data>, name: &str) -> bool {

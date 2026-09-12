@@ -1,41 +1,21 @@
 use super::SymbolId;
-use super::db::PendingSymbol;
-use super::db::PendingVersionedSymbol;
-use super::db::SymbolBucket;
-use crate::EnginePlatform;
-use crate::grouping::Group;
-use crate::grouping::SequencedInputObject;
-use crate::grouping::SequencedLinkerScript;
+use super::db::{PendingSymbol, PendingVersionedSymbol, SymbolBucket};
+use crate::grouping::{Group, SequencedInputObject, SequencedLinkerScript};
 use crate::output_section_id::OutputSectionId;
-use crate::parsing::InternalSymDefInfo;
-use crate::parsing::Prelude;
-use crate::parsing::Redirect;
-use crate::parsing::SymbolLoc;
-use crate::parsing::SymbolPlacement;
+use crate::parsing::{InternalSymDefInfo, Prelude, Redirect, SymbolLoc, SymbolPlacement};
 use crate::symbol::UnversionedSymbolName;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
-use rayon::iter::IndexedParallelIterator;
-use rayon::iter::IntoParallelRefMutIterator as _;
-use rayon::iter::ParallelIterator;
+use crate::{EnginePlatform, timing_phase, verbose_timing_phase};
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator as _, ParallelIterator};
 use wild_error::error;
-use wild_error::error::Context as _;
-use wild_error::error::Error;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Error, Result};
 use wild_platform as platform;
-use wild_platform::FileId;
-use wild_platform::ObjectFile;
-use wild_platform::OutputKind;
-use wild_platform::PRELUDE_FILE_ID;
-use wild_platform::Platform;
-use wild_platform::RawSymbolName as _;
-use wild_platform::Symbol;
-use wild_platform::value_flags::RawFlags;
-use wild_platform::value_flags::ValueFlags;
+use wild_platform::value_flags::{RawFlags, ValueFlags};
+use wild_platform::{
+    FileId, ObjectFile, OutputKind, PRELUDE_FILE_ID, Platform, RawSymbolName as _, Symbol,
+};
 use wild_scripts::export_list::ExportList;
 use wild_scripts::version_script::VersionScript;
-use wild_util::hash::PreHashed;
-use wild_util::hash::hash_bytes;
+use wild_util::hash::{PreHashed, hash_bytes};
 
 pub(super) struct SymbolLoadOutputs<'data> {
     /// Pending non-versioned symbols, grouped by hash bucket.

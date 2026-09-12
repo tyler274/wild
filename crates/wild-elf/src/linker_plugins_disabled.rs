@@ -3,8 +3,7 @@
 #![allow(clippy::unnecessary_wraps)]
 #![allow(clippy::needless_pass_by_ref_mut)]
 
-use crate::Elf;
-use crate::ElfClass;
+use crate::{Elf, ElfClass};
 use rayon::Scope;
 use std::marker::PhantomData;
 use wild_args::elf::ElfArgs;
@@ -13,9 +12,7 @@ use wild_layout::grouping::LtoInput;
 use wild_layout::layout_rules::LayoutRulesBuilder;
 use wild_layout::output_section_id::OutputSections;
 use wild_layout::resolution::Resolver;
-use wild_layout::symbol_db::LoadedInputs;
-use wild_layout::symbol_db::SymbolDb;
-use wild_layout::symbol_db::SymbolId;
+use wild_layout::symbol_db::{LoadedInputs, SymbolDb, SymbolId};
 use wild_platform::value_flags::PerSymbolFlags;
 
 pub(crate) struct LoadedPlugin {}

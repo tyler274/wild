@@ -1,24 +1,17 @@
-use super::ResolvedLocationCounter;
-use super::SymbolValue;
+use super::{ResolvedLocationCounter, SymbolValue};
 use crate as layout;
-use crate::EnginePlatform;
-use crate::FileLayoutState;
-use crate::GroupState;
-use crate::InputSectionPositions;
-use crate::MemoryRegion;
-use crate::OutputRecordLayout;
 use crate::grouping::Group;
 use crate::layout_rules::SectionKind;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::OutputSections;
+use crate::output_section_id::{OutputSectionId, OutputSections};
 use crate::output_section_part_map::OutputSectionPartMap;
-use crate::parsing::SymbolLoc;
-use crate::parsing::SymbolPlacement;
+use crate::parsing::{SymbolLoc, SymbolPlacement};
 use crate::symbol::UnversionedSymbolName;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
-use hashbrown::HashMap;
-use hashbrown::HashSet;
+use crate::symbol_db::{SymbolDb, SymbolId};
+use crate::{
+    EnginePlatform, FileLayoutState, GroupState, InputSectionPositions, MemoryRegion,
+    OutputRecordLayout,
+};
+use hashbrown::{HashMap, HashSet};
 use std::cell::OnceCell;
 use wild_error::bail;
 use wild_error::error::Result;

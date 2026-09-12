@@ -1,30 +1,22 @@
 mod table;
 mod versions;
 
-use super::types::ElfLayout;
-use super::types::TableWriter;
+use super::types::{ElfLayout, TableWriter};
 use crate as elf;
-use crate::ElfClass;
-use crate::Versym;
-use crate::debug_assert_bail;
-use crate::output_section_id;
 use crate::writable_elf::WritableSymbol as _;
+use crate::{ElfClass, Versym, debug_assert_bail, output_section_id};
 use object::read::elf::Sym as _;
-use rayon::iter::ParallelBridge as _;
-use rayon::iter::ParallelIterator as _;
+use rayon::iter::{ParallelBridge as _, ParallelIterator as _};
 #[allow(unused_imports)]
 pub(crate) use table::*;
 #[allow(unused_imports)]
 pub(crate) use versions::*;
 use wild_error::bail;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
-use wild_layout::DynamicLayout;
-use wild_layout::FileLayout;
-use wild_layout::LinkerScriptLayoutState;
-use wild_layout::ObjectLayout;
-use wild_layout::PreludeLayout;
+use wild_error::error::{Context as _, Result};
 use wild_layout::symbol_db::SymbolId;
+use wild_layout::{
+    DynamicLayout, FileLayout, LinkerScriptLayoutState, ObjectLayout, PreludeLayout,
+};
 use wild_platform as platform;
 use wild_platform::ObjectFile;
 use wild_platform::value_flags::ValueFlags;

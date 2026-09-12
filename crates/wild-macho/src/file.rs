@@ -1,29 +1,18 @@
-use super::DynamicLayoutStateExt;
-use super::MachO;
 #[allow(unused_imports)]
 use super::types::DynamicTagValues;
-use super::types::LE;
-use super::types::NonAddressableIndexes;
-use super::types::ObjectLayoutStateExt;
-use super::types::RawSymbolName;
-use super::types::RelocationList;
-use super::types::SectionHeader;
-use super::types::SectionTable;
-use super::types::SymbolTable;
-use super::types::SymtabEntry;
-use super::types::VerneedTable;
+use super::types::{
+    LE, NonAddressableIndexes, ObjectLayoutStateExt, RawSymbolName, RelocationList, SectionHeader,
+    SectionTable, SymbolTable, SymtabEntry, VerneedTable,
+};
+use super::{DynamicLayoutStateExt, MachO};
 use object::macho;
 use object::macho::N_SECT;
-use object::read::macho::MachHeader;
-use object::read::macho::Nlist;
-use object::read::macho::Section;
-use object::read::macho::Segment;
+use object::read::macho::{MachHeader, Nlist, Section, Segment};
 use std::borrow::Cow;
 use std::slice::Iter;
 use wild_args::macho::MachOArgs;
-use wild_error::ensure;
-use wild_error::error;
 use wild_error::error::Result;
+use wild_error::{ensure, error};
 use wild_layout as layout;
 use wild_layout::file_writer::copy_section_data;
 use wild_platform as platform;

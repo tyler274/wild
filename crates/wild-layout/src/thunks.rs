@@ -23,27 +23,17 @@
 //!   object that made the reference.
 
 use crate as layout;
-use crate::EnginePlatform;
-use crate::FileLayoutState;
 use crate::output_section_id::OutputSections;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
-use crate::resolution;
 use crate::symbol_db::SymbolId;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
+use crate::{EnginePlatform, FileLayoutState, resolution, timing_phase, verbose_timing_phase};
 use crossbeam_queue::SegQueue;
 use itertools::Itertools as _;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::IntoParallelRefIterator;
-use rayon::iter::ParallelIterator as _;
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator as _};
 use std::collections::HashSet;
-use wild_platform::Arch;
-use wild_platform::FileId;
-use wild_platform::Platform;
-use wild_platform::SectionAttributes as _;
-use wild_platform::value_flags::FlagsForSymbol;
-use wild_platform::value_flags::ValueFlags;
+use wild_platform::value_flags::{FlagsForSymbol, ValueFlags};
+use wild_platform::{Arch, FileId, Platform, SectionAttributes as _};
 
 /// Identifies a ThunkBlock within a Vec.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]

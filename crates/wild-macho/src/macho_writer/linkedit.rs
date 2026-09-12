@@ -1,57 +1,27 @@
-use super::LE;
-use super::MachOLayout;
-use super::take_mut;
-use crate::CHAINED_FIXUP_PAGE_START_SIZE;
-use crate::CS_BLOB_HEADERS_SIZE;
-use crate::CS_BLOCK_SIZE;
-use crate::CS_BLOCK_SIZE_EXP;
-use crate::CS_CODE_DIRECTORY_SIZE;
-use crate::CS_HASH_SIZE;
-use crate::CS_HEADERS_SIZE;
-use crate::ChainedFixupsHeader;
-use crate::ChainedStartsInSegment;
-use crate::MAX_SEGMENT_COUNT;
-use crate::SegmentName;
-use crate::UuidCommand;
-use crate::code_signature_identifier;
-use crate::code_signature_padded_identifier_size;
-use crate::output_section_id;
+use super::{LE, MachOLayout, take_mut};
+use crate::{
+    CHAINED_FIXUP_PAGE_START_SIZE, CS_BLOB_HEADERS_SIZE, CS_BLOCK_SIZE, CS_BLOCK_SIZE_EXP,
+    CS_CODE_DIRECTORY_SIZE, CS_HASH_SIZE, CS_HEADERS_SIZE, ChainedFixupsHeader,
+    ChainedStartsInSegment, MAX_SEGMENT_COUNT, SegmentName, UuidCommand, code_signature_identifier,
+    code_signature_padded_identifier_size, output_section_id,
+};
 use itertools::Itertools;
-use object::Endianness;
-use object::U16;
-use object::U32;
-use object::from_bytes_mut;
-use object::macho::CS_ADHOC;
-use object::macho::CS_EXECSEG_MAIN_BINARY;
-use object::macho::CS_HASHTYPE_SHA256;
-use object::macho::CS_LINKER_SIGNED;
-use object::macho::CS_SUPPORTSEXECSEG;
-use object::macho::CSSLOT_CODEDIRECTORY;
-use object::macho::DYLD_CHAINED_IMPORT;
-use object::macho::DYLD_CHAINED_PTR_64_OFFSET;
-use object::macho::LC_UUID;
-use object::macho::LoadCommand;
-use object::slice_from_bytes_mut;
-use object::write::macho::CodeDirectory;
-use object::write::macho::CodeSignatureEncoder;
+use object::macho::{
+    CS_ADHOC, CS_EXECSEG_MAIN_BINARY, CS_HASHTYPE_SHA256, CS_LINKER_SIGNED, CS_SUPPORTSEXECSEG,
+    CSSLOT_CODEDIRECTORY, DYLD_CHAINED_IMPORT, DYLD_CHAINED_PTR_64_OFFSET, LC_UUID, LoadCommand,
+};
+use object::write::macho::{CodeDirectory, CodeSignatureEncoder};
+use object::{Endianness, U16, U32, from_bytes_mut, slice_from_bytes_mut};
 use rayon::iter::ParallelIterator;
 use rayon::slice::ParallelSlice;
-use sha2::Digest;
-use sha2::Sha256;
-use wild_error::bail;
-use wild_error::ensure;
-use wild_error::error;
-use wild_error::error::Context;
-use wild_error::error::Result;
+use sha2::{Digest, Sha256};
+use wild_error::error::{Context, Result};
+use wild_error::{bail, ensure, error};
 use wild_fs::fs::OutputFileData;
-use wild_layout::FileLayout;
-use wild_layout::SegmentLayout;
-use wild_layout::file_writer::SizedOutput;
-use wild_layout::file_writer::split_output_into_sections;
+use wild_layout::file_writer::{SizedOutput, split_output_into_sections};
 use wild_layout::symbol_db::SymbolId;
-use wild_layout::verbose_timing_phase;
-use wild_platform::ObjectFile;
-use wild_platform::Symbol;
+use wild_layout::{FileLayout, SegmentLayout, verbose_timing_phase};
+use wild_platform::{ObjectFile, Symbol};
 use wild_util::alignment::MACHO_PAGE_ALIGNMENT;
 use zerocopy::FromZeros;
 

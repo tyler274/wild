@@ -7,8 +7,7 @@ use crate::EnginePlatform;
 use crate::output_section_id::OutputSectionId;
 #[allow(unused_imports)]
 pub use builder::*;
-use hashbrown::HashSet;
-use hashbrown::HashTable;
+use hashbrown::{HashSet, HashTable};
 #[allow(unused_imports)]
 pub use types::*;
 use wild_platform::SectionHeader;

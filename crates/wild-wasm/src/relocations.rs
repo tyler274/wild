@@ -1,13 +1,8 @@
-use crate::WasmDataSegmentLayout;
-use crate::WasmSymbol;
-use crate::WasmSymbolKind;
+use crate::{WasmDataSegmentLayout, WasmSymbol, WasmSymbolKind};
 use std::ops::Range;
-use wasmparser::BinaryReader;
-use wasmparser::RelocationEntry;
-use wasmparser::RelocationType;
-use wild_error::bail;
-use wild_error::ensure;
+use wasmparser::{BinaryReader, RelocationEntry, RelocationType};
 use wild_error::error::Result;
+use wild_error::{bail, ensure};
 
 #[derive(Debug, Clone)]
 pub(crate) struct WasmRelocSection {

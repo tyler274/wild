@@ -1,69 +1,35 @@
-use super::AtomicSymbolId;
-use super::SymbolId;
-use super::SymbolIdRange;
-use super::SymbolNameDisplay;
-use super::load::SymbolVecWriters;
 #[cfg(not(all(feature = "plugins", unix)))]
 use super::load::linker_plugin_disabled_error;
-use super::load::num_symbol_hash_buckets;
-use super::load::populate_symbol_db;
-use super::load::read_symbols;
-use super::select::SymbolPrioritySelector;
-use super::select::SymbolStrength;
-use super::select::Visibility;
-use super::select::is_mapping_symbol_name;
-use crate::EnginePlatform;
-use crate::grouping;
-use crate::grouping::Group;
-use crate::grouping::LoadedStubLibrary;
-use crate::grouping::SequencedInput;
-use crate::grouping::UnsequencedLtoInput;
+use super::load::{SymbolVecWriters, num_symbol_hash_buckets, populate_symbol_db, read_symbols};
+use super::select::{SymbolPrioritySelector, SymbolStrength, Visibility, is_mapping_symbol_name};
+use super::{AtomicSymbolId, SymbolId, SymbolIdRange, SymbolNameDisplay};
+use crate::grouping::{Group, LoadedStubLibrary, SequencedInput, UnsequencedLtoInput};
 use crate::layout_rules::LayoutRulesBuilder;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::OutputSections;
-use crate::parsing;
-use crate::parsing::InternalSymDefInfo;
-use crate::parsing::ParsedInputObject;
-use crate::parsing::SyntheticSymbols;
+use crate::output_section_id::{OutputSectionId, OutputSections};
+use crate::parsing::{InternalSymDefInfo, ParsedInputObject, SyntheticSymbols};
 use crate::part_id::PartId;
-use crate::resolution::ResolvedFile;
-use crate::resolution::ResolvedGroup;
-use crate::resolution::ResolvedSyntheticSymbols;
-use crate::symbol::PreHashedSymbolName;
-use crate::symbol::UnversionedSymbolName;
-use crate::symbol::VersionedSymbolName;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
-use hashbrown::HashMap;
-use hashbrown::hash_map;
+use crate::resolution::{ResolvedFile, ResolvedGroup, ResolvedSyntheticSymbols};
+use crate::symbol::{PreHashedSymbolName, UnversionedSymbolName, VersionedSymbolName};
+use crate::{EnginePlatform, grouping, parsing, timing_phase, verbose_timing_phase};
+use hashbrown::{HashMap, hash_map};
 use itertools::Itertools;
-use rayon::iter::IntoParallelRefIterator;
-use rayon::iter::IntoParallelRefMutIterator;
-use rayon::iter::ParallelIterator;
+use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use std::mem::take;
 use symbolic_demangle::demangle;
 use wild_args::InputLinkerScript;
 use wild_error::error::Result;
-use wild_platform::Args;
-use wild_platform::EntryPoint;
-use wild_platform::FileId;
-use wild_platform::ObjectFile;
-use wild_platform::OutputKind;
-use wild_platform::PRELUDE_FILE_ID;
-use wild_platform::Platform;
-use wild_platform::SectionHeader;
-use wild_platform::Symbol;
 use wild_platform::output_section_map::OutputSectionMap;
-use wild_platform::value_flags::FlagsForSymbol;
-use wild_platform::value_flags::PerSymbolFlags;
-use wild_platform::value_flags::ValueFlags;
+use wild_platform::value_flags::{FlagsForSymbol, PerSymbolFlags, ValueFlags};
+use wild_platform::{
+    Args, EntryPoint, FileId, ObjectFile, OutputKind, PRELUDE_FILE_ID, Platform, SectionHeader,
+    Symbol,
+};
 use wild_scripts::export_list::ExportList;
 use wild_scripts::linker_script::Command;
-use wild_scripts::version_script::RustVersionScript;
-use wild_scripts::version_script::VersionScript;
-use wild_scripts::version_script::combine_version_script_bodies;
-use wild_util::hash::PassThroughHashMap;
-use wild_util::hash::PreHashed;
+use wild_scripts::version_script::{
+    RustVersionScript, VersionScript, combine_version_script_bodies,
+};
+use wild_util::hash::{PassThroughHashMap, PreHashed};
 use wild_util::sharding::ShardKey;
 
 #[derive(Default)]

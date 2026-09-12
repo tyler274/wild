@@ -1,34 +1,18 @@
-use super::SinglePartSectionId;
-use super::WASM_MAGIC;
-use super::Wasm;
-use crate::File;
-use crate::SectionHeader;
-use crate::WasmGcUnit;
-use crate::WasmLayout;
-use crate::WasmLinkerSymbol;
-use crate::WasmObjectLayout;
-use crate::WasmRelocation;
-use crate::WasmSymbol;
-use crate::WasmSymbolKind;
-use crate::build_output_module_layout;
-use crate::enqueue_wasm_gc_roots;
-use crate::mark_all_wasm_units_live_and_scan_relocs;
-use crate::note_wasm_import_unit_definition;
-use crate::walk_wasm_gc_unit_edges;
-use crate::wasm_gc_unit_for_symbol;
-use wasmparser::RelocationType;
-use wasmparser::SymbolFlags;
+use super::{SinglePartSectionId, WASM_MAGIC, Wasm};
+use crate::{
+    File, SectionHeader, WasmGcUnit, WasmLayout, WasmLinkerSymbol, WasmObjectLayout,
+    WasmRelocation, WasmSymbol, WasmSymbolKind, build_output_module_layout, enqueue_wasm_gc_roots,
+    mark_all_wasm_units_live_and_scan_relocs, note_wasm_import_unit_definition,
+    walk_wasm_gc_unit_edges, wasm_gc_unit_for_symbol,
+};
+use wasmparser::{RelocationType, SymbolFlags};
 use wild_args::wasm::WasmArgs;
 use wild_error::bail;
 use wild_error::error::Result;
 use wild_fs::fs::FileSystem;
 use wild_layout as layout;
-use wild_layout::layout_rules::SectionKind;
-use wild_layout::layout_rules::SectionRule;
-use wild_layout::layout_rules::SectionRuleOutcome;
-use wild_layout::output_section_id::OutputSectionId;
-use wild_layout::output_section_id::SectionIdentity;
-use wild_layout::output_section_id::SectionName;
+use wild_layout::layout_rules::{SectionKind, SectionRule, SectionRuleOutcome};
+use wild_layout::output_section_id::{OutputSectionId, SectionIdentity, SectionName};
 use wild_platform as platform;
 use wild_platform::Args as _;
 

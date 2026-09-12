@@ -1,16 +1,10 @@
 use crate::bit_misc::BitExtraction;
-use crate::elf::AArch64Instruction;
-use crate::elf::AllowedRange;
-use crate::elf::PAGE_MASK_4KB;
-use crate::elf::PageMask;
-use crate::elf::RelocationKind;
-use crate::elf::RelocationKindInfo;
-use crate::elf::RelocationSize;
-use crate::elf::Sign;
+use crate::elf::{
+    AArch64Instruction, AllowedRange, PAGE_MASK_4KB, PageMask, RelocationKind, RelocationKindInfo,
+    RelocationSize, Sign,
+};
 use crate::relaxation::RelocationModifier;
-use crate::utils::and_from_slice;
-use crate::utils::or_from_slice;
-use crate::utils::u32_from_slice;
+use crate::utils::{and_from_slice, or_from_slice, u32_from_slice};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RelaxationKind {

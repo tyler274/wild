@@ -4,10 +4,8 @@
 use colosseum::sync::Arena;
 use std::path::PathBuf;
 use std::sync::Arc;
-use wild_args::InputFileRef;
-use wild_args::Modifiers;
-use wild_fs::fs::FileSystem;
-use wild_fs::fs::InputFileData;
+use wild_args::{InputFileRef, Modifiers};
+use wild_fs::fs::{FileSystem, InputFileData};
 use wild_scripts::ScriptData;
 
 pub struct FileLoader<'data, F: FileSystem> {

@@ -1,8 +1,7 @@
 use super::part_id::PartId;
 use std::collections::BTreeMap;
 use std::mem::take;
-use std::ops::AddAssign;
-use std::ops::Range;
+use std::ops::{AddAssign, Range};
 
 /// A map from each part of each output section to some value. Different sections are split into
 /// parts in different ways. Sections that come from input files are split by alignment. Some

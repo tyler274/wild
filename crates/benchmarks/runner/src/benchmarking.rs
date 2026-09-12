@@ -1,20 +1,11 @@
-use crate::BatchResult;
-use crate::BenchArgs;
-use crate::Benchmark;
-use crate::BenchmarkResult;
-use crate::Benchmarks;
-use crate::Bin;
-use crate::LinkerKind;
-use crate::Result;
-use crate::Run;
 use crate::config::Config;
-use anyhow::Context as _;
-use anyhow::bail;
-use std::collections::BTreeSet;
-use std::collections::HashSet;
+use crate::{
+    BatchResult, BenchArgs, Benchmark, BenchmarkResult, Benchmarks, Bin, LinkerKind, Result, Run,
+};
+use anyhow::{Context as _, bail};
+use std::collections::{BTreeSet, HashSet};
 use std::io::Read as _;
-use std::process::Command;
-use std::process::Stdio;
+use std::process::{Command, Stdio};
 use std::time::Instant;
 use wait4::Wait4 as _;
 

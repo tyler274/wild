@@ -1,30 +1,17 @@
-use super::super::LINKING_SECTION_NAME;
-use super::super::RELOC_SECTION_PREFIX;
-use super::super::STANDARD_SECTION_LOOKUP_LEN;
-use super::super::TARGET_FEATURES_SECTION_NAME;
-use super::super::WASM_MAGIC;
-use super::super::WASM_VERSION;
-use super::super::section_id;
-use crate::File;
-use crate::SectionHeader;
-use crate::WasmInitFunc;
-use crate::WasmRelocSection;
-use crate::WasmSegmentInfo;
-use crate::WasmSymbol;
-use crate::WasmSymbolKind;
-use crate::WasmTargetFeature;
-use crate::backfill_unnamed_import_symbols;
-use crate::parse_target_features_payload;
+use super::super::{
+    LINKING_SECTION_NAME, RELOC_SECTION_PREFIX, STANDARD_SECTION_LOOKUP_LEN,
+    TARGET_FEATURES_SECTION_NAME, WASM_MAGIC, WASM_VERSION, section_id,
+};
+use crate::{
+    File, SectionHeader, WasmInitFunc, WasmRelocSection, WasmSegmentInfo, WasmSymbol,
+    WasmSymbolKind, WasmTargetFeature, backfill_unnamed_import_symbols,
+    parse_target_features_payload,
+};
 use linker_utils::utils::u32_from_slice;
 use std::ops::Range;
-use wasmparser::BinaryReader;
-use wasmparser::ImportSectionReader;
-use wasmparser::KnownCustom;
-use wasmparser::Linking;
-use wasmparser::Parser;
-use wasmparser::Payload;
-use wasmparser::SymbolInfo;
-use wasmparser::TypeRef;
+use wasmparser::{
+    BinaryReader, ImportSectionReader, KnownCustom, Linking, Parser, Payload, SymbolInfo, TypeRef,
+};
 use wild_error::ensure;
 use wild_error::error::Result;
 use wild_util::alignment::Alignment;

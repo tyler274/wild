@@ -1,49 +1,24 @@
-use super::types::LoadObjectSymbolsRequest;
-use super::types::MAX_SYMBOLS_PER_WORK_ITEM;
-use super::types::Outputs;
-use super::types::ResolvedCommon;
-use super::types::ResolvedDynamic;
-use super::types::ResolvedFile;
-use super::types::ResolvedGroup;
 #[cfg(all(feature = "plugins", unix))]
 use super::types::ResolvedLtoInput;
-use super::types::ResolvedObject;
-use super::types::ResolvedSyntheticSymbols;
-use super::types::SymbolAttributes;
-use super::types::UndefinedSymbol;
-use crate::EnginePlatform;
-use crate::grouping::Group;
-use crate::grouping::SequencedInputObject;
-use crate::output_section_id::OutputSections;
-use crate::output_section_id::SectionName;
-use crate::parsing::InternalSymDefInfo;
-use crate::parsing::SymbolPlacement;
-use crate::symbol::PreHashedSymbolName;
-use crate::symbol::UnversionedSymbolName;
-use crate::symbol::VersionedSymbolName;
-use crate::symbol_db;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
-use crate::symbol_db::SymbolStrength;
-use crate::symbol_db::Visibility;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
+use super::types::{
+    LoadObjectSymbolsRequest, MAX_SYMBOLS_PER_WORK_ITEM, Outputs, ResolvedCommon, ResolvedDynamic,
+    ResolvedFile, ResolvedGroup, ResolvedObject, ResolvedSyntheticSymbols, SymbolAttributes,
+    UndefinedSymbol,
+};
+use crate::grouping::{Group, SequencedInputObject};
+use crate::output_section_id::{OutputSections, SectionName};
+use crate::parsing::{InternalSymDefInfo, SymbolPlacement};
+use crate::symbol::{PreHashedSymbolName, UnversionedSymbolName, VersionedSymbolName};
+use crate::symbol_db::{SymbolDb, SymbolId, SymbolStrength, Visibility};
+use crate::{EnginePlatform, symbol_db, timing_phase, verbose_timing_phase};
 use atomic_take::AtomicTake;
 use rayon::Scope;
 use wild_error::debug_assert_bail;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
-use wild_platform::FileId;
-use wild_platform::ObjectFile;
-use wild_platform::PRELUDE_FILE_ID;
-use wild_platform::Platform;
-use wild_platform::Symbol as _;
-use wild_platform::value_flags::AtomicPerSymbolFlags;
-use wild_platform::value_flags::PerSymbolFlags;
-use wild_platform::value_flags::ValueFlags;
+use wild_error::error::{Context as _, Result};
+use wild_platform::value_flags::{AtomicPerSymbolFlags, PerSymbolFlags, ValueFlags};
+use wild_platform::{FileId, ObjectFile, PRELUDE_FILE_ID, Platform, Symbol as _};
 use wild_scripts::linker_script::Expression;
-use wild_util::hash::PassThroughHashMap;
-use wild_util::hash::PreHashed;
+use wild_util::hash::{PassThroughHashMap, PreHashed};
 
 pub struct ResolutionResources<'data, 'scope, P: Platform> {
     pub(super) definitions_per_file: &'scope Vec<Vec<AtomicTake<&'scope mut [SymbolId]>>>,

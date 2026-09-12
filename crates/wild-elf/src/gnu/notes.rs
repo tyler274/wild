@@ -1,45 +1,30 @@
-use super::CieAtOffset;
-use super::ExceptionFrames;
+use super::{CieAtOffset, ExceptionFrames};
 use crate::gdb_index::InputDebugIndexSection;
 #[allow(unused_imports)]
 use crate::types::Elf;
-use crate::types::ElfClass;
-use crate::types::File;
-use crate::types::File64;
+use crate::types::{ElfClass, File, File64};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use itertools::Itertools as _;
 use leb128::write::unsigned_len as uleb128_size;
 use linker_utils::elf::RISCV_ATTRIBUTE_VENDOR_NAME;
-use linker_utils::elf::riscvattr::TAG_RISCV_ARCH;
-use linker_utils::elf::riscvattr::TAG_RISCV_ATOMIC_ABI;
-use linker_utils::elf::riscvattr::TAG_RISCV_PRIV_SPEC;
-use linker_utils::elf::riscvattr::TAG_RISCV_PRIV_SPEC_MINOR;
-use linker_utils::elf::riscvattr::TAG_RISCV_PRIV_SPEC_REVISION;
-use linker_utils::elf::riscvattr::TAG_RISCV_STACK_ALIGN;
-use linker_utils::elf::riscvattr::TAG_RISCV_UNALIGNED_ACCESS;
-use linker_utils::elf::riscvattr::TAG_RISCV_WHOLE_FILE;
-use linker_utils::elf::riscvattr::TAG_RISCV_X3_REG_USAGE;
-use linker_utils::utils::read_string;
-use linker_utils::utils::read_u32;
-use linker_utils::utils::read_uleb128;
+use linker_utils::elf::riscvattr::{
+    TAG_RISCV_ARCH, TAG_RISCV_ATOMIC_ABI, TAG_RISCV_PRIV_SPEC, TAG_RISCV_PRIV_SPEC_MINOR,
+    TAG_RISCV_PRIV_SPEC_REVISION, TAG_RISCV_STACK_ALIGN, TAG_RISCV_UNALIGNED_ACCESS,
+    TAG_RISCV_WHOLE_FILE, TAG_RISCV_X3_REG_USAGE,
+};
+use linker_utils::utils::{read_string, read_u32, read_uleb128};
 use object::LittleEndian;
 use object::read::elf::SectionHeader as _;
 use smallvec::SmallVec;
 use std::num::NonZeroU32;
 use wild_args::elf::ElfArgs;
-use wild_error::bail;
-use wild_error::ensure;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
+use wild_error::{bail, ensure};
 use wild_layout as layout;
-use wild_layout::objects_iter;
-use wild_layout::timing_phase;
-use wild_platform::Arch;
-use wild_platform::ObjectFile;
-use zerocopy::FromBytes;
-use zerocopy::IntoBytes;
-use zerocopy::KnownLayout;
+use wild_layout::{objects_iter, timing_phase};
+use wild_platform::{Arch, ObjectFile};
+use zerocopy::{FromBytes, IntoBytes, KnownLayout};
 
 pub(crate) const GNU_NOTE_NAME: &[u8] = b"GNU\0";
 /// For additional information on Elf_Prop, see

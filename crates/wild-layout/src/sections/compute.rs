@@ -1,34 +1,20 @@
-use crate::EnginePlatform;
-use crate::GroupState;
-use crate::MemoryRegion;
-use crate::OutputRecordLayout;
-use crate::collect_const_script_symbols;
-use crate::compute_segment_alignments;
-use crate::expression_eval::ResolvedLocationCounter;
-use crate::expression_eval::evaluate_early_expression;
-use crate::layout_section_from_part_layouts;
-use crate::output_section_id::OrderEvent;
-use crate::output_section_id::OutputOrder;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::OutputSections;
+use crate::expression_eval::{ResolvedLocationCounter, evaluate_early_expression};
+use crate::output_section_id::{OrderEvent, OutputOrder, OutputSectionId, OutputSections};
 use crate::output_section_part_map::OutputSectionPartMap;
-use crate::packed_span;
 use crate::parsing::SymbolLoc;
 use crate::part_id::PartId;
 use crate::symbol_db::SymbolDb;
-use crate::timing_phase;
-use hashbrown::HashMap;
-use hashbrown::HashSet;
+use crate::{
+    EnginePlatform, GroupState, MemoryRegion, OutputRecordLayout, collect_const_script_symbols,
+    compute_segment_alignments, layout_section_from_part_layouts, packed_span, timing_phase,
+};
+use hashbrown::{HashMap, HashSet};
 use std::cell::OnceCell;
-use wild_error::bail;
-use wild_error::error;
-use wild_error::error::Context;
-use wild_error::error::Result;
-use wild_platform::Args as _;
-use wild_platform::SectionAttributes as _;
-use wild_platform::SectionFlags as _;
+use wild_error::error::{Context, Result};
+use wild_error::{bail, error};
 use wild_platform::output_section_map::OutputSectionMap;
 use wild_platform::program_segments::ProgramSegments;
+use wild_platform::{Args as _, SectionAttributes as _, SectionFlags as _};
 use wild_scripts::linker_script::Expression;
 use wild_util::alignment::Alignment;
 

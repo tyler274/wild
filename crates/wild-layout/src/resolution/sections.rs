@@ -1,48 +1,29 @@
-use super::types::LoadedMetrics;
-use super::types::ResolvedFile;
-use super::types::ResolvedGroup;
-use super::types::ResolvedObject;
-use super::types::ResolvedSyntheticSymbols;
-use super::types::SectionSlot;
-use super::types::StartStopCandidate;
-use super::types::UnloadedSection;
-use crate::EnginePlatform;
-use crate::LayoutRules;
-use crate::layout_rules::SectionOutputInfo;
-use crate::layout_rules::SectionRuleOutcome;
-use crate::layout_rules::SectionRules;
-use crate::output_section_id::CustomSectionDetails;
-use crate::output_section_id::InitFiniSectionDetail;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::OutputSections;
-use crate::output_section_id::SectionIdentity;
-use crate::output_section_id::SectionName;
-use crate::part_id;
+use super::types::{
+    LoadedMetrics, ResolvedFile, ResolvedGroup, ResolvedObject, ResolvedSyntheticSymbols,
+    SectionSlot, StartStopCandidate, UnloadedSection,
+};
+use crate::layout_rules::{SectionOutputInfo, SectionRuleOutcome, SectionRules};
+use crate::output_section_id::{
+    CustomSectionDetails, InitFiniSectionDetail, OutputSectionId, OutputSections, SectionIdentity,
+    SectionName,
+};
 use crate::part_id::PartId;
-use crate::string_merging::StringMergeSectionExtra;
-use crate::string_merging::StringMergeSectionSlot;
+use crate::string_merging::{StringMergeSectionExtra, StringMergeSectionSlot};
 use crate::symbol_db::SymbolDb;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
+use crate::{EnginePlatform, LayoutRules, part_id, timing_phase, verbose_timing_phase};
 use hashbrown::HashSet;
 use object::SectionIndex;
-use rayon::iter::IndexedParallelIterator;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::IntoParallelRefIterator;
-use rayon::iter::IntoParallelRefMutIterator;
-use rayon::iter::ParallelIterator;
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
+    IntoParallelRefMutIterator, ParallelIterator,
+};
 use std::borrow::Cow;
 use std::hash::BuildHasher as _;
 use wild_error::bail;
 use wild_error::error::Result;
-use wild_platform::Args as _;
-use wild_platform::ObjectFile;
-use wild_platform::OrphanHandling;
-use wild_platform::Platform;
-use wild_platform::SectionHeader as _;
+use wild_platform::{Args as _, ObjectFile, OrphanHandling, Platform, SectionHeader as _};
 use wild_util::alignment::Alignment;
-use wild_util::hash::PassThroughHashMap;
-use wild_util::hash::PreHashed;
+use wild_util::hash::{PassThroughHashMap, PreHashed};
 
 pub(super) fn resolve_sections<'data, P: EnginePlatform>(
     groups: &mut [ResolvedGroup<'data, P>],

@@ -1,10 +1,8 @@
 use crate::arch::ArchKind;
-use anyhow::Context;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use itertools::Itertools;
 use std::io::Write;
-use std::process::Command;
-use std::process::Stdio;
+use std::process::{Command, Stdio};
 use tempfile::NamedTempFile;
 
 pub fn decode_insn_with_objdump(insn: &[u8], address: u64, arch: ArchKind) -> Result<String> {

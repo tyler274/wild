@@ -1,7 +1,4 @@
-use crate::ArgumentParser;
-use crate::CommonArgs;
-use crate::Modifiers;
-use crate::OptionSyntax;
+use crate::{ArgumentParser, CommonArgs, Modifiers, OptionSyntax};
 use std::path::Path;
 use std::sync::Arc;
 use wild_error::bail;
@@ -356,13 +353,10 @@ fn parse_subsystem(value: &str) -> Result<Subsystem> {
 
 #[cfg(test)]
 mod tests {
-    use super::CoffArgs;
-    use super::Subsystem;
-    use super::parse;
+    use super::{CoffArgs, Subsystem, parse};
     use crate::InputSpec;
     use std::path::Path;
-    use std::sync::Arc;
-    use std::sync::Mutex;
+    use std::sync::{Arc, Mutex};
 
     /// A link line of the shape that rustc emits when targeting `x86_64-pc-windows-msvc`.
     const RUSTC_LINK_LINE: &[&str] = &[

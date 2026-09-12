@@ -1,22 +1,16 @@
 //! Support for saving inputs for later use.
 
-use crate::FileSystem;
 use crate::args::Modifiers;
-use crate::bail;
-use crate::error::Context as _;
-use crate::error::Result;
+use crate::error::{Context as _, Result};
 use crate::file_kind::FileKind;
 use crate::input_data::FileLoader;
-use crate::make_executable;
+use crate::{FileSystem, bail, make_executable};
 use foldhash::HashSet;
 use std::borrow::Cow;
-use std::io::BufWriter;
-use std::io::Write;
-use std::path::Path;
-use std::path::PathBuf;
+use std::io::{BufWriter, Write};
+use std::path::{Path, PathBuf};
 use wild_error::env;
-use wild_fs::archive::ArchiveEntry;
-use wild_fs::archive::ArchiveIterator;
+use wild_fs::archive::{ArchiveEntry, ArchiveIterator};
 use wild_platform as platform;
 use wild_scripts::linker_script::LinkerScript;
 

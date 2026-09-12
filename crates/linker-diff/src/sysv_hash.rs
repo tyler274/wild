@@ -1,16 +1,10 @@
-use crate::Binary;
-use crate::Result;
-use anyhow::Context;
-use anyhow::bail;
-use anyhow::ensure;
+use crate::{Binary, Result};
+use anyhow::{Context, bail, ensure};
 use itertools::Itertools;
 use linker_utils::elf::secnames::HASH_SECTION_NAME_STR;
-use object::Object as _;
-use object::ObjectSection as _;
-use object::ObjectSymbol as _;
-use object::ObjectSymbolTable;
-use object::SymbolIndex;
-use object::SymbolTable;
+use object::{
+    Object as _, ObjectSection as _, ObjectSymbol as _, ObjectSymbolTable, SymbolIndex, SymbolTable,
+};
 use std::convert::TryInto;
 
 pub(crate) fn check_object(obj: &Binary) -> Result {

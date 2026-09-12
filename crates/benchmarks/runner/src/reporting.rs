@@ -1,17 +1,9 @@
-use crate::BatchResult;
-use crate::BenchmarkResult;
-use crate::Benchmarks;
-use crate::LinkerKind;
-use crate::ReportArgs;
-use crate::Result;
-use crate::config::BenchConfig;
-use crate::config::Config;
+use crate::config::{BenchConfig, Config};
+use crate::{BatchResult, BenchmarkResult, Benchmarks, LinkerKind, ReportArgs, Result};
 use anyhow::Context as _;
 use std::collections::HashSet;
-use std::fmt::Display;
-use std::fmt::Write as _;
-use std::path::Path;
-use std::path::PathBuf;
+use std::fmt::{Display, Write as _};
+use std::path::{Path, PathBuf};
 
 const IMAGES_SUBDIR_NAME: &str = "images";
 

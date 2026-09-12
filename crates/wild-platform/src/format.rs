@@ -1,41 +1,25 @@
-use super::OutputKind;
 use super::cli::Args;
-use super::isa::Arch;
-use super::isa::ThunkConfig;
-use super::object::BuiltInSectionDetails;
-use super::object::DynamicTagValues;
-use super::object::NonAddressableIndexes;
-use super::object::ObjectFile;
-use super::object::ProgramSegmentDef;
-use super::object::RawSymbolName;
-use super::object::RelocationList;
-use super::object::SectionAttributes;
-use super::object::SectionFlags;
-use super::object::SectionHeader;
-use super::object::SectionType;
-use super::object::SegmentType;
-use super::object::Symbol;
-use super::object::VerneedTable;
+use super::isa::{Arch, ThunkConfig};
+use super::object::{
+    BuiltInSectionDetails, DynamicTagValues, NonAddressableIndexes, ObjectFile, ProgramSegmentDef,
+    RawSymbolName, RelocationList, SectionAttributes, SectionFlags, SectionHeader, SectionType,
+    SegmentType, Symbol, VerneedTable,
+};
 use super::output_section_id::OutputSectionId;
 use super::output_section_map::OutputSectionMap;
 use super::output_section_part_map::OutputSectionPartMap;
-use super::part_id;
 use super::part_id::PartId;
 use super::program_segments::ProgramSegments;
-use super::section_identity::SectionIdentity;
-use super::section_identity::SectionName;
-use super::section_rules::SectionRule;
-use super::section_rules::SectionRuleOutcome;
+use super::section_identity::{SectionIdentity, SectionName};
+use super::section_rules::{SectionRule, SectionRuleOutcome};
 use super::symbol_id::SymbolId;
-use super::value_flags::AtomicPerSymbolFlags;
-use super::value_flags::PerSymbolFlags;
-use super::value_flags::ValueFlags;
+use super::value_flags::{AtomicPerSymbolFlags, PerSymbolFlags, ValueFlags};
+use super::{OutputKind, part_id};
 use rayon::Scope;
 use std::num::NonZeroU32;
 use wild_error::bail;
 use wild_error::error::Result;
-use wild_fs::fs::FileReplacementMode;
-use wild_fs::fs::FileSystem;
+use wild_fs::fs::{FileReplacementMode, FileSystem};
 use wild_scripts::linker_script;
 use wild_util::alignment::Alignment;
 

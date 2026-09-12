@@ -5,15 +5,12 @@ use sharded_offset_map::OffsetMap;
 use std::cell::RefCell;
 use std::ops::Range;
 use std::sync::Mutex;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use thread_local::ThreadLocal;
-use wild_error::error::Error;
-use wild_error::error::Result;
+use wild_error::error::{Error, Result};
 use wild_platform::output_section_map::OutputSectionMap;
 use wild_util::alignment;
-use wild_util::hash::PassThroughHashMap;
-use wild_util::hash::PreHashed;
+use wild_util::hash::{PassThroughHashMap, PreHashed};
 
 /// Maximum number of threads that can split and hash input sections at once. We default to allowing
 /// splitting parallelism up to the number of threads, but beyond about 24 it doesn't really help.

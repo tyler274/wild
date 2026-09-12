@@ -1,65 +1,26 @@
-use crate::CommonGroupState;
-use crate::DynamicLayout;
-use crate::DynamicLayoutState;
-use crate::EnginePlatform;
-use crate::EpilogueLayoutState;
-use crate::FileId;
-use crate::FileLayout;
-use crate::FileLayoutState;
-use crate::FinaliseLayoutResources;
-use crate::FinaliseSizesResources;
-use crate::GcLoadRequest;
-use crate::GraphResources;
-use crate::GroupActivationInputs;
-use crate::GroupLayout;
-use crate::GroupState;
-use crate::LinkerScriptLayoutState;
-use crate::LocalWorkQueue;
-use crate::ObjectLayout;
-use crate::ObjectLayoutState;
-use crate::OutputRecordLayout;
-use crate::PreludeLayoutState;
-use crate::Resolution;
-use crate::ResolutionWriter;
-use crate::Section;
-use crate::SectionGroupOrder;
-use crate::StubLibraryLayoutState;
-use crate::SyntheticSymbolsLayoutState;
-use crate::WorkItem;
-use crate::activate;
-use crate::compute_file_sizes;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::OutputSections;
+use crate::output_section_id::{OutputSectionId, OutputSections};
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
 use crate::resolution::SectionSlot;
-use crate::section_group_order;
-use crate::symbol_db::SymbolDebug;
-use crate::symbol_db::SymbolId;
-use crate::symbol_db::SymbolIdRange;
-use crate::verbose_timing_phase;
-use crate::verify_consistent_allocation_handling;
+use crate::symbol_db::{SymbolDebug, SymbolId, SymbolIdRange};
+use crate::{
+    CommonGroupState, DynamicLayout, DynamicLayoutState, EnginePlatform, EpilogueLayoutState,
+    FileId, FileLayout, FileLayoutState, FinaliseLayoutResources, FinaliseSizesResources,
+    GcLoadRequest, GraphResources, GroupActivationInputs, GroupLayout, GroupState,
+    LinkerScriptLayoutState, LocalWorkQueue, ObjectLayout, ObjectLayoutState, OutputRecordLayout,
+    PreludeLayoutState, Resolution, ResolutionWriter, Section, SectionGroupOrder,
+    StubLibraryLayoutState, SyntheticSymbolsLayoutState, WorkItem, activate, compute_file_sizes,
+    section_group_order, verbose_timing_phase, verify_consistent_allocation_handling,
+};
 use rayon::Scope;
 use std::fmt::Display;
-use std::mem::size_of;
-use std::mem::swap;
-use std::mem::take;
+use std::mem::{size_of, swap, take};
 use std::sync::atomic;
-use wild_error::bail;
-use wild_error::debug_assert_bail;
-use wild_error::error::Context;
-use wild_error::error::Error;
-use wild_error::error::Result;
-use wild_platform::Arch;
-use wild_platform::Args as _;
-use wild_platform::ObjectFile;
-use wild_platform::Platform;
-use wild_platform::SectionAttributes as _;
-use wild_platform::Symbol as _;
+use wild_error::error::{Context, Error, Result};
+use wild_error::{bail, debug_assert_bail};
 use wild_platform::output_section_map::OutputSectionMap;
-use wild_platform::value_flags::AtomicPerSymbolFlags;
-use wild_platform::value_flags::FlagsForSymbol as _;
-use wild_platform::value_flags::ValueFlags;
+use wild_platform::value_flags::{AtomicPerSymbolFlags, FlagsForSymbol as _, ValueFlags};
+use wild_platform::{Arch, Args as _, ObjectFile, Platform, SectionAttributes as _, Symbol as _};
 use wild_util::alignment::Alignment;
 
 pub trait HandlerData {

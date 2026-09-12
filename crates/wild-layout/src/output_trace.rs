@@ -4,8 +4,7 @@
 use linker_trace::AddressTrace;
 use std::mem::take;
 use std::ops::DerefMut;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use wild_error::error::Result;
 use wild_fs::fs::FileSystem;

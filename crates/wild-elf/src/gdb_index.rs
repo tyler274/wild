@@ -5,39 +5,28 @@
 //!
 //! Format reference: <https://sourceware.org/gdb/current/onlinedocs/gdb.html/Index-Section-Format.html>
 
-use crate::Elf;
-use crate::ElfClass;
+use crate::{Elf, ElfClass};
 use hashbrown::HashMap;
 use itertools::Itertools as _;
 use linker_utils::bit_misc::BitExtraction;
 use linker_utils::elf::secnames::DEBUG_INFO_SECTION_NAME_STR;
-use linker_utils::utils::u32_from_slice;
-use linker_utils::utils::u64_from_slice;
+use linker_utils::utils::{u32_from_slice, u64_from_slice};
 use object::read::elf::SectionHeader as _;
-use rayon::iter::IndexedParallelIterator as _;
-use rayon::iter::IntoParallelIterator as _;
-use rayon::iter::IntoParallelRefIterator as _;
-use rayon::iter::ParallelIterator as _;
+use rayon::iter::{
+    IndexedParallelIterator as _, IntoParallelIterator as _, IntoParallelRefIterator as _,
+    ParallelIterator as _,
+};
 use std::borrow::Cow;
 use std::mem::size_of;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
-use wild_layout::FileLayout;
-use wild_layout::FileLayoutState;
-use wild_layout::GroupState;
-use wild_layout::Layout;
-use wild_layout::ObjectLayoutState;
+use wild_error::error::{Context as _, Result};
 use wild_layout::resolution::SectionSlot;
-use wild_layout::timing_phase;
-use wild_layout::verbose_timing_phase;
-use wild_platform::ObjectFile as _;
-use wild_platform::SectionHeader as _;
-use wild_util::hash::PassThroughHashMap;
-use wild_util::hash::PreHashed;
-use zerocopy::FromBytes;
-use zerocopy::Immutable;
-use zerocopy::IntoBytes;
-use zerocopy::KnownLayout;
+use wild_layout::{
+    FileLayout, FileLayoutState, GroupState, Layout, ObjectLayoutState, timing_phase,
+    verbose_timing_phase,
+};
+use wild_platform::{ObjectFile as _, SectionHeader as _};
+use wild_util::hash::{PassThroughHashMap, PreHashed};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 const GDB_INDEX_VERSION: u32 = 9;
 

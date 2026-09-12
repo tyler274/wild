@@ -1,29 +1,16 @@
-use crate::ImportResolution;
-use crate::ObjectImportResolutions;
-use crate::SharedFunctionImport;
-use crate::SharedGlobalImport;
-use crate::SharedUnresolvedImports;
-use crate::WASM_DEAD_INDEX;
-use crate::Wasm;
-use crate::WasmLinkerSymbol;
-use crate::WasmObjectLayoutInput;
-use crate::WasmSymbol;
-use crate::WasmSymbolKind;
-use crate::demangle_symbol_name;
-use crate::wasm_symbol_name_str;
-use hashbrown::HashMap;
-use hashbrown::HashSet;
+use crate::{
+    ImportResolution, ObjectImportResolutions, SharedFunctionImport, SharedGlobalImport,
+    SharedUnresolvedImports, WASM_DEAD_INDEX, Wasm, WasmLinkerSymbol, WasmObjectLayoutInput,
+    WasmSymbol, WasmSymbolKind, demangle_symbol_name, wasm_symbol_name_str,
+};
+use hashbrown::{HashMap, HashSet};
 use rayon::prelude::*;
-use wild_error::bail;
-use wild_error::ensure;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
+use wild_error::{bail, ensure};
 use wild_layout::symbol::UnversionedSymbolName;
 use wild_layout::symbol_db::SymbolDb;
-use wild_layout::timing_phase;
-use wild_layout::verbose_timing_phase;
-use wild_platform::Args as _;
-use wild_platform::PRELUDE_FILE_ID;
+use wild_layout::{timing_phase, verbose_timing_phase};
+use wild_platform::{Args as _, PRELUDE_FILE_ID};
 
 pub(crate) fn report_disallowed_unresolved_imports<'data>(
     inputs: &[WasmObjectLayoutInput<'data>],

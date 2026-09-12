@@ -1,15 +1,11 @@
 use crate::Elf64;
 use linker_utils::bit_misc::BitExtraction;
-use linker_utils::elf::DynamicRelocationKind;
-use linker_utils::elf::RelocationKindInfo;
-use linker_utils::elf::ppc64_rel_type_to_string;
+use linker_utils::elf::{DynamicRelocationKind, RelocationKindInfo, ppc64_rel_type_to_string};
 use linker_utils::ppc64::RelaxationKind;
 use linker_utils::relaxation::RelocationModifier;
-use wild_error::bail;
-use wild_error::error;
 use wild_error::error::Result;
-use wild_platform::Platform;
-use wild_platform::PreviousRelocationInfo;
+use wild_error::{bail, error};
+use wild_platform::{Platform, PreviousRelocationInfo};
 
 pub struct ElfPpc64;
 

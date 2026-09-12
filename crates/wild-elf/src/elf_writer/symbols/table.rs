@@ -1,51 +1,30 @@
 use super::super::types::ElfLayout;
 use crate as elf;
-use crate::ElfClass;
-use crate::GLOBAL_POINTER_SYMBOL_NAME;
-use crate::RawSymbolName;
-use crate::output_section_id;
-use crate::part_id;
 use crate::writable_elf::WritableSymbol as _;
+use crate::{ElfClass, GLOBAL_POINTER_SYMBOL_NAME, RawSymbolName, output_section_id, part_id};
 use linker_utils::elf::RISCV_TLS_DTV_OFFSET;
 use linker_utils::elf::secnames::DYNSYM_SECTION_NAME_STR;
 use linker_utils::utils::slice_from_all_bytes_mut;
-use object::LittleEndian;
-use object::SectionIndex;
-use object::SymbolIndex;
 use object::elf::STT_TLS;
 use object::read::elf::Sym as _;
-use rayon::iter::IndexedParallelIterator;
-use rayon::iter::IntoParallelRefIterator as _;
-use rayon::iter::ParallelIterator as _;
-use wild_error::bail;
-use wild_error::error;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
-use wild_layout::FileLayout;
-use wild_layout::InternalSymbols;
-use wild_layout::ObjectLayout;
-use wild_layout::PartialLinkSingleton;
-use wild_layout::PreludeLayout;
-use wild_layout::Resolution;
-use wild_layout::SymbolCopyInfo;
-use wild_layout::output_section_id::OrderEvent;
-use wild_layout::output_section_id::OutputSectionId;
-use wild_layout::output_section_id::OutputSections;
+use object::{LittleEndian, SectionIndex, SymbolIndex};
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator as _, ParallelIterator as _};
+use wild_error::error::{Context as _, Result};
+use wild_error::{bail, error};
+use wild_layout::output_section_id::{OrderEvent, OutputSectionId, OutputSections};
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::parsing::SymbolLoc;
 use wild_layout::resolution::SectionSlot;
 use wild_layout::symbol_db::SymbolId;
-use wild_layout::timing_phase;
+use wild_layout::{
+    FileLayout, InternalSymbols, ObjectLayout, PartialLinkSingleton, PreludeLayout, Resolution,
+    SymbolCopyInfo, timing_phase,
+};
 use wild_platform as platform;
-use wild_platform::Args as _;
-use wild_platform::ObjectFile;
-use wild_platform::Platform;
-use wild_platform::RawSymbolName as _;
-use wild_platform::SectionAttributes as _;
 use wild_platform::output_section_map::OutputSectionMap;
 use wild_platform::value_flags::ValueFlags;
-use wild_scripts::linker_script::Expression;
-use wild_scripts::linker_script::RelocatableAnchor;
+use wild_platform::{Args as _, ObjectFile, Platform, RawSymbolName as _, SectionAttributes as _};
+use wild_scripts::linker_script::{Expression, RelocatableAnchor};
 use wild_util::sharding::ShardKey;
 
 #[derive(Clone, Copy)]

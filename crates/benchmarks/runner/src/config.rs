@@ -1,8 +1,6 @@
-use crate::LinkerKind;
-use crate::Result;
+use crate::{LinkerKind, Result};
 use anyhow::Context as _;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
 

@@ -1,13 +1,10 @@
 //! This crate defines a format for providing information about where a linker put stuff.
 
-use anyhow::Context;
-use anyhow::Result;
-use serde::Deserialize;
-use serde::Serialize;
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::ops::Range;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Default)]
 pub struct Metrics {

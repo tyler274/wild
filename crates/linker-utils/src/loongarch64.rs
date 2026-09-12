@@ -1,20 +1,9 @@
-use crate::elf::AllowedRange;
-use crate::elf::LoongArch64Instruction;
-use crate::elf::PAGE_MASK_4KB;
-use crate::elf::PageMask;
-use crate::elf::RelocationKind;
-use crate::elf::RelocationKindInfo;
-use crate::elf::RelocationSize;
-use crate::elf::SIZE_2GB;
-use crate::elf::SIZE_2KB;
-use crate::elf::SIZE_4GB;
-use crate::elf::SIZE_4KB;
-use crate::elf::Sign;
+use crate::elf::{
+    AllowedRange, LoongArch64Instruction, PAGE_MASK_4KB, PageMask, RelocationKind,
+    RelocationKindInfo, RelocationSize, SIZE_2GB, SIZE_2KB, SIZE_4GB, SIZE_4KB, Sign,
+};
 use crate::relaxation::RelocationModifier;
-use crate::utils::and_from_slice;
-use crate::utils::or_from_slice;
-use crate::utils::u32_from_slice;
-use crate::utils::u64_from_slice;
+use crate::utils::{and_from_slice, or_from_slice, u32_from_slice, u64_from_slice};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RelaxationKind {

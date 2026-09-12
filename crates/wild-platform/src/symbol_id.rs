@@ -1,5 +1,4 @@
-use std::sync::atomic::AtomicU32;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU32, Ordering};
 use wild_error::error::Context as _;
 use wild_util::sharding::ShardKey;
 

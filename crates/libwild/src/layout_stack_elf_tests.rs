@@ -3,9 +3,7 @@
 
 mod section_mapping {
     use hashbrown::HashSet;
-    use wild_layout::layout_rules::SectionOutputInfo;
-    use wild_layout::layout_rules::SectionRuleOutcome;
-    use wild_layout::layout_rules::SectionRules;
+    use wild_layout::layout_rules::{SectionOutputInfo, SectionRuleOutcome, SectionRules};
     use wild_platform::Platform as _;
 
     #[test]
@@ -65,20 +63,16 @@ mod section_mapping {
 }
 
 mod no_disallowed_overlaps {
-    use wild_layout::HeaderInfo;
-    use wild_layout::compute_layout_sections;
-    use wild_layout::compute_segment_layout;
     use wild_layout::output_section_id::OutputSections;
-    use wild_platform::SectionAttributes as _;
-    use wild_platform::SectionFlags as _;
+    use wild_layout::{HeaderInfo, compute_layout_sections, compute_segment_layout};
     use wild_platform::program_segments::ProgramSegmentId;
+    use wild_platform::{SectionAttributes as _, SectionFlags as _};
 
     #[test]
     fn test_no_disallowed_overlaps() {
         use hashbrown::HashMap;
         use wild_elf::Elf64;
-        use wild_layout::output_section_id::OrderEvent;
-        use wild_layout::output_section_id::OutputSectionId;
+        use wild_layout::output_section_id::{OrderEvent, OutputSectionId};
 
         let output_kind =
             wild_platform::OutputKind::StaticExecutable(crate::args::RelocationModel::Fixed);
@@ -225,24 +219,19 @@ mod expression_eval {
     use crate::error::Result;
     use hashbrown::HashMap;
     use wild_elf::Elf64;
-    use wild_layout::MemoryRegion;
-    use wild_layout::OutputRecordLayout;
     use wild_layout::expression_eval::*;
     use wild_layout::grouping::SequencedLinkerScript;
     use wild_layout::output_section_id::OutputSections;
     use wild_layout::output_section_part_map::OutputSectionPartMap;
-    use wild_layout::parsing::InternalSymDefInfo;
-    use wild_layout::parsing::ProcessedLinkerScript;
-    use wild_layout::parsing::Redirect;
-    use wild_layout::parsing::RedirectKind;
-    use wild_layout::parsing::SymbolLoc;
-    use wild_layout::parsing::SymbolPlacement;
-    use wild_layout::symbol_db::SymbolDb;
-    use wild_layout::symbol_db::SymbolIdRange;
+    use wild_layout::parsing::{
+        InternalSymDefInfo, ProcessedLinkerScript, Redirect, RedirectKind, SymbolLoc,
+        SymbolPlacement,
+    };
+    use wild_layout::symbol_db::{SymbolDb, SymbolIdRange};
+    use wild_layout::{MemoryRegion, OutputRecordLayout};
     use wild_platform::FileId;
     use wild_platform::output_section_map::OutputSectionMap;
-    use wild_scripts::linker_script::AssertCommand;
-    use wild_scripts::linker_script::Expression;
+    use wild_scripts::linker_script::{AssertCommand, Expression};
 
     fn with_dummy_context<R>(
         f: impl for<'test> FnOnce(
@@ -808,8 +797,7 @@ mod expression_eval {
 mod part_ids {
     use crate::args::RelocationModel;
     use wild_layout::output_section_id;
-    use wild_layout::output_section_id::OutputSectionId;
-    use wild_layout::output_section_id::OutputSections;
+    use wild_layout::output_section_id::{OutputSectionId, OutputSections};
     use wild_layout::part_id::*;
     use wild_platform::OutputKind;
 
@@ -876,8 +864,7 @@ mod part_ids {
 
 mod output_section_part_map {
     use wild_layout::output_section_id::OrderEvent;
-    use wild_layout::output_section_part_map::max_alignment;
-    use wild_layout::output_section_part_map::output_order_map;
+    use wild_layout::output_section_part_map::{max_alignment, output_order_map};
     use wild_layout::part_id::PartId;
     use wild_platform::Platform;
     use wild_util::alignment;
@@ -1074,8 +1061,7 @@ mod output_section_part_map {
 
     #[test]
     fn test_output_order_map() {
-        use wild_elf::Elf64;
-        use wild_elf::output_section_id;
+        use wild_elf::{Elf64, output_section_id};
 
         let output_sections =
             wild_layout::output_section_id::OutputSections::<Elf64>::for_testing();
@@ -1124,8 +1110,7 @@ mod output_section_part_map {
 
     #[test]
     fn test_max_alignment() {
-        use wild_elf::Elf64;
-        use wild_elf::output_section_id;
+        use wild_elf::{Elf64, output_section_id};
 
         let output_sections =
             wild_layout::output_section_id::OutputSections::<Elf64>::for_testing();
@@ -1161,9 +1146,7 @@ mod output_section_part_map {
 
 mod input_section_flags {
     use hashbrown::HashSet;
-    use wild_layout::layout_rules::SectionRule;
-    use wild_layout::layout_rules::SectionRuleOutcome;
-    use wild_layout::layout_rules::SectionRules;
+    use wild_layout::layout_rules::{SectionRule, SectionRuleOutcome, SectionRules};
     use wild_scripts::linker_script::InputSectionFlags;
 
     #[test]

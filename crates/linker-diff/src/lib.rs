@@ -13,8 +13,7 @@
 
 #![allow(clippy::too_many_arguments)]
 
-use anyhow::Context as _;
-use anyhow::bail;
+use anyhow::{Context as _, bail};
 use asm_diff::AddressIndex;
 use clap::Parser;
 use hashbrown::HashMap;
@@ -22,16 +21,10 @@ use itertools::Itertools as _;
 #[allow(clippy::wildcard_imports)]
 use linker_utils::elf::secnames::*;
 use linker_utils::utils::slice_from_all_bytes;
-use object::Endianness;
-use object::File;
-use object::Object as _;
-use object::ObjectSection;
-use object::ObjectSymbol as _;
-use section_map::IndexedLayout;
-use section_map::LayoutAndFiles;
+use object::{Endianness, File, Object as _, ObjectSection, ObjectSymbol as _};
+use section_map::{IndexedLayout, LayoutAndFiles};
 use std::fmt::Display;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 mod aarch64;
 mod arch;
@@ -61,13 +54,10 @@ type Result<T = (), E = anyhow::Error> = core::result::Result<T, E>;
 type ElfFile64<'data> = object::read::elf::ElfFile64<'data, Endianness>;
 
 pub use crate::colour::ColourMode;
-use arch::Arch;
-use arch::ArchKind;
+use arch::{Arch, ArchKind};
 pub use diagnostics::enable_diagnostics;
-use object::Section;
-use object::Symbol;
-use section_map::InputSectionId;
-use section_map::OwnedFileIdentifier;
+use object::{Section, Symbol};
+use section_map::{InputSectionId, OwnedFileIdentifier};
 
 #[non_exhaustive]
 #[derive(Parser, Default, Clone)]

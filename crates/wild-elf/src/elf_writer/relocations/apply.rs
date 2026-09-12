@@ -1,34 +1,19 @@
-use super::super::types::ElfLayout;
-use super::super::types::TableWriter;
-use super::RelocationCache;
-use super::SectionInfo;
-use super::callee_st_other;
-use super::get_pair_subtraction_relocation_value;
-use super::get_resolution;
-use super::maybe_get_thunk_for_relocation;
-use super::write_absolute_relocation;
+use super::super::types::{ElfLayout, TableWriter};
+use super::{
+    RelocationCache, SectionInfo, callee_st_other, get_pair_subtraction_relocation_value,
+    get_resolution, maybe_get_thunk_for_relocation, write_absolute_relocation,
+};
 use crate as elf;
 use crate::ElfClass;
-use linker_utils::elf::RelocationKind;
-use linker_utils::elf::get_page_mask;
+use linker_utils::elf::{RelocationKind, get_page_mask};
 use linker_utils::loongarch64::highest_relocation_with_bias;
-use linker_utils::relaxation::RelocationModifier;
-use linker_utils::relaxation::SectionRelaxDeltas;
-use linker_utils::relaxation::opt_input_to_output;
-use std::ops::BitAnd;
-use std::ops::Sub;
-use wild_error::bail;
-use wild_error::ensure;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use linker_utils::relaxation::{RelocationModifier, SectionRelaxDeltas, opt_input_to_output};
+use std::ops::{BitAnd, Sub};
+use wild_error::error::{Context as _, Result};
+use wild_error::{bail, ensure};
 use wild_layout::ObjectLayout;
-use wild_layout::output_trace::HexU64;
-use wild_layout::output_trace::TraceOutput;
-use wild_platform::Arch;
-use wild_platform::OutputKind;
-use wild_platform::PreviousRelocationInfo;
-use wild_platform::Relaxation as _;
-use wild_platform::Relocation;
+use wild_layout::output_trace::{HexU64, TraceOutput};
+use wild_platform::{Arch, OutputKind, PreviousRelocationInfo, Relaxation as _, Relocation};
 
 /// Applies the relocation `rel` at `offset_in_section`, where the section bytes are `out`. See "ELF
 /// Handling For Thread-Local Storage" for details about some of the TLS-related relocations and

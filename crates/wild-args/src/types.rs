@@ -1,31 +1,17 @@
-use super::EXPERIMENTAL_PLATFORMS;
-use super::FILES_PER_GROUP_ENV;
-use super::REFERENCE_LINKER_ENV;
-use super::VALIDATE_ENV;
-use super::WRITE_LAYOUT_ENV;
-use super::WRITE_TRACE_ENV;
-use super::WRITE_VERIFY_ALLOCATIONS_ENV;
-use super::coff;
-use super::elf;
-use super::macho;
-use super::wasm;
+use super::{
+    EXPERIMENTAL_PLATFORMS, FILES_PER_GROUP_ENV, REFERENCE_LINKER_ENV, VALIDATE_ENV,
+    WRITE_LAYOUT_ENV, WRITE_TRACE_ENV, WRITE_VERIFY_ALLOCATIONS_ENV, coff, elf, macho, wasm,
+};
 use foldhash::HashSet;
-use jobserver::Acquired;
-use jobserver::Client;
+use jobserver::{Acquired, Client};
 use rayon::ThreadPoolBuilder;
 use std::num::NonZeroUsize;
-use std::path::Path;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::OnceLock;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicI64;
-use wild_error::bail;
-use wild_error::ensure;
-use wild_error::env;
-use wild_error::error::Result;
-use wild_error::error::Warning;
-use wild_fs::fs::FileReplacementMode;
-use wild_fs::fs::FileWriteMode;
+use std::sync::{Arc, OnceLock};
+use wild_error::error::{Result, Warning};
+use wild_error::{bail, ensure, env};
+use wild_fs::fs::{FileReplacementMode, FileWriteMode};
 use wild_platform::FileId;
 
 #[derive(derive_more::Debug)]
@@ -366,9 +352,7 @@ impl std::fmt::Debug for Args {
     }
 }
 
-pub use wild_scripts::Input;
-pub use wild_scripts::InputSpec;
-pub use wild_scripts::Modifiers;
+pub use wild_scripts::{Input, InputSpec, Modifiers};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum BSymbolicKind {

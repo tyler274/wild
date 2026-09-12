@@ -1,42 +1,26 @@
-use super::FILE_HEADER;
-use super::OutputOrder;
-use super::OutputSectionId;
-use super::num_built_in_sections;
-use super::regular_section_base;
-use super::types::CustomSectionDetails;
-use super::types::CustomSectionIds;
-use super::types::GnuBuildIdPlacement;
-use super::types::OnlyIfPlacement;
-use super::types::OnlyIfSlots;
-use super::types::ScriptOutputData;
-use super::types::SecondaryOrder;
-use super::types::SectionIdentity;
-use super::types::SectionLocationInfo;
-use super::types::SectionName;
-use super::types::SectionOutputInfo;
-use crate::EnginePlatform;
-use crate::Result;
+use super::types::{
+    CustomSectionDetails, CustomSectionIds, GnuBuildIdPlacement, OnlyIfPlacement, OnlyIfSlots,
+    ScriptOutputData, SecondaryOrder, SectionIdentity, SectionLocationInfo, SectionName,
+    SectionOutputInfo,
+};
+use super::{
+    FILE_HEADER, OutputOrder, OutputSectionId, num_built_in_sections, regular_section_base,
+};
 use crate::grouping::SequencedLinkerScript;
 use crate::layout_rules::SectionKind;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
-use crate::timing_phase;
-use hashbrown::HashMap;
-use hashbrown::HashSet;
+use crate::{EnginePlatform, Result, timing_phase};
+use hashbrown::{HashMap, HashSet};
 use std::fmt::Display;
 use wild_args::RelocationModel;
-use wild_platform::Args;
-use wild_platform::OutputKind;
-use wild_platform::Platform;
-use wild_platform::SectionAttributes as _;
 use wild_platform::output_section_map::OutputSectionMap;
 use wild_platform::program_segments::ProgramSegments;
+use wild_platform::{Args, OutputKind, Platform, SectionAttributes as _};
 use wild_scripts::linker_script;
-use wild_scripts::linker_script::Expression;
-use wild_scripts::linker_script::OnlyIf;
+use wild_scripts::linker_script::{Expression, OnlyIf};
 use wild_util::alignment;
-use wild_util::alignment::Alignment;
-use wild_util::alignment::NUM_ALIGNMENTS;
+use wild_util::alignment::{Alignment, NUM_ALIGNMENTS};
 
 #[derive(Debug)]
 pub struct OutputSections<'data, P: Platform> {

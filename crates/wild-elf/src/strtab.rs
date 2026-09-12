@@ -4,8 +4,7 @@
 //! neighbouring longer host when it is a suffix, so `"bar"` can point into `"foobar"`. Offset 0
 //! is always the empty string.
 
-use hashbrown::HashMap;
-use hashbrown::HashSet;
+use hashbrown::{HashMap, HashSet};
 use wild_error::error::Result;
 use wild_layout::EnginePlatform;
 use wild_layout::layout_rules::SectionKind;
@@ -130,8 +129,7 @@ pub(crate) fn shstrtab_from_sections<'data, P: EnginePlatform>(
 
 #[cfg(test)]
 mod tests {
-    use super::finalize_strtab;
-    use super::intern_strtab_name;
+    use super::{finalize_strtab, intern_strtab_name};
 
     fn names(list: &[&[u8]]) -> Vec<Box<[u8]>> {
         let mut out = Vec::new();

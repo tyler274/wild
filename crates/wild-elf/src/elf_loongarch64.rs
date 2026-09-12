@@ -1,21 +1,15 @@
-use crate::Elf64;
-use crate::PLT_ENTRY_SIZE;
-use itertools::AllEqualValueError;
-use itertools::Itertools;
-use linker_utils::elf::DynamicRelocationKind;
-use linker_utils::elf::PAGE_MASK_4KB;
-use linker_utils::elf::RelocationKind;
-use linker_utils::elf::RelocationKindInfo;
-use linker_utils::elf::SIZE_2KB;
-use linker_utils::elf::loongarch64_rel_type_to_string;
-use linker_utils::elf::shf;
+use crate::{Elf64, PLT_ENTRY_SIZE};
+use itertools::{AllEqualValueError, Itertools};
+use linker_utils::elf::{
+    DynamicRelocationKind, PAGE_MASK_4KB, RelocationKind, RelocationKindInfo, SIZE_2KB,
+    loongarch64_rel_type_to_string, shf,
+};
 use linker_utils::loongarch64::RelaxationKind;
 use linker_utils::relaxation::RelocationModifier;
 use linker_utils::utils::or_from_slice;
 use wild_error::error;
 use wild_error::error::Result;
-use wild_platform::Platform;
-use wild_platform::PreviousRelocationInfo;
+use wild_platform::{Platform, PreviousRelocationInfo};
 
 pub struct ElfLoongArch64;
 

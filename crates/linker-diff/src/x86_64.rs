@@ -1,14 +1,7 @@
-use crate::arch::Arch;
-use crate::arch::Instruction;
-use crate::arch::PltEntry;
-use crate::arch::RType as _;
-use crate::arch::Relaxation;
-use crate::arch::RelaxationByteRange;
+use crate::arch::{Arch, Instruction, PltEntry, RType as _, Relaxation, RelaxationByteRange};
 use crate::asm_diff::BasicValueKind;
 use iced_x86::Formatter as _;
-use linker_utils::elf::DynamicRelocationKind;
-use linker_utils::elf::RelocationKindInfo;
-use linker_utils::elf::x86_64_rel_type_to_string;
+use linker_utils::elf::{DynamicRelocationKind, RelocationKindInfo, x86_64_rel_type_to_string};
 use linker_utils::utils::u32_from_slice;
 use linker_utils::x86_64::RelaxationKind;
 use object::SectionKind;

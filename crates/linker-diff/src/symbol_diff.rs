@@ -1,9 +1,6 @@
 use crate::Result;
-use crate::header_diff::DiffMode;
-use crate::header_diff::FieldValues;
-use object::Object as _;
-use object::ObjectSection as _;
-use object::ObjectSymbol as _;
+use crate::header_diff::{DiffMode, FieldValues};
+use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
 
 pub(crate) fn report_diffs(report: &mut crate::Report, bins: &[crate::Binary]) {
     report.add_diffs(crate::header_diff::diff_fields(

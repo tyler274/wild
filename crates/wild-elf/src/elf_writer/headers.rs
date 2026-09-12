@@ -1,39 +1,24 @@
 use super::link_ids;
 use super::types::ElfLayout;
 use crate as elf;
-use crate::ElfClass;
-use crate::malfunction;
-use crate::output_section_id;
-use crate::part_id;
-use crate::writable_elf::WritableFileHeader as _;
-use crate::writable_elf::WritableProgramHeader as _;
-use crate::writable_elf::WritableSectionHeader as _;
-use linker_utils::elf::pf;
-use linker_utils::elf::shf;
-use linker_utils::elf::sht;
+use crate::writable_elf::{
+    WritableFileHeader as _, WritableProgramHeader as _, WritableSectionHeader as _,
+};
+use crate::{ElfClass, malfunction, output_section_id, part_id};
+use linker_utils::elf::{pf, shf, sht};
 use linker_utils::utils::slice_from_all_bytes_mut;
 use object::LittleEndian;
 use object::read::elf::SectionHeader as _;
-use rayon::iter::IntoParallelIterator as _;
-use rayon::iter::ParallelIterator as _;
-use wild_error::ensure;
-use wild_error::error;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
-use wild_layout::FileLayout;
-use wild_layout::HeaderInfo;
-use wild_layout::ObjectLayout;
-use wild_layout::PartialLinkSingleton;
+use rayon::iter::{IntoParallelIterator as _, ParallelIterator as _};
+use wild_error::error::{Context as _, Result};
+use wild_error::{ensure, error};
 use wild_layout::file_writer::insufficient_allocation;
-use wild_layout::output_section_id::OutputSections;
-use wild_layout::output_section_id::SectionName;
-use wild_layout::verbose_timing_phase;
-use wild_platform::Arch;
-use wild_platform::Args as _;
-use wild_platform::EntryPoint;
-use wild_platform::ObjectFile;
-use wild_platform::OutputKind;
+use wild_layout::output_section_id::{OutputSections, SectionName};
+use wild_layout::{
+    FileLayout, HeaderInfo, ObjectLayout, PartialLinkSingleton, verbose_timing_phase,
+};
 use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::{Arch, Args as _, EntryPoint, ObjectFile, OutputKind};
 use wild_util::alignment;
 
 pub(crate) fn write_program_headers<C: ElfClass>(

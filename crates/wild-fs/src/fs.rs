@@ -7,18 +7,12 @@
 use memmap2::Mmap;
 use memmap2::MmapOptions;
 use std::fs::File;
-use std::io::ErrorKind;
-use std::io::Read as _;
-use std::io::Seek as _;
-use std::io::SeekFrom;
-use std::io::Write as _;
+use std::io::{ErrorKind, Read as _, Seek as _, SeekFrom, Write as _};
 use std::ops::Deref;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use wild_error::error;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileReplacementMode {
@@ -551,9 +545,7 @@ impl FileSystem for OsFileSystem {
         let file_write_mode = options.write_mode.unwrap_or(defaults.write_mode);
 
         if huge_pages_required && matches!(file_write_mode, FileWriteMode::BufferThenWrite) {
-            return Err(error!(
-                "--madvise-huge-pages requires mmapped output file"
-            ));
+            return Err(error!("--madvise-huge-pages requires mmapped output file"));
         }
 
         let set_len_result = file.set_len(options.size);

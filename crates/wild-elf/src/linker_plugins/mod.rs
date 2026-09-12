@@ -9,37 +9,25 @@
 //! up having to make quite a bit of use of thread locals in order to get state to where it needs to
 //! be.
 
-use crate::Elf;
-use crate::ElfClass;
+use crate::{Elf, ElfClass};
 use crossbeam_utils::atomic::AtomicCell;
 use libloading::Library;
-use std::ffi::CStr;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::fs::File;
-use std::os::fd::AsRawFd as _;
-use std::os::fd::RawFd;
-use std::path::Path;
-use std::path::PathBuf;
-use wild_args::Input;
-use wild_args::InputRef;
+use std::os::fd::{AsRawFd as _, RawFd};
+use std::path::{Path, PathBuf};
 use wild_args::elf::ElfArgs;
-use wild_error::bail;
-use wild_error::env;
-use wild_error::error;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
-use wild_layout::grouping::PluginSymbol;
-use wild_layout::grouping::UnsequencedLtoInput;
+use wild_args::{Input, InputRef};
+use wild_error::error::{Context as _, Result};
+use wild_error::{bail, env, error};
+use wild_layout::grouping::{PluginSymbol, UnsequencedLtoInput};
 use wild_layout::layout_rules::LayoutRulesBuilder;
 use wild_layout::output_section_id::OutputSections;
 use wild_layout::resolution::Resolver;
-use wild_layout::symbol_db::LoadedInputs;
-use wild_layout::symbol_db::SymbolDb;
-use wild_layout::timing_phase;
-use wild_layout::verbose_timing_phase;
-use wild_platform::FileId;
-use wild_platform::FileKind;
+use wild_layout::symbol_db::{LoadedInputs, SymbolDb};
+use wild_layout::{timing_phase, verbose_timing_phase};
 use wild_platform::value_flags::PerSymbolFlags;
+use wild_platform::{FileId, FileKind};
 use wild_util::arena::Herd;
 
 mod discover;

@@ -1,30 +1,16 @@
-use crate::Elf64;
-use crate::PLT_ENTRY_SIZE;
-use crate::PropertyClass;
-use crate::output_section_id;
-use linker_utils::aarch64::RelaxationKind;
-use linker_utils::aarch64::relocation_type_from_raw;
+use crate::{Elf64, PLT_ENTRY_SIZE, PropertyClass, output_section_id};
+use linker_utils::aarch64::{RelaxationKind, relocation_type_from_raw};
 use linker_utils::bit_misc::BitExtraction;
-use linker_utils::elf::AArch64Instruction;
-use linker_utils::elf::AllowedRange;
-use linker_utils::elf::DynamicRelocationKind;
-use linker_utils::elf::PAGE_MASK_4KB;
-use linker_utils::elf::RelocationKind;
-use linker_utils::elf::RelocationKindInfo;
-use linker_utils::elf::SIZE_4KB;
-use linker_utils::elf::Sign;
-use linker_utils::elf::aarch64_rel_type_to_string;
-use linker_utils::elf::shf;
+use linker_utils::elf::{
+    AArch64Instruction, AllowedRange, DynamicRelocationKind, PAGE_MASK_4KB, RelocationKind,
+    RelocationKindInfo, SIZE_4KB, Sign, aarch64_rel_type_to_string, shf,
+};
 use linker_utils::relaxation::RelocationModifier;
 use object::elf::GNU_PROPERTY_AARCH64_FEATURE_1_AND;
-use wild_error::ensure;
-use wild_error::error;
 use wild_error::error::Result;
-use wild_error::malfunction_point_ret;
+use wild_error::{ensure, error, malfunction_point_ret};
 use wild_layout::Layout;
-use wild_platform::ObjectFile as _;
-use wild_platform::Platform;
-use wild_platform::PreviousRelocationInfo;
+use wild_platform::{ObjectFile as _, Platform, PreviousRelocationInfo};
 use wild_util::alignment::Alignment;
 
 pub struct ElfAArch64;

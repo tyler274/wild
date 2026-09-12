@@ -1,15 +1,9 @@
-use super::object::CommonSymbol;
-use super::object::SectionFlags;
-use super::object::SectionHeader;
-use super::object::SectionType;
-use super::object::SegmentType;
-use super::object::Symbol;
-use super::object::Visibility;
-use linker_utils::elf::shf;
-use linker_utils::elf::sht;
+use super::object::{
+    CommonSymbol, SectionFlags, SectionHeader, SectionType, SegmentType, Symbol, Visibility,
+};
+use linker_utils::elf::{shf, sht};
 use object::LittleEndian;
-use object::elf::SectionHeader64;
-use object::elf::Sym64;
+use object::elf::{SectionHeader64, Sym64};
 use object::read::elf::SectionHeader as _;
 use wild_util::alignment::Alignment;
 

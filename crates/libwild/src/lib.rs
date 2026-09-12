@@ -7,11 +7,7 @@ pub use wild_error::error;
 pub(crate) mod file_kind;
 pub(crate) mod input_data;
 pub(crate) mod macho;
-pub use wild_error::bail;
-pub use wild_error::debug_assert_bail;
-pub use wild_error::ensure;
-pub use wild_error::malfunction;
-pub use wild_error::malfunction_point_ret;
+pub use wild_error::{bail, debug_assert_bail, ensure, malfunction, malfunction_point_ret};
 #[cfg(test)]
 mod layout_stack_elf_tests;
 pub(crate) mod output_kind;
@@ -45,41 +41,27 @@ pub(crate) mod timing;
 pub(crate) mod wasm;
 
 use crate::args::HasCommonArgs as _;
-use crate::error::Context;
-use crate::error::Result;
+use crate::error::{Context, Result};
 use colosseum::sync::Arena;
 use crossbeam_utils::atomic::AtomicCell;
 use error::AlreadyInitialised;
 use hashbrown::HashSet;
-use input_data::FileLoader;
-use input_data::FileLoaderExt as _;
-use input_data::InputFile as LoadedInputFile;
-use std::io::BufWriter;
-use std::io::IsTerminal;
-use std::io::Write;
+use input_data::{FileLoader, FileLoaderExt as _, InputFile as LoadedInputFile};
+use std::io::{BufWriter, IsTerminal, Write};
 use std::path::Path;
 pub use subprocess::run_in_subprocess;
-use tracing_subscriber::EnvFilter;
-use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-pub use wild_fs::fs::FileReplacementMode;
-pub use wild_fs::fs::FileSystem;
-pub use wild_fs::fs::FileType;
-pub use wild_fs::fs::FileWriteMode;
-pub use wild_fs::fs::InputFileData;
-pub use wild_fs::fs::OsFileSystem;
-pub use wild_fs::fs::OutputFileData;
-pub use wild_fs::fs::OutputOptions;
-pub use wild_fs::fs::make_executable;
-use wild_layout::EnginePlatform;
-use wild_layout::file_writer;
+use tracing_subscriber::{EnvFilter, fmt};
+pub use wild_fs::fs::{
+    FileReplacementMode, FileSystem, FileType, FileWriteMode, InputFileData, OsFileSystem,
+    OutputFileData, OutputOptions, make_executable,
+};
 use wild_layout::layout_rules::LayoutRulesBuilder;
 use wild_layout::output_section_id::OutputSections;
-use wild_platform::Arch;
-use wild_platform::Args as _;
-use wild_platform::Platform;
+use wild_layout::{EnginePlatform, file_writer};
 use wild_platform::value_flags::PerSymbolFlags;
+use wild_platform::{Arch, Args as _, Platform};
 use wild_scripts::version_script::VersionScript;
 
 /// Runs the linker in a Rayon thread pool configured from the supplied arguments or the available

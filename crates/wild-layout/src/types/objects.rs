@@ -1,48 +1,23 @@
-use crate::CommonGroupState;
-use crate::EnginePlatform;
-use crate::FinaliseLayoutResources;
-use crate::FinaliseSizesResources;
-use crate::GraphResources;
-use crate::HandlerData as _;
-use crate::LocalWorkQueue;
-use crate::ObjectLayout;
-use crate::ObjectLayoutState;
-use crate::Resolution;
-use crate::ResolutionWriter;
-use crate::Section;
-use crate::SectionResolution;
-use crate::SortedSection;
-use crate::SymbolRequestHandler as _;
-use crate::advance_section_offset;
-use crate::can_export_symbol;
-use crate::export_dynamic;
-use crate::export_symbols_mode;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
-use crate::resolution::ScriptSortedSectionDetail;
-use crate::resolution::SectionSlot;
-use crate::resolution::UnloadedSection;
-use crate::section_debug;
+use crate::resolution::{ScriptSortedSectionDetail, SectionSlot, UnloadedSection};
 use crate::string_merging::get_merged_string_output_address;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
+use crate::symbol_db::{SymbolDb, SymbolId};
+use crate::{
+    CommonGroupState, EnginePlatform, FinaliseLayoutResources, FinaliseSizesResources,
+    GraphResources, HandlerData as _, LocalWorkQueue, ObjectLayout, ObjectLayoutState, Resolution,
+    ResolutionWriter, Section, SectionResolution, SortedSection, SymbolRequestHandler as _,
+    advance_section_offset, can_export_symbol, export_dynamic, export_symbols_mode, section_debug,
+};
 use linker_utils::relaxation::opt_input_to_output;
 use object::SectionIndex;
 use rayon::Scope;
 use smallvec::SmallVec;
 use std::num::NonZeroU32;
 use wild_error::bail;
-use wild_error::error::Context;
-use wild_error::error::Error;
-use wild_error::error::Result;
-use wild_platform::Arch;
-use wild_platform::Args as _;
-use wild_platform::ObjectFile;
-use wild_platform::Platform;
-use wild_platform::SectionHeader as _;
-use wild_platform::Symbol as _;
-use wild_platform::value_flags::AtomicPerSymbolFlags;
-use wild_platform::value_flags::ValueFlags;
+use wild_error::error::{Context, Error, Result};
+use wild_platform::value_flags::{AtomicPerSymbolFlags, ValueFlags};
+use wild_platform::{Arch, Args as _, ObjectFile, Platform, SectionHeader as _, Symbol as _};
 
 impl<'data, P: EnginePlatform> ObjectLayoutState<'data, P> {
     #[inline(always)]

@@ -10,23 +10,17 @@
 mod atoms;
 
 use crate::EnginePlatform;
-pub use atoms::AtomId;
-pub use atoms::AtomResolutions;
-pub use atoms::AtomTable;
-pub use atoms::ReverseRelocIndex;
-pub use atoms::ReverseRelocNode;
-pub use atoms::read_reverse_relocs;
-pub use atoms::write_reverse_relocs;
-use hashbrown::HashMap;
-use hashbrown::HashSet;
+pub use atoms::{
+    AtomId, AtomResolutions, AtomTable, ReverseRelocIndex, ReverseRelocNode, read_reverse_relocs,
+    write_reverse_relocs,
+};
+use hashbrown::{HashMap, HashSet};
 use std::fs;
 use std::io::Write as _;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use wild_error::error::Result;
-use wild_platform::Args as _;
-use wild_platform::FileId;
+use wild_platform::{Args as _, FileId};
 use wild_util::hash::hash_bytes;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

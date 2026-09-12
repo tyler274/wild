@@ -1,7 +1,5 @@
 use crate::EnginePlatform;
-use crate::output_section_id::OrderEvent;
-use crate::output_section_id::OutputOrder;
-use crate::output_section_id::OutputSections;
+use crate::output_section_id::{OrderEvent, OutputOrder, OutputSections};
 use crate::part_id::PartId;
 use std::ops::Range;
 #[allow(unused_imports)]

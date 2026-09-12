@@ -1,18 +1,9 @@
-use super::super::STANDARD_SECTION_LOOKUP_LEN;
-use super::super::Wasm;
-use super::super::section_id;
-use crate::SectionHeader;
-use crate::WasmGcUnit;
-use crate::WasmRelocation;
-use crate::WasmSymbol;
-use crate::WasmSymbolKind;
-use crate::reloc_index_range;
-use crate::wasm_gc_unit_for_symbol;
-use wasmparser::BinaryReader;
-use wasmparser::ImportSectionReader;
-use wasmparser::RelocationType;
-use wasmparser::SymbolFlags;
-use wasmparser::TypeRef;
+use super::super::{STANDARD_SECTION_LOOKUP_LEN, Wasm, section_id};
+use crate::{
+    SectionHeader, WasmGcUnit, WasmRelocation, WasmSymbol, WasmSymbolKind, reloc_index_range,
+    wasm_gc_unit_for_symbol,
+};
+use wasmparser::{BinaryReader, ImportSectionReader, RelocationType, SymbolFlags, TypeRef};
 use wild_error::bail;
 use wild_error::error::Result;
 use wild_layout::symbol::UnversionedSymbolName;

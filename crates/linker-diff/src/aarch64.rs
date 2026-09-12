@@ -1,24 +1,15 @@
 use crate::ArchKind;
-use crate::arch::Arch;
-use crate::arch::Instruction;
-use crate::arch::Relaxation;
-use crate::arch::RelaxationByteRange;
+use crate::arch::{Arch, Instruction, Relaxation, RelaxationByteRange};
 use crate::asm_diff::BasicValueKind;
 use crate::utils::decode_insn_with_objdump;
 use itertools::Itertools;
 use linker_utils::aarch64::RelaxationKind;
-use linker_utils::elf::AArch64Instruction;
-use linker_utils::elf::BitMask;
-use linker_utils::elf::DynamicRelocationKind;
-use linker_utils::elf::PAGE_MASK_4KB;
-use linker_utils::elf::PageMask;
-use linker_utils::elf::RelocationInstruction;
-use linker_utils::elf::RelocationKindInfo;
-use linker_utils::elf::SIZE_4KB;
-use linker_utils::elf::aarch64_rel_type_to_string;
+use linker_utils::elf::{
+    AArch64Instruction, BitMask, DynamicRelocationKind, PAGE_MASK_4KB, PageMask,
+    RelocationInstruction, RelocationKindInfo, SIZE_4KB, aarch64_rel_type_to_string,
+};
 use linker_utils::relaxation::RelocationModifier;
-use linker_utils::utils::u32_from_slice;
-use linker_utils::utils::u64_from_slice;
+use linker_utils::utils::{u32_from_slice, u64_from_slice};
 use std::fmt::Display;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

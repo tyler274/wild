@@ -1,35 +1,21 @@
-use crate::EnginePlatform;
-use crate::GroupLayout;
-use crate::Layout;
 use crate::output_section_id::OutputSectionId;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::output_trace::TraceOutput;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
-use rayon::iter::IndexedParallelIterator;
-use rayon::iter::ParallelIterator;
-use rayon::slice::ParallelSlice;
-use rayon::slice::ParallelSliceMut;
-use std::ops::Deref;
-use std::ops::DerefMut;
+use crate::{EnginePlatform, GroupLayout, Layout, timing_phase, verbose_timing_phase};
+use rayon::iter::{IndexedParallelIterator, ParallelIterator};
+use rayon::slice::{ParallelSlice, ParallelSliceMut};
+use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::mpsc::Receiver;
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{Receiver, Sender};
 use wild_args::WRITE_VERIFY_ALLOCATIONS_ENV;
 use wild_error::env;
-use wild_error::error::Context as _;
-use wild_error::error::Error;
-use wild_error::error::Result;
-use wild_fs::fs::FileReplacementMode;
-use wild_fs::fs::FileSystem;
-use wild_fs::fs::FileType;
-use wild_fs::fs::FileWriteMode;
-use wild_fs::fs::OutputFileData;
-use wild_fs::fs::OutputOptions;
-use wild_platform::Args;
-use wild_platform::OutputKind;
+use wild_error::error::{Context as _, Error, Result};
+use wild_fs::fs::{
+    FileReplacementMode, FileSystem, FileType, FileWriteMode, OutputFileData, OutputOptions,
+};
 use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::{Args, OutputKind};
 
 pub struct Output<F: FileSystem> {
     path: Arc<Path>,

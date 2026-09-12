@@ -1,48 +1,27 @@
-use crate::LinkerDefinedIndices;
-use crate::SharedUnresolvedImports;
-use crate::WasmDataSegmentLayout;
-use crate::WasmFunctionBody;
-use crate::WasmLayout;
-use crate::WasmObjectIndexBases;
-use crate::WasmObjectIndexMap;
-use crate::WasmObjectLayoutInput;
-use crate::WasmRelocation;
-use crate::WasmSymbol;
-use crate::WasmSymbolKind;
-use crate::any_object_needs_linker_memory;
-use crate::apply_got_to_index_maps;
-use crate::data_segment_memory_offsets_by_original_index;
-use crate::ensure_stack_size_aligned;
-use crate::fill_exported_data_global_inits;
-use crate::fill_function_symbol_redirects;
-use crate::fill_got_func_inits;
-use crate::fill_got_mem_inits;
-use crate::layout_file_id_to_index;
-use crate::layout_object_data;
-use crate::resolve_cross_object_imports;
-use crate::setup_got_mem_and_indices;
-use crate::try_data_symbol_memory_address;
-use crate::validate_shared_memory_features;
+use crate::{
+    LinkerDefinedIndices, SharedUnresolvedImports, WasmDataSegmentLayout, WasmFunctionBody,
+    WasmLayout, WasmObjectIndexBases, WasmObjectIndexMap, WasmObjectLayoutInput, WasmRelocation,
+    WasmSymbol, WasmSymbolKind, any_object_needs_linker_memory, apply_got_to_index_maps,
+    data_segment_memory_offsets_by_original_index, ensure_stack_size_aligned,
+    fill_exported_data_global_inits, fill_function_symbol_redirects, fill_got_func_inits,
+    fill_got_mem_inits, layout_file_id_to_index, layout_object_data, resolve_cross_object_imports,
+    setup_got_mem_and_indices, try_data_symbol_memory_address, validate_shared_memory_features,
+};
 mod encode;
 mod memory;
 
-use crate::LINKER_MEMORY_BASE;
-use crate::WASM_DEAD_INDEX;
-use crate::Wasm;
+use crate::{LINKER_MEMORY_BASE, WASM_DEAD_INDEX, Wasm};
 #[allow(unused_imports)]
 pub(crate) use encode::*;
-use hashbrown::HashMap;
-use hashbrown::HashSet;
+use hashbrown::{HashMap, HashSet};
 #[allow(unused_imports)]
 pub(crate) use memory::*;
 use rayon::prelude::*;
 use wild_error::ensure;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
 use wild_layout as layout;
 use wild_layout::symbol_db::SymbolDb;
-use wild_layout::timing_phase;
-use wild_layout::verbose_timing_phase;
+use wild_layout::{timing_phase, verbose_timing_phase};
 
 pub(crate) fn build_output_module_layout<'data, 'files>(
     groups: &'files mut [layout::GroupState<'data, Wasm>],

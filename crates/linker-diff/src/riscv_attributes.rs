@@ -1,22 +1,13 @@
-use crate::header_diff::DiffMode;
-use crate::header_diff::FieldValues;
-use anyhow::Context;
-use anyhow::Result;
-use anyhow::ensure;
+use crate::header_diff::{DiffMode, FieldValues};
+use anyhow::{Context, Result, ensure};
 use linker_utils::elf::RISCV_ATTRIBUTE_VENDOR_NAME;
-use linker_utils::elf::riscvattr::TAG_RISCV_ARCH;
-use linker_utils::elf::riscvattr::TAG_RISCV_ATOMIC_ABI;
-use linker_utils::elf::riscvattr::TAG_RISCV_PRIV_SPEC;
-use linker_utils::elf::riscvattr::TAG_RISCV_PRIV_SPEC_MINOR;
-use linker_utils::elf::riscvattr::TAG_RISCV_PRIV_SPEC_REVISION;
-use linker_utils::elf::riscvattr::TAG_RISCV_STACK_ALIGN;
-use linker_utils::elf::riscvattr::TAG_RISCV_UNALIGNED_ACCESS;
-use linker_utils::elf::riscvattr::TAG_RISCV_WHOLE_FILE;
-use linker_utils::elf::riscvattr::TAG_RISCV_X3_REG_USAGE;
+use linker_utils::elf::riscvattr::{
+    TAG_RISCV_ARCH, TAG_RISCV_ATOMIC_ABI, TAG_RISCV_PRIV_SPEC, TAG_RISCV_PRIV_SPEC_MINOR,
+    TAG_RISCV_PRIV_SPEC_REVISION, TAG_RISCV_STACK_ALIGN, TAG_RISCV_UNALIGNED_ACCESS,
+    TAG_RISCV_WHOLE_FILE, TAG_RISCV_X3_REG_USAGE,
+};
 use linker_utils::elf::secnames::RISCV_ATTRIBUTES_SECTION_NAME_STR;
-use linker_utils::utils::read_string;
-use linker_utils::utils::read_u32;
-use linker_utils::utils::read_uleb128;
+use linker_utils::utils::{read_string, read_u32, read_uleb128};
 use object::ObjectSection;
 use std::collections::BTreeMap;
 

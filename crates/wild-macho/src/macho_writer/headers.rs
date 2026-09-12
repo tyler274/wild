@@ -1,63 +1,27 @@
-use super::ExportsTrieCommand;
-use super::LE;
-use super::MachOLayout;
-use super::SymtabEntry;
-use super::get_text_segment_layout;
-use super::take_mut;
-use super::write_chained_fixup_table;
-use crate::BuildVersionCommand;
-use crate::CodeSignatureCommand;
-use crate::DYLINKER_PATH;
-use crate::DyldChainedFixupsCommand;
-use crate::DylibCommand;
-use crate::DylinkerCommand;
-use crate::EntryPointCommand;
-use crate::FileHeader;
-use crate::MACHO_COMMAND_ALIGNMENT;
-use crate::MACHO_START_MEM_ADDRESS;
-use crate::MachO;
-use crate::PLT_ENTRY_SIZE;
-use crate::SectionEntry;
-use crate::SegmentCommand;
-use crate::SegmentName;
-use crate::SymtabCommand;
-use crate::UuidCommand;
-use crate::get_segment_sections;
-use crate::load_dylib_command_size;
-use crate::output_section_id;
+use super::{
+    ExportsTrieCommand, LE, MachOLayout, SymtabEntry, get_text_segment_layout, take_mut,
+    write_chained_fixup_table,
+};
 use crate::output_section_id::LOAD_COMMANDS;
-use crate::part_id;
+use crate::{
+    BuildVersionCommand, CodeSignatureCommand, DYLINKER_PATH, DyldChainedFixupsCommand,
+    DylibCommand, DylinkerCommand, EntryPointCommand, FileHeader, MACHO_COMMAND_ALIGNMENT,
+    MACHO_START_MEM_ADDRESS, MachO, PLT_ENTRY_SIZE, SectionEntry, SegmentCommand, SegmentName,
+    SymtabCommand, UuidCommand, get_segment_sections, load_dylib_command_size, output_section_id,
+    part_id,
+};
 use linker_utils::utils::slice_from_all_bytes_mut;
-use object::BigEndian;
-use object::macho;
-use object::macho::CPU_SUBTYPE_ARM64_ALL;
-use object::macho::CPU_TYPE_ARM64;
-use object::macho::LC_BUILD_VERSION;
-use object::macho::LC_CODE_SIGNATURE;
-use object::macho::LC_DYLD_CHAINED_FIXUPS;
-use object::macho::LC_DYLD_EXPORTS_TRIE;
-use object::macho::LC_LOAD_DYLIB;
-use object::macho::LC_LOAD_DYLINKER;
-use object::macho::LC_MAIN;
-use object::macho::LC_SEGMENT_64;
-use object::macho::LC_SYMTAB;
-use object::macho::LC_UUID;
-use object::macho::MH_CIGAM_64;
-use object::macho::MH_EXECUTE;
-use object::macho::PLATFORM_MACOS;
-use object::macho::SegmentFlags;
-use object::slice_from_bytes_mut;
-use wild_error::bail;
-use wild_error::ensure;
-use wild_error::error;
-use wild_error::error::Context;
-use wild_error::error::Result;
-use wild_layout::EpilogueLayout;
-use wild_layout::OutputRecordLayout;
-use wild_layout::PreludeLayout;
+use object::macho::{
+    CPU_SUBTYPE_ARM64_ALL, CPU_TYPE_ARM64, LC_BUILD_VERSION, LC_CODE_SIGNATURE,
+    LC_DYLD_CHAINED_FIXUPS, LC_DYLD_EXPORTS_TRIE, LC_LOAD_DYLIB, LC_LOAD_DYLINKER, LC_MAIN,
+    LC_SEGMENT_64, LC_SYMTAB, LC_UUID, MH_CIGAM_64, MH_EXECUTE, PLATFORM_MACOS, SegmentFlags,
+};
+use object::{BigEndian, macho, slice_from_bytes_mut};
+use wild_error::error::{Context, Result};
+use wild_error::{bail, ensure, error};
 use wild_layout::output_section_id::SectionName;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
-use wild_layout::verbose_timing_phase;
+use wild_layout::{EpilogueLayout, OutputRecordLayout, PreludeLayout, verbose_timing_phase};
 use wild_platform::EntryPoint;
 use zerocopy::FromZeros;
 

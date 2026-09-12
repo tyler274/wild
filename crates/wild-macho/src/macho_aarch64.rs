@@ -3,18 +3,12 @@
 
 use crate::MachO;
 use linker_utils::aarch64::RelaxationKind;
-use linker_utils::elf::AArch64Instruction;
-use linker_utils::elf::AllowedRange;
-use linker_utils::elf::PAGE_MASK_4KB;
-use linker_utils::elf::PageMask;
-use linker_utils::elf::RelocationKind;
-use linker_utils::elf::RelocationKindInfo;
-use linker_utils::elf::RelocationSize;
-use linker_utils::elf::SIZE_4KB;
-use linker_utils::elf::Sign;
+use linker_utils::elf::{
+    AArch64Instruction, AllowedRange, PAGE_MASK_4KB, PageMask, RelocationKind, RelocationKindInfo,
+    RelocationSize, SIZE_4KB, Sign,
+};
 use std::borrow::Cow;
-use wild_error::bail;
-use wild_error::ensure;
+use wild_error::{bail, ensure};
 use wild_platform::PreviousRelocationInfo;
 
 pub struct MachOAArch64;

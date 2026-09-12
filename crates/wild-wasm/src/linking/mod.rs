@@ -1,7 +1,4 @@
-use crate::ObjectImportResolutions;
-use crate::WasmObjectLayoutInput;
-use crate::WasmSymbolKind;
-use crate::heap_base_address;
+use crate::{ObjectImportResolutions, WasmObjectLayoutInput, WasmSymbolKind, heap_base_address};
 mod emit;
 mod got;
 mod imports;

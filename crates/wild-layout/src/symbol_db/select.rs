@@ -1,25 +1,18 @@
-use super::db::AtomicSymbolDb;
-use super::db::SymbolDb;
+use super::db::{AtomicSymbolDb, SymbolDb};
 use super::ids::SymbolId;
-use crate::EnginePlatform;
 use crate::resolution::ResolvedGroup;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
+use crate::{EnginePlatform, timing_phase, verbose_timing_phase};
 use crossbeam_queue::SegQueue;
 use hashbrown::HashMap;
 use itertools::Itertools;
-use rayon::iter::IntoParallelRefMutIterator as _;
-use rayon::iter::ParallelIterator;
+use rayon::iter::{IntoParallelRefMutIterator as _, ParallelIterator};
 use std::mem::take;
 use wild_error::bail;
-use wild_error::error::Error;
-use wild_error::error::Result;
-use wild_platform::Args;
-use wild_platform::Symbol;
-use wild_platform::value_flags::AtomicPerSymbolFlags;
-use wild_platform::value_flags::FlagsForSymbol;
-use wild_platform::value_flags::PerSymbolFlags;
-use wild_platform::value_flags::ValueFlags;
+use wild_error::error::{Error, Result};
+use wild_platform::value_flags::{
+    AtomicPerSymbolFlags, FlagsForSymbol, PerSymbolFlags, ValueFlags,
+};
+use wild_platform::{Args, Symbol};
 
 /// For each symbol that has multiple definitions, some of which may be weak, some strong, some
 /// "common" symbols and some in archive entries that weren't loaded, resolve which version of the

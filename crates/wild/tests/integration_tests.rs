@@ -375,64 +375,31 @@ use gimli::Reader as _;
 use itertools::Itertools;
 use libloading::Library;
 use libtest_mimic::Trial;
-use libwild::bail;
-use libwild::ensure;
-use libwild::error;
-use libwild::error::Context as _;
-use libwild::error::Error;
-use object::LittleEndian;
-use object::Object as _;
-use object::ObjectKind;
-use object::ObjectSection;
-use object::ObjectSymbol as _;
-use object::macho::LC_CODE_SIGNATURE;
-use object::macho::LC_DYLD_CHAINED_FIXUPS;
-use object::macho::LC_DYLD_EXPORTS_TRIE;
-use object::macho::S_THREAD_LOCAL_REGULAR;
-use object::macho::S_THREAD_LOCAL_VARIABLES;
-use object::macho::S_THREAD_LOCAL_ZEROFILL;
-use object::macho::SEG_LINKEDIT;
-use object::macho::SEG_TEXT;
+use libwild::error::{Context as _, Error};
+use libwild::{bail, ensure, error};
+use object::macho::{
+    LC_CODE_SIGNATURE, LC_DYLD_CHAINED_FIXUPS, LC_DYLD_EXPORTS_TRIE, S_THREAD_LOCAL_REGULAR,
+    S_THREAD_LOCAL_VARIABLES, S_THREAD_LOCAL_ZEROFILL, SEG_LINKEDIT, SEG_TEXT,
+};
 use object::read::elf::ProgramHeader;
-use object::read::macho::ExportData;
-use object::read::macho::LoadCommandVariant;
-use object::read::macho::Segment;
+use object::read::macho::{ExportData, LoadCommandVariant, Segment};
+use object::{LittleEndian, Object as _, ObjectKind, ObjectSection, ObjectSymbol as _};
 use regex::Regex;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::ffi::OsString;
-use std::fmt::Debug;
-use std::fmt::Display;
-use std::fmt::Write as _;
-use std::hash::BuildHasher as _;
-use std::hash::Hash;
-use std::hash::Hasher;
-use std::io::BufRead;
-use std::io::BufReader;
-use std::io::ErrorKind;
-use std::io::IsTerminal;
-use std::io::Read;
+use std::fmt::{Debug, Display, Write as _};
+use std::hash::{BuildHasher as _, Hash, Hasher};
+use std::io::{BufRead, BufReader, ErrorKind, IsTerminal, Read};
 use std::ops::Range;
-use std::path::Path;
-use std::path::PathBuf;
-use std::process::Command;
-use std::process::ExitStatus;
-use std::process::Stdio;
+use std::path::{Path, PathBuf};
+use std::process::{Command, ExitStatus, Stdio};
 use std::str::FromStr;
-use std::sync::Arc;
-use std::sync::LazyLock;
-use std::sync::Mutex;
-use std::sync::Once;
-use std::sync::OnceLock;
-use std::time::Duration;
-use std::time::Instant;
-use strum::Display;
-use strum::EnumString;
-use strum::VariantNames;
+use std::sync::{Arc, LazyLock, Mutex, Once, OnceLock};
+use std::time::{Duration, Instant};
+use strum::{Display, EnumString, VariantNames};
 use wait_timeout::ChildExt;
 
 fn main() -> Result<std::process::ExitCode> {
@@ -596,9 +563,7 @@ fn i32_const_from_expr(expr: &wasmparser::ConstExpr<'_>) -> Option<i32> {
 
 impl WasmModuleInfo {
     fn parse(path: &Path) -> Result<Self> {
-        use wasmparser::CompositeInnerType;
-        use wasmparser::Parser;
-        use wasmparser::Payload;
+        use wasmparser::{CompositeInnerType, Parser, Payload};
 
         let bytes = std::fs::read(path)
             .with_context(|| format!("Failed to read Wasm file {}", path.display()))?;

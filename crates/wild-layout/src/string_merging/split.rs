@@ -1,39 +1,21 @@
-use super::merge::build_merge_class_buckets;
-use super::merge::entity_alignment;
-use super::merge::merge_bucket_index;
-use super::types::BucketOffset;
-use super::types::BucketString;
-use super::types::LinearInputOffset;
-use super::types::MAP_BLOCK_SIZE;
-use super::types::MERGE_STRING_BUCKETS;
-use super::types::MergeClassBuckets;
-use super::types::MergeString;
-use super::types::MergeStringsSectionBucket;
-use super::types::OffsetOut;
-use super::types::OverflowedOffset;
-use super::types::PoolReservation;
-use super::types::ReusePool;
-use super::types::SectionGroup;
-use super::types::SplitResources;
-use super::types::StringMergeInputSection;
-use super::types::StringPlacement;
-use super::types::StringToMerge;
-use super::types::StringsSlot;
-use super::types::TARGET_GROUP_SIZE_BYTES;
+use super::merge::{build_merge_class_buckets, entity_alignment, merge_bucket_index};
+use super::types::{
+    BucketOffset, BucketString, LinearInputOffset, MAP_BLOCK_SIZE, MERGE_STRING_BUCKETS,
+    MergeClassBuckets, MergeString, MergeStringsSectionBucket, OffsetOut, OverflowedOffset,
+    PoolReservation, ReusePool, SectionGroup, SplitResources, StringMergeInputSection,
+    StringPlacement, StringToMerge, StringsSlot, TARGET_GROUP_SIZE_BYTES,
+};
 use crate::verbose_timing_phase;
 use crossbeam_queue::ArrayQueue;
 use crossbeam_utils::atomic::AtomicCell;
 use rayon::Scope;
-use sharded_offset_map::OffsetMap;
-use sharded_offset_map::ShardedWriter;
-use std::mem::replace;
-use std::mem::take;
+use sharded_offset_map::{OffsetMap, ShardedWriter};
+use std::mem::{replace, take};
 use std::ops::Range;
 use std::sync::Mutex;
 use thread_local::ThreadLocal;
 use wild_args::Experiment;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
 use wild_platform as platform;
 use wild_util::alignment;
 use wild_util::hash::PreHashed;

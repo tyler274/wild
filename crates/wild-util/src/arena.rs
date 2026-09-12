@@ -16,8 +16,7 @@ use std::cell::Cell;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 use std::sync::Mutex;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Initial bump chunk per thread. Large enough that typical per-thread work (decompressed
 /// merge sections, copied names) does not walk bumpalo's 512 → 1K → 2K doubling ladder.

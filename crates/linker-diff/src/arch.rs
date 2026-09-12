@@ -1,16 +1,11 @@
-use crate::Binary;
-use crate::Result;
 use crate::asm_diff::BasicValueKind;
-use anyhow::Context;
-use anyhow::bail;
-use linker_utils::elf::BitMask;
-use linker_utils::elf::DynamicRelocationKind;
-use linker_utils::elf::RelocationKindInfo;
+use crate::{Binary, Result};
+use anyhow::{Context, bail};
+use linker_utils::elf::{BitMask, DynamicRelocationKind, RelocationKindInfo};
 use linker_utils::relaxation::RelocationModifier;
 use object::Object;
 use object::read::elf::FileHeader as _;
-use std::fmt::Debug;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::ops::Range;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

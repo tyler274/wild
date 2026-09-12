@@ -1,23 +1,15 @@
-use crate::MachO;
-use crate::output_section_id;
-use object::Endianness;
-use object::from_bytes_mut;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::ParallelIterator;
+use crate::{MachO, output_section_id};
+use object::{Endianness, from_bytes_mut};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use wild_error::error;
-use wild_error::error::Context;
-use wild_error::error::Result;
+use wild_error::error::{Context, Result};
 use wild_fs::fs::OutputFileData;
-use wild_layout::FileLayout;
-use wild_layout::Layout;
-use wild_layout::file_writer::SizedOutput;
-use wild_layout::file_writer::split_buffers_by_alignment;
-use wild_layout::file_writer::split_output_by_group;
-use wild_layout::file_writer::split_output_into_sections;
+use wild_layout::file_writer::{
+    SizedOutput, split_buffers_by_alignment, split_output_by_group, split_output_into_sections,
+};
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::output_trace::TraceOutput;
-use wild_layout::timing_phase;
-use wild_layout::verbose_timing_phase;
+use wild_layout::{FileLayout, Layout, timing_phase, verbose_timing_phase};
 use wild_platform::Arch;
 
 pub(crate) mod headers;

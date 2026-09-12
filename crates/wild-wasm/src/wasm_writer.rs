@@ -1,42 +1,21 @@
-use crate::WASM_MAGIC;
-use crate::WASM_VERSION;
-use crate::Wasm;
-use crate::WasmDataSegmentLayout;
-use crate::WasmFunctionBody;
-use crate::WasmLayout;
-use crate::WasmObjectIndexMap;
-use crate::WasmRelocation;
-use crate::WasmSymbol;
-use crate::apply_relocation;
-use crate::finalize_reloc_value;
-use crate::output_section_id;
-use crate::section_id;
-use crate::write_sleb128;
-use crate::write_uleb128;
+use crate::{
+    WASM_MAGIC, WASM_VERSION, Wasm, WasmDataSegmentLayout, WasmFunctionBody, WasmLayout,
+    WasmObjectIndexMap, WasmRelocation, WasmSymbol, apply_relocation, finalize_reloc_value,
+    output_section_id, section_id, write_sleb128, write_uleb128,
+};
 use leb128::write::unsigned_len as uleb128_size;
 use rayon::prelude::*;
 use std::borrow::Cow;
 use std::ops::Range;
-use wasm_encoder::ConstExpr;
-use wasm_encoder::ElementSection;
-use wasm_encoder::Elements;
-use wasm_encoder::ExportSection;
-use wasm_encoder::FunctionSection;
-use wasm_encoder::GlobalSection;
-use wasm_encoder::ImportSection;
-use wasm_encoder::MemorySection;
-use wasm_encoder::TableSection;
-use wasm_encoder::TypeSection;
-use wild_error::bail;
-use wild_error::ensure;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wasm_encoder::{
+    ConstExpr, ElementSection, Elements, ExportSection, FunctionSection, GlobalSection,
+    ImportSection, MemorySection, TableSection, TypeSection,
+};
+use wild_error::error::{Context as _, Result};
+use wild_error::{bail, ensure};
 use wild_fs::fs::OutputFileData;
-use wild_layout::Layout;
-use wild_layout::file_writer::SizedOutput;
-use wild_layout::file_writer::split_output_into_sections;
-use wild_layout::timing_phase;
-use wild_layout::verbose_timing_phase;
+use wild_layout::file_writer::{SizedOutput, split_output_into_sections};
+use wild_layout::{Layout, timing_phase, verbose_timing_phase};
 use wild_platform::Arch;
 
 fn apply_resolved_reloc(

@@ -1,14 +1,11 @@
 use crate::ArchKind;
-use crate::arch::Arch;
-use crate::arch::Instruction;
-use crate::arch::Relaxation;
-use crate::arch::RelaxationByteRange;
+use crate::arch::{Arch, Instruction, Relaxation, RelaxationByteRange};
 use crate::asm_diff::BasicValueKind;
 use crate::utils::decode_insn_with_objdump;
 use itertools::Itertools;
-use linker_utils::elf::DynamicRelocationKind;
-use linker_utils::elf::RelocationKindInfo;
-use linker_utils::elf::loongarch64_rel_type_to_string;
+use linker_utils::elf::{
+    DynamicRelocationKind, RelocationKindInfo, loongarch64_rel_type_to_string,
+};
 use linker_utils::loongarch64::RelaxationKind;
 use linker_utils::relaxation::RelocationModifier;
 use linker_utils::utils::u32_from_slice;

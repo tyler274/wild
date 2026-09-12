@@ -1,25 +1,13 @@
-use crate::parsing::ParsedInputObject;
-use crate::parsing::Prelude;
-use crate::parsing::ProcessedLinkerScript;
-use crate::parsing::SyntheticSymbols;
+use crate::parsing::{ParsedInputObject, Prelude, ProcessedLinkerScript, SyntheticSymbols};
 use crate::symbol::UnversionedSymbolName;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
-use crate::symbol_db::SymbolIdRange;
-use crate::symbol_db::SymbolStrength;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
+use crate::symbol_db::{SymbolDb, SymbolId, SymbolIdRange, SymbolStrength};
+use crate::{timing_phase, verbose_timing_phase};
 use std::fmt::Display;
-use wild_args::Experiment;
-use wild_args::InputRef;
+use wild_args::{Experiment, InputRef};
 use wild_error::error::Result;
 use wild_platform as platform;
-use wild_platform::FileId;
-use wild_platform::MAX_FILES_PER_GROUP;
-use wild_platform::ObjectFile;
-use wild_platform::Platform;
-use wild_util::input_section_id::InputSectionId;
-use wild_util::input_section_id::SectionIdRange;
+use wild_platform::{FileId, MAX_FILES_PER_GROUP, ObjectFile, Platform};
+use wild_util::input_section_id::{InputSectionId, SectionIdRange};
 use wild_util::sharding::ShardKey as _;
 
 #[derive(Debug, Clone)]

@@ -1,14 +1,7 @@
-use super::super::WASM_DEAD_INDEX;
-use super::super::section_id;
-use crate::File;
-use crate::WasmDataSegment;
-use crate::WasmFunctionBody;
-use crate::WasmRelocation;
-use crate::WasmSymbol;
-use crate::WasmSymbolKind;
+use super::super::{WASM_DEAD_INDEX, section_id};
+use crate::{File, WasmDataSegment, WasmFunctionBody, WasmRelocation, WasmSymbol, WasmSymbolKind};
 use std::ops::Range;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
 
 #[derive(Debug, Clone, Copy)]
 pub enum WasmGcUnit {

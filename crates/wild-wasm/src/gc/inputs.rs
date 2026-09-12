@@ -1,39 +1,17 @@
-use super::super::WASM_DEAD_INDEX;
-use super::super::section_id;
-use crate::DecodedCodeData;
-use crate::File;
-use crate::ImportResolution;
-use crate::LinkerDefinedIndices;
-use crate::ObjectImportResolutions;
-use crate::SharedUnresolvedImports;
-use crate::WasmDataSegment;
-use crate::WasmFunctionBody;
-use crate::WasmFunctionImport;
-use crate::WasmGlobalImport;
-use crate::WasmInitFunc;
-use crate::WasmObjectIndexMap;
-use crate::WasmObjectLayout;
-use crate::WasmRelocation;
-use crate::WasmSegmentInfo;
-use crate::WasmSymbol;
-use crate::WasmTargetFeature;
-use crate::data_relocations_are_supported;
-use crate::data_segment_span;
-use crate::decode_sorted_relocs_for;
-use crate::identity_ordinals;
-use crate::relocs_in_offset_range;
-use crate::remap_wasm_index;
-use crate::sort_relocations_by_offset;
-use crate::wasm_writer::OutputExport;
-use crate::wasm_writer::OutputGlobal;
+use super::super::{WASM_DEAD_INDEX, section_id};
+use crate::wasm_writer::{OutputExport, OutputGlobal};
+use crate::{
+    DecodedCodeData, File, ImportResolution, LinkerDefinedIndices, ObjectImportResolutions,
+    SharedUnresolvedImports, WasmDataSegment, WasmFunctionBody, WasmFunctionImport,
+    WasmGlobalImport, WasmInitFunc, WasmObjectIndexMap, WasmObjectLayout, WasmRelocation,
+    WasmSegmentInfo, WasmSymbol, WasmTargetFeature, data_relocations_are_supported,
+    data_segment_span, decode_sorted_relocs_for, identity_ordinals, relocs_in_offset_range,
+    remap_wasm_index, sort_relocations_by_offset,
+};
 use std::borrow::Cow;
-use wasmparser::DataKind;
-use wasmparser::MemoryType;
-use wasmparser::TypeRef;
-use wild_error::bail;
-use wild_error::ensure;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wasmparser::{DataKind, MemoryType, TypeRef};
+use wild_error::error::{Context as _, Result};
+use wild_error::{bail, ensure};
 
 #[derive(Debug)]
 pub(crate) struct WasmObjectLayoutInput<'data> {

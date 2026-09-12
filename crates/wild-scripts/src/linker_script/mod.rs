@@ -6,8 +6,7 @@ pub mod ast;
 pub mod parse;
 
 pub use ast::*;
-pub use parse::parse_expression;
-pub use parse::skip_comments_and_whitespace;
+pub use parse::{parse_expression, skip_comments_and_whitespace};
 
 /// Checks if we need to prefix `input_path` with the sysroot. If we do, then returns the resulting
 /// path. Otherwise, returns `None`. `linker_script_path` and `sysroot` should be canonical,

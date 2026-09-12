@@ -1,33 +1,19 @@
-use crate::Elf64;
-use crate::ElfCrel;
-use crate::ElfRela;
-use crate::PLT_ENTRY_SIZE;
-use crate::RelocationList64;
+use crate::{Elf64, ElfCrel, ElfRela, PLT_ENTRY_SIZE, RelocationList64};
 use itertools::Itertools;
-use linker_utils::elf::DynamicRelocationKind;
-use linker_utils::elf::RISCV_TLS_DTV_OFFSET;
-use linker_utils::elf::RelocationKind;
-use linker_utils::elf::RelocationKindInfo;
-use linker_utils::elf::RiscVInstruction;
-use linker_utils::elf::riscv64_rel_type_to_string;
-use linker_utils::elf::shf;
-use linker_utils::relaxation::RelocationModifier;
-use linker_utils::relaxation::SectionRelaxDeltas;
-use linker_utils::riscv64::JAL_RANGE;
-use linker_utils::riscv64::RelaxationKind;
-use linker_utils::riscv64::distance_fits_jal;
-use linker_utils::riscv64::relocation_type_from_raw;
-use object::elf::EF_RISCV_RV64ILP32;
-use object::elf::EF_RISCV_RVE;
-use wild_error::ensure;
-use wild_error::error;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
-use wild_platform::ObjectFile as _;
-use wild_platform::Platform;
-use wild_platform::PreviousRelocationInfo;
-use wild_platform::RelaxSymbolInfo;
-use wild_platform::Relocation;
+use linker_utils::elf::{
+    DynamicRelocationKind, RISCV_TLS_DTV_OFFSET, RelocationKind, RelocationKindInfo,
+    RiscVInstruction, riscv64_rel_type_to_string, shf,
+};
+use linker_utils::relaxation::{RelocationModifier, SectionRelaxDeltas};
+use linker_utils::riscv64::{
+    JAL_RANGE, RelaxationKind, distance_fits_jal, relocation_type_from_raw,
+};
+use object::elf::{EF_RISCV_RV64ILP32, EF_RISCV_RVE};
+use wild_error::error::{Context as _, Result};
+use wild_error::{ensure, error};
+use wild_platform::{
+    ObjectFile as _, Platform, PreviousRelocationInfo, RelaxSymbolInfo, Relocation,
+};
 
 pub struct ElfRiscV64;
 

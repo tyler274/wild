@@ -1,45 +1,30 @@
-use super::MachO;
-use super::output_section_id;
-use super::part_id;
 #[allow(unused_imports)]
 use super::types::BuiltInSectionDetails;
-use super::types::CS_SECTION_ALIGNMENT_EXP;
-use super::types::DEFAULT_DEFS;
-use super::types::GOT_ENTRY_SIZE;
-use super::types::LE;
-use super::types::PLT_ENTRY_SIZE;
-use super::types::ProgramSegmentDef;
-use super::types::Relocation;
-use super::types::SegmentName;
+use super::types::{
+    CS_SECTION_ALIGNMENT_EXP, DEFAULT_DEFS, GOT_ENTRY_SIZE, LE, PLT_ENTRY_SIZE, ProgramSegmentDef,
+    Relocation, SegmentName,
+};
+use super::{MachO, output_section_id, part_id};
 use anyhow::Context;
-use object::SymbolIndex;
-use object::macho;
 use object::macho::SEG_LINKEDIT;
 pub use object::macho::SectionFlags;
-use std::num::NonZeroU8;
-use std::num::NonZeroU64;
+use object::{SymbolIndex, macho};
+use std::num::{NonZeroU8, NonZeroU64};
 use wild_args::macho::MachOArgs;
 use wild_error::error::Result;
 use wild_layout as layout;
-use wild_layout::Layout;
-use wild_layout::OutputRecordLayout;
 use wild_layout::grouping::SequencedInput;
-use wild_layout::layout_rules::SectionKind;
-use wild_layout::layout_rules::SectionRule;
-use wild_layout::layout_rules::SectionRuleOutcome;
-use wild_layout::output_section_id::OrderEvent;
-use wild_layout::output_section_id::OutputOrderBuilder;
-use wild_layout::output_section_id::OutputSectionId;
-use wild_layout::output_section_id::SectionIdentity;
-use wild_layout::output_section_id::SectionName;
+use wild_layout::layout_rules::{SectionKind, SectionRule, SectionRuleOutcome};
+use wild_layout::output_section_id::{
+    OrderEvent, OutputOrderBuilder, OutputSectionId, SectionIdentity, SectionName,
+};
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::symbol_db::SymbolId;
+use wild_layout::{Layout, OutputRecordLayout};
 use wild_platform as platform;
-use wild_platform::FileId;
-use wild_platform::ObjectFile;
-use wild_platform::Relaxation;
 use wild_platform::program_segments::ProgramSegmentId;
 use wild_platform::value_flags::ValueFlags;
+use wild_platform::{FileId, ObjectFile, Relaxation};
 use wild_util::alignment;
 use wild_util::alignment::Alignment;
 

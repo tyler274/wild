@@ -1,32 +1,18 @@
-use super::LocationCounter;
-use super::SectionOutputInfo;
-use super::SectionRule;
-use super::SectionRules;
-use super::section_rule_from_id;
-use crate::EnginePlatform;
-use crate::LayoutRules;
-use crate::OutputSections;
+use super::{LocationCounter, SectionOutputInfo, SectionRule, SectionRules, section_rule_from_id};
 use crate::expression_eval::evaluate_const;
-use crate::output_section_id::GnuBuildIdPlacement;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::SectionLocationInfo;
-use crate::output_section_id::SectionName;
-use crate::parsing::InternalSymDefInfo;
-use crate::parsing::ProcessedLinkerScript;
-use crate::parsing::Redirect;
-use crate::parsing::RedirectKind;
-use crate::parsing::SymbolLoc;
-use crate::parsing::SymbolPlacement;
+use crate::output_section_id::{
+    GnuBuildIdPlacement, OutputSectionId, SectionLocationInfo, SectionName,
+};
+use crate::parsing::{
+    InternalSymDefInfo, ProcessedLinkerScript, Redirect, RedirectKind, SymbolLoc, SymbolPlacement,
+};
+use crate::{EnginePlatform, LayoutRules, OutputSections};
 use hashbrown::HashMap;
-use wild_args::InputLinkerScript;
-use wild_args::InputRef;
-use wild_error::error::Context;
-use wild_error::error::Result;
+use wild_args::{InputLinkerScript, InputRef};
+use wild_error::error::{Context, Result};
 use wild_platform::Args as _;
 use wild_scripts::linker_script;
-use wild_scripts::linker_script::ContentsCommand;
-use wild_scripts::linker_script::Expression;
-use wild_scripts::linker_script::SectionCommand;
+use wild_scripts::linker_script::{ContentsCommand, Expression, SectionCommand};
 use wild_util::alignment;
 use wild_util::arch::Architecture;
 

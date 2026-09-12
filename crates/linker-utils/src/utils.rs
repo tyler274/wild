@@ -1,5 +1,4 @@
-use anyhow::Result;
-use anyhow::ensure;
+use anyhow::{Result, ensure};
 use std::ffi::CStr;
 
 // Return u32 from a byte slice

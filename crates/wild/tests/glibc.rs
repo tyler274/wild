@@ -15,20 +15,14 @@
 //! contain the expected objects (a from-scratch glibc build will not fit the
 //! 10-minute CI timeout). GNU ld is the only oracle.
 
-use crate::Filter;
-use crate::build_dir;
-use crate::incremental_check;
-use crate::wild_path;
+use crate::{Filter, build_dir, incremental_check, wild_path};
 use libtest_mimic::Trial;
 use libwild::bail;
-use libwild::error::Context as _;
-use libwild::error::Result;
-use object::Object as _;
-use object::ObjectSymbol as _;
+use libwild::error::{Context as _, Result};
+use object::{Object as _, ObjectSymbol as _};
 use std::collections::HashSet;
 use std::ffi::OsString;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const TREE_VAR: &str = "WILD_GLIBC_TREE";

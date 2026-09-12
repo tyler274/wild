@@ -5,8 +5,7 @@ use wild_platform::Platform;
 pub use wild_platform::custom_section_ids::*;
 #[allow(unused_imports)]
 pub use wild_platform::section_identity::*;
-use wild_scripts::linker_script::Expression;
-use wild_scripts::linker_script::OnlyIf;
+use wild_scripts::linker_script::{Expression, OnlyIf};
 use wild_util::alignment::Alignment;
 
 #[derive(Debug)]

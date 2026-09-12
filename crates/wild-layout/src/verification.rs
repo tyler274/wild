@@ -1,12 +1,10 @@
 //! Used after `finalise_layout` to verify that all section output offsets were bumped by an amount
 //! equal to the size requested for that section.
 
-use crate::EnginePlatform;
-use crate::FileLayout;
-use crate::output_section_id::OutputOrder;
-use crate::output_section_id::OutputSections;
+use crate::output_section_id::{OutputOrder, OutputSections};
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
+use crate::{EnginePlatform, FileLayout};
 use itertools::Itertools;
 use wild_error::bail;
 use wild_error::error::Result;

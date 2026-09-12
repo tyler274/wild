@@ -1,12 +1,7 @@
-use crate::Args;
-use crate::bail;
-use crate::error::Context as _;
-use crate::error::Result;
-use libc::c_char;
-use libc::fork;
-use libc::pid_t;
-use std::ffi::c_int;
-use std::ffi::c_void;
+use crate::error::{Context as _, Result};
+use crate::{Args, bail};
+use libc::{c_char, fork, pid_t};
+use std::ffi::{c_int, c_void};
 
 /// Runs the linker, in a subprocess if possible, prints any errors, then exits.
 ///

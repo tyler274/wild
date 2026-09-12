@@ -1,41 +1,26 @@
 mod compute;
 mod input_order;
 
-use super::types::FinaliseLayoutResources;
-use super::types::GroupLayout;
-use super::types::GroupState;
-use super::types::HeaderInfo;
-use super::types::OutputRecordLayout;
-use super::types::PartialLinkPlan;
-use super::types::Resolution;
-use super::types::SegmentLayout;
-use super::types::SegmentLayouts;
-use crate::EnginePlatform;
+use super::types::{
+    FinaliseLayoutResources, GroupLayout, GroupState, HeaderInfo, OutputRecordLayout,
+    PartialLinkPlan, Resolution, SegmentLayout, SegmentLayouts,
+};
 use crate::layout_rules::SectionKind;
-use crate::output_section_id;
-use crate::output_section_id::OutputOrder;
-use crate::output_section_id::OutputSections;
+use crate::output_section_id::{OutputOrder, OutputSections};
 use crate::output_section_part_map::OutputSectionPartMap;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
+use crate::{EnginePlatform, output_section_id, timing_phase, verbose_timing_phase};
 #[allow(unused_imports)]
 pub use compute::*;
 #[allow(unused_imports)]
 pub use input_order::*;
 use itertools::Itertools;
-use rayon::iter::IndexedParallelIterator;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::ParallelIterator;
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use std::mem::take;
 use wild_error::ensure;
-use wild_error::error::Context;
-use wild_error::error::Result;
-use wild_platform::Args as _;
-use wild_platform::SectionAttributes as _;
-use wild_platform::SectionFlags as _;
+use wild_error::error::{Context, Result};
 use wild_platform::output_section_map::OutputSectionMap;
-use wild_platform::program_segments::ProgramSegmentId;
-use wild_platform::program_segments::ProgramSegments;
+use wild_platform::program_segments::{ProgramSegmentId, ProgramSegments};
+use wild_platform::{Args as _, SectionAttributes as _, SectionFlags as _};
 use wild_util::alignment;
 use wild_util::alignment::Alignment;
 

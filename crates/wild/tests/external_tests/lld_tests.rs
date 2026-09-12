@@ -1,15 +1,12 @@
 //! Runs LLD's ELF test suite via lit with Wild substituted for ld.lld.
 //! One test per architecture for granular reporting in cargo test output.
 
-use crate::Result;
-use crate::TestConfig;
-use libtest_mimic::Failed;
-use libtest_mimic::Trial;
+use crate::{Result, TestConfig};
+use libtest_mimic::{Failed, Trial};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
 

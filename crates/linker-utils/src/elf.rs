@@ -1,5 +1,4 @@
-use crate::bit_misc::BitExtraction;
-use crate::bit_misc::BitRange;
+use crate::bit_misc::{BitExtraction, BitRange};
 use anyhow::Result;
 use std::borrow::Cow;
 use std::fmt;

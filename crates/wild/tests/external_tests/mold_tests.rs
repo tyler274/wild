@@ -1,24 +1,17 @@
-use crate::Architecture;
-use crate::Result;
-use crate::TestConfig;
-use crate::external_tests::external_linker_name;
-use crate::external_tests::run_external_test;
-use crate::external_tests::should_not_ignore_tests;
-use crate::external_tests::should_skip_by_local_config;
-use crate::external_tests::using_third_party_linker;
-use crate::get_host_architecture;
-use crate::get_wild_test_cross;
-use libtest_mimic::Failed;
-use libtest_mimic::Trial;
+use crate::external_tests::{
+    external_linker_name, run_external_test, should_not_ignore_tests, should_skip_by_local_config,
+    using_third_party_linker,
+};
+use crate::{Architecture, Result, TestConfig, get_host_architecture, get_wild_test_cross};
+use libtest_mimic::{Failed, Trial};
 use libwild::error::Context;
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::env;
-use std::fs;
 use std::path::Path;
 use std::process::Output;
 use std::str::FromStr;
 use std::sync::OnceLock;
+use std::{env, fs};
 
 #[derive(Deserialize)]
 struct Config {

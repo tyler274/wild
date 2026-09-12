@@ -1,5 +1,4 @@
-use crate::hash::PreHashed;
-use crate::hash::hash_bytes;
+use crate::hash::{PreHashed, hash_bytes};
 use std::fmt::Display;
 use std::ops::BitXor as _;
 

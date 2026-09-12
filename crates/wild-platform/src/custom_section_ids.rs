@@ -1,6 +1,5 @@
-use super::Platform;
-use super::SectionAttributes as _;
 use super::output_section_id::OutputSectionId;
+use super::{Platform, SectionAttributes as _};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OrphanClass {

@@ -1,21 +1,13 @@
 //! Checks order in sections that contain pointers. e.g. `.init_array`, `.fini_array`.
 
-use crate::Arch;
-use crate::Binary;
-use crate::Result;
 use crate::arch::RType as _;
-use crate::get_r_type;
 use crate::header_diff::ResolvedValue;
-use anyhow::Context;
-use anyhow::ensure;
-use linker_utils::elf::DynamicRelocationKind;
-use linker_utils::elf::secnames;
-use object::Object;
-use object::ObjectSection;
-use object::ObjectSymbol;
-use object::ObjectSymbolTable;
-use object::RelocationTarget;
-use object::SymbolKind;
+use crate::{Arch, Binary, Result, get_r_type};
+use anyhow::{Context, ensure};
+use linker_utils::elf::{DynamicRelocationKind, secnames};
+use object::{
+    Object, ObjectSection, ObjectSymbol, ObjectSymbolTable, RelocationTarget, SymbolKind,
+};
 use std::borrow::Cow;
 
 pub(crate) fn report_diffs<A: Arch>(report: &mut crate::Report, objects: &[crate::Binary]) {

@@ -2,8 +2,7 @@ use crate::WasmLinkerSymbol;
 mod inputs;
 mod units;
 
-use crate::wasm_writer::OutputImport;
-use crate::wasm_writer::OutputImportEntity;
+use crate::wasm_writer::{OutputImport, OutputImportEntity};
 #[allow(unused_imports)]
 pub(crate) use inputs::*;
 #[allow(unused_imports)]

@@ -1,18 +1,12 @@
-use super::super::ElfArgs;
-use super::super::PackDynRelocs;
-use super::super::Strip;
-use crate::ArgumentParser;
-use crate::CopyRelocations;
-use crate::CopyRelocationsDisabledReason;
-use crate::HasCommonArgs as _;
-use crate::Input;
-use crate::InputSpec;
-use crate::RelocationModel;
-use crate::parse_number;
-use object::elf::GNU_PROPERTY_X86_ISA_1_BASELINE;
-use object::elf::GNU_PROPERTY_X86_ISA_1_V2;
-use object::elf::GNU_PROPERTY_X86_ISA_1_V3;
-use object::elf::GNU_PROPERTY_X86_ISA_1_V4;
+use super::super::{ElfArgs, PackDynRelocs, Strip};
+use crate::{
+    ArgumentParser, CopyRelocations, CopyRelocationsDisabledReason, HasCommonArgs as _, Input,
+    InputSpec, RelocationModel, parse_number,
+};
+use object::elf::{
+    GNU_PROPERTY_X86_ISA_1_BASELINE, GNU_PROPERTY_X86_ISA_1_V2, GNU_PROPERTY_X86_ISA_1_V3,
+    GNU_PROPERTY_X86_ISA_1_V4,
+};
 use std::num::NonZero;
 use std::path::Path;
 use std::sync::Arc;

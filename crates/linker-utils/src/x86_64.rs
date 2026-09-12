@@ -1,8 +1,4 @@
-use crate::elf::AllowedRange;
-use crate::elf::RelocationKind;
-use crate::elf::RelocationKindInfo;
-use crate::elf::RelocationSize;
-use crate::elf::Sign;
+use crate::elf::{AllowedRange, RelocationKind, RelocationKindInfo, RelocationSize, Sign};
 use crate::relaxation::RelocationModifier;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

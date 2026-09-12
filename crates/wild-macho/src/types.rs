@@ -1,26 +1,18 @@
 use super::MachO;
-use object::Endianness;
-use object::macho;
-use object::macho::S_ATTR_EXT_RELOC;
-use object::macho::S_ATTR_LOC_RELOC;
-use object::macho::S_ATTR_PURE_INSTRUCTIONS;
-use object::macho::S_ATTR_SOME_INSTRUCTIONS;
-use object::macho::S_GB_ZEROFILL;
-use object::macho::S_THREAD_LOCAL_REGULAR;
-use object::macho::S_THREAD_LOCAL_ZEROFILL;
-use object::macho::S_ZEROFILL;
-use object::macho::SECTION_ATTRIBUTES;
-use object::macho::Section64;
 pub use object::macho::SectionFlags;
+use object::macho::{
+    S_ATTR_EXT_RELOC, S_ATTR_LOC_RELOC, S_ATTR_PURE_INSTRUCTIONS, S_ATTR_SOME_INSTRUCTIONS,
+    S_GB_ZEROFILL, S_THREAD_LOCAL_REGULAR, S_THREAD_LOCAL_ZEROFILL, S_ZEROFILL, SECTION_ATTRIBUTES,
+    Section64,
+};
+use object::{Endianness, macho};
 use std::num::NonZeroU64;
 use wild_args::macho::MachOArgs;
 use wild_layout::layout_rules::SectionKind;
-use wild_layout::output_section_id::SectionIdentity;
-use wild_layout::output_section_id::SectionName;
+use wild_layout::output_section_id::{SectionIdentity, SectionName};
 use wild_layout::symbol_db::SymbolId;
 use wild_platform as platform;
-use wild_platform::Args;
-use wild_platform::FileId;
+use wild_platform::{Args, FileId};
 use wild_util::alignment;
 use wild_util::alignment::Alignment;
 

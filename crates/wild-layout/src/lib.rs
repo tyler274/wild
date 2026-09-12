@@ -21,8 +21,7 @@ pub mod symbol_db;
 pub mod thunks;
 
 use crate::expression_eval::evaluate_const;
-use crate::grouping::Group;
-use crate::grouping::SequencedLinkerScript;
+use crate::grouping::{Group, SequencedLinkerScript};
 use crate::output_section_id::OutputSections;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
@@ -30,22 +29,15 @@ use crate::resolution::ResolvedGroup;
 use crate::string_merging::MergedStringStartAddresses;
 use crate::symbol_db::SymbolDb;
 use diagnostics::SymbolInfoPrinter;
-use hashbrown::HashMap;
-use hashbrown::HashSet;
+use hashbrown::{HashMap, HashSet};
 use itertools::Itertools;
 pub use layout_rules::LayoutRules;
 use linker_utils::elf::RelocationKind;
 use std::sync::Mutex;
-use wild_error::error::Context;
-use wild_error::error::Result;
-use wild_platform::Arch;
-use wild_platform::Args as _;
-use wild_platform::FileId;
-use wild_platform::ObjectFile;
-use wild_platform::Platform;
-use wild_platform::SectionAttributes as _;
+use wild_error::error::{Context, Result};
 use wild_platform::output_section_map::OutputSectionMap;
 use wild_platform::value_flags::PerSymbolFlags;
+use wild_platform::{Arch, Args as _, FileId, ObjectFile, Platform, SectionAttributes as _};
 
 pub mod addresses;
 mod diagnostics;
@@ -61,15 +53,12 @@ pub mod verification;
 mod tidy_tests;
 
 pub use addresses::*;
-pub use engine::EnginePlatform;
-pub use engine::EngineScope;
-pub use engine::EngineWriter;
-pub use engine::platform_finalise_layout;
-pub use engine::platform_finalise_sizes;
-pub use engine::platform_graph;
 #[cfg(all(feature = "plugins", unix))]
 pub use engine::platform_resolution;
-pub use engine::platform_resolution_writer;
+pub use engine::{
+    EnginePlatform, EngineScope, EngineWriter, platform_finalise_layout, platform_finalise_sizes,
+    platform_graph, platform_resolution_writer,
+};
 pub use graph::*;
 pub use script::*;
 pub use sections::*;

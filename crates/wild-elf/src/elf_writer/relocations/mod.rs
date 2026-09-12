@@ -2,20 +2,17 @@ mod apply;
 mod eh_frame;
 mod rela;
 
-use super::types::ElfLayout;
-use super::types::TableWriter;
+use super::types::{ElfLayout, TableWriter};
 use crate as elf;
 use crate::ElfClass;
 #[allow(unused_imports)]
 pub(crate) use apply::*;
 #[allow(unused_imports)]
 pub(crate) use eh_frame::*;
-use linker_utils::elf::DynamicRelocationKind;
-use linker_utils::elf::RelocationKind;
-use linker_utils::elf::RelocationKindInfo;
-use linker_utils::elf::RelocationSize;
-use linker_utils::elf::SectionFlags;
-use linker_utils::elf::get_page_mask;
+use linker_utils::elf::{
+    DynamicRelocationKind, RelocationKind, RelocationKindInfo, RelocationSize, SectionFlags,
+    get_page_mask,
+};
 use linker_utils::relaxation::opt_input_to_output;
 use object::SymbolIndex;
 use object::read::elf::Sym as _;
@@ -24,28 +21,17 @@ pub(crate) use rela::*;
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::ops::BitAnd;
-use wild_error::bail;
-use wild_error::ensure;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
-use wild_layout::FileLayout;
-use wild_layout::Layout;
-use wild_layout::ObjectLayout;
-use wild_layout::Resolution;
+use wild_error::error::{Context as _, Result};
+use wild_error::{bail, ensure};
 use wild_layout::part_id::PartId;
 use wild_layout::resolution::SectionSlot;
 use wild_layout::string_merging::get_merged_string_output_address;
-use wild_layout::symbol_db::SymbolDb;
-use wild_layout::symbol_db::SymbolId;
+use wild_layout::symbol_db::{SymbolDb, SymbolId};
 use wild_layout::thunks::ThunkBlockId;
+use wild_layout::{FileLayout, Layout, ObjectLayout, Resolution};
 use wild_platform as platform;
-use wild_platform::Arch;
-use wild_platform::ObjectFile;
-use wild_platform::Platform;
-use wild_platform::Relocation;
-use wild_platform::SectionFlags as _;
-use wild_platform::value_flags::PerSymbolFlags;
-use wild_platform::value_flags::ValueFlags;
+use wild_platform::value_flags::{PerSymbolFlags, ValueFlags};
+use wild_platform::{Arch, ObjectFile, Platform, Relocation, SectionFlags as _};
 
 pub(crate) fn display_relocation<
     'a,

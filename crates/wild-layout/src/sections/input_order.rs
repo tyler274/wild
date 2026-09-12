@@ -1,19 +1,14 @@
-use crate::EnginePlatform;
-use crate::FileLayoutState;
-use crate::GroupState;
-use crate::InputOrderItem;
-use crate::MemoryRegion;
-use crate::OutputRecordLayout;
-use crate::Section;
-use crate::compute_layout_sections;
 use crate::expression_eval::ResolvedLocationCounter;
-use crate::output_section_id::OutputOrder;
-use crate::output_section_id::OutputSections;
+use crate::output_section_id::{OutputOrder, OutputSections};
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
 use crate::resolution::SectionSlot;
 use crate::string_merging::MergedStringsSection;
 use crate::symbol_db::SymbolDb;
+use crate::{
+    EnginePlatform, FileLayoutState, GroupState, InputOrderItem, MemoryRegion, OutputRecordLayout,
+    Section, compute_layout_sections,
+};
 use hashbrown::HashMap;
 use object::SectionIndex;
 use wild_error::error::Result;

@@ -1,12 +1,8 @@
-use super::super::STANDARD_SECTION_LOOKUP_LEN;
-use super::super::section_id;
-use crate::WasmRelocSection;
-use crate::WasmSymbol;
+use super::super::{STANDARD_SECTION_LOOKUP_LEN, section_id};
+use crate::{WasmRelocSection, WasmSymbol};
 use std::borrow::Cow;
 use std::ops::Range;
-use wasmparser::ConstExpr;
-use wasmparser::DataKind;
-use wasmparser::GlobalType;
+use wasmparser::{ConstExpr, DataKind, GlobalType};
 use wild_util::alignment::Alignment;
 
 #[derive(derive_more::Debug)]

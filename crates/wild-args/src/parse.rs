@@ -1,15 +1,10 @@
-use super::types::Input;
-use super::types::InputSpec;
-use super::types::Modifiers;
-use hashbrown::HashMap;
-use hashbrown::HashSet;
+use super::types::{Input, InputSpec, Modifiers};
+use hashbrown::{HashMap, HashSet};
 use itertools::Itertools;
 use std::borrow::Cow;
 use std::path::Path;
-use wild_error::bail;
-use wild_error::ensure;
-use wild_error::error::Context;
-use wild_error::error::Result;
+use wild_error::error::{Context, Result};
+use wild_error::{bail, ensure};
 use wild_platform as platform;
 
 /// Describes how a platform spells its options. GNU-style platforms use the default, whereas

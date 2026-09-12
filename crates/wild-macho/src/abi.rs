@@ -1,112 +1,55 @@
-use super::DEFAULT_SECTION_RULES;
-use super::DynamicLayoutExt;
-use super::DynamicLayoutStateExt;
-use super::EpilogueLayoutExt;
-use super::File;
-use super::MachO;
-use super::ResolutionExt;
-use super::SECTION_DEFINITIONS;
-use super::SinglePartSectionId;
-use super::add_sections_in_segment;
-use super::allocate_got;
-use super::allocate_plt;
-use super::count_sections_for_segment;
-use super::create_dynamic_layout_ext;
-use super::install_name;
-use super::output_section_id;
-use super::part_id;
-use super::process_relocation;
 #[allow(unused_imports)]
 use super::types::BuildVersionCommand;
-use super::types::BuiltInSectionDetails;
-use super::types::CHAINED_FIXUP_IMPORT_SIZE;
-use super::types::CHAINED_FIXUP_PAGE_START_SIZE;
-use super::types::CHAINED_FIXUP_TABLE_BASE_SIZE;
-use super::types::CS_BLOCK_SIZE;
-use super::types::CS_HASH_SIZE;
-use super::types::CS_HEADERS_SIZE;
-use super::types::CodeSignatureCommand;
-use super::types::DYLINKER_PATH;
-use super::types::DyldChainedFixupsCommand;
-use super::types::DylinkerCommand;
-use super::types::DynamicTagValues;
-use super::types::EntryPointCommand;
-use super::types::FileHeader;
-use super::types::FinaliseSizesExt;
-use super::types::GOT_ENTRY_SIZE;
-use super::types::INIT_OFFSET_ENTRY_SIZE;
-use super::types::ImportedSymbolWithResolution;
-use super::types::LE;
-use super::types::LayoutExt;
-use super::types::MACHO_COMMAND_ALIGNMENT;
-use super::types::MachOSegmentType;
-use super::types::NonAddressableIndexes;
-use super::types::ObjectLayoutStateExt;
-use super::types::PLT_ENTRY_SIZE;
-use super::types::PreludeLayoutExt;
-use super::types::ProgramSegmentDef;
-use super::types::RawSymbolName;
-use super::types::RelocationList;
-use super::types::SectionAttributes;
-use super::types::SectionEntry;
-use super::types::SectionHeader;
-use super::types::SegmentCommand;
-use super::types::SegmentName;
-use super::types::SymtabCommand;
-use super::types::SymtabEntry;
-use super::types::UuidCommand;
-use super::types::VerneedTable;
-use super::types::code_signature_padded_identifier_size;
-use super::types::load_dylib_command_size;
+use super::types::{
+    BuiltInSectionDetails, CHAINED_FIXUP_IMPORT_SIZE, CHAINED_FIXUP_PAGE_START_SIZE,
+    CHAINED_FIXUP_TABLE_BASE_SIZE, CS_BLOCK_SIZE, CS_HASH_SIZE, CS_HEADERS_SIZE,
+    CodeSignatureCommand, DYLINKER_PATH, DyldChainedFixupsCommand, DylinkerCommand,
+    DynamicTagValues, EntryPointCommand, FileHeader, FinaliseSizesExt, GOT_ENTRY_SIZE,
+    INIT_OFFSET_ENTRY_SIZE, ImportedSymbolWithResolution, LE, LayoutExt, MACHO_COMMAND_ALIGNMENT,
+    MachOSegmentType, NonAddressableIndexes, ObjectLayoutStateExt, PLT_ENTRY_SIZE,
+    PreludeLayoutExt, ProgramSegmentDef, RawSymbolName, RelocationList, SectionAttributes,
+    SectionEntry, SectionHeader, SegmentCommand, SegmentName, SymtabCommand, SymtabEntry,
+    UuidCommand, VerneedTable, code_signature_padded_identifier_size, load_dylib_command_size,
+};
+use super::{
+    DEFAULT_SECTION_RULES, DynamicLayoutExt, DynamicLayoutStateExt, EpilogueLayoutExt, File, MachO,
+    ResolutionExt, SECTION_DEFINITIONS, SinglePartSectionId, add_sections_in_segment, allocate_got,
+    allocate_plt, count_sections_for_segment, create_dynamic_layout_ext, install_name,
+    output_section_id, part_id, process_relocation,
+};
 use crate::macho_writer;
-use crate::output_section_id::CHAINED_FIXUP_TABLE;
-use crate::output_section_id::CODE_SIGNATURE;
-use crate::output_section_id::EXPORTS_TRIE;
-use crate::output_section_id::LOAD_COMMANDS;
-use crate::output_section_id::STRTAB;
-use crate::output_section_id::SYMTAB_GLOBAL;
+use crate::output_section_id::{
+    CHAINED_FIXUP_TABLE, CODE_SIGNATURE, EXPORTS_TRIE, LOAD_COMMANDS, STRTAB, SYMTAB_GLOBAL,
+};
 use anyhow::Context;
 use itertools::Itertools;
-use object::Endianness;
-use object::macho;
 use object::macho::S_THREAD_LOCAL_VARIABLES;
 pub use object::macho::SectionFlags;
 use object::read::macho::Section;
+use object::{Endianness, macho};
 use std::slice::Iter;
 use wild_args::macho::MachOArgs;
-use wild_error::ensure;
-use wild_error::error;
 use wild_error::error::Result;
-use wild_fs::fs::FileReplacementMode;
-use wild_fs::fs::FileSystem;
+use wild_error::{ensure, error};
+use wild_fs::fs::{FileReplacementMode, FileSystem};
 use wild_layout as layout;
-use wild_layout::HandlerData as _;
-use wild_layout::OutputRecordLayout;
-use wild_layout::Resolution;
-use wild_layout::SectionGcUnit;
-use wild_layout::StubLibraryLayoutState;
-use wild_layout::SymbolCopyInfo;
-use wild_layout::SymbolResolutions;
 use wild_layout::layout_rules::SectionKind;
-use wild_layout::output_section_id::FILE_HEADER;
-use wild_layout::output_section_id::OutputOrderBuilder;
-use wild_layout::output_section_id::OutputSectionId;
-use wild_layout::output_section_id::SectionIdentity;
-use wild_layout::output_section_id::SectionName;
-use wild_layout::output_section_id::SectionOutputInfo;
+use wild_layout::output_section_id::{
+    FILE_HEADER, OutputOrderBuilder, OutputSectionId, SectionIdentity, SectionName,
+    SectionOutputInfo,
+};
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::part_id::PartId;
-use wild_layout::resolution;
 use wild_layout::symbol_db::SymbolId;
-use wild_layout::verbose_timing_phase;
+use wild_layout::{
+    HandlerData as _, OutputRecordLayout, Resolution, SectionGcUnit, StubLibraryLayoutState,
+    SymbolCopyInfo, SymbolResolutions, resolution, verbose_timing_phase,
+};
 use wild_platform as platform;
-use wild_platform::ObjectFile;
-use wild_platform::OutputKind;
-use wild_platform::SectionAttributes as _;
 use wild_platform::program_segments::ProgramSegments;
+use wild_platform::{ObjectFile, OutputKind, SectionAttributes as _};
 use wild_util::alignment;
-use wild_util::alignment::Alignment;
-use wild_util::alignment::MACHO_PAGE_ALIGNMENT;
+use wild_util::alignment::{Alignment, MACHO_PAGE_ALIGNMENT};
 
 impl platform::Platform for MachO {
     const NUM_SINGLE_PART_SECTIONS: u32 = SinglePartSectionId::Count as u32;

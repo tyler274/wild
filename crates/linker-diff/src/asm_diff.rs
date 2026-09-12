@@ -37,57 +37,31 @@
 //! forward, checking where it is. Provided the symbol is unique, we can then claim to have matched
 //! against it.
 
-use self::section_map::FunctionInfo;
-use self::section_map::IndexedLayout;
-use self::section_map::InputSectionId;
-use self::section_map::SymbolInfo;
-use crate::Binary;
-use crate::ColourMode;
-use crate::Diff;
-use crate::DiffValues;
-use crate::ElfFile64;
-use crate::File;
-use crate::Report;
-use crate::Result;
-use crate::SectionCoverage;
-use crate::arch::Arch;
-use crate::arch::Instruction;
-use crate::arch::PltEntry;
-use crate::arch::RType;
-use crate::arch::Relaxation;
-use crate::arch::RelaxationKind;
+use self::section_map::{FunctionInfo, IndexedLayout, InputSectionId, SymbolInfo};
+use crate::arch::{Arch, Instruction, PltEntry, RType, Relaxation, RelaxationKind};
 use crate::diagnostics::TraceOutput;
-use crate::get_r_type;
-use crate::section_map;
-use anyhow::Context as _;
-use anyhow::anyhow;
-use anyhow::bail;
-use anyhow::ensure;
+use crate::{
+    Binary, ColourMode, Diff, DiffValues, ElfFile64, File, Report, Result, SectionCoverage,
+    get_r_type, section_map,
+};
+use anyhow::{Context as _, anyhow, bail, ensure};
 use hashbrown::HashMap;
 use itertools::Itertools as _;
-use linker_utils::elf::BitMask;
-use linker_utils::elf::DynamicRelocationKind;
-use linker_utils::elf::RelocationKind;
-use linker_utils::elf::RelocationKindInfo;
-use linker_utils::elf::RelocationSize;
 #[allow(clippy::wildcard_imports)]
 use linker_utils::elf::secnames::*;
+use linker_utils::elf::{
+    BitMask, DynamicRelocationKind, RelocationKind, RelocationKindInfo, RelocationSize,
+};
 use linker_utils::relaxation::RelocationModifier;
 use linker_utils::utils::u32_from_slice;
-use object::Endianness;
-use object::Object as _;
-use object::ObjectKind;
-use object::ObjectSection as _;
-use object::ObjectSymbol as _;
-use object::RelocationTarget;
-use object::SectionKind;
-use object::read::elf::Dyn as _;
-use object::read::elf::ElfSection64;
-use object::read::elf::FileHeader as _;
-use object::read::elf::ProgramHeader as _;
-use object::read::elf::SectionHeader as _;
-use std::fmt::Display;
-use std::fmt::Write as _;
+use object::read::elf::{
+    Dyn as _, ElfSection64, FileHeader as _, ProgramHeader as _, SectionHeader as _,
+};
+use object::{
+    Endianness, Object as _, ObjectKind, ObjectSection as _, ObjectSymbol as _, RelocationTarget,
+    SectionKind,
+};
+use std::fmt::{Display, Write as _};
 use std::iter::Peekable;
 use std::ops::Range;
 

@@ -1,77 +1,38 @@
-use crate::CommonGroupState;
-use crate::DynamicLayout;
-use crate::DynamicLayoutState;
-use crate::DynamicSymbolDefinition;
-use crate::EnginePlatform;
-use crate::EpilogueLayout;
-use crate::EpilogueLayoutState;
-use crate::FileLayout;
-use crate::FinaliseLayoutResources;
-use crate::FinaliseSizesResources;
-use crate::GraphResources;
-use crate::GroupState;
-use crate::HandlerData as _;
-use crate::HeaderInfo;
-use crate::InternalSymbols;
-use crate::LinkerScriptLayoutState;
-use crate::LocalWorkQueue;
-use crate::PartialLinkPlan;
-use crate::PartialLinkSingletons;
-use crate::PreludeLayout;
-use crate::PreludeLayoutState;
-use crate::ResolutionWriter;
-use crate::StubLibraryLayout;
-use crate::StubLibraryLayoutState;
-use crate::SyntheticSymbolsLayout;
-use crate::SyntheticSymbolsLayoutState;
-use crate::WorkItem;
-use crate::create_internal_symbol_resolution;
-use crate::export_dynamic;
 use crate::grouping::Group;
-use crate::load_expression_referenced_symbols;
-use crate::load_redirect_expression_targets;
-use crate::load_redirect_referenced_symbols;
-use crate::output_section_id;
-use crate::output_section_id::OutputOrder;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::OutputSections;
+use crate::output_section_id::{OutputOrder, OutputSectionId, OutputSections};
 use crate::output_section_part_map::OutputSectionPartMap;
-use crate::parsing::InternalSymDefInfo;
-use crate::parsing::SymbolPlacement;
-use crate::provide_has_missing_rhs;
-use crate::relocate_gnu_build_id_layout_offset;
-use crate::resolution;
-use crate::script_phdrs_writable;
+use crate::parsing::{InternalSymDefInfo, SymbolPlacement};
 use crate::string_merging::MergedStringsSection;
 use crate::symbol::UnversionedSymbolName;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
-use crate::symbol_db::SymbolIdRange;
+use crate::symbol_db::{SymbolDb, SymbolId, SymbolIdRange};
+use crate::{
+    CommonGroupState, DynamicLayout, DynamicLayoutState, DynamicSymbolDefinition, EnginePlatform,
+    EpilogueLayout, EpilogueLayoutState, FileLayout, FinaliseLayoutResources,
+    FinaliseSizesResources, GraphResources, GroupState, HandlerData as _, HeaderInfo,
+    InternalSymbols, LinkerScriptLayoutState, LocalWorkQueue, PartialLinkPlan,
+    PartialLinkSingletons, PreludeLayout, PreludeLayoutState, ResolutionWriter, StubLibraryLayout,
+    StubLibraryLayoutState, SyntheticSymbolsLayout, SyntheticSymbolsLayoutState, WorkItem,
+    create_internal_symbol_resolution, export_dynamic, load_expression_referenced_symbols,
+    load_redirect_expression_targets, load_redirect_referenced_symbols, output_section_id,
+    provide_has_missing_rhs, relocate_gnu_build_id_layout_offset, resolution,
+    script_phdrs_writable,
+};
 use itertools::Itertools;
 use rayon::Scope;
 use std::ffi::CString;
-use std::mem::replace;
-use std::mem::size_of;
+use std::mem::{replace, size_of};
 use wild_args::UnresolvedSymbols;
 use wild_error::bail;
-use wild_error::error::Context;
-use wild_error::error::Error;
-use wild_error::error::Result;
-use wild_platform::Arch;
-use wild_platform::Args as _;
-use wild_platform::ObjectFile;
-use wild_platform::OutputKind;
-use wild_platform::PRELUDE_FILE_ID;
-use wild_platform::ProgramSegmentDef as _;
-use wild_platform::SectionAttributes as _;
-use wild_platform::Symbol as _;
+use wild_error::error::{Context, Error, Result};
 use wild_platform::output_section_map::OutputSectionMap;
-use wild_platform::program_segments::ProgramSegmentId;
-use wild_platform::program_segments::ProgramSegments;
-use wild_platform::value_flags::AtomicPerSymbolFlags;
-use wild_platform::value_flags::FlagsForSymbol as _;
-use wild_platform::value_flags::PerSymbolFlags;
-use wild_platform::value_flags::ValueFlags;
+use wild_platform::program_segments::{ProgramSegmentId, ProgramSegments};
+use wild_platform::value_flags::{
+    AtomicPerSymbolFlags, FlagsForSymbol as _, PerSymbolFlags, ValueFlags,
+};
+use wild_platform::{
+    Arch, Args as _, ObjectFile, OutputKind, PRELUDE_FILE_ID, ProgramSegmentDef as _,
+    SectionAttributes as _, Symbol as _,
+};
 use wild_scripts::linker_script::Expression;
 use wild_util::alignment;
 use wild_util::sharding::ShardKey;

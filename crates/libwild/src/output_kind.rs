@@ -1,8 +1,6 @@
 use crate::FileSystem;
 use crate::input_data::FileLoader;
-use wild_platform::Args;
-use wild_platform::OutputKind;
-use wild_platform::RelocationModel;
+use wild_platform::{Args, OutputKind, RelocationModel};
 
 pub(crate) fn new(args: &impl Args, input_data: &FileLoader<'_, impl FileSystem>) -> OutputKind {
     let model = args.relocation_model();

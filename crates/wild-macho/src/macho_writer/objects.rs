@@ -1,38 +1,22 @@
-use super::LE;
-use super::MachOLayout;
-use super::MachOSymbolTableWriter;
-use super::write_symbols;
-use crate::GOT_ENTRY_SIZE;
-use crate::MachO;
-use crate::PLT_ENTRY_SIZE;
-use crate::SectionFlags;
-use crate::output_section_id;
-use linker_utils::elf::RelocationKind;
-use linker_utils::elf::get_page_mask;
+use super::{LE, MachOLayout, MachOSymbolTableWriter, write_symbols};
+use crate::{GOT_ENTRY_SIZE, MachO, PLT_ENTRY_SIZE, SectionFlags, output_section_id};
+use linker_utils::elf::{RelocationKind, get_page_mask};
 use object::SymbolIndex;
-use object::macho::ARM64_RELOC_TLVP_LOAD_PAGEOFF12;
-use object::macho::RelocationInfo;
-use object::macho::S_THREAD_LOCAL_REGULAR;
-use object::macho::S_THREAD_LOCAL_VARIABLES;
-use object::macho::S_THREAD_LOCAL_ZEROFILL;
+use object::macho::{
+    ARM64_RELOC_TLVP_LOAD_PAGEOFF12, RelocationInfo, S_THREAD_LOCAL_REGULAR,
+    S_THREAD_LOCAL_VARIABLES, S_THREAD_LOCAL_ZEROFILL,
+};
 use std::ops::BitAnd;
 use tracing::debug_span;
-use wild_error::bail;
-use wild_error::error;
-use wild_error::error::Context;
-use wild_error::error::Result;
-use wild_layout::ObjectLayout;
-use wild_layout::Resolution;
-use wild_layout::Section;
+use wild_error::error::{Context, Result};
+use wild_error::{bail, error};
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::output_trace::HexU64;
 use wild_layout::resolution::SectionSlot;
 use wild_layout::symbol_db::SymbolId;
-use wild_layout::verbose_timing_phase;
-use wild_platform::Arch;
-use wild_platform::ObjectFile as _;
-use wild_platform::Relaxation as _;
+use wild_layout::{ObjectLayout, Resolution, Section, verbose_timing_phase};
 use wild_platform::value_flags::ValueFlags;
+use wild_platform::{Arch, ObjectFile as _, Relaxation as _};
 
 pub(crate) fn write_got_entries(layout: &MachOLayout<'_>, got: &mut [u8]) -> Result {
     let got_layout = layout.section_layouts.get(output_section_id::GOT);

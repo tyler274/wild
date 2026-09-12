@@ -1,8 +1,4 @@
-use object::elf::EM_AARCH64;
-use object::elf::EM_LOONGARCH;
-use object::elf::EM_PPC64;
-use object::elf::EM_RISCV;
-use object::elf::EM_X86_64;
+use object::elf::{EM_AARCH64, EM_LOONGARCH, EM_PPC64, EM_RISCV, EM_X86_64};
 use std::fmt::Display;
 use wild_error::bail;
 use wild_error::error::Result;

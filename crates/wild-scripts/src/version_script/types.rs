@@ -1,13 +1,10 @@
 use glob::Pattern;
-use hashbrown::HashMap;
-use hashbrown::HashSet;
-use symbolic_demangle::Demangle;
-use symbolic_demangle::DemangleOptions;
+use hashbrown::{HashMap, HashSet};
+use symbolic_demangle::{Demangle, DemangleOptions};
 use wild_error::bail;
 use wild_error::error::Result;
 use wild_util::glob_match::unescape_pattern;
-use wild_util::hash::PassThroughHasher;
-use wild_util::hash::PreHashed;
+use wild_util::hash::{PassThroughHasher, PreHashed};
 use wild_util::symbol_name::UnversionedSymbolName;
 
 #[derive(Debug, Default, PartialEq, Eq)]

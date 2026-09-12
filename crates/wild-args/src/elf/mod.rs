@@ -4,37 +4,23 @@
 mod parser;
 
 use super::BSymbolicKind;
-use crate::CommonArgs;
-use crate::CopyRelocations;
-use crate::CopyRelocationsDisabledReason;
-use crate::HasCommonArgs as _;
-use crate::Modifiers;
-use crate::UnresolvedSymbols;
-use crate::parse_number;
-use hashbrown::HashMap;
-use hashbrown::HashSet;
+use crate::{
+    CommonArgs, CopyRelocations, CopyRelocationsDisabledReason, HasCommonArgs as _, Modifiers,
+    UnresolvedSymbols, parse_number,
+};
+use hashbrown::{HashMap, HashSet};
 use indexmap::IndexSet;
 use itertools::Itertools;
 use object::Endianness;
-use parser::IGNORED_FLAGS;
-use parser::setup_argument_parser;
+use parser::{IGNORED_FLAGS, setup_argument_parser};
 use std::ffi::CString;
-use std::num::NonZeroU32;
-use std::num::NonZeroU64;
-use std::path::Path;
-use std::path::PathBuf;
-use strum::EnumMessage as _;
-use strum::IntoEnumIterator as _;
-use wild_error::bail;
-use wild_error::env;
-use wild_error::error;
-use wild_error::error::Error;
-use wild_error::error::Result;
+use std::num::{NonZeroU32, NonZeroU64};
+use std::path::{Path, PathBuf};
+use strum::{EnumMessage as _, IntoEnumIterator as _};
+use wild_error::error::{Error, Result};
+use wild_error::{bail, env, error};
 use wild_platform as platform;
-use wild_platform::Args as _;
-use wild_platform::OrphanHandling;
-use wild_platform::OutputKind;
-use wild_platform::SectionName;
+use wild_platform::{Args as _, OrphanHandling, OutputKind, SectionName};
 use wild_scripts::linker_script::SegmentName;
 use wild_util::alignment::Alignment;
 use wild_util::arch::Architecture;
@@ -804,15 +790,12 @@ impl platform::Args for ElfArgs {
 mod tests {
     use super::ElfArgs;
     use super::parser::SILENTLY_IGNORED_FLAGS;
-    use crate::InputSpec;
-    use crate::VersionMode;
+    use crate::{InputSpec, VersionMode};
     use itertools::Itertools;
     use std::fs::File;
-    use std::io::BufWriter;
-    use std::io::Write;
+    use std::io::{BufWriter, Write};
     use std::num::NonZeroUsize;
-    use std::path::Path;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::str::FromStr;
     use tempfile::NamedTempFile;
     use wild_platform::Args as _;

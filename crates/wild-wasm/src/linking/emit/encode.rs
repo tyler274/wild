@@ -1,29 +1,16 @@
 use super::memory::export_name_exists;
-use crate::DEFAULT_TABLE_BASE_INIT_EXPR;
-use crate::EMPTY_FUNCTION_BODY;
-use crate::LINKER_MEMORY_BASE_INIT_EXPR;
-use crate::LinkerDefinedIndices;
-use crate::UNREACHABLE_FUNCTION_BODY;
-use crate::WASM_DEAD_INDEX;
-use crate::WasmFunctionBody;
-use crate::WasmLayout;
-use crate::WasmObjectIndexMap;
-use crate::WasmObjectLayoutInput;
-use crate::WasmSymbol;
-use crate::WasmSymbolKind;
-use crate::ZERO_I32_INIT_EXPR;
-use crate::call_ctors_used_in_objects;
-use crate::count_output_imports;
-use crate::wasm_writer::OutputExport;
-use crate::wasm_writer::OutputGlobal;
-use crate::wasm_writer::OutputImportEntity;
+use crate::wasm_writer::{OutputExport, OutputGlobal, OutputImportEntity};
+use crate::{
+    DEFAULT_TABLE_BASE_INIT_EXPR, EMPTY_FUNCTION_BODY, LINKER_MEMORY_BASE_INIT_EXPR,
+    LinkerDefinedIndices, UNREACHABLE_FUNCTION_BODY, WASM_DEAD_INDEX, WasmFunctionBody, WasmLayout,
+    WasmObjectIndexMap, WasmObjectLayoutInput, WasmSymbol, WasmSymbolKind, ZERO_I32_INIT_EXPR,
+    call_ctors_used_in_objects, count_output_imports,
+};
 use hashbrown::HashMap;
 use std::borrow::Cow;
-use wasmparser::FuncType;
-use wasmparser::GlobalType;
+use wasmparser::{FuncType, GlobalType};
 use wild_error::ensure;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
 
 pub(crate) fn encode_i32_const_body(value: i32) -> Vec<u8> {
     let mut bytes = vec![0x41];

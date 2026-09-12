@@ -3,34 +3,22 @@
 //! work unless they're performed. e.g. it uses GOT relocations in _start, which cannot work in a
 //! static-PIE binary because dynamic relocations haven't yet been applied to the GOT yet.
 
-use crate::Elf64;
-use crate::PLT_ENTRY_SIZE;
-use crate::PropertyClass;
-use linker_utils::elf::DynamicRelocationKind;
-use linker_utils::elf::RelocationKindInfo;
-use linker_utils::elf::SectionFlags;
-use linker_utils::elf::shf;
-use linker_utils::elf::x86_64_rel_type_to_string;
+use crate::{Elf64, PLT_ENTRY_SIZE, PropertyClass};
+use linker_utils::elf::{
+    DynamicRelocationKind, RelocationKindInfo, SectionFlags, shf, x86_64_rel_type_to_string,
+};
 use linker_utils::relaxation::RelocationModifier;
-use linker_utils::x86_64::RelaxationKind;
-use linker_utils::x86_64::relocation_from_raw;
-use object::elf::GNU_PROPERTY_UINT32_AND_HI;
-use object::elf::GNU_PROPERTY_UINT32_AND_LO;
-use object::elf::GNU_PROPERTY_UINT32_OR_HI;
-use object::elf::GNU_PROPERTY_UINT32_OR_LO;
-use object::elf::GNU_PROPERTY_X86_UINT32_AND_HI;
-use object::elf::GNU_PROPERTY_X86_UINT32_AND_LO;
-use object::elf::GNU_PROPERTY_X86_UINT32_OR_AND_HI;
-use object::elf::GNU_PROPERTY_X86_UINT32_OR_AND_LO;
-use object::elf::GNU_PROPERTY_X86_UINT32_OR_HI;
-use object::elf::GNU_PROPERTY_X86_UINT32_OR_LO;
-use wild_error::error;
+use linker_utils::x86_64::{RelaxationKind, relocation_from_raw};
+use object::elf::{
+    GNU_PROPERTY_UINT32_AND_HI, GNU_PROPERTY_UINT32_AND_LO, GNU_PROPERTY_UINT32_OR_HI,
+    GNU_PROPERTY_UINT32_OR_LO, GNU_PROPERTY_X86_UINT32_AND_HI, GNU_PROPERTY_X86_UINT32_AND_LO,
+    GNU_PROPERTY_X86_UINT32_OR_AND_HI, GNU_PROPERTY_X86_UINT32_OR_AND_LO,
+    GNU_PROPERTY_X86_UINT32_OR_HI, GNU_PROPERTY_X86_UINT32_OR_LO,
+};
 use wild_error::error::Result;
-use wild_error::malfunction_point_ret;
-use wild_platform::OutputKind;
-use wild_platform::Platform;
-use wild_platform::PreviousRelocationInfo;
+use wild_error::{error, malfunction_point_ret};
 use wild_platform::value_flags::ValueFlags;
+use wild_platform::{OutputKind, Platform, PreviousRelocationInfo};
 
 pub struct ElfX86_64;
 
@@ -586,8 +574,7 @@ impl TlsGdForm {
 #[test]
 fn test_relaxation() {
     use wild_args::RelocationModel;
-    use wild_platform::Arch as _;
-    use wild_platform::Relaxation as _;
+    use wild_platform::{Arch as _, Relaxation as _};
 
     #[track_caller]
     fn check(

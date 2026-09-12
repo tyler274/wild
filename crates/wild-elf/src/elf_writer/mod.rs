@@ -1,23 +1,17 @@
 use crate as elf;
-use crate::ElfClass;
-use crate::GNU_NOTE_NAME;
-use crate::output_section_id;
 use crate::writable_elf::WritableNoteHeader as _;
+use crate::{ElfClass, GNU_NOTE_NAME, output_section_id};
 use linker_utils::elf::RelocationKind;
 use linker_utils::elf::secnames::NOTE_GNU_BUILD_ID_SECTION_NAME_STR;
 use object::elf::NT_GNU_BUILD_ID;
 use object::from_bytes_mut;
 use uuid::Uuid;
 use wild_args::elf::BuildIdOption;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
 use wild_fs::fs::OutputFileData;
-use wild_layout::file_writer::SizedOutput;
-use wild_layout::file_writer::insufficient_allocation;
-use wild_layout::file_writer::split_output_into_sections;
+use wild_layout::file_writer::{SizedOutput, insufficient_allocation, split_output_into_sections};
 use wild_layout::timing_phase;
-use wild_platform::Arch;
-use wild_platform::Args as _;
+use wild_platform::{Arch, Args as _};
 
 pub(crate) mod dynamic;
 pub(crate) mod headers;

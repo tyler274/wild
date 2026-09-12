@@ -25,16 +25,12 @@
 //! format of the intermediate file uses postcard because we already had a dependency on it. It's
 //! very subject to change, so is only useful for short-term storage.
 
-use crate::config::BenchConfig;
-use crate::config::Config;
-use anyhow::Context;
-use anyhow::bail;
+use crate::config::{BenchConfig, Config};
+use anyhow::{Context, bail};
 use clap::Parser;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 

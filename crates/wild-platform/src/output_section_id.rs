@@ -1,9 +1,7 @@
 use super::Platform;
-use super::part_id::PartId;
-use super::part_id::regular_part_base;
+use super::part_id::{PartId, regular_part_base};
 use std::ops::Range;
-use wild_util::alignment::Alignment;
-use wild_util::alignment::NUM_ALIGNMENTS;
+use wild_util::alignment::{Alignment, NUM_ALIGNMENTS};
 
 /// An ID for an output section. This is used for looking up section info. It's independent of
 /// section ordering.

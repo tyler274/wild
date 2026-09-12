@@ -1,16 +1,10 @@
-use crate::Binary;
-use crate::Result;
-use anyhow::Context;
-use anyhow::anyhow;
-use anyhow::bail;
+use crate::{Binary, Result};
+use anyhow::{Context, anyhow, bail};
 use linker_utils::elf::secnames::GNU_HASH_SECTION_NAME_STR;
-use object::Endianness;
-use object::Object as _;
-use object::ObjectSection as _;
-use object::ObjectSymbol as _;
-use object::ObjectSymbolTable;
-use object::SymbolIndex;
-use object::SymbolTable;
+use object::{
+    Endianness, Object as _, ObjectSection as _, ObjectSymbol as _, ObjectSymbolTable, SymbolIndex,
+    SymbolTable,
+};
 
 type GnuHashHeader = object::elf::GnuHashHeader<Endianness>;
 

@@ -1,24 +1,17 @@
 use crate::part_id;
 #[allow(unused_imports)]
 use crate::types::Elf;
-use crate::types::ElfClass;
-use crate::types::File;
-use crate::types::GnuHashHeader;
-use crate::types::VerdefIterator;
-use crate::types::Versym;
+use crate::types::{ElfClass, File, GnuHashHeader, VerdefIterator, Versym};
 use hashbrown::HashMap;
 use object::LittleEndian;
 use rayon::prelude::*;
 use wild_args::elf::ElfArgs;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
 use wild_layout::DynamicSymbolDefinition;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
-use wild_layout::symbol_db::SymbolDb;
-use wild_layout::symbol_db::SymbolId;
+use wild_layout::symbol_db::{SymbolDb, SymbolId};
 use wild_platform as platform;
-use wild_platform::OutputKind;
-use wild_platform::Platform;
+use wild_platform::{OutputKind, Platform};
 
 pub struct VersionNames<'data> {
     pub(crate) names: Vec<Option<&'data [u8]>>,

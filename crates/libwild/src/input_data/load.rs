@@ -1,34 +1,18 @@
-use super::AuxiliaryFiles;
-use super::FileLoader;
-use super::InputFile;
-use super::InputLinkerScript;
-use super::InputPath;
-use super::InputRef;
-use super::ScriptData;
-use crate::FileSystem;
-use crate::InputFileData;
-use crate::args::Input;
-use crate::args::InputSpec;
-use crate::args::Modifiers;
-use crate::bail;
-use crate::error::Context as _;
-use crate::error::Error;
-use crate::error::Result;
+use super::{
+    AuxiliaryFiles, FileLoader, InputFile, InputLinkerScript, InputPath, InputRef, ScriptData,
+};
+use crate::args::{Input, InputSpec, Modifiers};
+use crate::error::{Context as _, Error, Result};
 use crate::file_kind::FileKind;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
-use wild_fs::archive::ArchiveEntry;
-use wild_fs::archive::ArchiveIterator;
-use wild_fs::archive::EntryMeta;
+use crate::{FileSystem, InputFileData, bail, timing_phase, verbose_timing_phase};
+use wild_fs::archive::{ArchiveEntry, ArchiveIterator, EntryMeta};
 use wild_layout::EnginePlatform;
-use wild_layout::grouping::DefinedStubLibrary;
-use wild_layout::grouping::LoadedStubLibrary;
+use wild_layout::grouping::{DefinedStubLibrary, LoadedStubLibrary};
 use wild_layout::parsing::ParsedInputObject;
 use wild_layout::symbol_db::LoadedInputs;
 use wild_macho::parse_defined_library;
 use wild_platform as platform;
-use wild_platform::Args;
-use wild_platform::Platform;
+use wild_platform::{Args, Platform};
 use wild_scripts::linker_script::LinkerScript;
 
 pub(crate) trait LoadPlatform: EnginePlatform {}
@@ -38,15 +22,10 @@ use crossbeam_queue::SegQueue;
 use hashbrown::HashMap;
 use itertools::Itertools as _;
 use rayon::Scope;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::IntoParallelRefIterator;
-use rayon::iter::ParallelIterator;
-use std::path::Path;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 struct TemporaryState<'data, P: Platform, F: FileSystem> {
     args: &'data P::Args,

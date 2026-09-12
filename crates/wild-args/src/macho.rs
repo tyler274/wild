@@ -1,19 +1,10 @@
-use crate::ArgumentParser;
-use crate::CommonArgs;
-use crate::HasCommonArgs as _;
-use crate::Input;
-use crate::InputSpec;
-use crate::Modifiers;
-use itertools::Itertools;
-use itertools::repeat_n;
+use crate::{ArgumentParser, CommonArgs, HasCommonArgs as _, Input, InputSpec, Modifiers};
+use itertools::{Itertools, repeat_n};
 use object::macho::Version;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use wild_error::bail;
-use wild_error::ensure;
-use wild_error::error::Context;
-use wild_error::error::Result;
+use wild_error::error::{Context, Result};
+use wild_error::{bail, ensure};
 use wild_platform as platform;
 use wild_platform::Args;
 use wild_util::alignment::MACHO_PAGE_ALIGNMENT;
@@ -343,14 +334,12 @@ fn add_silently_ignored_flags(parser: &mut ArgumentParser<MachOArgs>) {
 
 #[cfg(test)]
 mod tests {
-    use super::MachOArgs;
-    use super::PlatformVersion;
+    use super::{MachOArgs, PlatformVersion};
     use crate::InputSpec;
     use crate::macho::SemanticVersion;
     use object::macho::Version;
     use std::path::Path;
-    use std::sync::Arc;
-    use std::sync::Mutex;
+    use std::sync::{Arc, Mutex};
     use wild_platform::Args as _;
 
     const INPUT1: &[&str] = &[

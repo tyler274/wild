@@ -1,43 +1,27 @@
-use crate::new_dynamic_object_layout_state;
-use crate::new_object_layout_state;
+use crate::{new_dynamic_object_layout_state, new_object_layout_state};
 mod gc;
 mod objects;
 mod units;
 
-use crate::EnginePlatform;
 use crate::expression_eval::ResolvedLocationCounter;
 use crate::grouping::SequencedInputObject;
-use crate::output_section_id::OrderEvent;
-use crate::output_section_id::OutputOrder;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::OutputSections;
+use crate::output_section_id::{OrderEvent, OutputOrder, OutputSectionId, OutputSections};
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::parsing::InternalSymDefInfo;
 use crate::part_id::PartId;
-use crate::resolution;
-use crate::resolution::NotLoaded;
-use crate::resolution::ResolvedGroup;
-use crate::resolution::ScriptSortedSectionDetail;
-use crate::resolution::SectionSlot;
-use crate::string_merging::MergedStringStartAddresses;
-use crate::string_merging::MergedStringsSection;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolDebug;
-use crate::symbol_db::SymbolId;
-use crate::symbol_db::SymbolIdRange;
-use crate::thunks::ThunkBlockId;
-use crate::thunks::ThunkLayoutBuilder;
-use crate::timing_phase;
+use crate::resolution::{NotLoaded, ResolvedGroup, ScriptSortedSectionDetail, SectionSlot};
+use crate::string_merging::{MergedStringStartAddresses, MergedStringsSection};
+use crate::symbol_db::{SymbolDb, SymbolDebug, SymbolId, SymbolIdRange};
+use crate::thunks::{ThunkBlockId, ThunkLayoutBuilder};
+use crate::{EnginePlatform, resolution, timing_phase};
 #[allow(unused_imports)]
 pub use gc::*;
-use hashbrown::HashMap;
-use hashbrown::HashSet;
+use hashbrown::{HashMap, HashSet};
 use linker_utils::relaxation::RelaxDeltaMap;
 use object::SectionIndex;
 #[allow(unused_imports)]
 pub use objects::*;
-use rayon::iter::IntoParallelRefIterator;
-use rayon::iter::ParallelIterator;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use smallvec::SmallVec;
 use std::collections::BTreeMap;
 use std::ffi::CString;
@@ -45,30 +29,21 @@ use std::mem::replace;
 use std::num::NonZeroU32;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 #[allow(unused_imports)]
 pub use units::*;
 use wild_args::InputRef;
 use wild_error::bail;
-use wild_error::error::Context;
-use wild_error::error::Error;
-use wild_error::error::Result;
-use wild_platform::Args as _;
-use wild_platform::FileId;
-use wild_platform::ObjectFile;
-use wild_platform::Platform;
-use wild_platform::RelaxSymbolInfo;
-use wild_platform::SectionAttributes as _;
-use wild_platform::SectionFlags as _;
-use wild_platform::Symbol as _;
+use wild_error::error::{Context, Error, Result};
 use wild_platform::output_section_map::OutputSectionMap;
-use wild_platform::program_segments::ProgramSegmentId;
-use wild_platform::program_segments::ProgramSegments;
-use wild_platform::value_flags::AtomicPerSymbolFlags;
-use wild_platform::value_flags::FlagsForSymbol as _;
-use wild_platform::value_flags::PerSymbolFlags;
-use wild_platform::value_flags::ValueFlags;
+use wild_platform::program_segments::{ProgramSegmentId, ProgramSegments};
+use wild_platform::value_flags::{
+    AtomicPerSymbolFlags, FlagsForSymbol as _, PerSymbolFlags, ValueFlags,
+};
+use wild_platform::{
+    Args as _, FileId, ObjectFile, Platform, RelaxSymbolInfo, SectionAttributes as _,
+    SectionFlags as _, Symbol as _,
+};
 use wild_util::alignment::Alignment;
 use wild_util::input_section_id::SectionIdRange;
 

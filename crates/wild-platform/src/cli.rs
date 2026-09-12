@@ -2,15 +2,12 @@ use super::OutputKind;
 use super::file_id::FileId;
 use super::section_identity::SectionName;
 use object::Endianness;
-use std::num::NonZeroU64;
-use std::num::NonZeroUsize;
+use std::num::{NonZeroU64, NonZeroUsize};
 use std::path::Path;
 use std::sync::Arc;
-use wild_error::bail;
-use wild_error::env;
 use wild_error::error::Result;
-use wild_fs::fs::FileReplacementMode;
-use wild_fs::fs::FileWriteMode;
+use wild_error::{bail, env};
+use wild_fs::fs::{FileReplacementMode, FileWriteMode};
 use wild_util::alignment::Alignment;
 use wild_util::arch::Architecture;
 

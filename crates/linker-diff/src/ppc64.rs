@@ -1,13 +1,8 @@
 use crate::ArchKind;
-use crate::arch::Arch;
-use crate::arch::Instruction;
-use crate::arch::Relaxation;
-use crate::arch::RelaxationByteRange;
+use crate::arch::{Arch, Instruction, Relaxation, RelaxationByteRange};
 use crate::asm_diff::BasicValueKind;
 use crate::utils::decode_insn_with_objdump;
-use linker_utils::elf::DynamicRelocationKind;
-use linker_utils::elf::RelocationKindInfo;
-use linker_utils::elf::ppc64_rel_type_to_string;
+use linker_utils::elf::{DynamicRelocationKind, RelocationKindInfo, ppc64_rel_type_to_string};
 use linker_utils::ppc64::RelaxationKind;
 use linker_utils::relaxation::RelocationModifier;
 use std::fmt::Display;

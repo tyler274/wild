@@ -1,27 +1,19 @@
-use crate::CopyRelocationInfo;
-use crate::output_section_id;
-use crate::part_id;
 #[allow(unused_imports)]
 use crate::types::Elf;
 use crate::types::ElfClass;
+use crate::{CopyRelocationInfo, output_section_id, part_id};
 use hashbrown::HashMap;
 use itertools::Itertools as _;
 use rayon::prelude::*;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
 use wild_layout as layout;
-use wild_layout::CommonGroupState;
-use wild_layout::EnginePlatform;
-use wild_layout::HandlerData as _;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
-use wild_layout::symbol_db::SymbolDb;
-use wild_layout::symbol_db::SymbolId;
-use wild_layout::timing_phase;
-use wild_layout::verbose_timing_phase;
-use wild_platform::ObjectFile;
-use wild_platform::Symbol as _;
-use wild_platform::value_flags::AtomicPerSymbolFlags;
-use wild_platform::value_flags::ValueFlags;
+use wild_layout::symbol_db::{SymbolDb, SymbolId};
+use wild_layout::{
+    CommonGroupState, EnginePlatform, HandlerData as _, timing_phase, verbose_timing_phase,
+};
+use wild_platform::value_flags::{AtomicPerSymbolFlags, ValueFlags};
+use wild_platform::{ObjectFile, Symbol as _};
 use wild_util::alignment::Alignment;
 
 /// Where we've decided that we need copy relocations, look for symbols with the same address as the

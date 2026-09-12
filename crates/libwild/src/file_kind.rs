@@ -3,17 +3,12 @@
 //! The `FileKind` enum lives in `wild-platform` so format crates can name it without depending on
 //! this crate. Identification stays here because it parses ELF headers.
 
-use crate::bail;
-use crate::ensure;
 use crate::error::Result;
-use object::Endian;
-use object::Endianness;
-use object::LittleEndian;
+use crate::{bail, ensure};
 use object::elf::FileHeader64;
-use object::macho;
-use object::read::elf::FileHeader;
-use object::read::elf::SectionHeader;
+use object::read::elf::{FileHeader, SectionHeader};
 use object::read::macho::MachHeader;
+use object::{Endian, Endianness, LittleEndian, macho};
 pub(crate) use wild_platform::FileKind;
 use zerocopy::IntoBytes;
 

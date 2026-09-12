@@ -1,8 +1,6 @@
 use super::Platform;
-use std::fmt::Debug;
-use std::fmt::Display;
-use std::hash::Hash;
-use std::hash::Hasher;
+use std::fmt::{Debug, Display};
+use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone, Copy)]
 pub struct SectionIdentity<'data, P: Platform> {

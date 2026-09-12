@@ -9,21 +9,13 @@
 //! is a separate `--incremental` link of the same objects (section padding, so
 //! not compared to GNU addresses).
 
-use crate::Filter;
-use crate::build_dir;
-use crate::incremental_check;
-use crate::wild_path;
+use crate::{Filter, build_dir, incremental_check, wild_path};
 use libtest_mimic::Trial;
 use libwild::bail;
-use libwild::error::Context as _;
-use libwild::error::Result;
-use object::Object as _;
-use object::ObjectSection as _;
-use object::ObjectSymbol as _;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::path::Path;
-use std::path::PathBuf;
+use libwild::error::{Context as _, Result};
+use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const LINUX_TREE_VAR: &str = "WILD_LINUX_TREE";

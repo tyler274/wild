@@ -1,21 +1,11 @@
 use super::super::dynamic::EpilogueOffsets;
 use super::super::types::TableWriter;
 use crate as elf;
-use crate::ElfClass;
-use crate::Verdaux;
-use crate::Verdef;
-use crate::Vernaux;
-use crate::Verneed;
-use crate::VersionDef;
-use crate::Versym;
-use crate::part_id;
+use crate::{ElfClass, Verdaux, Verdef, Vernaux, Verneed, VersionDef, Versym, part_id};
 use object::LittleEndian;
-use wild_error::bail;
-use wild_error::error;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
-use wild_layout::file_writer::excessive_allocation;
-use wild_layout::file_writer::insufficient_allocation;
+use wild_error::error::{Context as _, Result};
+use wild_error::{bail, error};
+use wild_layout::file_writer::{excessive_allocation, insufficient_allocation};
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 
 #[derive(Default)]

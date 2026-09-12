@@ -1,55 +1,29 @@
-use super::types::CommonGroupState;
-use super::types::DynamicLayoutState;
-use super::types::ExportSymbolsMode;
-use super::types::FileLayoutState;
-use super::types::FinaliseLayoutResources;
-use super::types::GcOutputs;
-use super::types::GraphResources;
-use super::types::GroupActivationInputs;
-use super::types::GroupState;
-use super::types::LocalWorkQueue;
-use super::types::ObjectLayoutState;
-use super::types::Resolution;
-use super::types::WorkItem;
-use super::types::WorkerSlot;
-use crate::EnginePlatform;
+use super::types::{
+    CommonGroupState, DynamicLayoutState, ExportSymbolsMode, FileLayoutState,
+    FinaliseLayoutResources, GcOutputs, GraphResources, GroupActivationInputs, GroupState,
+    LocalWorkQueue, ObjectLayoutState, Resolution, WorkItem, WorkerSlot,
+};
 use crate::layout_rules::SectionKind;
 use crate::output_section_id::OutputSections;
 use crate::output_section_part_map::OutputSectionPartMap;
-use crate::parsing::InternalSymDefInfo;
-use crate::parsing::SymbolPlacement;
-use crate::resolution;
+use crate::parsing::{InternalSymDefInfo, SymbolPlacement};
 use crate::symbol::UnversionedSymbolName;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
-use crate::symbol_db::Visibility;
-use crate::thunks;
+use crate::symbol_db::{SymbolDb, SymbolId, Visibility};
 use crate::thunks::ThunkBlockId;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
+use crate::{EnginePlatform, resolution, thunks, timing_phase, verbose_timing_phase};
 use linker_utils::elf::RelocationKind;
 use linker_utils::relaxation::RelaxDeltaMap;
 use rayon::Scope;
 use std::mem::take;
-use std::sync::Mutex;
-use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
-use wild_args::InputRef;
-use wild_args::UnresolvedSymbols;
+use std::sync::{Mutex, atomic};
+use wild_args::{InputRef, UnresolvedSymbols};
 use wild_error::error;
-use wild_error::error::Context;
-use wild_error::error::Error;
-use wild_error::error::Result;
-use wild_platform::Arch;
-use wild_platform::Args as _;
-use wild_platform::ObjectFile;
-use wild_platform::OutputKind;
-use wild_platform::Platform;
-use wild_platform::ProgramSegmentDef as _;
-use wild_platform::Symbol as _;
-use wild_platform::value_flags::AtomicPerSymbolFlags;
-use wild_platform::value_flags::FlagsForSymbol as _;
-use wild_platform::value_flags::ValueFlags;
+use wild_error::error::{Context, Error, Result};
+use wild_platform::value_flags::{AtomicPerSymbolFlags, FlagsForSymbol as _, ValueFlags};
+use wild_platform::{
+    Arch, Args as _, ObjectFile, OutputKind, Platform, ProgramSegmentDef as _, Symbol as _,
+};
 use wild_scripts::linker_script::Expression;
 
 pub fn export_dynamic<'data, P: EnginePlatform>(

@@ -1,5 +1,4 @@
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use wild_error::error::Result;
 
 pub(super) fn discover_llvm_gold_plugin() -> Result<PathBuf> {

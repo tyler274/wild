@@ -1,25 +1,11 @@
-use crate::EnginePlatform;
-use crate::OutputSections;
-use crate::layout_rules::LayoutRulesBuilder;
-use crate::layout_rules::LocationCounter;
-use crate::output_section_id::LocationCounterIndex;
-use crate::output_section_id::OutputSectionId;
+use crate::layout_rules::{LayoutRulesBuilder, LocationCounter};
+use crate::output_section_id::{LocationCounterIndex, OutputSectionId};
 use crate::symbol::UnversionedSymbolName;
-use crate::symbol_db::SymbolId;
-use crate::symbol_db::SymbolIdRange;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
-use wild_args::InputLinkerScript;
-use wild_args::InputRef;
-use wild_args::Modifiers;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
-use wild_platform::Args;
-use wild_platform::FileId;
-use wild_platform::ObjectFile;
-use wild_platform::OutputKind;
-use wild_platform::Platform;
-use wild_platform::Symbol;
+use crate::symbol_db::{SymbolId, SymbolIdRange};
+use crate::{EnginePlatform, OutputSections, timing_phase, verbose_timing_phase};
+use wild_args::{InputLinkerScript, InputRef, Modifiers};
+use wild_error::error::{Context as _, Result};
+use wild_platform::{Args, FileId, ObjectFile, OutputKind, Platform, Symbol};
 use wild_scripts::linker_script::Expression;
 
 pub fn process_linker_scripts<'data, P: EnginePlatform>(

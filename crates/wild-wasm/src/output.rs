@@ -1,50 +1,25 @@
-use super::DEFAULT_TABLE_BASE;
-use super::TARGET_FEATURE_PREFIX_DISALLOWED;
-use super::TARGET_FEATURE_PREFIX_USED;
-use super::TARGET_FEATURES_SECTION_NAME;
-use super::WASM_DEAD_INDEX;
-use super::Wasm;
-use super::part_id;
-use crate::GotFunc;
-use crate::GotMem;
-use crate::GotMemDef;
-use crate::LinkerDefinedIndices;
-use crate::WasmDataSegment;
-use crate::WasmDataSegmentLayout;
-use crate::WasmFunctionBody;
-use crate::WasmObjectLayoutInput;
-use crate::WasmRelocation;
-use crate::WasmSymbol;
-use crate::WasmSymbolKind;
-use crate::WasmTargetFeature;
-use crate::got_func_debug_name;
-use crate::relocation_type_to_string;
-use crate::remap_wasm_index;
-use crate::wasm_writer::OutputExport;
-use crate::wasm_writer::OutputGlobal;
-use crate::wasm_writer::OutputImport;
-use hashbrown::HashMap;
-use hashbrown::HashSet;
-use leb128::write::signed_len as sleb128_size;
-use leb128::write::unsigned_len as uleb128_size;
+use super::{
+    DEFAULT_TABLE_BASE, TARGET_FEATURE_PREFIX_DISALLOWED, TARGET_FEATURE_PREFIX_USED,
+    TARGET_FEATURES_SECTION_NAME, WASM_DEAD_INDEX, Wasm, part_id,
+};
+use crate::wasm_writer::{OutputExport, OutputGlobal, OutputImport};
+use crate::{
+    GotFunc, GotMem, GotMemDef, LinkerDefinedIndices, WasmDataSegment, WasmDataSegmentLayout,
+    WasmFunctionBody, WasmObjectLayoutInput, WasmRelocation, WasmSymbol, WasmSymbolKind,
+    WasmTargetFeature, got_func_debug_name, relocation_type_to_string, remap_wasm_index,
+};
+use hashbrown::{HashMap, HashSet};
+use leb128::write::{signed_len as sleb128_size, unsigned_len as uleb128_size};
 use rayon::prelude::*;
 use std::borrow::Cow;
 use std::ops::Range;
-use wasm_encoder::NameMap;
-use wasm_encoder::NameSection;
-use wasmparser::BinaryReader;
-use wasmparser::ConstExpr;
-use wasmparser::DataKind;
-use wasmparser::MemoryType;
-use wasmparser::RelocationType;
-use wild_error::bail;
-use wild_error::ensure;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wasm_encoder::{NameMap, NameSection};
+use wasmparser::{BinaryReader, ConstExpr, DataKind, MemoryType, RelocationType};
+use wild_error::error::{Context as _, Result};
+use wild_error::{bail, ensure};
 use wild_layout::part_id::PartId;
 use wild_layout::symbol_db::SymbolDb;
-use wild_layout::timing_phase;
-use wild_layout::verbose_timing_phase;
+use wild_layout::{timing_phase, verbose_timing_phase};
 use wild_platform::Args as _;
 
 #[derive(Debug, Default)]

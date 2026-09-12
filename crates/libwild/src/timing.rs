@@ -1,17 +1,14 @@
 //! Code for reporting how long each phase of linking takes when the --time argument is supplied.
 
 use crate::args::CounterKind;
-use crate::error::AlreadyInitialised;
-use crate::error::Result;
+use crate::error::{AlreadyInitialised, Result};
 use crate::perf::CounterList;
-use anyhow::Context;
-use anyhow::anyhow;
+use anyhow::{Context, anyhow};
 use crossbeam_queue::ArrayQueue;
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use std::time::Duration;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tracing::field::Visit;
 use wild_error::env;
 

@@ -1,21 +1,10 @@
 use super::*;
 use crate::inputs::InputSpec;
-use crate::linker_script::ContentsCommand;
-use crate::linker_script::InputSectionFlags;
-use crate::linker_script::Location;
-use crate::linker_script::Matcher;
-use crate::linker_script::OnlyIf;
-use crate::linker_script::OutputData;
-use crate::linker_script::OutputDataWidth;
-use crate::linker_script::RelocatableAnchor;
-use crate::linker_script::Section;
-use crate::linker_script::SectionAttributes;
-use crate::linker_script::SectionCommand;
-use crate::linker_script::SectionPattern;
-use crate::linker_script::Sections;
-use crate::linker_script::SortKind;
-use crate::linker_script::SymbolAssignment;
-use crate::linker_script::maybe_apply_sysroot;
+use crate::linker_script::{
+    ContentsCommand, InputSectionFlags, Location, Matcher, OnlyIf, OutputData, OutputDataWidth,
+    RelocatableAnchor, Section, SectionAttributes, SectionCommand, SectionPattern, Sections,
+    SortKind, SymbolAssignment, maybe_apply_sysroot,
+};
 use itertools::assert_equal;
 use std::assert_matches;
 use std::path::Path;
@@ -640,8 +629,7 @@ fn test_version_script_parsing_from_version_command() {
 
 #[test]
 fn test_multiple_version_commands() {
-    use crate::version_script::VersionScript;
-    use crate::version_script::combine_version_script_bodies;
+    use crate::version_script::{VersionScript, combine_version_script_bodies};
 
     let script = parse_script(
         r"

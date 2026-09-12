@@ -1,23 +1,10 @@
-use super::object::CommonSymbol;
-use super::object::SectionFlags;
-use super::object::SectionHeader;
-use super::object::SectionType;
-use super::object::Symbol;
-use super::object::Visibility;
-use object::Endianness;
-use object::macho;
-use object::macho::N_ABS;
-use object::macho::N_EXT;
-use object::macho::N_PEXT;
-use object::macho::N_WEAK_DEF;
-use object::macho::S_ATTR_PURE_INSTRUCTIONS;
-use object::macho::S_ATTR_SOME_INSTRUCTIONS;
-use object::macho::S_GB_ZEROFILL;
-use object::macho::S_THREAD_LOCAL_ZEROFILL;
-use object::macho::S_ZEROFILL;
-use object::macho::Section64;
-use object::read::macho::Nlist;
-use object::read::macho::Section;
+use super::object::{CommonSymbol, SectionFlags, SectionHeader, SectionType, Symbol, Visibility};
+use object::macho::{
+    N_ABS, N_EXT, N_PEXT, N_WEAK_DEF, S_ATTR_PURE_INSTRUCTIONS, S_ATTR_SOME_INSTRUCTIONS,
+    S_GB_ZEROFILL, S_THREAD_LOCAL_ZEROFILL, S_ZEROFILL, Section64,
+};
+use object::read::macho::{Nlist, Section};
+use object::{Endianness, macho};
 
 const LE: Endianness = Endianness::Little;
 

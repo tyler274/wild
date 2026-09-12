@@ -1,18 +1,13 @@
 use crate::Result;
-use anyhow::Context;
-use anyhow::bail;
+use anyhow::{Context, bail};
 use hashbrown::HashMap;
 use itertools::Itertools;
 use linker_layout::ArchiveEntryInfo;
-use object::Endianness;
-use object::Object;
-use object::ObjectSection;
-use object::ObjectSymbol;
 use object::read::elf::ElfSection64;
+use object::{Endianness, Object, ObjectSection, ObjectSymbol};
 use std::fmt::Display;
 use std::ops::Range;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// A .layout file plus all the files that it references. All data is owned. This struct mostly
 /// exists so that `IndexedLayout` has something to borrow from.
@@ -355,8 +350,7 @@ impl<'data> DisplaySection<'data> {
 
 impl Display for DisplaySection<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use object::Object as _;
-        use object::ObjectSection as _;
+        use object::{Object as _, ObjectSection as _};
 
         if let Ok(section_name) = self
             .file

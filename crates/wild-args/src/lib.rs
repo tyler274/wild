@@ -15,8 +15,7 @@
 use std::io::Write;
 use std::path::Path;
 use wild_error::bail;
-use wild_error::error::Context;
-use wild_error::error::Result;
+use wild_error::error::{Context, Result};
 #[allow(unused_imports)]
 pub use wild_fs::fs::FileReplacementMode;
 use wild_platform::Args as _;
@@ -128,11 +127,9 @@ pub use input_ref::*;
 pub use parse::*;
 #[allow(unused_imports)]
 pub use types::*;
-pub use wild_platform::CopyRelocations;
-pub use wild_platform::CopyRelocationsDisabledReason;
-pub use wild_platform::Experiment;
-pub use wild_platform::RelocationModel;
-pub use wild_platform::UnresolvedSymbols;
+pub use wild_platform::{
+    CopyRelocations, CopyRelocationsDisabledReason, Experiment, RelocationModel, UnresolvedSymbols,
+};
 
 pub const FILES_PER_GROUP_ENV: &str = "WILD_FILES_PER_GROUP";
 pub const REFERENCE_LINKER_ENV: &str = "WILD_REFERENCE_LINKER";

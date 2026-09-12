@@ -1,54 +1,32 @@
-use super::types::FileLayoutState;
-use super::types::FinaliseLayoutResources;
-use super::types::GroupState;
-use super::types::InputSectionPosition;
-use super::types::InputSectionPositions;
-use super::types::MAX_RELAXATION_ITERATIONS;
-use super::types::MemoryRegion;
-use super::types::ObjectLayoutState;
-use super::types::OutputRecordLayout;
-use super::types::RescanCandidates;
-use super::types::RescanSections;
-use super::types::ResolutionWriter;
-use super::types::SYMBOL_ADDRESS_UNRESOLVED;
-use super::types::SymbolOutputInfos;
-use crate::EnginePlatform;
-use crate::advance_section_offset;
-use crate::compute_and_apply_section_layout;
-use crate::compute_start_offsets_by_group;
+use super::types::{
+    FileLayoutState, FinaliseLayoutResources, GroupState, InputSectionPosition,
+    InputSectionPositions, MAX_RELAXATION_ITERATIONS, MemoryRegion, ObjectLayoutState,
+    OutputRecordLayout, RescanCandidates, RescanSections, ResolutionWriter,
+    SYMBOL_ADDRESS_UNRESOLVED, SymbolOutputInfos,
+};
 use crate::expression_eval::ResolvedLocationCounter;
-use crate::output_section_id::OutputOrder;
-use crate::output_section_id::OutputSections;
+use crate::output_section_id::{OutputOrder, OutputSections};
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::resolution::SectionSlot;
-use crate::starting_memory_offsets;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
-use crate::symbol_db::SymbolIdRange;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
+use crate::symbol_db::{SymbolDb, SymbolId, SymbolIdRange};
+use crate::{
+    EnginePlatform, advance_section_offset, compute_and_apply_section_layout,
+    compute_start_offsets_by_group, starting_memory_offsets, timing_phase, verbose_timing_phase,
+};
 use hashbrown::HashMap;
-use linker_utils::relaxation::SectionRelaxDeltas;
-use linker_utils::relaxation::opt_input_to_output;
+use linker_utils::relaxation::{SectionRelaxDeltas, opt_input_to_output};
 use object::SectionIndex;
-use rayon::iter::IndexedParallelIterator;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::IntoParallelRefIterator;
-use rayon::iter::IntoParallelRefMutIterator;
-use rayon::iter::ParallelIterator;
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
+    IntoParallelRefMutIterator, ParallelIterator,
+};
 use smallvec::SmallVec;
 use wild_error::bail;
 use wild_error::error::Result;
-use wild_platform::Arch;
-use wild_platform::ObjectFile;
-use wild_platform::Platform;
-use wild_platform::RelaxSymbolInfo;
-use wild_platform::SectionHeader as _;
-use wild_platform::Symbol as _;
 use wild_platform::output_section_map::OutputSectionMap;
 use wild_platform::program_segments::ProgramSegments;
-use wild_platform::value_flags::PerSymbolFlags;
-use wild_platform::value_flags::ValueFlags;
+use wild_platform::value_flags::{PerSymbolFlags, ValueFlags};
+use wild_platform::{Arch, ObjectFile, Platform, RelaxSymbolInfo, SectionHeader as _, Symbol as _};
 
 pub fn default_create_resolutions<'data, P: EnginePlatform>(
     memory_offsets: &mut OutputSectionPartMap<u64>,

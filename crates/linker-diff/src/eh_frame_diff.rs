@@ -1,26 +1,14 @@
 use crate::Result;
-use crate::header_diff::Converter;
-use crate::header_diff::DiffMode;
-use crate::header_diff::FieldValues;
-use anyhow::Context;
-use anyhow::bail;
-use gimli::EndianSlice;
-use gimli::UnwindSection;
+use crate::header_diff::{Converter, DiffMode, FieldValues};
+use anyhow::{Context, bail};
+use gimli::{EndianSlice, UnwindSection};
 use hashbrown::HashMap;
-use linker_utils::elf::secnames::EH_FRAME_HDR_SECTION_NAME_STR;
-use linker_utils::elf::secnames::EH_FRAME_SECTION_NAME_STR;
-use object::Endianness;
-use object::File;
-use object::Object;
-use object::ObjectSection;
-use object::ObjectSymbol;
-use object::SymbolKind;
+use linker_utils::elf::secnames::{EH_FRAME_HDR_SECTION_NAME_STR, EH_FRAME_SECTION_NAME_STR};
 use object::elf::ProgramHeader64;
 use object::read::elf::ProgramHeader;
+use object::{Endianness, File, Object, ObjectSection, ObjectSymbol, SymbolKind};
 use std::mem::offset_of;
-use zerocopy::FromBytes;
-use zerocopy::Immutable;
-use zerocopy::KnownLayout;
+use zerocopy::{FromBytes, Immutable, KnownLayout};
 
 pub(crate) fn report_diffs(report: &mut crate::Report, objects: &[crate::Binary]) {
     report.add_diffs(crate::header_diff::diff_fields(

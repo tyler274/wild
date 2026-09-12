@@ -1,11 +1,7 @@
-use crate::ArgumentParser;
-use crate::CommonArgs;
-use crate::HasCommonArgs as _;
-use crate::Input;
-use crate::InputSpec;
-use crate::Modifiers;
-use crate::VersionMode;
-use crate::parse_number;
+use crate::{
+    ArgumentParser, CommonArgs, HasCommonArgs as _, Input, InputSpec, Modifiers, VersionMode,
+    parse_number,
+};
 use std::path::Path;
 use std::sync::Arc;
 use wild_error::bail;

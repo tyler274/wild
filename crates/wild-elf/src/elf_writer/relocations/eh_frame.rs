@@ -1,28 +1,17 @@
-use super::super::types::ElfLayout;
-use super::super::types::TableWriter;
-use super::RelocationCache;
-use super::SectionInfo;
-use super::apply_relocation;
-use super::display_relocation;
+use super::super::types::{ElfLayout, TableWriter};
+use super::{RelocationCache, SectionInfo, apply_relocation, display_relocation};
 use crate as elf;
-use crate::EhFrameHdrEntry;
-use crate::ElfClass;
-use crate::output_section_id;
+use crate::{EhFrameHdrEntry, ElfClass, output_section_id};
 use hashbrown::HashMap;
 use linker_utils::relaxation::opt_input_to_output;
 use object::LittleEndian;
-use object::read::elf::SectionHeader as _;
-use object::read::elf::Sym as _;
+use object::read::elf::{SectionHeader as _, Sym as _};
 use std::iter;
-use wild_error::bail;
-use wild_error::error;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
+use wild_error::{bail, error};
 use wild_layout::ObjectLayout;
 use wild_layout::output_trace::TraceOutput;
-use wild_platform::Arch;
-use wild_platform::ObjectFile;
-use wild_platform::Relocation;
+use wild_platform::{Arch, ObjectFile, Relocation};
 use zerocopy::FromBytes;
 
 pub(crate) fn write_eh_frame_data<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(

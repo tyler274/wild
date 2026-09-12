@@ -1,5 +1,4 @@
-use super::RelrEncoder;
-use super::RelrEntryEncoding;
+use super::{RelrEncoder, RelrEntryEncoding};
 use crate::part_id;
 #[allow(unused_imports)]
 use crate::types::Elf;
@@ -13,19 +12,14 @@ use std::sync::atomic;
 use wild_error::bail;
 use wild_error::error::Result;
 use wild_layout as layout;
-use wild_layout::CommonGroupState;
-use wild_layout::ObjectLayoutState;
 use wild_layout::part_id::PartId;
 use wild_layout::symbol_db::SymbolId;
-use wild_platform::Arch;
-use wild_platform::Args as _;
-use wild_platform::ObjectFile;
-use wild_platform::Platform;
-use wild_platform::Relaxation as _;
-use wild_platform::Relocation;
-use wild_platform::SectionFlags as _;
-use wild_platform::SectionHeader as _;
+use wild_layout::{CommonGroupState, ObjectLayoutState};
 use wild_platform::value_flags::ValueFlags;
+use wild_platform::{
+    Arch, Args as _, ObjectFile, Platform, Relaxation as _, Relocation, SectionFlags as _,
+    SectionHeader as _,
+};
 
 #[inline(always)]
 pub(crate) fn process_relocation<

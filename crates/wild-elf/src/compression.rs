@@ -2,36 +2,23 @@
 // compression is handled elsewhere.
 
 use crate as elf;
-use crate::ElfClass;
-use crate::elf_writer;
 use crate::elf_writer::apply_debug_relocations;
 use crate::writable_elf::WritableCompressionHeader as _;
+use crate::{ElfClass, elf_writer};
 use object::bytes_of;
 use object::elf::CompressionType;
-use rayon::iter::IntoParallelIterator as _;
-use rayon::iter::IntoParallelRefIterator as _;
-use rayon::iter::ParallelIterator as _;
+use rayon::iter::{IntoParallelIterator as _, IntoParallelRefIterator as _, ParallelIterator as _};
 use wild_error::bail;
 use wild_error::error::Result;
-use wild_layout::CompressedSection;
-use wild_layout::EnginePlatform;
-use wild_layout::FileLayout;
-use wild_layout::Layout;
-use wild_layout::output_section_id::OrderEvent;
-use wild_layout::output_section_id::OutputSectionId;
+use wild_layout::output_section_id::{OrderEvent, OutputSectionId};
 use wild_layout::resolution::SectionSlot;
-use wild_layout::timing_phase;
-use wild_layout::verbose_timing_phase;
-use wild_platform::Arch;
-use wild_platform::ObjectFile as _;
-use wild_platform::SectionFlags as _;
+use wild_layout::{
+    CompressedSection, EnginePlatform, FileLayout, Layout, timing_phase, verbose_timing_phase,
+};
+use wild_platform::{Arch, ObjectFile as _, SectionFlags as _};
 use wild_util::alignment::Alignment;
-use zlib_rs::Deflate;
-use zlib_rs::DeflateError;
-use zlib_rs::DeflateFlush;
-use zlib_rs::Status;
-use zlib_rs::adler32::adler32;
-use zlib_rs::adler32::adler32_combine;
+use zlib_rs::adler32::{adler32, adler32_combine};
+use zlib_rs::{Deflate, DeflateError, DeflateFlush, Status};
 
 /// Size in bytes below which we won't try to further split the input.
 const MIN_CHUNK_SIZE: usize = 64 * 1024;

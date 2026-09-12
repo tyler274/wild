@@ -2,45 +2,31 @@
 //! entries are needed. We also resolve which output section, if any, each input section should be
 //! assigned to.
 
-use crate::EnginePlatform;
-use crate::LayoutRules;
 use crate::grouping::Group;
 use crate::output_section_id::OutputSections;
 use crate::symbol::UnversionedSymbolName;
-use crate::symbol_db::SymbolDb;
-use crate::symbol_db::SymbolId;
-use crate::symbol_db::SymbolStrength;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
+use crate::symbol_db::{SymbolDb, SymbolId, SymbolStrength};
+use crate::{EnginePlatform, LayoutRules, timing_phase, verbose_timing_phase};
 use atomic_take::AtomicTake;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::ParallelIterator;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use wild_error::bail;
 use wild_error::error::Result;
-use wild_platform::Args as _;
-use wild_platform::PRELUDE_FILE_ID;
-use wild_platform::Platform;
 use wild_platform::value_flags::PerSymbolFlags;
+use wild_platform::{Args as _, PRELUDE_FILE_ID, Platform};
 
 pub mod sections;
 pub mod symbols;
 pub mod types;
 
-use sections::assign_section_ids;
-use sections::populate_start_stop_sections;
-use sections::resolve_sections;
 #[allow(unused_imports)]
 pub use sections::*;
-use symbols::canonicalise_undefined_symbols;
-use symbols::process_object;
-use symbols::work_items_do;
+use sections::{assign_section_ids, populate_start_stop_sections, resolve_sections};
 #[allow(unused_imports)]
 pub use symbols::*;
-use types::LoadObjectSymbolsRequest;
-use types::Outputs;
-use types::UndefinedSymbol;
+use symbols::{canonicalise_undefined_symbols, process_object, work_items_do};
 #[allow(unused_imports)]
 pub use types::*;
+use types::{LoadObjectSymbolsRequest, Outputs, UndefinedSymbol};
 
 pub struct Resolver<'data, P: Platform> {
     undefined_symbols: Vec<UndefinedSymbol<'data>>,

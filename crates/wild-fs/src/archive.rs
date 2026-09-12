@@ -109,8 +109,7 @@ mod tests {
     use std::io::Read;
     use std::path::Path;
     use wild_error::bail;
-    use wild_error::error::Context as _;
-    use wild_error::error::Result;
+    use wild_error::error::{Context as _, Result};
 
     #[derive(Default)]
     struct Summary {

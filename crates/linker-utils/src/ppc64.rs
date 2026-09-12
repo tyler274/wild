@@ -9,12 +9,9 @@
 //! 0x8000 bias used to centre the addressable TOC window is folded into the `@ha` relocation's
 //! `bias`, so `@ha`/`@lo` pairs stay correct across the full signed 32-bit TOC range.
 
-use crate::elf::AllowedRange;
-use crate::elf::Ppc64Instruction;
-use crate::elf::RelocationKind;
-use crate::elf::RelocationKindInfo;
-use crate::elf::RelocationSize;
-use crate::elf::Sign;
+use crate::elf::{
+    AllowedRange, Ppc64Instruction, RelocationKind, RelocationKindInfo, RelocationSize, Sign,
+};
 use crate::relaxation::RelocationModifier;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

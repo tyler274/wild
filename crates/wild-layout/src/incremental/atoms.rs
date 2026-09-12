@@ -4,8 +4,7 @@
 //! GC/layout hot path. Cross-run identity uses `{index, generation}` handles so a reused slot
 //! cannot alias a deleted file's reverse-reloc lists or resolutions.
 
-use hashbrown::HashMap;
-use hashbrown::HashSet;
+use hashbrown::{HashMap, HashSet};
 use std::fs;
 use std::io::Write as _;
 use std::path::Path;

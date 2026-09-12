@@ -1,8 +1,7 @@
 use super::parse::ArgumentParser;
 use super::types::parse_time_phase_options;
 use std::num::NonZeroUsize;
-use wild_fs::fs::FileReplacementMode;
-use wild_fs::fs::FileWriteMode;
+use wild_fs::fs::{FileReplacementMode, FileWriteMode};
 use wild_platform as platform;
 
 pub fn declare_common_args<T: platform::Args + super::HasCommonArgs>(

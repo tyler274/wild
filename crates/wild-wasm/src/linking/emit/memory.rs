@@ -1,23 +1,15 @@
-use crate::LinkerDefinedIndices;
-use crate::Wasm;
-use crate::WasmLayout;
-use crate::WasmLinkerSymbol;
-use crate::WasmObjectIndexMap;
-use crate::WasmObjectLayoutInput;
-use crate::WasmSymbolKind;
-use crate::encode_i32_const_u32;
-use crate::remap_wasm_index;
-use crate::stack_high_after_data;
-use crate::stack_pointer_init;
 use crate::wasm_writer::OutputExport;
+use crate::{
+    LinkerDefinedIndices, Wasm, WasmLayout, WasmLinkerSymbol, WasmObjectIndexMap,
+    WasmObjectLayoutInput, WasmSymbolKind, encode_i32_const_u32, remap_wasm_index,
+    stack_high_after_data, stack_pointer_init,
+};
 use hashbrown::HashMap;
 use std::borrow::Cow;
 use wasmparser::MemoryType;
 use wild_args::wasm::WasmArgs;
-use wild_error::bail;
-use wild_error::ensure;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
+use wild_error::{bail, ensure};
 use wild_layout::symbol::UnversionedSymbolName;
 use wild_layout::symbol_db::SymbolDb;
 use wild_platform::Args as _;

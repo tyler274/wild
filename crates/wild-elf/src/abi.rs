@@ -1,164 +1,70 @@
-use super::BuiltInSectionDetails;
-use super::CommonGroupStateExt;
-use super::CopyRelocationInfo;
-use super::DEFAULT_SECTION_PLACEMENT_RULES;
-use super::DynamicLayoutExt;
-use super::DynamicLayoutStateExt;
-use super::DynamicSymbolDefinitionExt;
-use super::ELF_NUM_BUILT_IN_REGULAR_SECTIONS;
-use super::ELF_NUM_SINGLE_PART_SECTIONS;
-use super::EhFrameHdr;
-use super::EhFrameHdrEntry;
-use super::EpilogueLayoutExt;
-use super::ExceptionFrames;
-use super::GroupLayoutExt;
-use super::LINKER_MANAGED_SECTION_RULES;
-use super::LayoutExt;
-use super::LayoutResourcesExt;
-use super::NonAddressableCounts;
-use super::NonAddressableIndexes;
-use super::ObjectLayoutStateExt;
-use super::PLT_ENTRY_SIZE;
-use super::PROGRAM_SEGMENT_DEFS;
-use super::PreludeLayoutExt;
-use super::PreludeLayoutStateExt;
-use super::ProgramSegmentDef;
-use super::RawSymbolName;
-use super::ResolutionExt;
-use super::ResolvedObjectExt;
-use super::STACK_SEGMENT_DEF;
-use super::SYMTAB_SHNDX_ENTRY_SIZE;
-use super::SectionAttributes;
-use super::Sonames;
-use super::SymtabShndxEntry;
-use super::THUNK_SYMBOL_PREFIX;
-use super::VerneedTable;
-use super::VersionDef;
-use super::VersionNames;
-use super::allocate_for_copy_relocations;
-use super::allocate_got;
-use super::allocate_got_relr;
-use super::allocate_plt;
-use super::allocate_sysv_hash;
-use super::assign_copy_relocation_addresses;
-use super::compute_version_mapping;
-use super::create_gnu_hash_layout;
-use super::finalise_copy_relocations;
-use super::finalise_gnu_version_size;
-use super::finalize_strtab;
-use super::gnu_property_notes_section_size;
-use super::got_relr_bitmap_relr_count;
-use super::init_fini_priority;
-use super::intern_strtab_name;
-use super::intern_strtab_name_with_suffix;
-use super::is_got_relr_eligible;
-use super::load_section_relocations;
-use super::output_section_id;
-use super::part_id;
-use super::process_eh_frame_relocations;
-use super::process_section_exception_frames;
-use super::program_headers_size;
-use super::section_headers_size;
-use super::thunk_config_for_object;
-use super::types::CrelSequence;
-use super::types::DynamicEntry;
-use super::types::Elf;
-use super::types::ElfClass;
-use super::types::ElfCrel;
-use super::types::ElfRela;
-use super::types::ElfWord as _;
-use super::types::File;
-use super::types::RelaSequence;
-use super::types::RelocationList;
-use super::types::SectionHeader;
-use super::types::SymtabEntry;
-use super::types::Versym;
-use super::types::Word;
-use super::types::symtab_name_for_strtab;
+use super::types::{
+    CrelSequence, DynamicEntry, Elf, ElfClass, ElfCrel, ElfRela, ElfWord as _, File, RelaSequence,
+    RelocationList, SectionHeader, SymtabEntry, Versym, Word, symtab_name_for_strtab,
+};
+use super::{
+    BuiltInSectionDetails, CommonGroupStateExt, CopyRelocationInfo,
+    DEFAULT_SECTION_PLACEMENT_RULES, DynamicLayoutExt, DynamicLayoutStateExt,
+    DynamicSymbolDefinitionExt, ELF_NUM_BUILT_IN_REGULAR_SECTIONS, ELF_NUM_SINGLE_PART_SECTIONS,
+    EhFrameHdr, EhFrameHdrEntry, EpilogueLayoutExt, ExceptionFrames, GroupLayoutExt,
+    LINKER_MANAGED_SECTION_RULES, LayoutExt, LayoutResourcesExt, NonAddressableCounts,
+    NonAddressableIndexes, ObjectLayoutStateExt, PLT_ENTRY_SIZE, PROGRAM_SEGMENT_DEFS,
+    PreludeLayoutExt, PreludeLayoutStateExt, ProgramSegmentDef, RawSymbolName, ResolutionExt,
+    ResolvedObjectExt, STACK_SEGMENT_DEF, SYMTAB_SHNDX_ENTRY_SIZE, SectionAttributes, Sonames,
+    SymtabShndxEntry, THUNK_SYMBOL_PREFIX, VerneedTable, VersionDef, VersionNames,
+    allocate_for_copy_relocations, allocate_got, allocate_got_relr, allocate_plt,
+    allocate_sysv_hash, assign_copy_relocation_addresses, compute_version_mapping,
+    create_gnu_hash_layout, finalise_copy_relocations, finalise_gnu_version_size, finalize_strtab,
+    gnu_property_notes_section_size, got_relr_bitmap_relr_count, init_fini_priority,
+    intern_strtab_name, intern_strtab_name_with_suffix, is_got_relr_eligible,
+    load_section_relocations, output_section_id, part_id, process_eh_frame_relocations,
+    process_section_exception_frames, program_headers_size, section_headers_size,
+    thunk_config_for_object,
+};
 use crate::elf_writer;
 use crate::gdb_index::InputDebugIndexSection;
 use crate::writable_elf::WritableSymbol;
 use hashbrown::HashMap;
 use itertools::Itertools as _;
-use linker_utils::elf::SectionFlags;
-use linker_utils::elf::SectionType;
-use linker_utils::elf::SegmentFlags;
-use linker_utils::elf::SegmentType;
-use linker_utils::elf::pf;
-use linker_utils::elf::pt;
-use linker_utils::elf::secnames;
-use linker_utils::elf::shf;
-use linker_utils::elf::sht;
+use linker_utils::elf::{
+    SectionFlags, SectionType, SegmentFlags, SegmentType, pf, pt, secnames, shf, sht,
+};
 use object::LittleEndian;
-use object::read::elf::RelocationSections;
-use object::read::elf::SectionHeader as _;
+use object::read::elf::{RelocationSections, SectionHeader as _};
 use rayon::Scope;
 use std::marker::PhantomData;
-use std::num::NonZeroU32;
-use std::num::NonZeroU64;
+use std::num::{NonZeroU32, NonZeroU64};
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
-use wild_args::BSymbolicKind;
-use wild_args::RelocationModel;
-use wild_args::elf::BuildIdOption;
-use wild_args::elf::ElfArgs;
-use wild_error::bail;
-use wild_error::ensure;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_args::elf::{BuildIdOption, ElfArgs};
+use wild_args::{BSymbolicKind, RelocationModel};
+use wild_error::error::{Context as _, Result};
+use wild_error::{bail, ensure};
 use wild_fs::fs::FileSystem;
 use wild_layout as layout;
-use wild_layout::CommonGroupState;
-use wild_layout::DynamicSymbolDefinition;
-use wild_layout::HandlerData as _;
-use wild_layout::ObjectLayoutState;
-use wild_layout::OutputRecordLayout;
-use wild_layout::Resolution;
-use wild_layout::SectionGcUnit;
-use wild_layout::SymbolCopyInfo;
-use wild_layout::expression_eval;
-use wild_layout::layout_rules::SectionRule;
-use wild_layout::layout_rules::SectionRuleOutcome;
-use wild_layout::output_section_id::CustomSectionIds;
-use wild_layout::output_section_id::OrderEvent;
-use wild_layout::output_section_id::OutputOrder;
-use wild_layout::output_section_id::OutputOrderBuilder;
-use wild_layout::output_section_id::OutputSectionId;
-use wild_layout::output_section_id::OutputSections;
-use wild_layout::output_section_id::SectionIdentity;
-use wild_layout::output_section_id::SectionName;
-use wild_layout::output_section_id::SectionOutputInfo;
+use wild_layout::layout_rules::{SectionRule, SectionRuleOutcome};
+use wild_layout::output_section_id::{
+    CustomSectionIds, OrderEvent, OutputOrder, OutputOrderBuilder, OutputSectionId, OutputSections,
+    SectionIdentity, SectionName, SectionOutputInfo,
+};
 use wild_layout::output_section_part_map::OutputSectionPartMap;
-use wild_layout::parsing::InternalSymDefInfo;
-use wild_layout::parsing::SymbolPlacement;
-use wild_layout::resolution::LoadedMetrics;
-use wild_layout::resolution::SectionSlot;
+use wild_layout::parsing::{InternalSymDefInfo, SymbolPlacement};
+use wild_layout::resolution::{LoadedMetrics, SectionSlot};
 use wild_layout::symbol::UnversionedSymbolName;
-use wild_layout::symbol_db::SymbolDb;
-use wild_layout::symbol_db::SymbolId;
+use wild_layout::symbol_db::{SymbolDb, SymbolId};
+use wild_layout::{
+    CommonGroupState, DynamicSymbolDefinition, HandlerData as _, ObjectLayoutState,
+    OutputRecordLayout, Resolution, SectionGcUnit, SymbolCopyInfo, expression_eval,
+};
 use wild_platform as platform;
-use wild_platform::Arch;
-use wild_platform::Args as _;
-use wild_platform::FileKind;
-use wild_platform::ObjectFile;
-use wild_platform::OutputKind;
-use wild_platform::Platform;
-use wild_platform::ProgramSegmentDef as _;
-use wild_platform::RawSymbolName as _;
-use wild_platform::RelocationSequence;
-use wild_platform::SectionAttributes as _;
-use wild_platform::SectionFlags as _;
-use wild_platform::SectionHeader as _;
-use wild_platform::SectionType as _;
-use wild_platform::Symbol as _;
-use wild_platform::ThunkConfig;
-use wild_platform::VerneedTable as _;
 use wild_platform::output_section_map::OutputSectionMap;
-use wild_platform::program_segments::ProgramSegmentId;
-use wild_platform::program_segments::ProgramSegments;
-use wild_platform::program_segments::SegmentEntry;
-use wild_platform::value_flags::AtomicPerSymbolFlags;
-use wild_platform::value_flags::ValueFlags;
+use wild_platform::program_segments::{ProgramSegmentId, ProgramSegments, SegmentEntry};
+use wild_platform::value_flags::{AtomicPerSymbolFlags, ValueFlags};
+use wild_platform::{
+    Arch, Args as _, FileKind, ObjectFile, OutputKind, Platform, ProgramSegmentDef as _,
+    RawSymbolName as _, RelocationSequence, SectionAttributes as _, SectionFlags as _,
+    SectionHeader as _, SectionType as _, Symbol as _, ThunkConfig, VerneedTable as _,
+};
 use wild_scripts::linker_script;
 use wild_scripts::version_script::VersionScript;
 use wild_util::alignment::Alignment;

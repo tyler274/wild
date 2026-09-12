@@ -4,10 +4,9 @@ use hashbrown::HashSet;
 use std::borrow::Cow;
 use wild_error::error::Result;
 use wild_scripts::linker_script::OnlyIf;
-use wild_util::glob_match::GlobPatternType;
-use wild_util::glob_match::analyze_glob_pattern;
-use wild_util::glob_match::compile_glob_pattern;
-use wild_util::glob_match::unescape_pattern;
+use wild_util::glob_match::{
+    GlobPatternType, analyze_glob_pattern, compile_glob_pattern, unescape_pattern,
+};
 
 /// Determines how a section name pattern is matched against input section names.
 #[derive(Debug, Clone)]

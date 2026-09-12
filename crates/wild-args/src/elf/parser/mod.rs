@@ -1,14 +1,8 @@
-use super::BuildIdOption;
-use super::ElfArgs;
-use super::HashStyle;
-use super::SortSectionMode;
-use super::Strip;
+use super::{BuildIdOption, ElfArgs, HashStyle, SortSectionMode, Strip};
 mod info;
 mod inputs;
 
-use crate::ArgumentParser;
-use crate::FileReplacementMode;
-use crate::HasCommonArgs as _;
+use crate::{ArgumentParser, FileReplacementMode, HasCommonArgs as _};
 #[allow(unused_imports)]
 pub use info::*;
 #[allow(unused_imports)]
@@ -18,8 +12,7 @@ use std::ffi::CString;
 use std::path::PathBuf;
 use wild_error::bail;
 use wild_error::error::Context as _;
-use wild_platform::Args as _;
-use wild_platform::OrphanHandling;
+use wild_platform::{Args as _, OrphanHandling};
 use wild_scripts::linker_script::maybe_forced_sysroot;
 
 pub(super) const SILENTLY_IGNORED_FLAGS: &[&str] = &[

@@ -1,40 +1,24 @@
-use super::ElfLayout;
-use super::TableWriter;
-use super::build_sym_index_map;
-use super::fill_section_padding;
-use super::write_dynamic_file;
-use super::write_epilogue;
-use super::write_linker_script_state;
-use super::write_object;
-use super::write_prelude;
-use super::write_script_output_data;
-use super::write_synthetic_symbols;
+use super::{
+    ElfLayout, TableWriter, build_sym_index_map, fill_section_padding, write_dynamic_file,
+    write_epilogue, write_linker_script_state, write_object, write_prelude,
+    write_script_output_data, write_synthetic_symbols,
+};
 use crate as elf;
-use crate::ElfClass;
-use crate::output_section_id;
-use crate::sframe;
-use rayon::iter::IndexedParallelIterator;
-use rayon::iter::IntoParallelIterator as _;
-use rayon::iter::ParallelIterator;
+use crate::{ElfClass, output_section_id, sframe};
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator as _, ParallelIterator};
 use rayon::slice::ParallelSliceMut as _;
 use std::sync::atomic::Ordering::Relaxed;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
 use wild_fs::fs::OutputFileData;
-use wild_layout::FileLayout;
-use wild_layout::Layout;
-use wild_layout::file_writer::SizedOutput;
-use wild_layout::file_writer::split_buffers_by_alignment;
-use wild_layout::file_writer::split_output_by_group;
-use wild_layout::file_writer::split_output_into_sections;
+use wild_layout::file_writer::{
+    SizedOutput, split_buffers_by_alignment, split_output_by_group, split_output_into_sections,
+};
 use wild_layout::output_section_id::OrderEvent;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::output_trace::TraceOutput;
-use wild_layout::timing_phase;
-use wild_layout::verbose_timing_phase;
-use wild_platform::Arch;
-use wild_platform::Args as _;
+use wild_layout::{FileLayout, Layout, timing_phase, verbose_timing_phase};
 use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::{Arch, Args as _};
 use zerocopy::FromBytes;
 
 pub(crate) fn write_file_contents<'data, C: ElfClass, A: Arch<Platform = elf::Elf<C>>>(

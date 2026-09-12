@@ -1,30 +1,15 @@
-use super::split::create_split_resources;
-use super::split::try_spawn_input_processing;
-use super::types::BucketOffset;
-use super::types::BucketString;
-use super::types::LinearInputOffset;
-use super::types::MAP_BLOCK_SIZE;
-use super::types::MAX_SPLIT_PARALLELISM;
-use super::types::MERGE_STRING_BUCKET_BITS;
-use super::types::MERGE_STRING_BUCKETS;
-use super::types::MergeClassBuckets;
-use super::types::MergeStringsSectionBucket;
-use super::types::MergedStringStartAddresses;
-use super::types::MergedStringsSection;
-use super::types::ReusePool;
-use super::types::StringMergeInputSection;
-use super::types::StringMergeInputs;
-use super::types::StringMergeSectionSlot;
-use super::types::TailMergePiece;
-use crate::EnginePlatform;
+use super::split::{create_split_resources, try_spawn_input_processing};
+use super::types::{
+    BucketOffset, BucketString, LinearInputOffset, MAP_BLOCK_SIZE, MAX_SPLIT_PARALLELISM,
+    MERGE_STRING_BUCKET_BITS, MERGE_STRING_BUCKETS, MergeClassBuckets, MergeStringsSectionBucket,
+    MergedStringStartAddresses, MergedStringsSection, ReusePool, StringMergeInputSection,
+    StringMergeInputs, StringMergeSectionSlot, TailMergePiece,
+};
 use crate::output_section_id::OutputSections;
 use crate::output_section_part_map::OutputSectionPartMap;
 use crate::part_id::PartId;
-use crate::resolution::ResolvedFile;
-use crate::resolution::ResolvedGroup;
-use crate::resolution::SectionSlot;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
+use crate::resolution::{ResolvedFile, ResolvedGroup, SectionSlot};
+use crate::{EnginePlatform, timing_phase, verbose_timing_phase};
 use hashbrown::HashMap;
 use itertools::Itertools as _;
 use std::sync::atomic::Ordering;
@@ -32,10 +17,8 @@ use wild_args::Experiment;
 use wild_error::bail;
 use wild_error::error::Result;
 use wild_platform as platform;
-use wild_platform::Args as _;
-use wild_platform::ObjectFile;
-use wild_platform::Symbol as _;
 use wild_platform::output_section_map::OutputSectionMap;
+use wild_platform::{Args as _, ObjectFile, Symbol as _};
 use wild_util::alignment;
 use wild_util::input_section_id::SectionIdRange;
 

@@ -1,5 +1,4 @@
-use crate::Wasm;
-use crate::relocation_type_to_string;
+use crate::{Wasm, relocation_type_to_string};
 use wasmparser::RelocationType;
 use wild_platform::PreviousRelocationInfo;
 

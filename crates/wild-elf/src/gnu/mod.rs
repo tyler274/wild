@@ -5,47 +5,30 @@ mod versions;
 
 #[allow(unused_imports)]
 use super::types::DynamicEntry;
-use super::types::Elf;
-use super::types::ElfClass;
-use super::types::File;
-use super::types::SectionTable;
-use super::types::SymbolTable;
-use super::types::Versym;
+use super::types::{Elf, ElfClass, File, SectionTable, SymbolTable, Versym};
 #[allow(unused_imports)]
 pub(crate) use ehframe::*;
 use foldhash::HashSet;
-use linker_utils::elf::SectionFlags;
-use linker_utils::elf::SectionType;
-use linker_utils::elf::SegmentFlags;
-use linker_utils::elf::SegmentType;
-use linker_utils::elf::pf;
-use linker_utils::elf::pt;
-use linker_utils::elf::shf;
-use linker_utils::elf::sht;
+use linker_utils::elf::{SectionFlags, SectionType, SegmentFlags, SegmentType, pf, pt, shf, sht};
 #[allow(unused_imports)]
 pub(crate) use notes::*;
 use object::LittleEndian;
-use object::read::elf::CompressionHeader;
-use object::read::elf::Dyn as _;
+use object::read::elf::{CompressionHeader, Dyn as _};
 use std::marker::PhantomData;
 use std::sync::atomic::AtomicBool;
 #[allow(unused_imports)]
 pub(crate) use versions::*;
 use wild_error::bail;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
 use wild_layout as layout;
 use wild_layout::grouping::Group;
 use wild_layout::layout_rules::SectionKind;
-use wild_layout::output_section_id::OutputSectionId;
-use wild_layout::output_section_id::OutputSections;
+use wild_layout::output_section_id::{OutputSectionId, OutputSections};
 #[cfg(all(feature = "plugins", unix))]
 use wild_layout::symbol_db::Visibility;
 use wild_layout::timing_phase;
 use wild_platform as platform;
-use wild_platform::DynamicTagValues as _;
-use wild_platform::ObjectFile as _;
-use wild_platform::Platform;
+use wild_platform::{DynamicTagValues as _, ObjectFile as _, Platform};
 use wild_util::alignment::Alignment;
 
 #[cfg(all(feature = "plugins", unix))]

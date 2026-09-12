@@ -40,13 +40,10 @@ pub(crate) use gnu::*;
 pub(crate) use output::*;
 #[allow(unused_imports)]
 pub(crate) use strtab::*;
-pub use types::Class64;
-pub use types::Elf;
-pub use types::ElfClass;
 #[allow(unused_imports)]
 pub(crate) use types::*;
-pub(crate) use wild_error::debug_assert_bail;
-pub(crate) use wild_error::malfunction;
+pub use types::{Class64, Elf, ElfClass};
+pub(crate) use wild_error::{debug_assert_bail, malfunction};
 
 pub type Elf64 = Elf<Class64>;
 
@@ -163,8 +160,7 @@ pub(crate) mod part_id {
 }
 
 pub mod output_section_id {
-    use super::RegularSectionId;
-    use super::SinglePartSectionId;
+    use super::{RegularSectionId, SinglePartSectionId};
     use wild_layout::output_section_id::OutputSectionId;
 
     pub const PROGRAM_HEADERS: OutputSectionId =

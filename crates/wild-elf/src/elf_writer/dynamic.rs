@@ -1,42 +1,26 @@
-use super::symbols::copy_symbol_version;
-use super::symbols::write_got_plt_syms;
-use super::types::ElfLayout;
-use super::types::TableWriter;
+use super::symbols::{copy_symbol_version, write_got_plt_syms};
+use super::types::{ElfLayout, TableWriter};
 use crate as elf;
-use crate::DynamicEntry;
-use crate::ElfClass;
-use crate::ElfWord as _;
-use crate::GnuHashHeader;
-use crate::NonAddressableCounts;
-use crate::Vernaux;
-use crate::Verneed;
-use crate::output_section_id;
-use crate::part_id;
-use crate::writable_elf::WritableDynamicEntry as _;
-use crate::writable_elf::WritableSymbol as _;
+use crate::writable_elf::{WritableDynamicEntry as _, WritableSymbol as _};
+use crate::{
+    DynamicEntry, ElfClass, ElfWord as _, GnuHashHeader, NonAddressableCounts, Vernaux, Verneed,
+    output_section_id, part_id,
+};
 use linker_utils::elf::DynamicRelocationKind;
 use linker_utils::utils::slice_from_all_bytes_mut;
 use object::LittleEndian;
 use object::read::elf::Sym as _;
 use wild_args::elf::ElfArgs;
-use wild_error::bail;
-use wild_error::ensure;
-use wild_error::error;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
-use wild_layout::DynamicLayout;
-use wild_layout::EpilogueLayout;
-use wild_layout::OutputRecordLayout;
+use wild_error::error::{Context as _, Result};
+use wild_error::{bail, ensure, error};
 use wild_layout::file_writer::insufficient_allocation;
 use wild_layout::output_section_id::OutputSectionId;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::symbol_db::SymbolId;
-use wild_layout::verbose_timing_phase;
-use wild_platform::Arch;
-use wild_platform::ObjectFile;
-use wild_platform::OutputKind;
+use wild_layout::{DynamicLayout, EpilogueLayout, OutputRecordLayout, verbose_timing_phase};
 use wild_platform::output_section_map::OutputSectionMap;
 use wild_platform::value_flags::ValueFlags;
+use wild_platform::{Arch, ObjectFile, OutputKind};
 use zerocopy::FromBytes;
 
 pub(crate) fn write_epilogue_dynamic_entries<C: ElfClass>(

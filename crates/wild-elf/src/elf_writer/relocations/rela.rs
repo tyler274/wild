@@ -1,40 +1,25 @@
-use super::super::types::ElfLayout;
-use super::super::types::TableWriter;
-use super::SectionInfo;
-use super::apply_debug_relocation;
-use super::apply_relocation;
-use super::display_relocation;
-use super::reloc_file_offset;
+use super::super::types::{ElfLayout, TableWriter};
+use super::{
+    SectionInfo, apply_debug_relocation, apply_relocation, display_relocation, reloc_file_offset,
+};
 use crate as elf;
 use crate::ElfClass;
 use crate::writable_elf::WritableRela as _;
 use hashbrown::HashMap;
-use linker_utils::elf::secnames::DEBUG_LOC_SECTION_NAME;
-use linker_utils::elf::secnames::DEBUG_RANGES_SECTION_NAME;
-use linker_utils::relaxation::RelocationModifier;
-use linker_utils::relaxation::opt_input_to_output;
+use linker_utils::elf::secnames::{DEBUG_LOC_SECTION_NAME, DEBUG_RANGES_SECTION_NAME};
+use linker_utils::relaxation::{RelocationModifier, opt_input_to_output};
 use linker_utils::utils::slice_from_all_bytes_mut;
-use object::LittleEndian;
-use object::SymbolIndex;
-use object::read::elf::SectionHeader as _;
-use object::read::elf::Sym as _;
+use object::read::elf::{SectionHeader as _, Sym as _};
+use object::{LittleEndian, SymbolIndex};
 use std::sync::atomic::Ordering::Relaxed;
-use wild_error::bail;
-use wild_error::error;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
-use wild_layout::ObjectLayout;
-use wild_layout::Section;
+use wild_error::error::{Context as _, Result};
+use wild_error::{bail, error};
 use wild_layout::output_section_id::SectionName;
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::output_trace::TraceOutput;
 use wild_layout::resolution::SectionSlot;
-use wild_platform::Arch;
-use wild_platform::Args as _;
-use wild_platform::ObjectFile;
-use wild_platform::Relocation;
-use wild_platform::RelocationList;
-use wild_platform::SectionHeader as _;
+use wild_layout::{ObjectLayout, Section};
+use wild_platform::{Arch, Args as _, ObjectFile, Relocation, RelocationList, SectionHeader as _};
 
 /// A cache for managing ELF relocations and optimization of relocation entries.
 #[derive(Debug)]

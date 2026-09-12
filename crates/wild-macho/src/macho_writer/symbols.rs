@@ -1,23 +1,14 @@
-use super::LE;
-use super::MachOLayout;
-use super::SymtabEntry;
-use crate::MachO;
-use crate::part_id;
+use super::{LE, MachOLayout, SymtabEntry};
+use crate::{MachO, part_id};
 use object::from_bytes_mut;
-use object::macho::N_ABS;
-use object::macho::N_SECT;
-use wild_error::bail;
-use wild_error::error;
-use wild_error::error::Context;
-use wild_error::error::Result;
-use wild_layout::ObjectLayout;
-use wild_layout::SymbolCopyInfo;
-use wild_layout::output_section_id::OrderEvent;
-use wild_layout::output_section_id::OutputSectionId;
+use object::macho::{N_ABS, N_SECT};
+use wild_error::error::{Context, Result};
+use wild_error::{bail, error};
+use wild_layout::output_section_id::{OrderEvent, OutputSectionId};
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::resolution::SectionSlot;
-use wild_platform::ObjectFile;
-use wild_platform::Symbol;
+use wild_layout::{ObjectLayout, SymbolCopyInfo};
+use wild_platform::{ObjectFile, Symbol};
 
 pub(crate) struct MachOSymbolTableWriter {
     pub(crate) next_strtab_offset: u32,

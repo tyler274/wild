@@ -1,8 +1,5 @@
-use crate::header_diff::Converter;
-use crate::header_diff::DiffMode;
-use crate::header_diff::FieldValues;
-use anyhow::Ok;
-use anyhow::Result;
+use crate::header_diff::{Converter, DiffMode, FieldValues};
+use anyhow::{Ok, Result};
 use linker_utils::elf::pt;
 use object::Object;
 use object::elf::PT_LOAD;

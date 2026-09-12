@@ -1,27 +1,16 @@
 //! Uses DWARF debug info, if available, to find file and line number information for a particular
 //! offset in an input section.
 
-use crate::Elf;
-use crate::ElfClass;
-use crate::ElfCrel;
-use crate::ElfRela;
-use crate::File;
-use crate::SectionHeader;
+use crate::{Elf, ElfClass, ElfCrel, ElfRela, File, SectionHeader};
 use anyhow::Context;
 use linker_utils::elf::RelocationKind;
 use object::LittleEndian;
-use object::read::elf::RelocationSections;
-use object::read::elf::SectionHeader as _;
-use object::read::elf::Sym as _;
+use object::read::elf::{RelocationSections, SectionHeader as _, Sym as _};
 use std::borrow::Cow;
 use std::path::PathBuf;
 use wild_error::error::Result;
 use wild_fs::fs::path_from_bytes;
-use wild_platform::Arch;
-use wild_platform::ObjectFile as _;
-use wild_platform::Relocation;
-use wild_platform::SourceInfo;
-use wild_platform::SourceInfoDetails;
+use wild_platform::{Arch, ObjectFile as _, Relocation, SourceInfo, SourceInfoDetails};
 
 /// The address at which we'll pretend that we loaded the section we're interested in. This value is
 /// arbitrary, but should be larger than the largest input section we expect to encounter and small

@@ -1,42 +1,18 @@
-use super::LinkerScriptError;
-use super::parse_assert;
-use super::parse_assignment_op;
-use super::parse_expression;
-use super::parse_include_path;
-use super::parse_paren_assignment;
-use super::parse_provide;
-use super::parse_token;
-use super::skip_comments_and_whitespace;
-use crate::linker_script::ContentsCommand;
-use crate::linker_script::Expression;
-use crate::linker_script::Fill;
-use crate::linker_script::InputSectionFlags;
-use crate::linker_script::Location;
-use crate::linker_script::Matcher;
-use crate::linker_script::OnlyIf;
-use crate::linker_script::OutputData;
-use crate::linker_script::OutputDataWidth;
-use crate::linker_script::Overlay;
-use crate::linker_script::Section;
-use crate::linker_script::SectionAttributes;
-use crate::linker_script::SectionCommand;
-use crate::linker_script::SectionPattern;
-use crate::linker_script::Sections;
-use crate::linker_script::SortKind;
-use crate::linker_script::SymbolAssignment;
+use super::{
+    LinkerScriptError, parse_assert, parse_assignment_op, parse_expression, parse_include_path,
+    parse_paren_assignment, parse_provide, parse_token, skip_comments_and_whitespace,
+};
+use crate::linker_script::{
+    ContentsCommand, Expression, Fill, InputSectionFlags, Location, Matcher, OnlyIf, OutputData,
+    OutputDataWidth, Overlay, Section, SectionAttributes, SectionCommand, SectionPattern, Sections,
+    SortKind, SymbolAssignment,
+};
 use wild_util::alignment::Alignment;
-use winnow::BStr;
-use winnow::Parser as _;
-use winnow::ascii::dec_uint;
-use winnow::ascii::hex_uint;
-use winnow::combinator::alt;
-use winnow::combinator::eof;
-use winnow::combinator::opt;
-use winnow::combinator::preceded;
-use winnow::combinator::repeat_till;
-use winnow::error::ContextError;
-use winnow::error::FromExternalError;
+use winnow::ascii::{dec_uint, hex_uint};
+use winnow::combinator::{alt, eof, opt, preceded, repeat_till};
+use winnow::error::{ContextError, FromExternalError};
 use winnow::token::take_while;
+use winnow::{BStr, Parser as _};
 
 pub fn parse_section_command_list<'input>(
     input: &mut &'input BStr,

@@ -1,28 +1,19 @@
-use super::BuiltInSectionDetails;
-use super::PLT_ENTRY_SIZE;
-use super::SYMTAB_SHNDX_ENTRY_SIZE;
+use super::{BuiltInSectionDetails, PLT_ENTRY_SIZE, SYMTAB_SHNDX_ENTRY_SIZE};
 mod copy;
 mod relocs;
 mod relr;
 mod rules;
 
-use super::ELF_NUM_BUILT_IN_SECTIONS;
-use super::output_section_id;
-use super::part_id;
 #[allow(unused_imports)]
 use super::types::Elf;
-use super::types::ElfClass;
-use super::types::File;
-use super::types::Versym;
+use super::types::{ElfClass, File, Versym};
+use super::{ELF_NUM_BUILT_IN_SECTIONS, output_section_id, part_id};
 use crate::debug_assert_bail;
 use crate::gdb_index::InputDebugIndexSection;
 #[allow(unused_imports)]
 pub(crate) use copy::*;
-use linker_utils::elf::SectionFlags;
-use linker_utils::elf::pt;
 use linker_utils::elf::secnames::*;
-use linker_utils::elf::shf;
-use linker_utils::elf::sht;
+use linker_utils::elf::{SectionFlags, pt, shf, sht};
 use linker_utils::relaxation::RelocationModifier;
 use rayon::Scope;
 #[allow(unused_imports)]
@@ -34,27 +25,18 @@ pub(crate) use rules::*;
 use std::num::NonZeroU64;
 use wild_args::elf::ElfArgs;
 use wild_error::bail;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
 use wild_layout as layout;
-use wild_layout::CommonGroupState;
-use wild_layout::ObjectLayout;
-use wild_layout::Resolution;
 use wild_layout::layout_rules::SectionKind;
-use wild_layout::output_section_id::SectionIdentity;
-use wild_layout::output_section_id::SectionName;
+use wild_layout::output_section_id::{SectionIdentity, SectionName};
 use wild_layout::output_section_part_map::OutputSectionPartMap;
 use wild_layout::part_id::PartId;
-use wild_layout::string_merging::MergedStringStartAddresses;
-use wild_layout::string_merging::MergedStringsSection;
+use wild_layout::string_merging::{MergedStringStartAddresses, MergedStringsSection};
+use wild_layout::{CommonGroupState, ObjectLayout, Resolution};
 use wild_platform as platform;
-use wild_platform::Arch;
-use wild_platform::ObjectFile;
-use wild_platform::OutputKind;
-use wild_platform::Relocation;
-use wild_platform::ThunkConfig;
 use wild_platform::output_section_map::OutputSectionMap;
 use wild_platform::value_flags::ValueFlags;
+use wild_platform::{Arch, ObjectFile, OutputKind, Relocation, ThunkConfig};
 use wild_util::alignment;
 
 impl<C: ElfClass> Elf<C> {

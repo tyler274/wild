@@ -1,48 +1,27 @@
-use super::types::DynamicSymbolDefinition;
-use super::types::FileLayout;
-use super::types::FileLayoutState;
-use super::types::FinaliseLayoutResources;
-use super::types::FinaliseSizesResources;
-use super::types::GroupLayout;
-use super::types::GroupState;
-use super::types::MemoryRegion;
-use super::types::OutputRecordLayout;
-use super::types::PartialLinkPlan;
-use super::types::PartialLinkSingletons;
-use super::types::Resolution;
-use crate::EnginePlatform;
-use crate::expression_eval::ResolvedLocationCounter;
-use crate::expression_eval::SymbolValue;
+use super::types::{
+    DynamicSymbolDefinition, FileLayout, FileLayoutState, FinaliseLayoutResources,
+    FinaliseSizesResources, GroupLayout, GroupState, MemoryRegion, OutputRecordLayout,
+    PartialLinkPlan, PartialLinkSingletons, Resolution,
+};
+use crate::expression_eval::{ResolvedLocationCounter, SymbolValue};
 use crate::grouping::Group;
-use crate::output_section_id::GnuBuildIdPlacement;
-use crate::output_section_id::OutputOrder;
-use crate::output_section_id::OutputSections;
+use crate::output_section_id::{GnuBuildIdPlacement, OutputOrder, OutputSections};
 use crate::output_section_part_map::OutputSectionPartMap;
-use crate::parsing::InternalSymDefInfo;
-use crate::parsing::SymbolLoc;
-use crate::parsing::SymbolPlacement;
+use crate::parsing::{InternalSymDefInfo, SymbolLoc, SymbolPlacement};
 use crate::symbol::UnversionedSymbolName;
 use crate::symbol_db::SymbolDb;
-use crate::timing_phase;
-use crate::verbose_timing_phase;
+use crate::{EnginePlatform, timing_phase, verbose_timing_phase};
 use hashbrown::HashMap;
-use rayon::iter::IntoParallelRefMutIterator;
-use rayon::iter::ParallelIterator;
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use std::num::NonZeroU32;
 use wild_args::InputRef;
-use wild_error::error::Context;
-use wild_error::error::Result;
-use wild_platform::Arch;
-use wild_platform::Args as _;
-use wild_platform::NonAddressableIndexes as _;
-use wild_platform::ObjectFile;
-use wild_platform::OutputKind;
-use wild_platform::SectionAttributes as _;
+use wild_error::error::{Context, Result};
 use wild_platform::output_section_map::OutputSectionMap;
 use wild_platform::program_segments::ProgramSegments;
-use wild_platform::value_flags::AtomicPerSymbolFlags;
-use wild_platform::value_flags::PerSymbolFlags;
-use wild_platform::value_flags::ValueFlags;
+use wild_platform::value_flags::{AtomicPerSymbolFlags, PerSymbolFlags, ValueFlags};
+use wild_platform::{
+    Arch, Args as _, NonAddressableIndexes as _, ObjectFile, OutputKind, SectionAttributes as _,
+};
 use wild_scripts::linker_script::Expression;
 use wild_util::alignment;
 

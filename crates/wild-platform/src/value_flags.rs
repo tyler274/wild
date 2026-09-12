@@ -1,13 +1,9 @@
 use super::object::Symbol;
-use super::symbol_id::SymbolId;
-use super::symbol_id::SymbolIdRange;
+use super::symbol_id::{SymbolId, SymbolIdRange};
 use bitflags::bitflags;
 use std::sync::atomic;
-use std::sync::atomic::AtomicU32;
-use std::sync::atomic::Ordering;
-use zerocopy::FromBytes;
-use zerocopy::IntoBytes;
-use zerocopy::transmute_mut;
+use std::sync::atomic::{AtomicU32, Ordering};
+use zerocopy::{FromBytes, IntoBytes, transmute_mut};
 
 /// A raw representation of `ValueFlags`. This is separate from `ValueFlags` so that we can derive
 /// `FromBytes` and `IntoBytes`.

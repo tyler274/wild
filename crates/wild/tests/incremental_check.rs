@@ -1,11 +1,8 @@
 //! Shared incremental-relink checks for the kernel and glibc opt-in tests.
 
-use libwild::bail;
-use libwild::ensure;
-use libwild::error::Context as _;
-use libwild::error::Result;
-use std::path::Path;
-use std::path::PathBuf;
+use libwild::error::{Context as _, Result};
+use libwild::{bail, ensure};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub(crate) fn state_dir(output: &Path) -> PathBuf {

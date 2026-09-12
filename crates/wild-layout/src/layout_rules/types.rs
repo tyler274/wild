@@ -1,12 +1,9 @@
 use super::SectionRule;
 use crate::EnginePlatform;
-use crate::output_section_id::OutputSectionId;
-use crate::output_section_id::SectionIdentity;
+use crate::output_section_id::{OutputSectionId, SectionIdentity};
 use crate::parsing::SymbolLoc;
 use hashbrown::HashTable;
-use wild_platform::Platform;
-use wild_platform::SectionOutputInfo;
-use wild_platform::SectionRuleOutcome;
+use wild_platform::{Platform, SectionOutputInfo, SectionRuleOutcome};
 use wild_scripts::linker_script;
 
 pub struct LayoutRules<'data> {

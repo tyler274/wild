@@ -1,13 +1,9 @@
 use crate::bit_misc::BitExtraction;
-use crate::elf::AllowedRange;
-use crate::elf::RelocationKind;
-use crate::elf::RelocationKindInfo;
-use crate::elf::RelocationSize;
-use crate::elf::RiscVInstruction;
+use crate::elf::{
+    AllowedRange, RelocationKind, RelocationKindInfo, RelocationSize, RiscVInstruction,
+};
 use crate::relaxation::RelocationModifier;
-use crate::utils::and_from_slice;
-use crate::utils::or_from_slice;
-use crate::utils::u32_from_slice;
+use crate::utils::{and_from_slice, or_from_slice, u32_from_slice};
 
 /// JAL instruction range: signed 21-bit immediate, 2-byte aligned.
 pub const JAL_RANGE: std::ops::RangeInclusive<i64> = -(1i64 << 20)..=((1i64 << 20) - 1);

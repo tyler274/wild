@@ -1,37 +1,20 @@
-use crate::ImportResolution;
-use crate::LinkerDefinedIndexRequest;
-use crate::LinkerDefinedIndices;
-use crate::ObjectImportResolutions;
-use crate::SharedUnresolvedImports;
-use crate::WASM_DEAD_INDEX;
-use crate::Wasm;
-use crate::WasmLayout;
-use crate::WasmLinkerSymbol;
-use crate::WasmObjectIndexMap;
-use crate::WasmObjectLayoutInput;
-use crate::WasmRelocation;
-use crate::WasmSymbolKind;
-use crate::collect_shared_unresolved_imports;
-use crate::demangle_symbol_name;
-use crate::encode_i32_const_body;
-use crate::encode_i32_const_u32;
-use crate::report_disallowed_unresolved_imports;
-use crate::requested_linker_export_symbols;
-use crate::wasm_symbol_name_str;
-use hashbrown::HashMap;
-use hashbrown::HashSet;
+use crate::{
+    ImportResolution, LinkerDefinedIndexRequest, LinkerDefinedIndices, ObjectImportResolutions,
+    SharedUnresolvedImports, WASM_DEAD_INDEX, Wasm, WasmLayout, WasmLinkerSymbol,
+    WasmObjectIndexMap, WasmObjectLayoutInput, WasmRelocation, WasmSymbolKind,
+    collect_shared_unresolved_imports, demangle_symbol_name, encode_i32_const_body,
+    encode_i32_const_u32, report_disallowed_unresolved_imports, requested_linker_export_symbols,
+    wasm_symbol_name_str,
+};
+use hashbrown::{HashMap, HashSet};
 use rayon::prelude::*;
 use std::borrow::Cow;
 use wasmparser::RelocationType;
-use wild_error::bail;
-use wild_error::ensure;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
+use wild_error::{bail, ensure};
 use wild_layout::symbol::UnversionedSymbolName;
-use wild_layout::symbol_db::SymbolDb;
-use wild_layout::symbol_db::SymbolId;
-use wild_layout::timing_phase;
-use wild_layout::verbose_timing_phase;
+use wild_layout::symbol_db::{SymbolDb, SymbolId};
+use wild_layout::{timing_phase, verbose_timing_phase};
 use wild_platform::Args as _;
 
 /// Synthetic function produced for an unresolved weak function import.

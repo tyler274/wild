@@ -1,18 +1,10 @@
-use super::parse_assert;
-use super::skip_comments_and_whitespace;
+use super::{parse_assert, skip_comments_and_whitespace};
 use crate::linker_script::Expression;
-use winnow::BStr;
-use winnow::Parser as _;
-use winnow::ascii::dec_uint;
-use winnow::ascii::hex_uint;
-use winnow::ascii::multispace0;
-use winnow::combinator::alt;
-use winnow::combinator::delimited;
-use winnow::combinator::opt;
-use winnow::combinator::preceded;
+use winnow::ascii::{dec_uint, hex_uint, multispace0};
+use winnow::combinator::{alt, delimited, opt, preceded};
 use winnow::error::ContextError;
-use winnow::token::one_of;
-use winnow::token::take_while;
+use winnow::token::{one_of, take_while};
+use winnow::{BStr, Parser as _};
 
 pub fn parse_expression<'a>(input: &mut &'a BStr) -> winnow::Result<Expression<'a>> {
     parse_ternary.parse_next(input)

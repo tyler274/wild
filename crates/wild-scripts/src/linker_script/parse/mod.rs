@@ -1,21 +1,11 @@
-use super::AssertCommand;
-use super::Command;
-use super::Expression;
-use super::LinkerScript;
-use super::Location;
-use super::MemoryFlags;
-use super::MemoryRegion;
-use super::OutputFormat;
-use super::Phdr;
-use super::ProvideSymbolDefinition;
-use super::SectionCommand;
-use super::SymbolAssignment;
+use super::{
+    AssertCommand, Command, Expression, LinkerScript, Location, MemoryFlags, MemoryRegion,
+    OutputFormat, Phdr, ProvideSymbolDefinition, SectionCommand, SymbolAssignment,
+};
 mod expr;
 mod sections;
 
-use crate::inputs::Input;
-use crate::inputs::InputSpec;
-use crate::inputs::Modifiers;
+use crate::inputs::{Input, InputSpec, Modifiers};
 #[allow(unused_imports)]
 pub use expr::*;
 use object::Wrap;
@@ -23,19 +13,12 @@ use object::Wrap;
 pub use sections::*;
 use std::path::Path;
 use wild_error::error;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
-use winnow::BStr;
-use winnow::Parser as _;
+use wild_error::error::{Context as _, Result};
 use winnow::ascii::multispace0;
-use winnow::combinator::alt;
-use winnow::combinator::eof;
-use winnow::combinator::opt;
-use winnow::combinator::repeat_till;
-use winnow::error::ContextError;
-use winnow::error::FromExternalError;
-use winnow::token::take_until;
-use winnow::token::take_while;
+use winnow::combinator::{alt, eof, opt, repeat_till};
+use winnow::error::{ContextError, FromExternalError};
+use winnow::token::{take_until, take_while};
+use winnow::{BStr, Parser as _};
 
 impl<'data> LinkerScript<'data> {
     pub fn parse(bytes: &'data [u8], path: &Path) -> Result<LinkerScript<'data>> {

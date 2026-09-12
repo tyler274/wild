@@ -1,14 +1,11 @@
 use crate::linker_script::skip_comments_and_whitespace;
 use crate::script_data::ScriptData;
-use crate::version_script::MatchRules;
-use crate::version_script::SymbolLookupNameWrapper;
-use crate::version_script::parse_matcher;
+use crate::version_script::{MatchRules, SymbolLookupNameWrapper, parse_matcher};
 use wild_error::error;
 use wild_error::error::Result;
 use wild_util::hash::PreHashed;
 use wild_util::symbol_name::UnversionedSymbolName;
-use winnow::BStr;
-use winnow::Parser;
+use winnow::{BStr, Parser};
 
 #[derive(Debug, Default)]
 pub struct ExportList<'data>(MatchRules<'data>);

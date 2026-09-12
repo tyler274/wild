@@ -1,21 +1,13 @@
-use super::super::CompressionKind;
-use super::super::DynamicLinker;
-use super::super::ElfArgs;
-use super::super::ExcludeLibs;
-use crate::ArgumentParser;
-use crate::BSymbolicKind;
-use crate::HasCommonArgs as _;
-use crate::UnresolvedSymbols;
-use crate::VersionMode;
-use crate::parse_number;
+use super::super::{CompressionKind, DynamicLinker, ElfArgs, ExcludeLibs};
+use crate::{
+    ArgumentParser, BSymbolicKind, HasCommonArgs as _, UnresolvedSymbols, VersionMode, parse_number,
+};
 use hashbrown::HashSet;
 use std::num::NonZeroUsize;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicI64;
 use wild_error::bail;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
 use wild_util::arch::SUPPORTED_TARGETS;
 
 pub fn add_info_and_script_flags(parser: &mut ArgumentParser<ElfArgs>) {

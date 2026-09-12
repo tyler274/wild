@@ -1,5 +1,4 @@
-use anyhow::Context;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use linker_trace::TraceData;
 use std::ops::Range;
 use std::path::Path;

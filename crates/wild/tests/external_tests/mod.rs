@@ -1,16 +1,12 @@
 mod lld_tests;
 mod mold_tests;
 
-use crate::Filter;
-use crate::Result;
-use crate::TestConfig;
+use crate::{Filter, Result, TestConfig};
 use libtest_mimic::Trial;
 use std::env;
 use std::io::Write;
-use std::path::Path;
-use std::path::PathBuf;
-use std::process::Command;
-use std::process::Output;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
 use std::sync::OnceLock;
 
 pub(super) fn collect_tests(

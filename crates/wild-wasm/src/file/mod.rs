@@ -1,16 +1,12 @@
-use crate::RawSymbolName;
-use crate::RelocationList;
-use crate::VerneedTable;
-use crate::WasmSymbol;
-use crate::WasmSymbolKind;
-use crate::decode_relocs_for;
-use crate::wasm_data_segment_encoded_size;
+use crate::{
+    RawSymbolName, RelocationList, VerneedTable, WasmSymbol, WasmSymbolKind, decode_relocs_for,
+    wasm_data_segment_encoded_size,
+};
 mod parse;
 mod scan;
 mod types;
 
-use super::Wasm;
-use super::section_id;
+use super::{Wasm, section_id};
 use leb128::write::unsigned_len as uleb128_size;
 #[allow(unused_imports)]
 pub(crate) use parse::*;
@@ -19,19 +15,12 @@ pub(crate) use scan::*;
 use std::borrow::Cow;
 #[allow(unused_imports)]
 pub(crate) use types::*;
-use wasmparser::BinaryReader;
-use wasmparser::CodeSectionReader;
-use wasmparser::DataSectionReader;
-use wasmparser::ExportSectionReader;
-use wasmparser::FunctionSectionReader;
-use wasmparser::GlobalSectionReader;
-use wasmparser::ImportSectionReader;
-use wasmparser::MemorySectionReader;
-use wasmparser::MemoryType;
-use wasmparser::TypeSectionReader;
+use wasmparser::{
+    BinaryReader, CodeSectionReader, DataSectionReader, ExportSectionReader, FunctionSectionReader,
+    GlobalSectionReader, ImportSectionReader, MemorySectionReader, MemoryType, TypeSectionReader,
+};
 use wild_error::ensure;
-use wild_error::error::Context as _;
-use wild_error::error::Result;
+use wild_error::error::{Context as _, Result};
 use wild_platform as platform;
 
 impl<'data> File<'data> {

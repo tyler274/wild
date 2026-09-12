@@ -1,14 +1,9 @@
-use crate::header_diff::DiffMode;
-use crate::header_diff::FieldValues;
+use crate::header_diff::{DiffMode, FieldValues};
 use anyhow::Result;
-use linker_utils::elf::secnames::GNU_VERSION_D_SECTION_NAME_STR;
-use linker_utils::elf::secnames::GNU_VERSION_SECTION_NAME_STR;
-use object::File;
-use object::Object;
-use object::ObjectSymbol;
-use object::elf;
+use linker_utils::elf::secnames::{GNU_VERSION_D_SECTION_NAME_STR, GNU_VERSION_SECTION_NAME_STR};
 use object::elf::VER_FLG_BASE;
 use object::read::elf::Sym;
+use object::{File, Object, ObjectSymbol, elf};
 
 pub(crate) fn report_diffs(report: &mut crate::Report, objects: &[crate::Binary]) {
     report.add_diffs(crate::header_diff::diff_fields(

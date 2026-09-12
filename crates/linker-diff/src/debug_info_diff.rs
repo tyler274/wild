@@ -1,8 +1,5 @@
-use crate::Binary;
-use crate::Diff;
-use crate::DiffValues;
-use crate::Report;
 use crate::header_diff::DiffMode;
+use crate::{Binary, Diff, DiffValues, Report};
 use anyhow::Result;
 use hashbrown::HashMap;
 use itertools::Itertools;

@@ -1,23 +1,13 @@
-use crate::Elf;
-use crate::ElfClass;
+use crate::{Elf, ElfClass};
 use rayon::Scope;
 use wild_error::error::Result;
 use wild_layout::EnginePlatform;
-use wild_layout::grouping::LtoInput;
-use wild_layout::grouping::SymbolKind;
-use wild_layout::resolution::ResolutionResources;
-use wild_layout::resolution::ResolvedFile;
-use wild_layout::resolution::ResolvedGroup;
-use wild_layout::resolution::SymbolAttributes;
+use wild_layout::grouping::{LtoInput, SymbolKind};
+use wild_layout::resolution::{ResolutionResources, ResolvedFile, ResolvedGroup, SymbolAttributes};
 use wild_layout::symbol::UnversionedSymbolName;
-use wild_layout::symbol_db::SymbolDb;
-use wild_layout::symbol_db::SymbolId;
-use wild_platform::Args as _;
-use wild_platform::Platform;
-use wild_platform::Visibility;
-use wild_platform::value_flags::FlagsForSymbol;
-use wild_platform::value_flags::PerSymbolFlags;
-use wild_platform::value_flags::ValueFlags;
+use wild_layout::symbol_db::{SymbolDb, SymbolId};
+use wild_platform::value_flags::{FlagsForSymbol, PerSymbolFlags, ValueFlags};
+use wild_platform::{Args as _, Platform, Visibility};
 
 pub(crate) fn mark_lto_symbols_for_dynamic_export<C: ElfClass>(
     symbol_db: &SymbolDb<Elf<C>>,
