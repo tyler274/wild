@@ -49,14 +49,20 @@ impl<'data> LinkerScript<'data> {
         Ok(LinkerScript { commands })
     }
 
-    /// Recursively expand `INCLUDE` commands. `load` maps an include path to the included file's
-    /// bytes (which must live as long as `'data`).
+    /// Recursively expand `INCLUDE` commands. `load` maps an include path and the `SEARCH_DIR`
+    /// paths seen so far to the included file's bytes (which must live as long as `'data`).
     pub fn expand_includes(
         &mut self,
-        load: &mut dyn FnMut(&[u8]) -> Result<&'data [u8]>,
+        load: &mut dyn FnMut(&[u8], &[&[u8]]) -> Result<&'data [u8]>,
     ) -> Result {
         let mut stack = Vec::new();
-        self.commands = expand_commands(std::mem::take(&mut self.commands), load, &mut stack)?;
+        let mut search_dirs = Vec::new();
+        self.commands = expand_commands(
+            std::mem::take(&mut self.commands),
+            load,
+            &mut stack,
+            &mut search_dirs,
+        )?;
         Ok(())
     }
 
@@ -70,7 +76,12 @@ impl<'data> LinkerScript<'data> {
     }
 
     pub fn get_version_script_content(&self) -> Option<&'data [u8]> {
-        self.commands.iter().find_map(|cmd| match cmd {
+        self.version_script_contents().next()
+    }
+
+    /// All `VERSION { ... }` bodies in script order. GNU concatenates them with later scripts.
+    pub fn version_script_contents(&self) -> impl Iterator<Item = &'data [u8]> {
+        self.commands.iter().filter_map(|cmd| match cmd {
             Command::Version(content) => Some(*content),
             _ => None,
         })
@@ -506,26 +517,45 @@ pub fn parse_commands<'input>(input: &mut &'input BStr) -> winnow::Result<Vec<Co
 
 pub fn expand_commands<'data>(
     commands: Vec<Command<'data>>,
-    load: &mut dyn FnMut(&[u8]) -> Result<&'data [u8]>,
+    load: &mut dyn FnMut(&[u8], &[&[u8]]) -> Result<&'data [u8]>,
     stack: &mut Vec<Vec<u8>>,
+    search_dirs: &mut Vec<&'data [u8]>,
 ) -> Result<Vec<Command<'data>>> {
     let mut out = Vec::with_capacity(commands.len());
     for cmd in commands {
         match cmd {
             Command::Include(path) => {
-                let included = load_included_script(path, load, stack)?;
+                let included = load_included_script(path, load, stack, search_dirs)?;
                 out.extend(included);
             }
+            Command::SearchDir(path) => {
+                search_dirs.push(path);
+                out.push(Command::SearchDir(path));
+            }
             Command::Sections(mut sections) => {
-                sections.commands =
-                    expand_section_commands(std::mem::take(&mut sections.commands), load, stack)?;
+                sections.commands = expand_section_commands(
+                    std::mem::take(&mut sections.commands),
+                    load,
+                    stack,
+                    search_dirs,
+                )?;
                 out.push(Command::Sections(sections));
             }
             Command::Group(inner) => {
-                out.push(Command::Group(expand_commands(inner, load, stack)?));
+                out.push(Command::Group(expand_commands(
+                    inner,
+                    load,
+                    stack,
+                    search_dirs,
+                )?));
             }
             Command::AsNeeded(inner) => {
-                out.push(Command::AsNeeded(expand_commands(inner, load, stack)?));
+                out.push(Command::AsNeeded(expand_commands(
+                    inner,
+                    load,
+                    stack,
+                    search_dirs,
+                )?));
             }
             other => out.push(other),
         }
@@ -535,14 +565,20 @@ pub fn expand_commands<'data>(
 
 pub fn expand_section_commands<'data>(
     commands: Vec<SectionCommand<'data>>,
-    load: &mut dyn FnMut(&[u8]) -> Result<&'data [u8]>,
+    load: &mut dyn FnMut(&[u8], &[&[u8]]) -> Result<&'data [u8]>,
     stack: &mut Vec<Vec<u8>>,
+    search_dirs: &mut Vec<&'data [u8]>,
 ) -> Result<Vec<SectionCommand<'data>>> {
     let mut out = Vec::with_capacity(commands.len());
     for cmd in commands {
         match cmd {
             SectionCommand::Include(path) => {
-                out.extend(load_included_section_commands(path, load, stack)?);
+                out.extend(load_included_section_commands(
+                    path,
+                    load,
+                    stack,
+                    search_dirs,
+                )?);
             }
             other => out.push(other),
         }
@@ -552,26 +588,28 @@ pub fn expand_section_commands<'data>(
 
 pub fn load_included_script<'data>(
     path: &[u8],
-    load: &mut dyn FnMut(&[u8]) -> Result<&'data [u8]>,
+    load: &mut dyn FnMut(&[u8], &[&[u8]]) -> Result<&'data [u8]>,
     stack: &mut Vec<Vec<u8>>,
+    search_dirs: &mut Vec<&'data [u8]>,
 ) -> Result<Vec<Command<'data>>> {
     push_include_path(path, stack)?;
-    let bytes = load(path)?;
+    let bytes = load(path, search_dirs)?;
     let parsed = parse_commands
         .parse(BStr::new(bytes))
         .map_err(|error| error!("Failed to parse included linker script:\n{error}"))?;
-    let expanded = expand_commands(parsed, load, stack)?;
+    let expanded = expand_commands(parsed, load, stack, search_dirs)?;
     stack.pop();
     Ok(expanded)
 }
 
 pub fn load_included_section_commands<'data>(
     path: &[u8],
-    load: &mut dyn FnMut(&[u8]) -> Result<&'data [u8]>,
+    load: &mut dyn FnMut(&[u8], &[&[u8]]) -> Result<&'data [u8]>,
     stack: &mut Vec<Vec<u8>>,
+    search_dirs: &mut Vec<&'data [u8]>,
 ) -> Result<Vec<SectionCommand<'data>>> {
     push_include_path(path, stack)?;
-    let bytes = load(path)?;
+    let bytes = load(path, search_dirs)?;
     let section_cmds = if let Ok(cmds) = parse_section_command_list.parse(BStr::new(bytes)) {
         cmds
     } else {
@@ -580,7 +618,7 @@ pub fn load_included_section_commands<'data>(
             .map_err(|error| error!("Failed to parse included linker script:\n{error}"))?;
         section_commands_from_top_level(parsed)?
     };
-    let expanded = expand_section_commands(section_cmds, load, stack)?;
+    let expanded = expand_section_commands(section_cmds, load, stack, search_dirs)?;
     stack.pop();
     Ok(expanded)
 }

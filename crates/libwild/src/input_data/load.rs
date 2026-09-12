@@ -358,8 +358,15 @@ fn process_linker_script<'data, F: FileSystem>(
     let script_path = file_system.canonicalize(&input_file.filename)?;
     let directory = script_path.parent().expect("expected an absolute path");
 
-    script.expand_includes(&mut |include_path| {
-        load_included_linker_script(include_path, directory, args, file_system, inputs_arena)
+    script.expand_includes(&mut |include_path, search_dirs| {
+        load_included_linker_script(
+            include_path,
+            search_dirs,
+            directory,
+            args,
+            file_system,
+            inputs_arena,
+        )
     })?;
 
     let mut extra_search_dirs = Vec::new();
@@ -415,6 +422,7 @@ fn resolve_search_dir(path: &[u8], sysroot: Option<&Path>) -> Result<PathBuf> {
 
 fn load_included_linker_script<'data, F: FileSystem>(
     include_path: &[u8],
+    search_dirs: &[&[u8]],
     directory: &Path,
     args: &impl platform::Args,
     file_system: &F,
@@ -431,6 +439,9 @@ fn load_included_linker_script<'data, F: FileSystem>(
         candidates.push(path.to_path_buf());
         for search in args.lib_search_path() {
             candidates.push(search.join(path));
+        }
+        for dir in search_dirs {
+            candidates.push(resolve_search_dir(dir, args.sysroot())?.join(path));
         }
         if let Some(sysroot) = args.sysroot() {
             candidates.push(sysroot.join(path));

@@ -16,19 +16,19 @@ matching all three.
 | `GROUP(files...)` | ✅ | |
 | `INPUT(files...)` | ✅ | |
 | `AS_NEEDED(files...)` | ✅ | |
-| `INCLUDE(file)` | ✅ | Recursively expanded with cycle detection; searched relative to the including script, then `-L` / sysroot |
+| `INCLUDE(file)` | ✅ | Recursively expanded with cycle detection; searched relative to the including script, then `-L`, `SEARCH_DIR`, and sysroot |
 | `OUTPUT_FORMAT(...)` | ✅ | Accepted when it matches the link target (`-EL`/`-EB` select the three-arg form). Does not switch architecture; mismatch or unsupported BFD names error |
 | `OUTPUT_ARCH(arch)` | ✅ | Accepted when it matches the link target (kernel `i386:x86-64`, `aarch64`, `riscv`, `loongarch`, `powerpc:common64`). Does not switch architecture |
 | `OUTPUT(filename)` | ✅ | Same as `-o`. Command-line `-o` / `--output` wins |
 | `SECTIONS { ... }` | ✅ | |
 | `ENTRY(symbol)` | ✅ | |
-| `VERSION { ... }` | ✅ | |
+| `VERSION { ... }` | ✅ | Multiple `VERSION` commands, including across input scripts, combine in command-line order. `--version-script` is merged the same way |
 | `PROVIDE(sym = expr)` | ✅ | Unused PROVIDE is ignored, including when the RHS is undefined |
 | `PROVIDE_HIDDEN(sym = expr)` | ✅ | |
 | `ASSERT(expr, "msg")` | ✅ | |
 | `MEMORY { ... }` | ✅ | Regions, `(rwx)` flags, `>region`, and `AT>region` |
 | `REGION_ALIAS(alias, region)` | ✅ | `alias` names the same MEMORY region for `>alias`, `ORIGIN`, and `LENGTH` |
-| `SEARCH_DIR(path)` | ✅ | Same as `-L`, including sysroot-relative `=/path`. Applies to later `INPUT` / `GROUP` / `STARTUP` in the same script |
+| `SEARCH_DIR(path)` | ✅ | Same as `-L`, including sysroot-relative `=/path`. Applies to later `INPUT` / `GROUP` / `STARTUP` / `INCLUDE` in the same script |
 | `STARTUP(filename)` | ✅ | Like `INPUT`, but that file is the first input of the link |
 | `EXTERN(symbol...)` | ✅ | Same as `-u`: the named symbols are GC roots and pull archive members that define them |
 | `TARGET(bfdname)` | ✅ | Accepted when it matches the link target, using the same BFD names as `OUTPUT_FORMAT`. Does not switch architecture; mismatch or unsupported names error |

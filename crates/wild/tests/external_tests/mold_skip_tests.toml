@@ -51,7 +51,6 @@ reason = "Version script support"
 tests = [
   "version-script15.sh",
   "empty-default-symver.sh",
-  "linker-script-version.sh",
   "version-script23.sh",
 ]
 

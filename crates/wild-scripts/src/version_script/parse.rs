@@ -100,6 +100,49 @@ impl<'data> VersionScript<'data> {
     }
 }
 
+/// Combine `VERSION { ... }` bodies in command-line order.
+///
+/// Named version tags are concatenated and parsed once so a later `VERSION` can inherit a parent
+/// defined earlier. Anonymous `{ ... };` visibility scripts are parsed separately and merged,
+/// because concatenating them with named tags would drop the named tags (the parser returns after
+/// the first anonymous block).
+pub fn combine_version_script_bodies<'data>(
+    chunks: &[&'data [u8]],
+    intern: impl FnOnce(&[u8]) -> &'data [u8],
+) -> Result<VersionScript<'data>> {
+    if chunks.is_empty() {
+        return Ok(VersionScript::default());
+    }
+
+    if chunks.iter().copied().any(version_body_is_anonymous) {
+        let mut combined = VersionScript::default();
+        for chunk in chunks {
+            combined.merge(VersionScript::parse(ScriptData { raw: chunk })?)?;
+        }
+        return Ok(combined);
+    }
+
+    let raw = if let [single] = chunks {
+        *single
+    } else {
+        let mut joined = Vec::new();
+        for (i, chunk) in chunks.iter().enumerate() {
+            if i > 0 {
+                joined.push(b'\n');
+            }
+            joined.extend_from_slice(chunk);
+        }
+        intern(&joined)
+    };
+    VersionScript::parse(ScriptData { raw })
+}
+
+fn version_body_is_anonymous(content: &[u8]) -> bool {
+    let mut input = BStr::new(content);
+    let _ = skip_comments_and_whitespace(&mut input);
+    input.starts_with(b"{")
+}
+
 impl<'data> RegularVersionScript<'data> {
     #[cfg(test)]
     fn parse(data: ScriptData<'data>) -> Result<RegularVersionScript<'data>> {
@@ -792,5 +835,99 @@ mod tests {
 
         assert_eq!(script.find_match(&sym(b"foo")).unwrap().0, 1);
         assert_eq!(script.find_match(&sym(b"fxxx")).unwrap().0, 2);
+    }
+
+    fn intern(bytes: &[u8]) -> &'static [u8] {
+        Box::leak(bytes.to_vec().into_boxed_slice())
+    }
+
+    fn named_version_names<'a>(script: &VersionScript<'a>) -> Vec<&'a [u8]> {
+        match script {
+            VersionScript::Regular(regular) => regular
+                .version_iter()
+                .filter(|version| !version.name.is_empty())
+                .map(|version| version.name)
+                .collect(),
+            VersionScript::Rust(_) => Vec::new(),
+        }
+    }
+
+    fn parse_version(raw: &[u8]) -> VersionScript<'_> {
+        VersionScript::parse(ScriptData { raw }).unwrap()
+    }
+
+    #[test]
+    fn merge_named_versions_preserves_order() {
+        let mut script = parse_version(b"ver_a { global: foo; };");
+        script
+            .merge(parse_version(b"ver_b { global: bar; };"))
+            .unwrap();
+        assert_eq!(
+            named_version_names(&script),
+            [b"ver_a".as_slice(), b"ver_b"]
+        );
+    }
+
+    #[test]
+    fn merge_remaps_parent_index() {
+        let mut script = parse_version(b"ver_a { global: foo; };");
+        script
+            .merge(parse_version(
+                b"ver_b { global: bar; }; ver_c { global: baz; } ver_b;",
+            ))
+            .unwrap();
+        let VersionScript::Regular(regular) = &script else {
+            panic!("expected regular version script");
+        };
+        assert_eq!(
+            named_version_names(&script),
+            [b"ver_a".as_slice(), b"ver_b", b"ver_c"]
+        );
+        assert_eq!(regular.versions[3].name, b"ver_c");
+        assert_eq!(regular.versions[3].parent_index, Some(2));
+    }
+
+    #[test]
+    fn merge_rejects_duplicate_version_name() {
+        let mut script = parse_version(b"ver_a { global: foo; };");
+        let error = script
+            .merge(parse_version(b"ver_a { global: bar; };"))
+            .unwrap_err();
+        assert!(error.to_string().contains("Duplicate version name"));
+    }
+
+    #[test]
+    fn combine_named_version_bodies_concatenates_for_parent_lookup() {
+        let script = combine_version_script_bodies(
+            &[
+                b"ver_a { global: foo; };".as_slice(),
+                b"ver_b { global: bar; } ver_a;",
+            ],
+            intern,
+        )
+        .unwrap();
+        let VersionScript::Regular(regular) = &script else {
+            panic!("expected regular version script");
+        };
+        assert_eq!(
+            named_version_names(&script),
+            [b"ver_a".as_slice(), b"ver_b"]
+        );
+        assert_eq!(regular.versions[2].parent_index, Some(1));
+    }
+
+    #[test]
+    fn combine_anonymous_then_named_merges_without_dropping_names() {
+        let script = combine_version_script_bodies(
+            &[b"{ global: foo*; };".as_slice(), b"ver_a { global: bar; };"],
+            intern,
+        )
+        .unwrap();
+        assert_eq!(named_version_names(&script), [b"ver_a".as_slice()]);
+        let VersionScript::Regular(regular) = script else {
+            panic!("expected regular version script");
+        };
+        assert!(is_matching_global(&regular, "foobar"));
+        assert!(is_matching_global(&regular, "bar"));
     }
 }

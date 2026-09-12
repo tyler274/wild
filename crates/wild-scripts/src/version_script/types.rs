@@ -309,6 +309,30 @@ impl<'data> RegularVersionScript<'data> {
 }
 
 impl<'data> VersionScript<'data> {
+    fn is_absent(&self) -> bool {
+        matches!(self, VersionScript::Regular(script) if script.versions.is_empty())
+    }
+
+    /// Combine another version script, preserving definition order. Used when several `VERSION`
+    /// commands (or `--version-script` plus `VERSION`) appear on the command line.
+    pub fn merge(&mut self, other: Self) -> Result {
+        if self.is_absent() {
+            *self = other;
+            return Ok(());
+        }
+        if other.is_absent() {
+            return Ok(());
+        }
+        match (&mut *self, other) {
+            (VersionScript::Regular(dest), VersionScript::Regular(src)) => dest.merge(src),
+            (VersionScript::Rust(dest), VersionScript::Rust(src)) => {
+                dest.global.extend(src.global);
+                Ok(())
+            }
+            _ => bail!("Cannot combine a rust-style version script with named VERSION commands"),
+        }
+    }
+
     pub fn version_count(&self) -> u16 {
         match self {
             VersionScript::Regular(script) => script.version_count(),
@@ -334,7 +358,74 @@ impl<'data> VersionScript<'data> {
     }
 }
 
+impl<'data> MatchRules<'data> {
+    fn merge(&mut self, other: Self) {
+        self.general.merge(other.general);
+        self.cxx.merge(other.cxx);
+    }
+}
+
+impl<'data> BasicMatchRules<'data> {
+    fn merge(&mut self, other: Self) {
+        self.exact.extend(other.exact);
+        self.escaped_exact.extend(other.escaped_exact);
+        self.star_globs.extend(other.star_globs);
+        self.nonstar_globs.extend(other.nonstar_globs);
+        self.matches_all |= other.matches_all;
+    }
+}
+
+impl<'data> VersionBody<'data> {
+    fn merge(&mut self, other: Self) {
+        self.globals.merge(other.globals);
+        self.locals.merge(other.locals);
+    }
+}
+
 impl<'data> RegularVersionScript<'data> {
+    fn merge(&mut self, mut other: Self) -> Result {
+        if self.versions.is_empty() {
+            *self = other;
+            return Ok(());
+        }
+        if other.versions.is_empty() {
+            return Ok(());
+        }
+
+        let dest_has_base = self.versions.first().is_some_and(|v| v.name.is_empty());
+        let src_has_base = other.versions.first().is_some_and(|v| v.name.is_empty());
+        let skip = usize::from(dest_has_base && src_has_base);
+        let dest_len = self.versions.len();
+
+        if skip == 1 {
+            let src_base = other.versions.remove(0);
+            self.versions[0].version_body.merge(src_base.version_body);
+        }
+
+        for mut version in other.versions {
+            if !version.name.is_empty() && self.version_name_mapping.contains_key(version.name) {
+                bail!(
+                    "Duplicate version name `{}`",
+                    String::from_utf8_lossy(version.name)
+                );
+            }
+            if let Some(parent) = version.parent_index.as_mut() {
+                *parent = if (*parent as usize) < skip {
+                    *parent
+                } else {
+                    dest_len as u16 + *parent - skip as u16
+                };
+            }
+            if !version.name.is_empty() {
+                self.version_name_mapping
+                    .insert(version.name, self.versions.len());
+            }
+            self.versions.push(version);
+        }
+
+        Ok(())
+    }
+
     pub fn is_local(&self, name: &PreHashed<UnversionedSymbolName>) -> bool {
         self.find_match(name)
             .is_some_and(|(_, rule)| matches!(rule, VersionRuleSection::Local))

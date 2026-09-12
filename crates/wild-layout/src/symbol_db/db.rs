@@ -43,7 +43,6 @@ use rayon::iter::ParallelIterator;
 use std::mem::take;
 use symbolic_demangle::demangle;
 use wild_args::InputLinkerScript;
-use wild_error::bail;
 use wild_error::error::Result;
 use wild_platform::Args;
 use wild_platform::EntryPoint;
@@ -62,6 +61,7 @@ use wild_scripts::export_list::ExportList;
 use wild_scripts::linker_script::Command;
 use wild_scripts::version_script::RustVersionScript;
 use wild_scripts::version_script::VersionScript;
+use wild_scripts::version_script::combine_version_script_bodies;
 use wild_util::hash::PassThroughHashMap;
 use wild_util::hash::PreHashed;
 use wild_util::sharding::ShardKey;
@@ -902,20 +902,18 @@ impl<'data, P: Platform> SymbolDb<'data, P> {
         &mut self,
         linker_scripts: &[InputLinkerScript<'data>],
     ) -> Result {
-        for script in linker_scripts {
-            // Check if the linker script contains a VERSION command
-            if let Some(version_content) = script.script.get_version_script_content() {
-                if self.version_script != VersionScript::default() {
-                    bail!("Multiple version scripts provided");
-                }
-
-                self.version_script = VersionScript::parse(wild_scripts::ScriptData {
-                    raw: version_content,
-                })?;
-            }
+        let chunks: Vec<&[u8]> = linker_scripts
+            .iter()
+            .flat_map(|script| script.script.version_script_contents())
+            .collect();
+        if chunks.is_empty() {
+            return Ok(());
         }
 
-        Ok(())
+        let extra = combine_version_script_bodies(&chunks, |bytes| {
+            self.herd.get().alloc_slice_copy(bytes)
+        })?;
+        self.version_script.merge(extra)
     }
 
     pub fn groups_reserve(&mut self, additional: usize) {

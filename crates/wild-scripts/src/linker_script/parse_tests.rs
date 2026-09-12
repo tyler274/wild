@@ -8,9 +8,9 @@ use crate::linker_script::OutputDataWidth;
 use crate::linker_script::RelocatableAnchor;
 use crate::linker_script::Section;
 use crate::linker_script::SectionAttributes;
+use crate::linker_script::SectionCommand;
 use crate::linker_script::SectionPattern;
 use crate::linker_script::Sections;
-use crate::linker_script::SectionCommand;
 use crate::linker_script::SortKind;
 use crate::linker_script::SymbolAssignment;
 use crate::linker_script::maybe_apply_sysroot;
@@ -598,6 +598,40 @@ fn test_version_script_parsing_from_version_command() {
     let version_script = VersionScript::parse(script_data).unwrap();
 
     assert_eq!(version_script.version_count(), 2);
+}
+
+#[test]
+fn test_multiple_version_commands() {
+    use crate::version_script::VersionScript;
+    use crate::version_script::combine_version_script_bodies;
+
+    let script = parse_script(
+        r"
+            VERSION {
+                ver_a { global: foo; };
+            }
+            VERSION {
+                ver_b { global: bar; } ver_a;
+            }
+            ",
+    )
+    .unwrap();
+
+    let chunks: Vec<&[u8]> = script.version_script_contents().collect();
+    assert_eq!(chunks.len(), 2);
+
+    let intern = |bytes: &[u8]| -> &'static [u8] { Box::leak(bytes.to_vec().into_boxed_slice()) };
+    let version_script = combine_version_script_bodies(&chunks, intern).unwrap();
+    let VersionScript::Regular(regular) = version_script else {
+        panic!("expected regular version script");
+    };
+    let names: Vec<&[u8]> = regular
+        .version_iter()
+        .filter(|version| !version.name.is_empty())
+        .map(|version| version.name)
+        .collect();
+    assert_eq!(names, [b"ver_a".as_slice(), b"ver_b"]);
+    assert_eq!(regular.versions[2].parent_index, Some(1));
 }
 
 #[test]
@@ -1255,6 +1289,26 @@ fn test_output_search_dir_startup_target() {
     );
     assert_eq!(script.output_filename(), Some(&b"a.out"[..]));
     assert_eq!(script.search_dirs(), vec![&b"/usr/lib"[..]]);
+}
+
+#[test]
+fn test_include_sees_preceding_search_dir() {
+    let mut script = parse_script(
+        r#"
+        SEARCH_DIR("inc")
+        INCLUDE(fragment.ld)
+        "#,
+    )
+    .unwrap();
+    let mut seen_dirs: Option<Vec<Vec<u8>>> = None;
+    script
+        .expand_includes(&mut |path, dirs| {
+            assert_eq!(path, b"fragment.ld");
+            seen_dirs = Some(dirs.iter().map(|d| d.to_vec()).collect());
+            Ok(b"from_include = 1;".as_slice())
+        })
+        .unwrap();
+    assert_eq!(seen_dirs.unwrap(), vec![b"inc".to_vec()]);
 }
 
 #[test]
