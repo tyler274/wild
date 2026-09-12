@@ -343,7 +343,7 @@ fn resolve_const_candidates<'data>(
 
 pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
     group_states: &mut [GroupState<'data, P>],
-    output_sections: &OutputSections<P>,
+    output_sections: &mut OutputSections<P>,
     section_part_ids: &[PartId],
 ) -> Vec<InputSortedSection> {
     timing_phase!("Harvest and sort script sections");
@@ -365,6 +365,8 @@ pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
     struct Harvested<'data> {
         sort_by_init_priority: bool,
         sort_by_alignment: bool,
+        sort_by_name: bool,
+        sort_name_primary: bool,
         sort_reversed: bool,
         name: &'data [u8],
         section: InputSortedSection,
@@ -385,6 +387,8 @@ pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
                         sections_out.push(Harvested {
                             sort_by_init_priority: sorted_section.sort_by_init_priority,
                             sort_by_alignment: sorted_section.sort_by_alignment,
+                            sort_by_name: sorted_section.sort_by_name,
+                            sort_name_primary: sorted_section.sort_name_primary,
                             sort_reversed: sorted_section.sort_reversed,
                             name,
                             section: InputSortedSection {
@@ -398,6 +402,15 @@ pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
                     }
                 }
             }
+        }
+    }
+
+    for harvested in &sections_out {
+        if harvested.sort_by_name {
+            output_sections.bump_min_alignment(
+                harvested.section.part_id.output_section_id::<P>(),
+                harvested.section.alignment,
+            );
         }
     }
 
@@ -417,16 +430,29 @@ pub fn harvest_and_sort_script_sections<'data, P: EnginePlatform>(
                 (true, false) => std::cmp::Ordering::Less,
                 (false, true) => std::cmp::Ordering::Greater,
                 (false, false) if a.sort_by_alignment && b.sort_by_alignment => {
-                    // GNU `SORT_BY_ALIGNMENT` only: largest alignment first, then
-                    // input order (stable). Name is a secondary key only when
-                    // wrapped in `SORT()` / `SORT_BY_NAME()`. Reverse alignment
-                    // is not supported.
-                    b.section.alignment.cmp(&a.section.alignment).then_with(|| {
-                        a.section
-                            .file_id
-                            .cmp(&b.section.file_id)
-                            .then_with(|| a.section.section_index.0.cmp(&b.section.section_index.0))
-                    })
+                    if a.sort_by_name && b.sort_by_name {
+                        match (a.sort_name_primary, b.sort_name_primary) {
+                            (true, true) => a
+                                .name
+                                .cmp(b.name)
+                                .then_with(|| b.section.alignment.cmp(&a.section.alignment)),
+                            (false, false) => b
+                                .section
+                                .alignment
+                                .cmp(&a.section.alignment)
+                                .then_with(|| a.name.cmp(b.name)),
+                            (true, false) => std::cmp::Ordering::Less,
+                            (false, true) => std::cmp::Ordering::Greater,
+                        }
+                    } else {
+                        // GNU `SORT_BY_ALIGNMENT` only: largest alignment first, then
+                        // input order (stable). Reverse alignment is not supported.
+                        b.section.alignment.cmp(&a.section.alignment).then_with(|| {
+                            a.section.file_id.cmp(&b.section.file_id).then_with(|| {
+                                a.section.section_index.0.cmp(&b.section.section_index.0)
+                            })
+                        })
+                    }
                 }
                 (false, false) if a.sort_by_alignment => std::cmp::Ordering::Less,
                 (false, false) if b.sort_by_alignment => std::cmp::Ordering::Greater,

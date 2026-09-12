@@ -132,6 +132,8 @@ pub struct UnloadedSection {
     pub needs_sorting: bool,
     pub sort_by_init_priority: bool,
     pub sort_by_alignment: bool,
+    pub sort_by_name: bool,
+    pub sort_name_primary: bool,
     pub sort_reversed: bool,
 }
 
@@ -143,6 +145,8 @@ impl UnloadedSection {
             needs_sorting: false,
             sort_by_init_priority: false,
             sort_by_alignment: false,
+            sort_by_name: false,
+            sort_name_primary: false,
             sort_reversed: false,
         }
     }
@@ -167,6 +171,8 @@ pub struct ScriptSortedSectionDetail {
     pub index: object::SectionIndex,
     pub sort_by_init_priority: bool,
     pub sort_by_alignment: bool,
+    pub sort_by_name: bool,
+    pub sort_name_primary: bool,
     pub sort_reversed: bool,
 }
 

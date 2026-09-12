@@ -366,6 +366,10 @@ pub enum SortKind {
     Name,
     Alignment,
     InitPriority,
+    /// GNU `SORT_BY_NAME(SORT_BY_ALIGNMENT(...))`: name, then descending alignment.
+    NameThenAlignment,
+    /// GNU `SORT_BY_ALIGNMENT(SORT_BY_NAME(...))`: descending alignment, then name.
+    AlignmentThenName,
 }
 
 impl SortKind {

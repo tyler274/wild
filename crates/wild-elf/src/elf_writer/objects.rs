@@ -457,3 +457,26 @@ pub(crate) fn input_section_buffer_split<C: ElfClass>(
         (0, sec.capacity(part_id, &layout.output_sections) as usize)
     }
 }
+
+/// GNU concatenates `SORT*` inputs in harvest order, aligning each to its
+/// `sh_addralign`. Nested name+alignment sorts share the MIN part, so the writer
+/// must insert that padding instead of using per-alignment `capacity`.
+pub(crate) fn script_sorted_buffer_split<C: ElfClass>(
+    remaining: usize,
+    sec: Section,
+    part_id: PartId,
+    layout: &ElfLayout<C>,
+) -> (usize, usize) {
+    let epilogue_idx = layout.group_layouts.len() - 1;
+    let part_layout = layout.section_part_layouts.get(part_id);
+    let mut group_start = part_layout.mem_offset;
+    for group in layout.group_layouts.iter().take(epilogue_idx) {
+        group_start += group.mem_sizes.get(part_id);
+    }
+    let group_file_size = layout.group_layouts[epilogue_idx].file_sizes.get(part_id);
+    let written_in_group = group_file_size.saturating_sub(remaining);
+    let current_vma = group_start + written_in_group as u64;
+    let aligned_vma = sec.alignment.align_up(current_vma);
+    let leading_pad = (aligned_vma - current_vma) as usize;
+    (leading_pad, leading_pad + sec.size as usize)
+}

@@ -61,9 +61,9 @@ matching all three.
 | `AT(addr)` load-address specifier on output sections | ✅ | |
 | Numeric address between section name and `:` (e.g. `name 0 : { ... }`) | ✅ | Expressions including `ALIGN(n)`, `ADDR`/`SIZEOF`/`LOADADDR`, and `.` (current VMA). `ALIGN(0)` is a no-op, matching GNU ld (powerpc `.text ALIGN(0) :`) |
 | `SORT(...)`, `SORT_BY_NAME(...)` | ✅ | |
-| `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then input order (GNU) |
+| `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then input order (GNU). Nested `SORT_BY_NAME(SORT_BY_ALIGNMENT)` sorts by name then alignment; `SORT_BY_ALIGNMENT(SORT_BY_NAME)` sorts by alignment then name. Same-type nesting is a no-op |
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | Uses GCC `init_priority` encoded in `.init_array.N` / `.ctors.N` names |
-| `REVERSE(...)` | ✅ | Alone implies reverse `SORT_BY_NAME`. May wrap or be wrapped by `SORT` / `SORT_BY_NAME`, or be wrapped by `SORT_BY_INIT_PRIORITY`. Reverse alignment and nested `SORT_BY_NAME(SORT_BY_ALIGNMENT)` are unsupported |
+| `REVERSE(...)` | ✅ | Alone implies reverse `SORT_BY_NAME`. May wrap or be wrapped by `SORT` / `SORT_BY_NAME`, or be wrapped by `SORT_BY_INIT_PRIORITY`. Reverse alignment is unsupported |
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | Both `*(EXCLUDE_FILE(a.o) .text)` and `EXCLUDE_FILE(a.o) *(.text)` |
 | `INPUT_SECTION_FLAGS(...)` | ✅ | `SHF_*` names or integer bits, combined with `&`; `!FLAG` requires the bit clear. `KEEP(INPUT_SECTION_FLAGS(...) *(.sec))` is accepted |
 | `BYTE(expr)`, `SHORT(expr)`, `LONG(expr)`, `QUAD(expr)` output data | ✅ | Written in the target endianness |
@@ -147,7 +147,7 @@ because `.data..ro_after_init` is 4KiB-aligned. `.strtab` and `.shstrtab` suffix
 | `>region` memory region placement | ✅ | |
 | `AT>region` load-region placement | ✅ | |
 | `SORT(...)`, `SORT_BY_NAME(...)` | ✅ | |
-| `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then input order (GNU) |
+| `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then input order (GNU). Nested `SORT_BY_NAME` / `SORT_BY_ALIGNMENT` uses name or alignment as the secondary key |
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | |
 | `REVERSE(...)` | ✅ | Alone implies reverse `SORT_BY_NAME`. May wrap or be wrapped by `SORT` / `SORT_BY_NAME`, or be wrapped by `SORT_BY_INIT_PRIORITY`. Reverse alignment is unsupported |
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | |

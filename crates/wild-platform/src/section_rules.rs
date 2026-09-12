@@ -55,6 +55,11 @@ pub struct SectionOutputInfo {
     pub sorted: bool,
     pub sort_by_init_priority: bool,
     pub sort_by_alignment: bool,
+    /// Name is a sort key together with alignment (`SORT_BY_NAME(SORT_BY_ALIGNMENT)` and the
+    /// reverse).
+    pub sort_by_name: bool,
+    /// When both name and alignment are keys, name is the primary key.
+    pub sort_name_primary: bool,
     /// GNU `REVERSE`: reverse the enclosed name or init-priority sort.
     pub sort_reversed: bool,
     /// GNU ld default for script matchers without `SORT*`: input order, each input
@@ -70,6 +75,8 @@ impl SectionOutputInfo {
             sorted: false,
             sort_by_init_priority: false,
             sort_by_alignment: false,
+            sort_by_name: false,
+            sort_name_primary: false,
             sort_reversed: false,
             input_order: false,
         }
@@ -82,6 +89,8 @@ impl SectionOutputInfo {
             sorted: false,
             sort_by_init_priority: false,
             sort_by_alignment: false,
+            sort_by_name: false,
+            sort_name_primary: false,
             sort_reversed: false,
             input_order: false,
         }

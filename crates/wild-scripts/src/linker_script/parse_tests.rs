@@ -1482,12 +1482,56 @@ fn test_startup_is_first_foreach_input() {
 }
 
 #[test]
+fn test_nested_sort_name_and_alignment() {
+    check_section_command(
+        ".text : { *(SORT_BY_NAME(SORT_BY_ALIGNMENT(.text.*))) }",
+        &reverse_section(SectionPattern {
+            name: b".text.*",
+            sort: SortKind::NameThenAlignment,
+            reversed: false,
+        }),
+    );
+    check_section_command(
+        ".text : { *(SORT(SORT_BY_ALIGNMENT(.text.*))) }",
+        &reverse_section(SectionPattern {
+            name: b".text.*",
+            sort: SortKind::NameThenAlignment,
+            reversed: false,
+        }),
+    );
+    check_section_command(
+        ".text : { *(SORT_BY_ALIGNMENT(SORT_BY_NAME(.text.*))) }",
+        &reverse_section(SectionPattern {
+            name: b".text.*",
+            sort: SortKind::AlignmentThenName,
+            reversed: false,
+        }),
+    );
+    check_section_command(
+        ".text : { *(SORT_BY_NAME(SORT_BY_NAME(.text.*))) }",
+        &reverse_section(SectionPattern {
+            name: b".text.*",
+            sort: SortKind::Name,
+            reversed: false,
+        }),
+    );
+    check_section_command(
+        ".text : { *(SORT_BY_ALIGNMENT(SORT_BY_ALIGNMENT(.text.*))) }",
+        &reverse_section(SectionPattern {
+            name: b".text.*",
+            sort: SortKind::Alignment,
+            reversed: false,
+        }),
+    );
+}
+
+#[test]
 fn test_nested_sort_is_unsupported() {
     let script = parse_script(
         r"
             SECTIONS {
                 .text : {
-                    *(SORT(SORT_BY_ALIGNMENT(.text.*)))
+                    *(SORT_BY_INIT_PRIORITY(SORT_BY_NAME(.text.*)))
                 }
             }
             ",

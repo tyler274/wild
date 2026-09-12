@@ -44,6 +44,33 @@ fn matcher_uses_input_order(matcher: &linker_script::Matcher<'_>) -> bool {
         .iter()
         .all(|p| p.sort == linker_script::SortKind::None && !p.reversed)
 }
+
+fn output_info_for_pattern(
+    section_id: OutputSectionId,
+    must_keep: bool,
+    pattern: &linker_script::SectionPattern<'_>,
+    input_order: bool,
+) -> SectionOutputInfo {
+    SectionOutputInfo {
+        section_id,
+        must_keep,
+        sorted: pattern.sort.needs_sort(),
+        sort_by_init_priority: pattern.sort == linker_script::SortKind::InitPriority,
+        sort_by_alignment: matches!(
+            pattern.sort,
+            linker_script::SortKind::Alignment
+                | linker_script::SortKind::NameThenAlignment
+                | linker_script::SortKind::AlignmentThenName
+        ),
+        sort_by_name: matches!(
+            pattern.sort,
+            linker_script::SortKind::NameThenAlignment | linker_script::SortKind::AlignmentThenName
+        ),
+        sort_name_primary: pattern.sort == linker_script::SortKind::NameThenAlignment,
+        sort_reversed: pattern.reversed,
+        input_order,
+    }
+}
 fn loc_for_global_expr<'data>(
     expr: &Expression<'data>,
     section_id: Option<OutputSectionId>,
@@ -277,17 +304,12 @@ impl<'data> LayoutRulesBuilder<'data> {
                                         };
 
                                         for pattern in &matcher.input_section_name_patterns {
-                                            let output_info = SectionOutputInfo {
+                                            let output_info = output_info_for_pattern(
                                                 section_id,
-                                                must_keep: matcher.must_keep,
-                                                sorted: pattern.sort.needs_sort(),
-                                                sort_by_init_priority: pattern.sort
-                                                    == linker_script::SortKind::InitPriority,
-                                                sort_by_alignment: pattern.sort
-                                                    == linker_script::SortKind::Alignment,
-                                                sort_reversed: pattern.reversed,
+                                                matcher.must_keep,
+                                                pattern,
                                                 input_order,
-                                            };
+                                            );
 
                                             let outcome = section_rule_from_id::<P>(
                                                 primary_section_id,
@@ -517,17 +539,12 @@ impl<'data> LayoutRulesBuilder<'data> {
                                         output_sections
                                             .set_input_order(primary_section_id, input_order);
                                         for pattern in &matcher.input_section_name_patterns {
-                                            let output_info = SectionOutputInfo {
-                                                section_id: primary_section_id,
-                                                must_keep: matcher.must_keep,
-                                                sorted: pattern.sort.needs_sort(),
-                                                sort_by_init_priority: pattern.sort
-                                                    == linker_script::SortKind::InitPriority,
-                                                sort_by_alignment: pattern.sort
-                                                    == linker_script::SortKind::Alignment,
-                                                sort_reversed: pattern.reversed,
+                                            let output_info = output_info_for_pattern(
+                                                primary_section_id,
+                                                matcher.must_keep,
+                                                pattern,
                                                 input_order,
-                                            };
+                                            );
                                             let outcome = section_rule_from_id::<P>(
                                                 primary_section_id,
                                                 output_info,

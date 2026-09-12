@@ -722,6 +722,18 @@ fn combine_sort_commands(
         | (SortCommand::Sort(SortKind::Alignment), Some(SortCommand::Reverse)) => {
             Err(LinkerScriptError::UnsupportedReverseAlignment)
         }
+        (SortCommand::Sort(SortKind::Name), Some(SortCommand::Sort(SortKind::Name))) => {
+            Ok((SortKind::Name, false))
+        }
+        (SortCommand::Sort(SortKind::Alignment), Some(SortCommand::Sort(SortKind::Alignment))) => {
+            Ok((SortKind::Alignment, false))
+        }
+        (SortCommand::Sort(SortKind::Name), Some(SortCommand::Sort(SortKind::Alignment))) => {
+            Ok((SortKind::NameThenAlignment, false))
+        }
+        (SortCommand::Sort(SortKind::Alignment), Some(SortCommand::Sort(SortKind::Name))) => {
+            Ok((SortKind::AlignmentThenName, false))
+        }
         _ => Err(LinkerScriptError::UnsupportedNestedSort),
     }
 }

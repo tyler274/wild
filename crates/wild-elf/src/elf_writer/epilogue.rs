@@ -5,6 +5,7 @@ use super::SymbolTableWriter;
 use super::TableWriter;
 use super::input_section_buffer_split;
 use super::populate_file_header;
+use super::script_sorted_buffer_split;
 use super::write_dynamic_symbol_definitions;
 use super::write_epilogue_dynamic_entries;
 use super::write_gnu_hash_tables;
@@ -91,8 +92,18 @@ pub(crate) fn write_section_raw<'out, 'data, C: ElfClass, A: Arch<Platform = elf
         .has_data_in_file(part_id.output_section_id::<elf::Elf<C>>())
     {
         let section_buffer = buffers.get_mut(part_id);
-        let (leading_pad, allocation_size) =
-            input_section_buffer_split(section_buffer.len(), sec, part_id, layout, object.file_id);
+        let (leading_pad, allocation_size) = if matches!(
+            object.sections.get(section_index.0),
+            Some(SectionSlot::Sorted(_))
+        ) && sec.alignment
+            > layout
+                .output_sections
+                .part_alignment::<elf::Elf<C>>(part_id)
+        {
+            script_sorted_buffer_split(section_buffer.len(), sec, part_id, layout)
+        } else {
+            input_section_buffer_split(section_buffer.len(), sec, part_id, layout, object.file_id)
+        };
         if section_buffer.len() < allocation_size {
             bail!(
                 "Insufficient space allocated to section `{}`. Tried to take {} bytes, but only {} remain",

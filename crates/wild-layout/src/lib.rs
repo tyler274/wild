@@ -166,7 +166,7 @@ where
 
     let mut script_sorted_sections = harvest_and_sort_script_sections(
         &mut group_states,
-        &output_sections,
+        &mut output_sections,
         &symbol_db.section_part_ids,
     );
 

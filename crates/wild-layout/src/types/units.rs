@@ -883,8 +883,11 @@ impl<'data, P: EnginePlatform> EpilogueLayoutState<P> {
         resources: &FinaliseSizesResources<'data, '_, P>,
     ) -> Result {
         let mut extra_sizes = common.mem_sizes.new_empty_like();
+        // Match `assign_addresses_to_sorted_sections`: mixed alignments in one
+        // part (nested `SORT_BY_NAME` / `SORT_BY_ALIGNMENT`) insert padding.
         for sec in resources.script_sorted_sections {
-            extra_sizes.increment(sec.part_id, sec.size);
+            let offset = extra_sizes.get_mut(sec.part_id);
+            *offset = sec.alignment.align_up(*offset) + sec.size;
         }
         P::apply_late_size_adjustments_epilogue(
             &mut self.format_specific,
