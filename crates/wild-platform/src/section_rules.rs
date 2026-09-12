@@ -109,6 +109,9 @@ pub struct SectionRule<'data> {
 
     /// Output section used to group an `ONLY_IF_RO` copy with its `ONLY_IF_RW` pair.
     pub only_if_section_id: Option<OutputSectionId>,
+
+    /// GNU `INPUT_SECTION_FLAGS`: require and forbid ELF `sh_flags` bits.
+    input_section_flags: wild_scripts::linker_script::InputSectionFlags,
 }
 
 impl<'data> SectionRule<'data> {
@@ -141,6 +144,7 @@ impl<'data> SectionRule<'data> {
             outcome,
             only_if: None,
             only_if_section_id: None,
+            input_section_flags: wild_scripts::linker_script::InputSectionFlags::EMPTY,
         })
     }
 
@@ -158,6 +162,18 @@ impl<'data> SectionRule<'data> {
             .map(|pattern| compile_glob_pattern(pattern).map_err(|e| wild_error::error!("{e}")))
             .collect::<Result<Vec<_>>>()?;
         Ok(self)
+    }
+
+    pub fn with_input_section_flags(
+        mut self,
+        flags: wild_scripts::linker_script::InputSectionFlags,
+    ) -> Self {
+        self.input_section_flags = flags;
+        self
+    }
+
+    pub fn matches_input_section_flags(&self, sh_flags: u64) -> bool {
+        self.input_section_flags.matches(sh_flags)
     }
 
     #[inline(always)]
@@ -251,6 +267,7 @@ impl<'data> SectionRule<'data> {
             outcome: SectionRuleOutcome::SortedSection(SectionOutputInfo::keep(section_id)),
             only_if: None,
             only_if_section_id: None,
+            input_section_flags: wild_scripts::linker_script::InputSectionFlags::EMPTY,
         }
     }
 
@@ -262,6 +279,7 @@ impl<'data> SectionRule<'data> {
             outcome,
             only_if: None,
             only_if_section_id: None,
+            input_section_flags: wild_scripts::linker_script::InputSectionFlags::EMPTY,
         }
     }
 
@@ -273,6 +291,7 @@ impl<'data> SectionRule<'data> {
             outcome,
             only_if: None,
             only_if_section_id: None,
+            input_section_flags: wild_scripts::linker_script::InputSectionFlags::EMPTY,
         }
     }
 

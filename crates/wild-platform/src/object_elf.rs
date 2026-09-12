@@ -50,6 +50,10 @@ impl SectionHeader for SectionHeader64<LittleEndian> {
         self.sh_flags(LittleEndian).contains(shf::EXCLUDE)
     }
 
+    fn elf_sh_flags(&self) -> u64 {
+        self.sh_flags(LittleEndian).0
+    }
+
     fn is_group(&self) -> bool {
         self.sh_flags(LittleEndian).contains(shf::GROUP)
     }

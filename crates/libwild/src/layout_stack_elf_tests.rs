@@ -1156,3 +1156,47 @@ mod output_section_part_map {
         );
     }
 }
+
+mod input_section_flags {
+    use hashbrown::HashSet;
+    use wild_layout::layout_rules::SectionRule;
+    use wild_layout::layout_rules::SectionRuleOutcome;
+    use wild_layout::layout_rules::SectionRules;
+    use wild_scripts::linker_script::InputSectionFlags;
+
+    #[test]
+    fn test_input_section_flags_lookup() {
+        let write_rule = SectionRule::new(b".sec.flags", None, SectionRuleOutcome::Discard)
+            .unwrap()
+            .with_input_section_flags(InputSectionFlags {
+                with: object::elf::SHF_WRITE.0,
+                without: 0,
+            });
+        let rules = SectionRules::from_rules(&[write_rule]);
+        let header = object::elf::SectionHeader64::<object::LittleEndian> {
+            sh_name: Default::default(),
+            sh_type: Default::default(),
+            sh_flags: Default::default(),
+            sh_addr: Default::default(),
+            sh_offset: Default::default(),
+            sh_size: Default::default(),
+            sh_link: Default::default(),
+            sh_info: Default::default(),
+            sh_addralign: Default::default(),
+            sh_entsize: Default::default(),
+        };
+        assert_eq!(
+            rules.lookup::<wild_elf::Elf64>(b".sec.flags", None, &header, &HashSet::new()),
+            SectionRuleOutcome::Custom
+        );
+
+        let write_header = object::elf::SectionHeader64::<object::LittleEndian> {
+            sh_flags: object::U64::new(object::LittleEndian, object::elf::SHF_WRITE),
+            ..header
+        };
+        assert_eq!(
+            rules.lookup::<wild_elf::Elf64>(b".sec.flags", None, &write_header, &HashSet::new()),
+            SectionRuleOutcome::Discard
+        );
+    }
+}

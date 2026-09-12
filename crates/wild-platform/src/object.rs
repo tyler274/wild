@@ -258,6 +258,11 @@ pub trait SectionHeader: std::fmt::Debug + Send + Sync + 'static {
         false
     }
 
+    /// ELF `sh_flags`. Zero on platforms without ELF section flags.
+    fn elf_sh_flags(&self) -> u64 {
+        0
+    }
+
     /// GNU `--emit-relocs` names: `.rela` or `.rel` concatenated with the target
     /// output section name (`.text` → `.rela.text`).
     fn reloc_output_name_prefix(&self) -> Option<&'static [u8]> {

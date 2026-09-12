@@ -377,6 +377,30 @@ pub struct SectionPattern<'a> {
     pub reversed: bool,
 }
 
+/// GNU `INPUT_SECTION_FLAGS`: require (`with`) and forbid (`without`) ELF `sh_flags` bits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InputSectionFlags {
+    pub with: u64,
+    pub without: u64,
+}
+
+impl InputSectionFlags {
+    pub const EMPTY: Self = Self {
+        with: 0,
+        without: 0,
+    };
+
+    pub const fn matches(self, sh_flags: u64) -> bool {
+        (sh_flags & self.with) == self.with && (sh_flags & self.without) == 0
+    }
+}
+
+impl Default for InputSectionFlags {
+    fn default() -> Self {
+        Self::EMPTY
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct Matcher<'a> {
     pub must_keep: bool,
@@ -385,6 +409,8 @@ pub struct Matcher<'a> {
     pub input_file_pattern: Option<&'a [u8]>,
     /// Glob patterns of files to skip even when `input_file_pattern` matches.
     pub exclude_file_patterns: Vec<&'a [u8]>,
+    /// GNU `INPUT_SECTION_FLAGS(...)` applied to this matcher. Empty means no flag filter.
+    pub input_section_flags: InputSectionFlags,
     pub input_section_name_patterns: Vec<SectionPattern<'a>>,
 }
 

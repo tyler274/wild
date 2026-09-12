@@ -154,6 +154,7 @@ fn only_if_writable_sections<'data, P: EnginePlatform>(
                     section_name,
                     file_name,
                     input_section.is_writable(),
+                    input_section.elf_sh_flags(),
                     &mut writable,
                 );
             }

@@ -10,6 +10,7 @@ use super::skip_comments_and_whitespace;
 use crate::linker_script::ContentsCommand;
 use crate::linker_script::Expression;
 use crate::linker_script::Fill;
+use crate::linker_script::InputSectionFlags;
 use crate::linker_script::Location;
 use crate::linker_script::Matcher;
 use crate::linker_script::OnlyIf;
@@ -27,9 +28,11 @@ use wild_util::alignment::Alignment;
 use winnow::BStr;
 use winnow::Parser as _;
 use winnow::ascii::dec_uint;
+use winnow::ascii::hex_uint;
 use winnow::combinator::alt;
 use winnow::combinator::eof;
 use winnow::combinator::opt;
+use winnow::combinator::preceded;
 use winnow::combinator::repeat_till;
 use winnow::error::ContextError;
 use winnow::error::FromExternalError;
@@ -552,7 +555,80 @@ pub fn parse_exclude_file_list<'input>(
     Ok(files)
 }
 
+/// ARM ELF `SHF_ARM_PURECODE` is not in the `object` crate's generic `SHF_*` set.
+const SHF_ARM_PURECODE: u64 = 0x2000_0000;
+
+fn named_elf_section_flag(name: &[u8]) -> Option<u64> {
+    Some(match name {
+        b"SHF_WRITE" => object::elf::SHF_WRITE.0,
+        b"SHF_ALLOC" => object::elf::SHF_ALLOC.0,
+        b"SHF_EXECINSTR" => object::elf::SHF_EXECINSTR.0,
+        b"SHF_MERGE" => object::elf::SHF_MERGE.0,
+        b"SHF_STRINGS" => object::elf::SHF_STRINGS.0,
+        b"SHF_INFO_LINK" => object::elf::SHF_INFO_LINK.0,
+        b"SHF_LINK_ORDER" => object::elf::SHF_LINK_ORDER.0,
+        b"SHF_OS_NONCONFORMING" => object::elf::SHF_OS_NONCONFORMING.0,
+        b"SHF_GROUP" => object::elf::SHF_GROUP.0,
+        b"SHF_TLS" => object::elf::SHF_TLS.0,
+        b"SHF_COMPRESSED" => object::elf::SHF_COMPRESSED.0,
+        b"SHF_GNU_RETAIN" => object::elf::SHF_GNU_RETAIN.0,
+        b"SHF_EXCLUDE" => object::elf::SHF_EXCLUDE.0,
+        b"SHF_MASKOS" => object::elf::SHF_MASKOS,
+        b"SHF_ARM_PURECODE" => SHF_ARM_PURECODE,
+        _ => return None,
+    })
+}
+
+fn parse_input_section_flag_value(input: &mut &BStr) -> winnow::Result<u64> {
+    if let Some(value) = opt(alt((
+        preceded(alt(("0x", "0X")), hex_uint::<_, u64, _>),
+        dec_uint::<_, u64, _>,
+    )))
+    .parse_next(input)?
+    {
+        return Ok(value);
+    }
+    let name = take_while(1.., |b: u8| b.is_ascii_alphanumeric() || b == b'_').parse_next(input)?;
+    named_elf_section_flag(name).ok_or_else(|| {
+        ContextError::from_external_error(input, LinkerScriptError::UnrecognisedInputSectionFlag)
+    })
+}
+
+fn parse_input_section_flags(input: &mut &BStr) -> winnow::Result<InputSectionFlags> {
+    "INPUT_SECTION_FLAGS".parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    '('.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+
+    let mut flags = InputSectionFlags::EMPTY;
+    loop {
+        let without = opt('!').parse_next(input)?.is_some();
+        skip_comments_and_whitespace(input)?;
+        let value = parse_input_section_flag_value(input)?;
+        if without {
+            flags.without |= value;
+        } else {
+            flags.with |= value;
+        }
+        skip_comments_and_whitespace(input)?;
+        if opt('&').parse_next(input)?.is_none() {
+            break;
+        }
+        skip_comments_and_whitespace(input)?;
+    }
+
+    ')'.parse_next(input)?;
+    skip_comments_and_whitespace(input)?;
+    Ok(flags)
+}
+
 pub fn parse_matcher_pattern<'input>(input: &mut &'input BStr) -> winnow::Result<Matcher<'input>> {
+    let input_section_flags = if input.starts_with(b"INPUT_SECTION_FLAGS") {
+        parse_input_section_flags(input)?
+    } else {
+        InputSectionFlags::EMPTY
+    };
+
     let mut exclude_file_patterns = Vec::new();
     if input.starts_with(b"EXCLUDE_FILE") {
         exclude_file_patterns = parse_exclude_file_list(input)?;
@@ -587,6 +663,7 @@ pub fn parse_matcher_pattern<'input>(input: &mut &'input BStr) -> winnow::Result
         must_keep: false,
         input_file_pattern,
         exclude_file_patterns,
+        input_section_flags,
         input_section_name_patterns: patterns,
     })
 }

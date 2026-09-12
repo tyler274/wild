@@ -64,6 +64,7 @@ matching all three.
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | Uses GCC `init_priority` encoded in `.init_array.N` / `.ctors.N` names |
 | `REVERSE(...)` | ✅ | Alone implies reverse `SORT_BY_NAME`. May wrap or be wrapped by `SORT` / `SORT_BY_NAME`, or be wrapped by `SORT_BY_INIT_PRIORITY`. Reverse alignment and nested `SORT_BY_NAME(SORT_BY_ALIGNMENT)` are unsupported |
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | Both `*(EXCLUDE_FILE(a.o) .text)` and `EXCLUDE_FILE(a.o) *(.text)` |
+| `INPUT_SECTION_FLAGS(...)` | ✅ | `SHF_*` names or integer bits, combined with `&`; `!FLAG` requires the bit clear. `KEEP(INPUT_SECTION_FLAGS(...) *(.sec))` is accepted |
 | `BYTE(expr)`, `SHORT(expr)`, `LONG(expr)`, `QUAD(expr)` output data | ✅ | Written in the target endianness |
 | `SUBALIGN(n)` forced input alignment | ✅ | Each input is aligned to `n`, overriding larger or smaller `sh_addralign`. Output `sh_addralign` is `max(ALIGN(n), SUBALIGN(n))` and is not raised by input alignments |
 | `ONLY_IF_RO` / `ONLY_IF_RW` output section constraints | ✅ | Parsed. Duplicate names (GNU default `.eh_frame : ONLY_IF_RO` then `ONLY_IF_RW`) share one output section. If any matching input has `SHF_WRITE`, the RW copy is used for all of them; otherwise the RO copy |
@@ -148,6 +149,7 @@ because `.data..ro_after_init` is 4KiB-aligned. `.strtab` and `.shstrtab` suffix
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | |
 | `REVERSE(...)` | ✅ | Alone implies reverse `SORT_BY_NAME`. May wrap or be wrapped by `SORT` / `SORT_BY_NAME`, or be wrapped by `SORT_BY_INIT_PRIORITY`. Reverse alignment is unsupported |
 | `EXCLUDE_FILE(...)` inside input section matchers | ✅ | |
+| `INPUT_SECTION_FLAGS(...)` | ✅ | `SHF_*` names or integer bits, combined with `&`; `!FLAG` requires the bit clear |
 | `BYTE` / `SHORT` / `LONG` / `QUAD` | ✅ | Used by RISC-V/EFI kernel scripts |
 | `INCLUDE(file)` | ✅ | Module/arch fragments; the kernel itself is cpp-preprocessed |
 | `CONSTRUCTORS` command | ✅ | Parsed and ignored, it is a nop for ELF |

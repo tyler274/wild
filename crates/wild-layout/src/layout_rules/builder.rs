@@ -140,7 +140,10 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                     matcher.input_file_pattern,
                                                     crate::layout_rules::SectionRuleOutcome::Discard,
                                                 )?
-                                                .with_excludes(&matcher.exclude_file_patterns)?;
+                                                .with_excludes(&matcher.exclude_file_patterns)?
+                                                .with_input_section_flags(
+                                                    matcher.input_section_flags,
+                                                );
                                                 record_gnu_build_id_placement(
                                                     output_sections,
                                                     &rule,
@@ -295,6 +298,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                 outcome,
                                             )?
                                             .with_excludes(&matcher.exclude_file_patterns)?
+                                            .with_input_section_flags(matcher.input_section_flags)
                                             .with_only_if(sec.only_if, primary_section_id);
                                             record_gnu_build_id_placement(
                                                 output_sections,
@@ -530,7 +534,10 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                     matcher.input_file_pattern,
                                                     outcome,
                                                 )?
-                                                .with_excludes(&matcher.exclude_file_patterns)?,
+                                                .with_excludes(&matcher.exclude_file_patterns)?
+                                                .with_input_section_flags(
+                                                    matcher.input_section_flags,
+                                                ),
                                             );
                                         }
                                     }

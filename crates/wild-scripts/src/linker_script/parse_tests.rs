@@ -1,6 +1,8 @@
 use super::*;
 use crate::inputs::InputSpec;
 use crate::linker_script::ContentsCommand;
+use crate::linker_script::InputSectionFlags;
+use crate::linker_script::Location;
 use crate::linker_script::Matcher;
 use crate::linker_script::OnlyIf;
 use crate::linker_script::OutputData;
@@ -160,6 +162,7 @@ fn test_section_command() {
                     must_keep: false,
                     input_file_pattern: None,
                     exclude_file_patterns: vec![],
+                    input_section_flags: InputSectionFlags::EMPTY,
                     input_section_name_patterns: vec![
                         SectionPattern {
                             name: b".text",
@@ -177,6 +180,7 @@ fn test_section_command() {
                     must_keep: false,
                     input_file_pattern: None,
                     exclude_file_patterns: vec![],
+                    input_section_flags: InputSectionFlags::EMPTY,
                     input_section_name_patterns: vec![SectionPattern {
                         name: b".text3",
                         sort: SortKind::None,
@@ -208,6 +212,7 @@ fn test_section_command_with_start_address_expression() {
                 must_keep: false,
                 input_file_pattern: None,
                 exclude_file_patterns: vec![],
+                input_section_flags: InputSectionFlags::EMPTY,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b"___ksymtab+",
                     sort: SortKind::None,
@@ -238,6 +243,7 @@ fn test_section_command_with_subalign() {
                 must_keep: false,
                 input_file_pattern: None,
                 exclude_file_patterns: vec![],
+                input_section_flags: InputSectionFlags::EMPTY,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".s",
                     sort: SortKind::None,
@@ -268,6 +274,7 @@ fn test_section_command_with_subalign_only() {
                 must_keep: false,
                 input_file_pattern: None,
                 exclude_file_patterns: vec![],
+                input_section_flags: InputSectionFlags::EMPTY,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".s",
                     sort: SortKind::None,
@@ -298,6 +305,7 @@ fn test_section_command_with_align_start_address() {
                 must_keep: false,
                 input_file_pattern: None,
                 exclude_file_patterns: vec![],
+                input_section_flags: InputSectionFlags::EMPTY,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".data",
                     sort: SortKind::None,
@@ -391,6 +399,7 @@ fn test_section_command_with_type_attribute() {
                 must_keep: false,
                 input_file_pattern: None,
                 exclude_file_patterns: vec![],
+                input_section_flags: InputSectionFlags::EMPTY,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".bss",
                     sort: SortKind::None,
@@ -465,6 +474,7 @@ fn test_basic_linker_script() {
                                     must_keep: true,
                                     input_file_pattern: None,
                                     exclude_file_patterns: vec![],
+                                    input_section_flags: InputSectionFlags::EMPTY,
                                     input_section_name_patterns: vec![SectionPattern {
                                         name: b".rodata.foo",
                                         sort: SortKind::None,
@@ -654,6 +664,7 @@ fn test_section_command_with_filename() {
                     must_keep: false,
                     input_file_pattern: Some(b"foo.o"),
                     exclude_file_patterns: vec![],
+                    input_section_flags: InputSectionFlags::EMPTY,
                     input_section_name_patterns: vec![
                         SectionPattern {
                             name: b".text",
@@ -671,6 +682,7 @@ fn test_section_command_with_filename() {
                     must_keep: false,
                     input_file_pattern: None,
                     exclude_file_patterns: vec![],
+                    input_section_flags: InputSectionFlags::EMPTY,
                     input_section_name_patterns: vec![SectionPattern {
                         name: b".text3",
                         sort: SortKind::None,
@@ -702,6 +714,7 @@ fn test_section_command_with_glob_filename() {
                 must_keep: false,
                 input_file_pattern: Some(b"*crtbegin*.o"),
                 exclude_file_patterns: vec![],
+                input_section_flags: InputSectionFlags::EMPTY,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".ctors",
                     sort: SortKind::None,
@@ -732,6 +745,7 @@ fn test_keep_with_filename() {
                 must_keep: true,
                 input_file_pattern: Some(b"crti.o"),
                 exclude_file_patterns: vec![],
+                input_section_flags: InputSectionFlags::EMPTY,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".init",
                     sort: SortKind::None,
@@ -770,6 +784,7 @@ fn test_assert_command() {
                             must_keep: false,
                             input_file_pattern: None,
                             exclude_file_patterns: vec![],
+                            input_section_flags: InputSectionFlags::EMPTY,
                             input_section_name_patterns: vec![SectionPattern {
                                 name: b".text",
                                 sort: SortKind::None,
@@ -819,6 +834,7 @@ fn test_assert_in_sections() {
                             must_keep: false,
                             input_file_pattern: None,
                             exclude_file_patterns: vec![],
+                            input_section_flags: InputSectionFlags::EMPTY,
                             input_section_name_patterns: vec![SectionPattern {
                                 name: b".text",
                                 sort: SortKind::None,
@@ -1447,6 +1463,7 @@ fn reverse_section(pattern: SectionPattern<'_>) -> SectionCommand<'_> {
             must_keep: false,
             input_file_pattern: None,
             exclude_file_patterns: vec![],
+            input_section_flags: InputSectionFlags::EMPTY,
             input_section_name_patterns: vec![pattern],
         })],
         alignment: None,
@@ -1512,6 +1529,110 @@ fn test_reverse_alignment_is_unsupported() {
 fn test_reverse_wrapping_init_priority_is_unsupported() {
     assert!(
         parse_script("SECTIONS { .text : { *(REVERSE(SORT_BY_INIT_PRIORITY(.init_array.*))) } }")
+            .is_err()
+    );
+}
+
+fn flags_section(flags: InputSectionFlags) -> SectionCommand<'static> {
+    SectionCommand::Section(Section {
+        output_section_name: b".text",
+        commands: vec![ContentsCommand::Matcher(Matcher {
+            must_keep: false,
+            input_file_pattern: None,
+            exclude_file_patterns: vec![],
+            input_section_flags: flags,
+            input_section_name_patterns: vec![SectionPattern {
+                name: b".text",
+                sort: SortKind::None,
+                reversed: false,
+            }],
+        })],
+        alignment: None,
+        subalign: None,
+        start_address_expression: None,
+        phdrs: vec![],
+        at_address: None,
+        region: None,
+        at_region: None,
+        fill: None,
+        attributes: None,
+        only_if: None,
+    })
+}
+
+#[test]
+fn test_input_section_flags_parsing() {
+    check_section_command(
+        ".text : { INPUT_SECTION_FLAGS(SHF_ALLOC) *(.text) }",
+        &flags_section(InputSectionFlags {
+            with: object::elf::SHF_ALLOC.0,
+            without: 0,
+        }),
+    );
+    check_section_command(
+        ".text : { INPUT_SECTION_FLAGS(SHF_MERGE & SHF_STRINGS) *(.text) }",
+        &flags_section(InputSectionFlags {
+            with: object::elf::SHF_MERGE.0 | object::elf::SHF_STRINGS.0,
+            without: 0,
+        }),
+    );
+    check_section_command(
+        ".text : { INPUT_SECTION_FLAGS(!SHF_WRITE) *(.text) }",
+        &flags_section(InputSectionFlags {
+            with: 0,
+            without: object::elf::SHF_WRITE.0,
+        }),
+    );
+    check_section_command(
+        ".text : { INPUT_SECTION_FLAGS(SHF_ALLOC & !SHF_WRITE) *(.text) }",
+        &flags_section(InputSectionFlags {
+            with: object::elf::SHF_ALLOC.0,
+            without: object::elf::SHF_WRITE.0,
+        }),
+    );
+    check_section_command(
+        ".text : { INPUT_SECTION_FLAGS(0x2) *(.text) }",
+        &flags_section(InputSectionFlags {
+            with: object::elf::SHF_ALLOC.0,
+            without: 0,
+        }),
+    );
+    check_section_command(
+        ".text : { KEEP(INPUT_SECTION_FLAGS(!SHF_WRITE) *(.text)) }",
+        &SectionCommand::Section(Section {
+            output_section_name: b".text",
+            commands: vec![ContentsCommand::Matcher(Matcher {
+                must_keep: true,
+                input_file_pattern: None,
+                exclude_file_patterns: vec![],
+                input_section_flags: InputSectionFlags {
+                    with: 0,
+                    without: object::elf::SHF_WRITE.0,
+                },
+                input_section_name_patterns: vec![SectionPattern {
+                    name: b".text",
+                    sort: SortKind::None,
+                    reversed: false,
+                }],
+            })],
+            alignment: None,
+            subalign: None,
+            start_address_expression: None,
+            phdrs: vec![],
+            at_address: None,
+            region: None,
+            at_region: None,
+            fill: None,
+            attributes: None,
+            only_if: None,
+        }),
+    );
+}
+
+#[test]
+fn test_unrecognised_input_section_flag() {
+    assert!(
+        parse_script("SECTIONS { .text : { INPUT_SECTION_FLAGS(SHF_NOT_A_FLAG) *(.text) } }")
             .is_err()
     );
 }
@@ -1648,6 +1769,7 @@ fn test_only_if_and_sort_none() {
                 must_keep: true,
                 input_file_pattern: None,
                 exclude_file_patterns: vec![],
+                input_section_flags: InputSectionFlags::EMPTY,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".eh_frame",
                     sort: SortKind::None,
@@ -1674,6 +1796,7 @@ fn test_only_if_and_sort_none() {
                 must_keep: true,
                 input_file_pattern: None,
                 exclude_file_patterns: vec![],
+                input_section_flags: InputSectionFlags::EMPTY,
                 input_section_name_patterns: vec![SectionPattern {
                     name: b".init",
                     sort: SortKind::None,
@@ -1704,6 +1827,7 @@ fn test_exclude_file_between_patterns() {
                 must_keep: true,
                 input_file_pattern: None,
                 exclude_file_patterns: vec![b"*crtbegin.o", b"*crtend.o"],
+                input_section_flags: InputSectionFlags::EMPTY,
                 input_section_name_patterns: vec![
                     SectionPattern {
                         name: b".init_array",
@@ -1742,6 +1866,7 @@ fn test_linker_version_in_comment() {
                     must_keep: false,
                     input_file_pattern: None,
                     exclude_file_patterns: vec![],
+                    input_section_flags: InputSectionFlags::EMPTY,
                     input_section_name_patterns: vec![SectionPattern {
                         name: b".comment",
                         sort: SortKind::None,

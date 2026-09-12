@@ -64,7 +64,9 @@ impl<'data> SectionRules<'data> {
 
         if let Some(hash) = section_name_prefix_hash(section_name)
             && let Some(rule) = self.rules.find(hash, |rule| {
-                rule.matches(section_name, file_name) && rule.allows_only_if(only_if_writable)
+                rule.matches(section_name, file_name)
+                    && rule.matches_input_section_flags(section_header.elf_sh_flags())
+                    && rule.allows_only_if(only_if_writable)
             })
         {
             return rule.outcome;
@@ -85,6 +87,7 @@ impl<'data> SectionRules<'data> {
         section_name: &[u8],
         file_name: Option<&[u8]>,
         is_writable: bool,
+        sh_flags: u64,
         writable_sections: &mut HashSet<OutputSectionId>,
     ) {
         if !is_writable {
@@ -93,6 +96,7 @@ impl<'data> SectionRules<'data> {
         for rule in self.rules.iter() {
             if rule.only_if.is_some()
                 && rule.matches(section_name, file_name)
+                && rule.matches_input_section_flags(sh_flags)
                 && let Some(id) = rule.only_if_section_id
             {
                 writable_sections.insert(id);
