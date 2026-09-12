@@ -653,11 +653,20 @@ pub fn parse_matcher_pattern<'input>(input: &mut &'input BStr) -> winnow::Result
 
     let mut patterns = Vec::new();
     while !input.starts_with(b")") {
+        // GNU: `EXCLUDE_FILE` in the section list applies only to the following
+        // pattern (`*(.text EXCLUDE_FILE(a.o) .data)` does not exclude a.o from
+        // `.text`). Matcher-level `EXCLUDE_FILE(...) *(...)` still covers all
+        // patterns.
+        let mut pattern_excludes = Vec::new();
         if input.starts_with(b"EXCLUDE_FILE") {
-            exclude_file_patterns.extend(parse_exclude_file_list(input)?);
-        } else {
-            patterns.push(parse_pattern(input)?);
+            pattern_excludes = parse_exclude_file_list(input)?;
         }
+        let mut pattern = parse_pattern(input)?;
+        if !pattern_excludes.is_empty() {
+            pattern_excludes.extend(pattern.exclude_file_patterns.iter().copied());
+            pattern.exclude_file_patterns = pattern_excludes;
+        }
+        patterns.push(pattern);
         skip_comments_and_whitespace(input)?;
     }
     ')'.parse_next(input)?;
@@ -751,6 +760,7 @@ pub fn parse_pattern<'input>(input: &mut &'input BStr) -> winnow::Result<Section
             name,
             sort: SortKind::None,
             reversed: false,
+            exclude_file_patterns: Vec::new(),
         });
     };
 
@@ -764,6 +774,13 @@ pub fn parse_pattern<'input>(input: &mut &'input BStr) -> winnow::Result<Section
         '('.parse_next(input)?;
         skip_comments_and_whitespace(input)?;
     }
+
+    // GNU: `SORT_BY_NAME(EXCLUDE_FILE(foo) .text*)` / `REVERSE(EXCLUDE_FILE(foo) .text*)`.
+    let exclude_file_patterns = if input.starts_with(b"EXCLUDE_FILE") {
+        parse_exclude_file_list(input)?
+    } else {
+        Vec::new()
+    };
 
     let name = parse_section_name(input)?;
     skip_comments_and_whitespace(input)?;
@@ -781,6 +798,7 @@ pub fn parse_pattern<'input>(input: &mut &'input BStr) -> winnow::Result<Section
         name,
         sort,
         reversed,
+        exclude_file_patterns,
     })
 }
 

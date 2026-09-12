@@ -64,7 +64,7 @@ matching all three.
 | `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then input order (GNU). Nested `SORT_BY_NAME(SORT_BY_ALIGNMENT)` sorts by name then alignment; `SORT_BY_ALIGNMENT(SORT_BY_NAME)` sorts by alignment then name. Same-type nesting is a no-op |
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | Uses GCC `init_priority` encoded in `.init_array.N` / `.ctors.N` names |
 | `REVERSE(...)` | ✅ | Alone implies reverse `SORT_BY_NAME`. May wrap or be wrapped by `SORT` / `SORT_BY_NAME`, or be wrapped by `SORT_BY_INIT_PRIORITY`. Reverse alignment is unsupported |
-| `EXCLUDE_FILE(...)` inside input section matchers | ✅ | Both `*(EXCLUDE_FILE(a.o) .text)` and `EXCLUDE_FILE(a.o) *(.text)` |
+| `EXCLUDE_FILE(...)` inside input section matchers | ✅ | `*(EXCLUDE_FILE(a.o) .text)`, `EXCLUDE_FILE(a.o) *(.text)`, and inside `SORT*` / `REVERSE` (`*(SORT_BY_NAME(EXCLUDE_FILE(foo) .text*))`). An `EXCLUDE_FILE` in the section list applies only to the following pattern |
 | `INPUT_SECTION_FLAGS(...)` | ✅ | `SHF_*` names or integer bits, combined with `&`; `!FLAG` requires the bit clear. `KEEP(INPUT_SECTION_FLAGS(...) *(.sec))` is accepted |
 | `BYTE(expr)`, `SHORT(expr)`, `LONG(expr)`, `QUAD(expr)` output data | ✅ | Written in the target endianness |
 | `SUBALIGN(n)` forced input alignment | ✅ | Each input is aligned to `n`, overriding larger or smaller `sh_addralign`. Output `sh_addralign` is `max(ALIGN(n), SUBALIGN(n))` and is not raised by input alignments |
@@ -150,7 +150,7 @@ because `.data..ro_after_init` is 4KiB-aligned. `.strtab` and `.shstrtab` suffix
 | `SORT_BY_ALIGNMENT(...)` | ✅ | Descending `sh_addralign`, then input order (GNU). Nested `SORT_BY_NAME` / `SORT_BY_ALIGNMENT` uses name or alignment as the secondary key |
 | `SORT_BY_INIT_PRIORITY(...)` | ✅ | |
 | `REVERSE(...)` | ✅ | Alone implies reverse `SORT_BY_NAME`. May wrap or be wrapped by `SORT` / `SORT_BY_NAME`, or be wrapped by `SORT_BY_INIT_PRIORITY`. Reverse alignment is unsupported |
-| `EXCLUDE_FILE(...)` inside input section matchers | ✅ | |
+| `EXCLUDE_FILE(...)` inside input section matchers | ✅ | Including inside `SORT*` / `REVERSE` |
 | `INPUT_SECTION_FLAGS(...)` | ✅ | `SHF_*` names or integer bits, combined with `&`; `!FLAG` requires the bit clear |
 | `ALIGN_WITH_INPUT` | ✅ | Keeps the VMA−LMA difference when aligning to input `sh_addralign` |
 | `BYTE` / `SHORT` / `LONG` / `QUAD` | ✅ | Used by RISC-V/EFI kernel scripts |

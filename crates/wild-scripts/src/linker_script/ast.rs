@@ -384,6 +384,10 @@ pub struct SectionPattern<'a> {
     pub sort: SortKind,
     /// GNU `REVERSE`: reverse the enclosed sort. Alone, it implies `SORT_BY_NAME`.
     pub reversed: bool,
+    /// GNU `EXCLUDE_FILE` attached to this pattern, including
+    /// `SORT_BY_NAME(EXCLUDE_FILE(foo) .text*)`. Matcher-level excludes still
+    /// apply to every pattern.
+    pub exclude_file_patterns: Vec<&'a [u8]>,
 }
 
 /// GNU `INPUT_SECTION_FLAGS`: require (`with`) and forbid (`without`) ELF `sh_flags` bits.

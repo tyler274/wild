@@ -71,6 +71,16 @@ fn output_info_for_pattern(
         input_order,
     }
 }
+
+fn combined_excludes<'data>(
+    matcher: &linker_script::Matcher<'data>,
+    pattern: &linker_script::SectionPattern<'data>,
+) -> Vec<&'data [u8]> {
+    let mut excludes = matcher.exclude_file_patterns.clone();
+    excludes.extend_from_slice(&pattern.exclude_file_patterns);
+    excludes
+}
+
 fn loc_for_global_expr<'data>(
     expr: &Expression<'data>,
     section_id: Option<OutputSectionId>,
@@ -167,7 +177,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                     matcher.input_file_pattern,
                                                     crate::layout_rules::SectionRuleOutcome::Discard,
                                                 )?
-                                                .with_excludes(&matcher.exclude_file_patterns)?
+                                                .with_excludes(&combined_excludes(matcher, pattern))?
                                                 .with_input_section_flags(
                                                     matcher.input_section_flags,
                                                 );
@@ -321,7 +331,7 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                 matcher.input_file_pattern,
                                                 outcome,
                                             )?
-                                            .with_excludes(&matcher.exclude_file_patterns)?
+                                            .with_excludes(&combined_excludes(matcher, pattern))?
                                             .with_input_section_flags(matcher.input_section_flags)
                                             .with_only_if(sec.only_if, primary_section_id);
                                             record_gnu_build_id_placement(
@@ -555,7 +565,9 @@ impl<'data> LayoutRulesBuilder<'data> {
                                                     matcher.input_file_pattern,
                                                     outcome,
                                                 )?
-                                                .with_excludes(&matcher.exclude_file_patterns)?
+                                                .with_excludes(&combined_excludes(
+                                                    matcher, pattern,
+                                                ))?
                                                 .with_input_section_flags(
                                                     matcher.input_section_flags,
                                                 ),
