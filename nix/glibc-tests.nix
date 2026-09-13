@@ -149,7 +149,7 @@ let
       fi
 
       echo "glibc ready. Relink with Wild:"
-      echo "  cargo test -p wild-linker --no-default-features --features fork,zstd --test integration_tests -- glibc"
+      echo "  cargo test -p wild-linker --test integration_tests -- glibc"
       echo "Then: wild-glibc-check"
     '';
   };
@@ -175,7 +175,7 @@ let
 
       if [ ! -f "$libc_wild" ] || [ ! -f "$ldso_wild" ]; then
         echo "missing Wild relink artifacts. Run:" >&2
-        echo "  cargo test -p wild-linker --no-default-features --features fork,zstd --test integration_tests -- glibc" >&2
+        echo "  cargo test -p wild-linker --test integration_tests -- glibc" >&2
         exit 1
       fi
 

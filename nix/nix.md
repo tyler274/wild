@@ -119,7 +119,7 @@ building, testing, debugging, and benchmarking Wild. It wraps **LLVM 22** clang 
 LLVMgold / lld / lldb so they match rustup nightly's LLVM, plus GCC with the
 LTO plugin search path, mold, glibc (static + source for relink tests), and:
 
-* `mimalloc` + `pkg-config` for `--features mimalloc-dynamic`
+* `mimalloc` + `pkg-config` for `--features mimalloc-dynamic` (default builds use mimalloc-rs)
 * `gdb`, `lldb`, `elfutils`, `valgrind`, `strace` for inspecting links
 * `hyperfine` and `samply` (see [BENCHMARKING.md](../BENCHMARKING.md))
 * `bc`, `pahole`, `rsync`, `openssl`, `ncurses` for optional kernel rebuilds
@@ -144,7 +144,7 @@ Glibc `configure` rejects Wild, so the GNU oracle is built first:
 
 ```sh
 wild-build-glibc
-cargo test -p wild-linker --no-default-features --features fork,zstd --test integration_tests -- glibc
+cargo test -p wild-linker --test integration_tests -- glibc
 ```
 
 `wild-build-glibc` uses unwrapped GCC 15 (the Nix gcc wrapper injects `_FORTIFY_SOURCE=3`) and GNU

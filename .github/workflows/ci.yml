@@ -99,8 +99,8 @@ jobs:
       - name: Install mold
         run: apt-get update && apt-get install -y --no-install-recommends mold
       - run: echo "WILD_TEST_CONFIG=test-config-ci.toml" >> $GITHUB_ENV
-      - run: cargo build --profile ci --workspace --no-default-features --features fork,zstd
-      - run: cargo test --profile ci -p wild-linker --no-default-features --features fork,zstd --test integration_tests -- trivial
+      - run: cargo build --profile ci --workspace --no-default-features --features fork,zstd,mimalloc
+      - run: cargo test --profile ci -p wild-linker --no-default-features --features fork,zstd,mimalloc --test integration_tests -- trivial
 
   vmlinux:
     name: Link x86_64 vmlinux
@@ -122,9 +122,9 @@ jobs:
           mkdir -p linux
           curl -fsSL "$WILD_LINUX_OBJECTS_URL" -o vmlinux-objects.tar.zst
           tar -C linux -xf vmlinux-objects.tar.zst
-      - run: cargo build --profile ci -p wild-linker --no-default-features --features fork,zstd
+      - run: cargo build --profile ci -p wild-linker --no-default-features --features fork,zstd,mimalloc
       - name: Diff key symbols against GNU ld
-        run: WILD_LINUX_TREE="$PWD/linux" cargo test --profile ci -p wild-linker --no-default-features --features fork,zstd --test integration_tests -- vmlinux
+        run: WILD_LINUX_TREE="$PWD/linux" cargo test --profile ci -p wild-linker --no-default-features --features fork,zstd,mimalloc --test integration_tests -- vmlinux
 
   vmlinux-lto:
     name: Link x86_64 ThinLTO vmlinux
@@ -146,9 +146,9 @@ jobs:
           mkdir -p linux-lto
           curl -fsSL "$WILD_LINUX_LTO_OBJECTS_URL" -o vmlinux-lto-objects.tar.zst
           tar -C linux-lto -xf vmlinux-lto-objects.tar.zst
-      - run: cargo build --profile ci -p wild-linker --no-default-features --features fork,zstd,plugins
+      - run: cargo build --profile ci -p wild-linker --no-default-features --features fork,zstd,plugins,mimalloc
       - name: Diff key symbols against LLD
-        run: WILD_LINUX_LTO_TREE="$PWD/linux-lto" cargo test --profile ci -p wild-linker --no-default-features --features fork,zstd,plugins --test integration_tests -- vmlinux-lto
+        run: WILD_LINUX_LTO_TREE="$PWD/linux-lto" cargo test --profile ci -p wild-linker --no-default-features --features fork,zstd,plugins,mimalloc --test integration_tests -- vmlinux-lto
 
   kani:
     name: Kani
@@ -176,15 +176,19 @@ jobs:
       - uses: wild-linker/action@latest
       - uses: Swatinem/rust-cache@v2
       - run: echo "WILD_TEST_CONFIG=test-config-ci.toml" >> $GITHUB_ENV
-      - name: Static mimalloc-rs
+      - name: Static mimalloc-rs (default)
         run: |
-          cargo build --profile ci -p wild-linker --no-default-features --features fork,zstd,mimalloc
-          cargo test --profile ci -p wild-linker --no-default-features --features fork,zstd,mimalloc --test integration_tests -- trivial
+          cargo build --profile ci -p wild-linker
+          cargo test --profile ci -p wild-linker --test integration_tests -- trivial
       - name: Dynamic libmimalloc
         run: |
           apt-get update && apt-get install -y --no-install-recommends libmimalloc-dev pkg-config
           cargo build --profile ci -p wild-linker --no-default-features --features fork,zstd,mimalloc-dynamic
           cargo test --profile ci -p wild-linker --no-default-features --features fork,zstd,mimalloc-dynamic --test integration_tests -- trivial
+      - name: System allocator
+        run: |
+          cargo build --profile ci -p wild-linker --no-default-features --features fork,zstd
+          cargo test --profile ci -p wild-linker --no-default-features --features fork,zstd --test integration_tests -- trivial
 
   linux-cross-build:
     name: Build Linux (${{ matrix.arch }})

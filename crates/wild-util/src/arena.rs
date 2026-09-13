@@ -2,7 +2,7 @@
 //!
 //! This is the layout-stack equivalent of mold's per-thread 1MiB arenas. We keep bumpalo rather
 //! than mimalloc heaps (`mi_heap_new`) because these allocations are never freed individually —
-//! they must borrow the linker's `'data` lifetime. mimalloc remains the optional process-wide
+//! they must borrow the linker's `'data` lifetime. mimalloc-rs is the default process-wide
 //! allocator on the `wild` binary (`--features mimalloc`); bump chunks then come from mimalloc's
 //! own thread-local heaps automatically.
 //!

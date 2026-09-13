@@ -9,20 +9,21 @@ Linker-diff is mainly a tool to aid Wild development, so you most likely don't w
 ## Building
 
 This project uses Cargo as its build system. The official releases are built with `--profile dist`
-that enables stripping of the binaries. Musl releases also enable `--feature mimalloc`, see below
-for the explanation.
+that enables stripping of the binaries. The default feature set includes `mimalloc` (mimalloc-rs).
 
 ### Optional features
 
-Wild has two optional build-time features:
+Wild has these build-time features:
 
 - `fork` (enabled by default) – an optimisation of process clean-up phase using `fork()`. Can be
   disabled in the runtime via `--no-fork` flag.
-- `mimalloc` (disabled by default) – build and use Mimalloc as the allocator instead of the system
-  one. It performs marginally worse than Glibc in Wild's case, but much better than Musl.
+- `mimalloc` (enabled by default) – statically embed [mimalloc-rs](https://crates.io/crates/mimalloc)
+  as the process allocator. Disable with
+  `--no-default-features --features fork,plugins,zstd` to use the system allocator.
 - `mimalloc-dynamic` (disabled by default) – dynamically link `libmimalloc.so` instead. Mutually
-  exclusive with `mimalloc` and `dhat`. `nix develop` puts nixpkgs `mimalloc` on `PKG_CONFIG_PATH`
-  / `LD_LIBRARY_PATH`.
+  exclusive with `mimalloc` and `dhat`. Build with
+  `--no-default-features --features fork,plugins,zstd,mimalloc-dynamic`.
+  `nix develop` puts nixpkgs `mimalloc` on `PKG_CONFIG_PATH` / `LD_LIBRARY_PATH`.
 
 ## Testing
 

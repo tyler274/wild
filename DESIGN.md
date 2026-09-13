@@ -111,9 +111,10 @@ Kani proofs live in `wild-util` (alignment, GNU LMA, skip-payload, plugin/GC fal
 generations) so they do not compile `wild-layout`. `./scripts/kani.sh` no-ops without `cargo-kani`;
 CI job `kani` uses the official GitHub action.
 
-`--features mimalloc` statically embeds mimalloc-rs (musl releases). `--features mimalloc-dynamic`
-links `libmimalloc.so` (`nix develop` provides it). The two are mutually exclusive with each other
-and with `dhat`.
+`--features mimalloc` (on by default) statically embeds mimalloc-rs as the process allocator.
+`--features mimalloc-dynamic` links `libmimalloc.so` and requires
+`--no-default-features --features fork,plugins,zstd,mimalloc-dynamic`. The two are mutually
+exclusive with each other and with `dhat`.
 
 ## Modularity (Mold and LLD)
 

@@ -20,12 +20,12 @@ harness = false
 [dependencies]
 libwild = { path = "../libwild", version = "0.10.0", default-features = false }
 
-# This is off by default, since it doesn't appear to help. However, if you're linking against musl
-# libc, which has a comparatively slow allocator, then enabling this does help. To enable this,
-# build with `--features mimalloc`.
-mimalloc = { workspace = true, optional = true }
-
 dhat = { workspace = true, optional = true }
+
+[target.'cfg(not(target_os = "wasi"))'.dependencies]
+# Default process allocator (mimalloc-rs). Disable with
+# `--no-default-features --features fork,plugins,zstd`.
+mimalloc = { workspace = true, optional = true }
 
 [dev-dependencies]
 ar.workspace = true
@@ -56,7 +56,7 @@ which.workspace = true
 wait-timeout.workspace = true
 
 [features]
-default = ["fork", "plugins", "zstd"]
+default = ["fork", "plugins", "zstd", "mimalloc"]
 
 fork = ["libwild/fork"]
 
@@ -70,11 +70,12 @@ wasm = ["libwild/wasm"]
 
 macho = ["libwild/macho"]
 
-# Statically embed mimalloc-rs (musl releases). Mutually exclusive with
+# Statically embed mimalloc-rs (on by default). Mutually exclusive with
 # `mimalloc-dynamic` and `dhat`.
 mimalloc = ["dep:mimalloc"]
 
 # Dynamically link libmimalloc.so. Mutually exclusive with `mimalloc` and `dhat`.
+# Use `--no-default-features --features fork,plugins,zstd,mimalloc-dynamic`.
 mimalloc-dynamic = []
 
 dhat = ["dep:dhat"]

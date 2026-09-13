@@ -5,15 +5,28 @@ compile_error!("features `mimalloc` and `dhat` are mutually exclusive");
 #[cfg(all(feature = "mimalloc-dynamic", feature = "dhat"))]
 compile_error!("features `mimalloc-dynamic` and `dhat` are mutually exclusive");
 
-#[cfg(feature = "mimalloc")]
+#[cfg(all(
+    feature = "mimalloc",
+    not(feature = "mimalloc-dynamic"),
+    not(feature = "dhat"),
+    not(target_os = "wasi")
+))]
 #[global_allocator]
 static MIMALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-#[cfg(feature = "mimalloc-dynamic")]
+#[cfg(all(
+    feature = "mimalloc-dynamic",
+    not(feature = "mimalloc"),
+    not(feature = "dhat")
+))]
 #[global_allocator]
 static MIMALLOC: MimallocDynamic = MimallocDynamic;
 
-#[cfg(feature = "dhat")]
+#[cfg(all(
+    feature = "dhat",
+    not(feature = "mimalloc"),
+    not(feature = "mimalloc-dynamic")
+))]
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 

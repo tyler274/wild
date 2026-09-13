@@ -53,6 +53,7 @@ possible to use libwild with input and output files in memory.
 
 ### ⚡ Performance
 
+- Default to mimalloc-rs as the process allocator
 - Default to --no-mmap-output-file when writing to btrfs/vfat (#2051)
 - Make gdb-index building do less heap allocation (#2057)
 - Avoid b-tree and parallelise symbol sort in gdb-index (#2073)
